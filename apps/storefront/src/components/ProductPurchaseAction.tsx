@@ -26,39 +26,53 @@ export function ProductPurchaseAction({
   return (
     <div className="space-y-3">
       {product.mode === "READY_STOCK" && (
-        <button
-          type="button"
-          onClick={handleAdd}
-          className="w-full rounded-full bg-[var(--color-ink)] py-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] transition-all hover:bg-[var(--color-charcoal)] shadow-sm"
-        >
-          {added ? "✓ Added to Ready Stock Cart" : "Add to Ready Stock Cart"}
-        </button>
+        <>
+          <button
+            type="button"
+            onClick={handleAdd}
+            className="w-full rounded-full bg-[var(--color-ink)] py-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] transition-all hover:bg-[var(--color-charcoal)] shadow-sm"
+          >
+            {added ? "✓ Added to Cart" : "Add to Cart"}
+          </button>
+          <p className="text-center text-[11px] text-[var(--color-muted-light)]">
+            Dispatches in 24–48 hours · {product.returnPolicyText}
+          </p>
+        </>
       )}
 
       {product.mode === "MADE_TO_ORDER" && (
-        <button
-          type="button"
-          onClick={handleAdd}
-          className="w-full rounded-full bg-[var(--color-ink)] py-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] transition-all hover:bg-[var(--color-charcoal)] shadow-sm"
-        >
-          {added
-            ? "✓ Commission Added to Cart"
-            : `Commission Piece (Pay 25% Advance: ${formattedAdvance})`}
-        </button>
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={handleAdd}
+            className="w-full rounded-full bg-[var(--color-ink)] py-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] transition-all hover:bg-[var(--color-charcoal)] shadow-sm"
+          >
+            {added ? "✓ Added to Cart" : "Add to Cart"}
+          </button>
+          <div className="text-center space-y-1">
+            <p className="text-xs font-semibold text-[var(--color-bronze)]">
+              Pay 25% to Order ({formattedAdvance})
+            </p>
+            <p className="text-[11px] text-[var(--color-muted-light)]">
+              Remaining 75% balance needs to be paid before dispatch. Governed by 7-day confirmation grace period.
+            </p>
+          </div>
+        </div>
       )}
 
       {product.mode === "QUOTE_ONLY" && (
-        <Link
-          href={`/contact?subject=Proposal%20Inquiry%20-%20${encodeURIComponent(product.name)}`}
-          className="block text-center w-full rounded-full bg-[var(--color-ink)] py-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] transition-all hover:bg-[var(--color-charcoal)] shadow-sm"
-        >
-          Request Architectural Proposal
-        </Link>
+        <div className="space-y-2">
+          <Link
+            href={`/contact?subject=Proposal%20Inquiry%20-%20${encodeURIComponent(product.name)}`}
+            className="block text-center w-full rounded-full bg-[var(--color-ink)] py-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] transition-all hover:bg-[var(--color-charcoal)] shadow-sm"
+          >
+            Contact for Quote
+          </Link>
+          <p className="text-center text-[11px] text-[var(--color-muted-light)]">
+            Custom dimensions & architectural proposals · 30-day locked terms
+          </p>
+        </div>
       )}
-
-      <p className="text-center text-[11px] text-[var(--color-muted-light)]">
-        {product.returnPolicyText}
-      </p>
     </div>
   );
 }

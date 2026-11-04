@@ -153,6 +153,12 @@ export function Header() {
           >
             Our Story
           </Link>
+          <Link
+            href="/contact"
+            className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
+          >
+            Contact
+          </Link>
         </nav>
 
         {/* Right Utility Navigation */}
@@ -243,6 +249,13 @@ export function Header() {
               className="block text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
             >
               Terms of Service
+            </Link>
+            <Link
+              href="/contact"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="block text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
+            >
+              Contact Studio
             </Link>
             <Link
               href="/privacy"

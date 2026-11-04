@@ -55,10 +55,10 @@ export default function CartPage() {
               Order Review & Disciplines
             </p>
             <h1 className="font-editorial text-4xl sm:text-5xl text-[var(--color-ink)] mb-3">
-              Your Commission & Cart
+              Your Cart
             </h1>
             <p className="text-xs text-[var(--color-muted-light)]">
-              Per Tavistra operating rules, Ready Stock items and Made to Order commissions follow independent checkout, payment, and fulfilment paths.
+              Per Tavistra operating rules, Ready Stock items and Made to Order pieces follow independent checkout, payment, and fulfilment paths.
             </p>
           </div>
 
@@ -260,7 +260,7 @@ export default function CartPage() {
                           >
                             <div className="space-y-1">
                               <span className="text-[10px] uppercase tracking-wider text-[var(--color-bronze)] font-semibold">
-                                Made to Order Commission
+                                Made to Order
                               </span>
                               <h4 className="font-semibold text-sm text-[var(--color-ink)]">
                                 {product.name}
@@ -314,7 +314,7 @@ export default function CartPage() {
                       {/* MTO Checkout Panel (Span 5) */}
                       <div className="lg:col-span-5 rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-6 space-y-6">
                         <h3 className="font-editorial text-2xl text-[var(--color-ink)]">
-                          Commission Milestones
+                          Order Summary
                         </h3>
 
                         <div className="space-y-3 text-xs border-b border-[var(--color-decorative-border)] pb-4">
@@ -371,3 +371,4 @@ export default function CartPage() {
     </div>
   );
 }
+
