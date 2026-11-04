@@ -37,21 +37,14 @@ export default function OurStoryPage() {
               {/* Left Column: Visual Motif Card */}
               <div className="md:col-span-5 flex flex-col justify-between rounded-3xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-10 aspect-square">
                 <div>
-                  <div className="mb-6 flex items-center justify-start">
-                    <img
-                      src="/logo-full.png"
-                      alt="Tavistra Full Logo"
-                      className="h-14 w-auto object-contain"
-                    />
-                  </div>
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--color-bronze)] block mb-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--color-bronze)] block mb-3">
                     Name Origin
                   </span>
-                  <span className="font-editorial text-4xl text-[var(--color-ink)] block mb-1">
+                  <span className="font-editorial text-4xl sm:text-5xl text-[var(--color-ink)] block mb-2 leading-tight">
                     Tvashtr (त्वष्टृ)
                   </span>
-                  <span className="text-xs text-[var(--color-muted-light)] block">
-                    The Vedic Artisan & Shaper of Matter
+                  <span className="text-xs text-[var(--color-muted-light)] block leading-relaxed">
+                    The Vedic Artisan & Divine Shaper of Form
                   </span>
                 </div>
 

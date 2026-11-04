@@ -6,27 +6,26 @@ export function Footer() {
   return (
     <footer className="mt-auto border-t border-[var(--color-decorative-border)] bg-[var(--color-charcoal)] text-[var(--color-ivory)]">
       <div className="mx-auto max-w-7xl px-6 py-16">
+        {/* Centerpiece Full Logo */}
+        <div className="mb-14 pb-12 border-b border-[var(--color-muted-dark)]/20 flex flex-col items-center justify-center text-center">
+          <Image
+            src="/tavistra-brand-lockup-light.png"
+            alt="Tavistra Full Brand"
+            width={240}
+            height={48}
+            className="h-9 sm:h-11 w-auto object-contain opacity-95 mb-4"
+          />
+          <p className="text-xs uppercase tracking-widest text-[var(--color-muted-dark)]">
+            Design-Led Objects · Architectural Décor · Contemporary Living
+          </p>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
           {/* Brand Philosophy */}
           <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-[var(--color-canvas)] rounded-lg p-1.5 flex items-center justify-center">
-                <Image
-                  src="/logo-mark.png"
-                  alt="Tavistra Mark"
-                  width={24}
-                  height={19}
-                  className="h-4 w-auto object-contain"
-                />
-              </div>
-              <Image
-                src="/logo-name-light.png"
-                alt="Tavistra"
-                width={130}
-                height={22}
-                className="h-4 w-auto object-contain"
-              />
-            </div>
+            <span className="font-editorial text-2xl tracking-wider text-[var(--color-canvas)] block">
+              Tavistra
+            </span>
             <p className="text-xs leading-relaxed text-[var(--color-muted-dark)]">
               A design-led lifestyle and architectural décor sub-brand of VDesign. 
               Master-crafted in India across Ready Stock, Made to Order, and Bespoke editions.
