@@ -29,3 +29,4 @@ export const MoneySchema = z.object({
   currency: z.literal('INR').default('INR'),
 });
 export type Money = z.infer<typeof MoneySchema>;
+

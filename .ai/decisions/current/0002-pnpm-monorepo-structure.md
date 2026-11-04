@@ -17,3 +17,4 @@ Adopt a **pnpm Monorepo (Modular Monolith)** structure:
 - Conforms directly to `docs/website/architecture.md` (distinct storefront, admin, and shared backend API / modular monolith).
 - Admin builds to static client-side distribution artifacts, enabling lightweight hosting via Nginx/Caddy reverse proxy on the Debian dev machine (`192.168.1.100`) and the future small Hostinger VPS.
 - High memory efficiency and complete isolation of staff administrative code from the public storefront bundle.
+
