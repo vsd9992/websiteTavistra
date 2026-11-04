@@ -14,14 +14,18 @@ export function Footer() {
                 <Image
                   src="/logo-mark.png"
                   alt="Tavistra Mark"
-                  width={28}
-                  height={22}
-                  className="h-5 w-auto object-contain"
+                  width={24}
+                  height={19}
+                  className="h-4 w-auto object-contain"
                 />
               </div>
-              <span className="font-editorial text-2xl tracking-wider text-[var(--color-canvas)]">
-                TAVISTRA
-              </span>
+              <Image
+                src="/logo-name-light.png"
+                alt="Tavistra"
+                width={130}
+                height={22}
+                className="h-4 w-auto object-contain"
+              />
             </div>
             <p className="text-xs leading-relaxed text-[var(--color-muted-dark)]">
               A design-led lifestyle and architectural décor sub-brand of VDesign. 

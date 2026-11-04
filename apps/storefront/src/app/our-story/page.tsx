@@ -107,19 +107,16 @@ export default function OurStoryPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* VDesign */}
               <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-8 space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase tracking-widest text-[var(--color-muted-light)] block">
-                    The Parent House
-                  </span>
+                <span className="text-xs font-semibold uppercase tracking-widest text-[var(--color-muted-light)] block">
+                  The Parent House
+                </span>
+                <div className="py-1">
                   <img
                     src="/vdesign-dark.png"
-                    alt="VDesign Logo"
-                    className="h-6 w-auto object-contain opacity-80"
+                    alt="VDesign Architectural Studio"
+                    className="h-8 w-auto object-contain"
                   />
                 </div>
-                <h3 className="font-editorial text-3xl text-[var(--color-ink)]">
-                  VDesign
-                </h3>
                 <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
                   The architectural custom-furniture studio. VDesign engineers permanent built-ins, site-integrated luxury furniture, custom dressing consoles, structural wood cladding, and bespoke interior installations.
                 </p>
@@ -133,9 +130,13 @@ export default function OurStoryPage() {
                 <span className="text-xs font-semibold uppercase tracking-widest text-[var(--color-bronze)] block">
                   The Lifestyle & Décor Sub-Brand
                 </span>
-                <h3 className="font-editorial text-3xl text-[var(--color-ink)]">
-                  Tavistra
-                </h3>
+                <div className="py-1">
+                  <img
+                    src="/logo-name.png"
+                    alt="Tavistra"
+                    className="h-7 w-auto object-contain"
+                  />
+                </div>
                 <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
                   Freestanding and simply mounted objects requiring zero structural construction. Architectural wall clocks, minimalist mirrors, weighted desk instruments, and atmospheric ambient lighting that move with your life.
                 </p>

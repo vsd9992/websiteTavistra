@@ -44,20 +44,20 @@ export function Header() {
           <Link href="/" className="group flex items-center gap-3">
             <Image
               src="/logo-mark.png"
-              alt="Tavistra Logo Mark"
-              width={34}
-              height={28}
+              alt="Tavistra Mark"
+              width={26}
+              height={22}
               priority
-              className="h-7 w-auto object-contain transition-opacity group-hover:opacity-85"
+              className="h-6 w-auto object-contain transition-opacity group-hover:opacity-85"
             />
-            <div className="flex flex-col">
-              <span className="font-editorial text-2xl tracking-wider text-[var(--color-ink)] transition-colors group-hover:text-[var(--color-bronze)] leading-none">
-                TAVISTRA
-              </span>
-              <span className="text-[9px] uppercase tracking-widest text-[var(--color-muted-light)] mt-0.5">
-                BY VDESIGN
-              </span>
-            </div>
+            <Image
+              src="/logo-name.png"
+              alt="Tavistra"
+              width={140}
+              height={24}
+              priority
+              className="h-5 w-auto object-contain transition-opacity group-hover:opacity-85"
+            />
           </Link>
         </div>
 
