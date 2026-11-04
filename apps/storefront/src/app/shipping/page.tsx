@@ -3,9 +3,9 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 
 export const metadata = {
-  title: "Delivery & Shipping Policy — Tavistra",
+  title: "Delivery, Shipping & Logistics Governance — Tavistra",
   description:
-    "Transparent delivery calculations, presumptive distance bands, dispatch timelines, and carrier handover protocols for Tavistra orders.",
+    "Comprehensive logistics policies, presumptive distance bands, transit risk allocation, failed attempts, and carrier handover protocols for Tavistra.",
 };
 
 export default function ShippingPolicyPage() {
@@ -18,101 +18,155 @@ export default function ShippingPolicyPage() {
           {/* Header */}
           <div className="border-b border-[var(--color-decorative-border)] pb-8 mb-10">
             <p className="text-xs uppercase tracking-widest text-[var(--color-bronze)] font-semibold mb-2">
-              Operational Transparency
+              Logistics & Fulfilment Architecture
             </p>
             <h1 className="font-editorial text-4xl sm:text-5xl text-[var(--color-ink)] mb-4">
               Delivery & Shipping Policy
             </h1>
             <p className="text-sm text-[var(--color-muted-light)]">
-              Last updated: November 2026 · Effective across all pan-India orders
+              Effective Date: November 2026 · Standard Pan-India Operating Protocol
             </p>
           </div>
 
-          {/* Core Content */}
           <div className="space-y-12 text-sm leading-relaxed text-[var(--color-muted-light)]">
-            {/* Section 1: Pricing Model */}
-            <section className="space-y-4">
+            {/* Section 1 */}
+            <section className="space-y-3">
               <h2 className="text-xl font-semibold text-[var(--color-ink)] font-editorial">
-                1. Transparent Pricing & Internal Rate Engine
+                1. Two-Component Honest Checkout Structure
               </h2>
               <p>
-                At Tavistra, we believe in complete financial clarity. The price you see at checkout consists strictly of two components:
+                Tavistra strictly prohibits deceptive checkout additions, post-cart packaging surcharges, or hidden handling fees. 
+                In compliance with the Consumer Protection (E-Commerce) Rules, 2020, every order invoice displays only two distinct financial components:
               </p>
               <ul className="list-disc pl-6 space-y-2 text-[var(--color-ink)]">
-                <li><strong>Tax-Inclusive Product Price:</strong> All applicable GST is already included in the stated item price.</li>
-                <li><strong>One Combined Delivery Charge:</strong> Calculated transparently using our internal destination distance-band engine based on package weight, volume, and destination pincode.</li>
+                <li>
+                  <strong>Tax-Inclusive Item Price:</strong> The published price represents the final cost of the product, inclusive of applicable Goods and Services Tax (GST) at statutory rates.
+                </li>
+                <li>
+                  <strong>Single Combined Delivery Charge:</strong> Calculated transparently using Tavistra&apos;s internal logistics pricing model based on dimensional volumetric weight, package fragility classification, and destination distance bands.
+                </li>
               </ul>
               <p>
-                We do not add surprise fees at checkout. Packaging, handling, and transit insurance are factored honestly into the upfront delivery quote.
+                All necessary custom-formed transit packaging, internal shock-absorbing braces, protective crates, and primary transit coverage are bundled directly into the delivery quotation.
               </p>
             </section>
 
-            {/* Section 2: Mode-Specific Timelines */}
-            <section className="space-y-4">
+            {/* Section 2 */}
+            <section className="space-y-3">
               <h2 className="text-xl font-semibold text-[var(--color-ink)] font-editorial">
-                2. Fulfilment Across Three Modes
+                2. Three Independent Fulfilment Streams & Timelines
               </h2>
               <p>
-                Because our collections range from immediate ready-stock pieces to studio-crafted bespoke installations, dispatch timelines are determined by your selected purchase mode:
+                Because our collections span studio ready stock, batch-produced craft editions, and commissioned site-specific art objects, order fulfilment operates under three mutually exclusive operational flows:
               </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
-                <div className="p-5 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]">
-                  <h3 className="font-semibold text-[var(--color-ink)] mb-2">Ready Stock</h3>
-                  <p className="text-xs text-[var(--color-muted-light)]">
-                    Pieces currently in inventory at our studio are inspected, packed, and handed over to courier partners within <strong>24–48 hours</strong> of verified payment.
+              <div className="space-y-4 pt-2">
+                <div className="p-6 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-base text-[var(--color-ink)]">A. Ready Stock (Immediate Inventory)</h3>
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-bronze)]">24–48 Hours Dispatch</span>
+                  </div>
+                  <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
+                    Finished items physically verified in warehouse stock. Dispatched within 24 to 48 business hours following authoritative electronic payment clearance. Estimated transit delivery is 3 to 6 business days depending on regional postal zone.
                   </p>
                 </div>
-                <div className="p-5 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]">
-                  <h3 className="font-semibold text-[var(--color-ink)] mb-2">Made to Order (MTO)</h3>
-                  <p className="text-xs text-[var(--color-muted-light)]">
-                    Crafted individually. Production begins following a 7-day confirmation grace period upon receiving your 25% verified advance. Dispatched only once 100% balance is cleared.
+
+                <div className="p-6 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-base text-[var(--color-ink)]">B. Made to Order (MTO)</h3>
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-bronze)]">Governed Lead Times</span>
+                  </div>
+                  <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
+                    Individual fabrication begins only after the mandatory 7-day post-confirmation grace period and verification of the 25% advance. Standard workshop crafting timelines range from 14 to 28 business days. Physical carrier handover occurs only after 100% balance settlement and final Quality Control (QC) clearance.
                   </p>
                 </div>
-                <div className="p-5 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]">
-                  <h3 className="font-semibold text-[var(--color-ink)] mb-2">Quote Only / Bespoke</h3>
-                  <p className="text-xs text-[var(--color-muted-light)]">
-                    Custom architectural installations follow milestone schedules specified on your approved proposal. Lead times typically range from 3 to 6 weeks.
+
+                <div className="p-6 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-base text-[var(--color-ink)]">C. Quote Only / Bespoke Architectural</h3>
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-bronze)]">Custom Milestone Schedule</span>
+                  </div>
+                  <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
+                    Custom scale installations, specialized finishes, and non-standard architectural elements follow custom milestone delivery dates articulated in the binding written proposal. Specialized crating and dedicated logistics handling are arranged individually.
                   </p>
                 </div>
               </div>
             </section>
 
-            {/* Section 3: Carrier Handover & Tracking */}
-            <section className="space-y-4">
+            {/* Section 3 */}
+            <section className="space-y-3">
               <h2 className="text-xl font-semibold text-[var(--color-ink)] font-editorial">
-                3. Courier Handover & Order Tracking
+                3. Courier Assignment & Transit Tracking
               </h2>
               <p>
-                Once an order has completed Quality Control (QC) and is packed, our studio assigns a verified courier partner (e.g., Blue Dart, Delhivery, or specialized surface transport for fragile/oversized architectural mirrors and lights).
+                We do not rely on unvetted generic drop-shippers. Courier allocation is performed manually by our dispatch desk based on consignment fragility and regional speed benchmarks. Primary carrier partners include Blue Dart Express, Delhivery Express, and specialized surface freight logistics.
               </p>
               <p>
-                You will receive an automated dispatch notification containing the carrier name and a direct consignment tracking link via email and SMS/WhatsApp.
+                Upon package scan, an authoritative airway bill (AWB) number and direct tracking URL are dispatched via email and SMS/WhatsApp. Please allow 12 hours from initial handover for carrier tracking databases to populate real-time node checkpoints.
               </p>
             </section>
 
-            {/* Section 4: Damage in Transit */}
-            <section className="space-y-4">
+            {/* Section 4: Brand Protection - Delivery Attempts & Customer Obligations */}
+            <section className="space-y-3">
               <h2 className="text-xl font-semibold text-[var(--color-ink)] font-editorial">
-                4. Transit Safeguards & Inspection on Delivery
+                4. Delivery Attempts, RTO & Customer Obligations
               </h2>
               <p>
-                All fragile objects are packed in reinforced, custom-molded protective crating. Upon receiving your delivery:
+                To ensure safe custody and eliminate transit loss, the following delivery protocols are strictly enforced:
               </p>
               <ul className="list-disc pl-6 space-y-2">
-                <li>Inspect the exterior packaging before signing the carrier proof of delivery.</li>
-                <li>In the rare event of visible exterior box damage or tampering, make a note on the carrier delivery receipt and photograph the package before opening.</li>
-                <li>Report any transit-related damage to <strong className="text-[var(--color-ink)]">support@tavistra.in</strong> within 48 hours with photographs for immediate remediation.</li>
+                <li>
+                  <strong>Three Delivery Attempts:</strong> Our logistics partners will make up to three consecutive delivery attempts. A delivery OTP or authorized recipient signature may be mandated for high-value consignments.
+                </li>
+                <li>
+                  <strong>Accurate Address & Contact Details:</strong> The customer is strictly responsible for providing a complete street address, identifiable landmarks, active primary phone number, and verified PIN code. Tavistra shall not be liable for transit delays or misroutings resulting from inaccurate customer inputs.
+                </li>
+                <li>
+                  <strong>Non-Availability & Return to Origin (RTO):</strong> If delivery fails after three attempts due to customer unavailability, refusal without cause, or unreachability, the shipment will be marked Return to Origin (RTO). In such cases, actual two-way freight charges incurred by Tavistra will be deducted from any eligible refund. For Made to Order items, the customer remains responsible for re-shipping charges prior to re-dispatch.
+                </li>
+                <li>
+                  <strong>Gated Communities & Specialized Access:</strong> If delivery requires special security entry, building hoist permits, or high-rise elevator permissions, the customer must arrange necessary approvals in advance.
+                </li>
               </ul>
             </section>
 
-            {/* Inquiries */}
+            {/* Section 5: Risk of Loss & Inspection on Arrival */}
+            <section className="space-y-3">
+              <h2 className="text-xl font-semibold text-[var(--color-ink)] font-editorial">
+                5. Transit Risk Allocation & Outer Box Inspection Protocol
+              </h2>
+              <p>
+                Title and risk of loss pass to the customer upon verified delivery handover at the destination address. Because architectural objects, glass components, and solid brass castings require rigorous handling, customers are required to follow our mandatory arrival protocol:
+              </p>
+              <div className="rounded-xl border border-[var(--color-control-border)]/40 bg-[var(--color-canvas)] p-5 space-y-3">
+                <h4 className="font-semibold text-xs uppercase tracking-wider text-[var(--color-ink)]">
+                  Mandatory Inspection Upon Handover:
+                </h4>
+                <ol className="list-decimal pl-5 space-y-1.5 text-xs">
+                  <li>Inspect the outer shipping crate/box for puncture holes, crushing, water exposure, or severed security seal tape prior to signing the delivery receipt.</li>
+                  <li>If obvious exterior destruction is visible, endorse the carrier delivery sheet explicitly with <em>&ldquo;Received in Damaged Condition — Subject to Inspection&rdquo;</em>, or refuse delivery and photograph the exterior.</li>
+                  <li><strong>Unboxing Video Mandate:</strong> For mirrors, delicate lighting fixtures, and collectible sculptures, we strongly advise recording an uninterrupted unboxing video from package seal to product inspection. Claims of missing parts or internal transit fractures must be notified within <strong>48 hours</strong> of carrier delivery timestamp via support@tavistra.in with photographic/video evidence.</li>
+                </ol>
+              </div>
+            </section>
+
+            {/* Section 6: Force Majeure */}
+            <section className="space-y-3">
+              <h2 className="text-xl font-semibold text-[var(--color-ink)] font-editorial">
+                6. Force Majeure & Exceptional Delays
+              </h2>
+              <p>
+                Tavistra shall not be held liable or deemed in default for transit delays or carrier failures resulting from acts beyond reasonable human control, including but not limited to severe weather disruptions, regional transport strikes, local lockdowns, floods, natural catastrophes, civil disturbances, or state regulatory border inspections. In such events, our support desk will communicate revised tracking expectations.
+              </p>
+            </section>
+
             <div className="pt-8 border-t border-[var(--color-decorative-border)]">
               <p className="text-xs text-[var(--color-muted-light)]">
-                Need specialized delivery assistance or an architectural delivery quotation? Contact our studio at{" "}
-                <Link href="mailto:studio@vdesign.in" className="text-[var(--color-bronze)] font-semibold hover:underline">
-                  studio@vdesign.in
-                </Link>.
+                For dispatch inquiries or address verification questions, email{" "}
+                <Link href="mailto:support@tavistra.in" className="text-[var(--color-bronze)] font-semibold hover:underline">
+                  support@tavistra.in
+                </Link>{" "}
+                or call our studio logistics desk directly.
               </p>
             </div>
           </div>

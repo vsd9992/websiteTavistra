@@ -13,3 +13,4 @@ modified: 2026-11-04
 - **Port 3001**: **Tavistra Storefront** (Next.js production runtime).
   - Launch script: `/home/vishnu/deployments/websiteTavistra/start.sh`
   - Accessible on local network at `http://192.168.1.100:3001`
+
