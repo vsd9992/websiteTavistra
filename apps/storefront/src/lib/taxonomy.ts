@@ -36,3 +36,4 @@ export const APPROVED_CATEGORIES: CategoryNav[] = [
     subcategories: ["Sculptures & Art Objects", "Wall Art"],
   },
 ];
+
