@@ -1,9 +1,14 @@
 import Link from "next/link";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { ProductCard } from "@/components/ProductCard";
+import { MOCK_PRODUCTS } from "@/lib/products";
 import { APPROVED_CATEGORIES } from "@/lib/taxonomy";
 
 export default function Home() {
+  const featuredProduct = MOCK_PRODUCTS.find((p) => p.slug === "monolith-minimalist-wall-clock")!;
+  const mtoFeaturedProduct = MOCK_PRODUCTS.find((p) => p.slug === "arc-solid-brass-wall-mirror")!;
+
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
@@ -30,17 +35,96 @@ export default function Home() {
                 Explore Catalogue
               </Link>
               <Link
-                href="/bespoke"
+                href="/category/home-decor-objects"
                 className="rounded-full border border-[var(--color-control-border)] bg-transparent px-8 py-3.5 text-sm font-semibold text-[var(--color-ink)] transition-all hover:border-[var(--color-ink)] hover:bg-[var(--color-canvas)]"
               >
-                Made to Order & Bespoke
+                Made to Order Editions
               </Link>
             </div>
           </div>
         </section>
 
-        {/* 3 Disciplined Fulfillment Modes Highlight */}
+        {/* WEB-031 Curated Editorial Mosaic (Asymmetrical Discovery Grid) */}
         <section className="px-6 py-20 bg-[var(--color-canvas)] border-b border-[var(--color-decorative-border)]">
+          <div className="mx-auto max-w-7xl">
+            <div className="flex flex-col md:flex-row md:items-end justify-between mb-12">
+              <div>
+                <h2 className="text-xs uppercase tracking-widest text-[var(--color-bronze)] font-semibold mb-2">
+                  Curated Editorial Mosaics
+                </h2>
+                <p className="font-editorial text-3xl sm:text-4xl text-[var(--color-ink)]">
+                  Selected Studio Works
+                </p>
+              </div>
+              <Link
+                href="/shop"
+                className="mt-4 md:mt-0 text-xs font-semibold text-[var(--color-bronze)] hover:underline uppercase tracking-wider"
+              >
+                View all catalogue pieces →
+              </Link>
+            </div>
+
+            {/* Asymmetrical Masonry Layout: 1 Large Feature + 2 Compact Grid Tiles */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
+              {/* Large Editorial Card (Span 7) */}
+              <div className="lg:col-span-7 flex flex-col justify-between rounded-3xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-8 sm:p-12">
+                <div>
+                  <span className="inline-block rounded-md bg-[var(--color-bronze)]/15 px-3 py-1 text-xs font-semibold text-[var(--color-bronze)] uppercase tracking-wider mb-6">
+                    Made to Order · Studio Architectural Batch
+                  </span>
+                  <h3 className="font-editorial text-3xl sm:text-4xl text-[var(--color-ink)] leading-tight mb-4">
+                    {mtoFeaturedProduct.name}
+                  </h3>
+                  <p className="text-sm text-[var(--color-muted-light)] leading-relaxed max-w-lg mb-8">
+                    {mtoFeaturedProduct.shortDescription} Hand-rolled architectural brass frame cradling high-definition silvered float glass with precision Z-bar wall mounting.
+                  </p>
+                  <div className="flex flex-wrap gap-2 mb-8">
+                    {mtoFeaturedProduct.materials.map((m) => (
+                      <span key={m} className="rounded-md bg-[var(--color-canvas)] px-3 py-1 text-xs font-medium text-[var(--color-ink)] border border-[var(--color-decorative-border)]/60">
+                        {m}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-6 border-t border-[var(--color-decorative-border)] flex items-center justify-between">
+                  <div>
+                    <span className="font-editorial text-2xl font-semibold text-[var(--color-ink)]">
+                      ₹38,000
+                    </span>
+                    <span className="block text-[11px] text-[var(--color-muted-light)]">
+                      25% Advance: ₹9,500 to commission
+                    </span>
+                  </div>
+                  <Link
+                    href={`/product/${mtoFeaturedProduct.slug}`}
+                    className="rounded-full bg-[var(--color-ink)] px-6 py-2.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors"
+                  >
+                    View Commission Terms
+                  </Link>
+                </div>
+              </div>
+
+              {/* Smaller Balanced Grid Cards (Span 5) */}
+              <div className="lg:col-span-5 flex flex-col justify-between gap-8">
+                <ProductCard product={featuredProduct} />
+                
+                {/* Brand Material Philosophy Micro-Card */}
+                <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-stone)]/40 p-6">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-2">
+                    Honest Materiality & Integrity
+                  </h4>
+                  <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
+                    Zero synthetic veneers or hollow imitations. We cast solid brass, machine monolithic aerospace aluminium, and craft using authentic architectural stone.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* 3 Disciplined Fulfillment Modes Highlight */}
+        <section className="px-6 py-20 bg-[var(--color-ivory)] border-b border-[var(--color-decorative-border)]">
           <div className="mx-auto max-w-7xl">
             <div className="text-center mb-16">
               <h2 className="text-xs uppercase tracking-widest text-[var(--color-muted-light)] font-semibold mb-2">
@@ -53,7 +137,7 @@ export default function Home() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {/* Ready Stock */}
-              <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-8 flex flex-col justify-between">
+              <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-8 flex flex-col justify-between">
                 <div>
                   <span className="inline-block rounded-md bg-[var(--color-stone)] px-2.5 py-1 text-[11px] font-semibold text-[var(--color-ink)] mb-4">
                     Immediate Dispatch
@@ -71,7 +155,7 @@ export default function Home() {
               </div>
 
               {/* Made to Order */}
-              <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-8 flex flex-col justify-between">
+              <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-8 flex flex-col justify-between">
                 <div>
                   <span className="inline-block rounded-md bg-[var(--color-stone)] px-2.5 py-1 text-[11px] font-semibold text-[var(--color-ink)] mb-4">
                     Batch & Custom
@@ -89,7 +173,7 @@ export default function Home() {
               </div>
 
               {/* Quote Only / Architectural */}
-              <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-8 flex flex-col justify-between">
+              <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-8 flex flex-col justify-between">
                 <div>
                   <span className="inline-block rounded-md bg-[var(--color-stone)] px-2.5 py-1 text-[11px] font-semibold text-[var(--color-ink)] mb-4">
                     Architectural & Bespoke
@@ -110,7 +194,7 @@ export default function Home() {
         </section>
 
         {/* 6 Core Categories Showcase */}
-        <section className="px-6 py-20 bg-[var(--color-ivory)]">
+        <section className="px-6 py-20 bg-[var(--color-canvas)]">
           <div className="mx-auto max-w-7xl">
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-12">
               <div>
@@ -123,9 +207,9 @@ export default function Home() {
               </div>
               <Link
                 href="/shop"
-                className="mt-4 md:mt-0 text-sm font-semibold text-[var(--color-bronze)] hover:underline"
+                className="mt-4 md:mt-0 text-xs font-semibold text-[var(--color-bronze)] hover:underline uppercase tracking-wider"
               >
-                View all collections →
+                Browse all categories →
               </Link>
             </div>
 
@@ -134,7 +218,7 @@ export default function Home() {
                 <Link
                   key={cat.slug}
                   href={`/category/${cat.slug}`}
-                  className="group rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-6 transition-all hover:border-[var(--color-control-border)] hover:shadow-sm"
+                  className="group rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-6 transition-all hover:border-[var(--color-control-border)] hover:shadow-sm"
                 >
                   <h3 className="text-lg font-semibold text-[var(--color-ink)] group-hover:text-[var(--color-bronze)] transition-colors mb-2">
                     {cat.name}

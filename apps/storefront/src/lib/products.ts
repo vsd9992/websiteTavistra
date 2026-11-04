@@ -151,3 +151,4 @@ export const MOCK_PRODUCTS: MockProduct[] = [
     ],
   },
 ];
+
