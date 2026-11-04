@@ -63,7 +63,11 @@ export function ProductPurchaseAction({
       {product.mode === "QUOTE_ONLY" && (
         <div className="space-y-2">
           <Link
-            href={`/contact?subject=Proposal%20Inquiry%20-%20${encodeURIComponent(product.name)}`}
+            href={`/contact?subject=Architectural%20%26%20Bespoke%20Commission%20(Quote%20Only)&product=${encodeURIComponent(
+              product.name
+            )}&sku=${encodeURIComponent(product.id)}&materials=${encodeURIComponent(
+              product.materials.join(", ")
+            )}`}
             className="block text-center w-full rounded-full bg-[var(--color-ink)] py-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] transition-all hover:bg-[var(--color-charcoal)] shadow-sm"
           >
             Contact for Quote
