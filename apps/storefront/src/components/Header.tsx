@@ -56,7 +56,7 @@ export function Header() {
               type="button"
               onClick={() => setIsShopOpen(!isShopOpen)}
               onMouseEnter={() => setIsShopOpen(true)}
-              className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] transition-colors hover:text-[var(--color-bronze)] py-2"
+              className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)] py-2"
               aria-expanded={isShopOpen}
             >
               <span>Shop</span>
