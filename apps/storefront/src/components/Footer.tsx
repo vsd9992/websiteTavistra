@@ -11,14 +11,14 @@ export function Footer() {
             <Image
               src="/logo-full-light.png"
               alt="Tavistra by VDesign"
-              width={240}
-              height={80}
+              width={480}
+              height={160}
               priority={false}
-              className="h-12 md:h-14 w-auto object-contain mx-auto"
+              className="h-24 md:h-28 w-auto object-contain mx-auto"
             />
           </Link>
 
-          <p className="mt-5 text-sm md:text-base leading-relaxed text-[var(--color-canvas)]/90 max-w-lg font-serif">
+          <p className="mt-6 text-sm md:text-base leading-relaxed text-[var(--color-canvas)]/90 max-w-lg font-serif">
             A design-led lifestyle and architectural décor sub-brand of VDesign.
           </p>
 
@@ -27,8 +27,8 @@ export function Footer() {
           </p>
         </div>
 
-        {/* Tier 2: Symmetrical 4-Column Architectural Navigation */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-10 lg:gap-14 pt-14 items-start">
+        {/* Tier 2: Symmetrical 3-Column Architectural Navigation */}
+        <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-10 md:gap-16 pt-14 items-start text-center sm:text-left">
           {/* Col 1: Objects & Living */}
           <div>
             <h4 className="text-xs font-semibold uppercase tracking-widest text-[var(--color-canvas)] mb-4">
@@ -135,39 +135,10 @@ export function Footer() {
               </li>
             </ul>
           </div>
-
-          {/* Col 4: VDesign */}
-          <div>
-            <h4 className="text-xs font-semibold uppercase tracking-widest text-[var(--color-canvas)] mb-4">
-              VDesign
-            </h4>
-            <div className="space-y-2 text-xs text-[var(--color-muted-dark)] leading-relaxed">
-              <p className="text-[var(--color-canvas)] font-medium">VDesign</p>
-              <p>
-                <a
-                  href="mailto:studio@vdesign.in"
-                  className="hover:text-[var(--color-canvas)] transition-colors"
-                >
-                  studio@vdesign.in
-                </a>
-              </p>
-              <p>
-                <a
-                  href="mailto:support@tavistra.in"
-                  className="hover:text-[var(--color-canvas)] transition-colors"
-                >
-                  support@tavistra.in
-                </a>
-              </p>
-              <p className="pt-1 text-[11px] text-[var(--color-muted-dark)]/70">
-                GST Invoicing on all confirmed domestic orders.
-              </p>
-            </div>
-          </div>
         </div>
 
         {/* Tier 3: Bottom Baseline Bar */}
-        <div className="mt-14 pt-8 border-t border-[var(--color-muted-dark)]/20 flex flex-col md:flex-row justify-between items-center text-[11px] text-[var(--color-muted-dark)] gap-3">
+        <div className="mt-16 pt-8 border-t border-[var(--color-muted-dark)]/20 flex flex-col md:flex-row justify-between items-center text-[11px] text-[var(--color-muted-dark)] gap-3">
           <p>© 2026 Tavistra by VDesign. All rights reserved.</p>
           <p className="tracking-wide text-center md:text-right">
             Tax-inclusive pricing · Independent mode fulfilment
