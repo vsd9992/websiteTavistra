@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { MOCK_PRODUCTS } from "@/lib/products";
+import { ProductPurchaseAction } from "@/components/ProductPurchaseAction";
 
 interface ProductPageProps {
   params: Promise<{
@@ -167,38 +168,10 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
               </div>
 
               {/* Action Buttons */}
-              <div className="space-y-3">
-                {product.mode === "READY_STOCK" && (
-                  <button
-                    type="button"
-                    className="w-full rounded-full bg-[var(--color-ink)] py-4 text-sm font-semibold text-[var(--color-canvas)] transition-all hover:bg-[var(--color-charcoal)] shadow-sm"
-                  >
-                    Add to Ready Stock Cart
-                  </button>
-                )}
-
-                {product.mode === "MADE_TO_ORDER" && (
-                  <button
-                    type="button"
-                    className="w-full rounded-full bg-[var(--color-ink)] py-4 text-sm font-semibold text-[var(--color-canvas)] transition-all hover:bg-[var(--color-charcoal)] shadow-sm"
-                  >
-                    Commission Piece (25% Advance)
-                  </button>
-                )}
-
-                {product.mode === "QUOTE_ONLY" && (
-                  <Link
-                    href={`/contact?subject=Proposal%20Inquiry%20-%20${encodeURIComponent(product.name)}`}
-                    className="block text-center w-full rounded-full bg-[var(--color-ink)] py-4 text-sm font-semibold text-[var(--color-canvas)] transition-all hover:bg-[var(--color-charcoal)] shadow-sm"
-                  >
-                    Request Architectural Proposal
-                  </Link>
-                )}
-
-                <p className="text-center text-[11px] text-[var(--color-muted-light)]">
-                  {product.returnPolicyText}
-                </p>
-              </div>
+              <ProductPurchaseAction
+                product={product}
+                formattedAdvance={formattedAdvance}
+              />
 
               {/* Design & Engineering Highlights */}
               <div className="pt-6 border-t border-[var(--color-decorative-border)] space-y-3">

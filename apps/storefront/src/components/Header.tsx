@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 import { APPROVED_CATEGORIES } from "@/lib/taxonomy";
+import { useCart } from "@/context/CartContext";
 
 export function Header() {
   const [isShopOpen, setIsShopOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { totalItemCount } = useCart();
 
   // Close dropdown on outside click or Escape
   useEffect(() => {
@@ -146,10 +148,10 @@ export function Header() {
             Collections
           </Link>
           <Link
-            href="/terms"
+            href="/our-story"
             className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
           >
-            Studio Governance
+            Our Story
           </Link>
         </nav>
 
@@ -162,12 +164,12 @@ export function Header() {
             Search
           </Link>
           <Link
-            href="/shop"
+            href="/cart"
             className="flex items-center gap-2 rounded-full border border-[var(--color-stone)] bg-[var(--color-ivory)] px-4 py-2 text-xs font-semibold text-[var(--color-ink)] transition-colors hover:border-[var(--color-control-border)]"
           >
             <span>Cart</span>
             <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[var(--color-ink)] text-[10px] text-[var(--color-canvas)]">
-              0
+              {totalItemCount}
             </span>
           </Link>
 
