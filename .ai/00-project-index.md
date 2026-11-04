@@ -20,6 +20,7 @@ Status: Concept specification imported; git connected to `websiteTavistra`; proj
 ## Current Decisions
 - [.ai/decisions/current/0001-dev-deployment-environment.md](decisions/current/0001-dev-deployment-environment.md) — Local Windows development with remote Debian dev/deployment server (`192.168.1.100`)
 - [.ai/decisions/current/0002-pnpm-monorepo-structure.md](decisions/current/0002-pnpm-monorepo-structure.md) — pnpm monorepo modular monolith (`apps/storefront`, `apps/admin`, `packages/db`, `packages/shared`)
+- [.ai/decisions/current/0003-dev-server-ports-and-runtime.md](decisions/current/0003-dev-server-ports-and-runtime.md) — Dev server runtime & port allocation (`http://192.168.1.100:3001` for storefront)
 
 ## Active Risks
 - PhonePe merchant review requirement requires a live, review-ready public site before gateway API access and production keys are granted.
