@@ -53,7 +53,7 @@ export default function OurStoryPage() {
                     &ldquo;To give enduring form to human imagination.&rdquo;
                   </p>
                   <p className="text-[10px] uppercase tracking-widest text-[var(--color-muted-light)] mt-2">
-                    VDesign Studio Lineage
+                    VDesign Lineage
                   </p>
                 </div>
               </div>
@@ -106,12 +106,12 @@ export default function OurStoryPage() {
                 <div className="py-1">
                   <img
                     src="/vdesign-dark.png"
-                    alt="VDesign Architectural Studio"
+                    alt="VDesign"
                     className="h-8 w-auto object-contain"
                   />
                 </div>
                 <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
-                  The architectural custom-furniture studio. VDesign engineers permanent built-ins, site-integrated luxury furniture, custom dressing consoles, structural wood cladding, and bespoke interior installations.
+                  The parent entity and architectural craft house. VDesign engineers permanent built-ins, site-integrated luxury furniture, custom dressing consoles, structural wood cladding, and bespoke interior installations.
                 </p>
                 <div className="pt-4 border-t border-[var(--color-decorative-border)]/60 text-[11px] text-[var(--color-ink)] font-semibold">
                   Focus: Permanent & Site-Integrated Architecture
