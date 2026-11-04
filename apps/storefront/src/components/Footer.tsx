@@ -6,36 +6,22 @@ export function Footer() {
   return (
     <footer className="mt-auto border-t border-[var(--color-decorative-border)] bg-[var(--color-charcoal)] text-[var(--color-ivory)]">
       <div className="mx-auto max-w-7xl px-6 py-16">
-        {/* Centerpiece Full Logo */}
-        <div className="mb-14 pb-12 border-b border-[var(--color-muted-dark)]/20 flex flex-col items-center justify-center text-center">
-          <Image
-            src="/tavistra-brand-lockup-light.png"
-            alt="Tavistra Full Brand"
-            width={240}
-            height={48}
-            className="h-9 sm:h-11 w-auto object-contain opacity-95 mb-4"
-          />
-          <p className="text-xs uppercase tracking-widest text-[var(--color-muted-dark)]">
-            Design-Led Objects · Architectural Décor · Contemporary Living
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
-          {/* Brand Philosophy */}
-          <div className="space-y-4">
+        {/* 5-Column Grid with Centerpiece Full Logo */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-10 items-start">
+          {/* Column 1: Brand Statement */}
+          <div className="space-y-3">
             <span className="font-editorial text-2xl tracking-wider text-[var(--color-canvas)] block">
               Tavistra
             </span>
             <p className="text-xs leading-relaxed text-[var(--color-muted-dark)]">
-              A design-led lifestyle and architectural décor sub-brand of VDesign. 
-              Master-crafted in India across Ready Stock, Made to Order, and Bespoke editions.
+              Design-led lifestyle and architectural décor sub-brand of VDesign. Master-crafted in India across Ready Stock, Made to Order, and Bespoke editions.
             </p>
             <p className="text-[11px] text-[var(--color-muted-dark)]/80">
-              Operating strictly on transparent, tax-inclusive pricing with independent mode fulfilment.
+              Tax-inclusive pricing with independent mode fulfilment.
             </p>
           </div>
 
-          {/* Discovery / Categories */}
+          {/* Column 2: Catalogue */}
           <div>
             <h4 className="text-xs font-semibold uppercase tracking-widest text-[var(--color-canvas)] mb-4">
               Catalogue
@@ -54,20 +40,37 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Transparent Policies (PhonePe Review Readiness) */}
+          {/* Column 3 (Center): Centerpiece Full Logo */}
+          <div className="flex flex-col items-center justify-center text-center p-6 rounded-2xl border border-[var(--color-muted-dark)]/15 bg-[var(--color-canvas)]/5 self-stretch">
+            <Image
+              src="/logo-full-light.png"
+              alt="Tavistra Full Logo"
+              width={260}
+              height={86}
+              className="h-16 w-auto object-contain mb-3 opacity-95"
+            />
+            <span className="text-[10px] uppercase tracking-widest text-[var(--color-muted-dark)] font-medium">
+              Architectural Editions
+            </span>
+            <p className="text-[10px] text-[var(--color-muted-dark)]/60 mt-1">
+              By VDesign Studio
+            </p>
+          </div>
+
+          {/* Column 4: Policies & Operations */}
           <div>
             <h4 className="text-xs font-semibold uppercase tracking-widest text-[var(--color-canvas)] mb-4">
-              Policies & Operations
+              Policies
             </h4>
             <ul className="space-y-2 text-xs text-[var(--color-muted-dark)]">
               <li>
                 <Link href="/shipping" className="hover:text-[var(--color-canvas)] transition-colors">
-                  Delivery & Distance Bands
+                  Delivery & Shipping
                 </Link>
               </li>
               <li>
                 <Link href="/returns-refunds" className="hover:text-[var(--color-canvas)] transition-colors">
-                  Returns & Cancellations
+                  Returns & Refunds
                 </Link>
               </li>
               <li>
@@ -77,28 +80,29 @@ export function Footer() {
               </li>
               <li>
                 <Link href="/privacy" className="hover:text-[var(--color-canvas)] transition-colors">
-                  Privacy Policy
+                  Privacy & Cookies
                 </Link>
               </li>
             </ul>
           </div>
 
-          {/* Contact & Merchant Identity */}
+          {/* Column 5: Contact & Studio */}
           <div>
             <h4 className="text-xs font-semibold uppercase tracking-widest text-[var(--color-canvas)] mb-4">
-              Contact & Studio
+              Studio
             </h4>
             <div className="space-y-2 text-xs text-[var(--color-muted-dark)]">
-              <p>VDesign Studio & Workshop</p>
+              <p>VDesign Studio</p>
               <p>Email: studio@vdesign.in</p>
               <p>Support: support@tavistra.in</p>
               <p className="pt-2 text-[11px] text-[var(--color-muted-dark)]/60">
-                GST & Invoicing details provided with every confirmed order.
+                GST invoicing provided with every confirmed order.
               </p>
             </div>
           </div>
         </div>
 
+        {/* Bottom Bar */}
         <div className="mt-16 pt-8 border-t border-[var(--color-muted-dark)]/20 flex flex-col md:flex-row justify-between items-center text-[11px] text-[var(--color-muted-dark)]">
           <p>© 2026 Tavistra by VDesign. All rights reserved.</p>
           <p className="mt-2 md:mt-0">

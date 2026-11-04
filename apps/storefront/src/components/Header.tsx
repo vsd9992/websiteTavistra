@@ -39,16 +39,16 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-[var(--color-decorative-border)] bg-[var(--color-canvas)]/95 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-        {/* Brand Lockup */}
+        {/* Brand Mark Only */}
         <div className="flex items-center gap-8">
           <Link href="/" className="group flex items-center">
             <Image
-              src="/tavistra-brand-lockup.png"
+              src="/logo-mark.png"
               alt="Tavistra"
-              width={160}
+              width={40}
               height={32}
               priority
-              className="h-8 w-auto object-contain transition-opacity group-hover:opacity-85"
+              className="h-8 w-auto object-contain transition-opacity group-hover:opacity-80"
             />
           </Link>
         </div>
