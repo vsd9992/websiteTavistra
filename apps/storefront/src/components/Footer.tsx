@@ -4,9 +4,9 @@ import Image from "next/image";
 export function Footer() {
   return (
     <footer className="mt-auto border-t border-[var(--color-decorative-border)] bg-[var(--color-charcoal)] text-[var(--color-ivory)]">
-      <div className="mx-auto max-w-5xl px-6 py-14 md:py-16">
+      <div className="mx-auto max-w-5xl px-6 py-14 md:py-18">
         {/* Tier 1: Symmetrical Brand Pavilion (Centered Anchor) */}
-        <div className="flex flex-col items-center justify-center text-center pb-10 border-b border-[var(--color-muted-dark)]/20">
+        <div className="flex flex-col items-center justify-center text-center pb-12 border-b border-[var(--color-muted-dark)]/20">
           <Link href="/" className="inline-block transition-opacity hover:opacity-85">
             <Image
               src="/logo-full-light.png"
@@ -18,13 +18,23 @@ export function Footer() {
             />
           </Link>
 
-          <p className="mt-5 text-sm md:text-base leading-relaxed text-[var(--color-canvas)]/90 max-w-lg font-serif">
-            A design-led lifestyle and architectural décor sub-brand of VDesign.
+          <p className="mt-6 font-serif text-lg md:text-xl text-[var(--color-canvas)] max-w-2xl leading-snug">
+            Enduring objects for contemporary living, born from architectural craft.
           </p>
 
-          <p className="mt-2 text-xs uppercase tracking-widest text-[var(--color-muted-dark)] font-medium">
-            Master-crafted in India · Ready Stock · Made to Order · Bespoke
+          <p className="mt-3 text-xs md:text-sm text-[var(--color-muted-dark)] max-w-2xl leading-relaxed">
+            Tavistra draws its creative ethos from <em>Tvashtr</em>, the Vedic divine artisan who embodies the impulse to give harmonious form to raw matter. As the design-led lifestyle sub-brand of VDesign, we engineer standalone décor, weighted desk instruments, and atmospheric ambient editions—crafted in India with deep tactile respect for solid hardwood, architectural metals, and fine joinery.
           </p>
+
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[10px] sm:text-[11px] uppercase tracking-widest text-[var(--color-bronze)] font-semibold">
+            <span>Ready Stock</span>
+            <span className="text-[var(--color-muted-dark)]/40">·</span>
+            <span>Made to Order</span>
+            <span className="text-[var(--color-muted-dark)]/40">·</span>
+            <span>Bespoke & Quote Only</span>
+            <span className="text-[var(--color-muted-dark)]/40">·</span>
+            <span className="text-[var(--color-muted-dark)]">Small-Batch Discipline</span>
+          </div>
         </div>
 
         {/* Tier 2: Symmetrical 3-Column Architectural Navigation */}
