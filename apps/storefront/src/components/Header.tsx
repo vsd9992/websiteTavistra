@@ -148,6 +148,12 @@ export function Header() {
             Collections
           </Link>
           <Link
+            href="/category/art-collectibles"
+            className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
+          >
+            Quote Only
+          </Link>
+          <Link
             href="/our-story"
             className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
           >
@@ -212,6 +218,15 @@ export function Header() {
                   className="font-semibold text-sm text-[var(--color-ink)] block hover:text-[var(--color-bronze)]"
                 >
                   All Works (Shop All)
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/category/art-collectibles"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="font-semibold text-xs text-[var(--color-bronze)] block hover:underline"
+                >
+                  Quote Only Editions
                 </Link>
               </li>
               {APPROVED_CATEGORIES.map((cat) => (

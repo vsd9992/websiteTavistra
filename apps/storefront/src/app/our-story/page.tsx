@@ -41,7 +41,7 @@ export default function OurStoryPage() {
                     Name Origin
                   </span>
                   <span className="font-editorial text-4xl text-[var(--color-ink)] block mb-1">
-                    Tvastr (त्वष्टृ)
+                    Tvashtr (त्वष्टृ)
                   </span>
                   <span className="text-xs text-[var(--color-muted-light)] block">
                     The Vedic Artisan & Shaper of Matter
@@ -71,7 +71,7 @@ export default function OurStoryPage() {
 
                 <div className="space-y-4 text-sm text-[var(--color-muted-light)] leading-relaxed">
                   <p>
-                    Tavistra draws its name and creative ethos from <strong>Tvastr</strong> (also transliterated <em>Tvaṣṭṛ</em>), the Vedic divine fashioner and master artisan who embodies the power of creation. In ancient philosophy, Tvastr represents the sacred impulse to take unformed stone, raw molten metal, and wood, and give them resolved, harmonious existence.
+                    Tavistra draws its name and creative ethos from <strong>Tvashtr</strong> (also transliterated <em>Tvaṣṭṛ</em>), the Vedic divine fashioner and master artisan who embodies the power of creation. In ancient philosophy, Tvashtr represents the sacred impulse to take unformed stone, raw molten metal, and wood, and give them resolved, harmonious existence.
                   </p>
                   <p>
                     As a coined brand name, <strong>Tavistra</strong> reflects this lineage: bringing mindful craftsmanship into contemporary daily rituals. We do not look at heritage as nostalgia or static ornament, but as a living standard of structural integrity and deep tactile respect for raw matter.
@@ -148,19 +148,19 @@ export default function OurStoryPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-6 space-y-2">
                 <span className="font-editorial text-2xl text-[var(--color-ink)] block">
-                  Solid Architectural Brass
+                  Hardwood & Fine Joinery
                 </span>
                 <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
-                  We use unlacquered, heavy-gauge brass that breathes and develops an authentic, graceful patina unique to your touch and atmosphere.
+                  Grounded in VDesign&apos;s woodworking roots: sustainably sourced solid timber, precision-joined plywood, and architectural veneer accents crafted with hand-milled integrity.
                 </p>
               </div>
 
               <div className="rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-6 space-y-2">
                 <span className="font-editorial text-2xl text-[var(--color-ink)] block">
-                  Monolithic Aluminium
+                  Architectural Metals & Stone
                 </span>
                 <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
-                  Precision-milled aerospace aluminium surfaces with micro-fine matte finishes for pure geometric silhouettes and featherlight balance.
+                  Unlacquered solid brass that matures gracefully, precision-machined aluminium, and cast mineral stone chosen for tactile permanence and authentic weight.
                 </p>
               </div>
 
@@ -169,7 +169,7 @@ export default function OurStoryPage() {
                   Small Batch Discipline
                 </span>
                 <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
-                  Editions limited to small runs (often ≤ 10 pieces per batch), preserving rigorous workshop inspection and personal artisan accountability.
+                  Fabricated in controlled small runs (typically ≤ 10 pieces per batch), ensuring microscopic attention to assembly tolerances and personal artisan accountability.
                 </p>
               </div>
             </div>
