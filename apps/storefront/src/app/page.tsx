@@ -93,14 +93,14 @@ export default function Home() {
                       ₹38,000
                     </span>
                     <span className="block text-[11px] text-[var(--color-muted-light)]">
-                      25% Advance: ₹9,500 to commission
+                      25% Advance: ₹9,500 to order
                     </span>
                   </div>
                   <Link
                     href={`/product/${mtoFeaturedProduct.slug}`}
                     className="rounded-full bg-[var(--color-ink)] px-6 py-2.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors"
                   >
-                    View Commission Terms
+                    View Product Details
                   </Link>
                 </div>
               </div>
@@ -131,7 +131,7 @@ export default function Home() {
                 Order Disciplines
               </h2>
               <p className="font-editorial text-3xl sm:text-4xl text-[var(--color-ink)]">
-                Three independent ways to commission and collect
+                Three independent ways to order and collect
               </p>
             </div>
 

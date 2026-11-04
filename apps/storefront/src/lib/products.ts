@@ -143,7 +143,7 @@ export const MOCK_PRODUCTS: MockProduct[] = [
     materials: ["Hand-Beaten Bronze", "Black Granite Plinth", "Precision Ceramic Bearings"],
     dimensions: "Custom Scaled (1.2m to 2.4m Height Options)",
     estimatedLeadTime: "6–8 weeks bespoke fabrication & testing",
-    returnPolicyText: "Bespoke commission: governed strictly by accepted proposal terms",
+    returnPolicyText: "Bespoke piece: governed strictly by accepted proposal terms",
     features: [
       "Custom architectural sizing tailored to client floorplans",
       "Independently numbered and studio-signed edition certificate",

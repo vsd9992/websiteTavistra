@@ -53,11 +53,14 @@ export function Header() {
         {/* Primary Desktop Navigation (WEB-035 Curated Mega-Menu Architecture) */}
         <nav className="hidden lg:flex items-center gap-8" ref={dropdownRef}>
           {/* Shop with Curated Mega-Menu */}
-          <div className="relative">
+          <div
+            className="relative"
+            onMouseEnter={() => setIsShopOpen(true)}
+            onMouseLeave={() => setIsShopOpen(false)}
+          >
             <button
               type="button"
               onClick={() => setIsShopOpen(!isShopOpen)}
-              onMouseEnter={() => setIsShopOpen(true)}
               className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)] py-2"
               aria-expanded={isShopOpen}
             >
@@ -77,10 +80,9 @@ export function Header() {
             {/* Curated Mega-Menu Panel */}
             {isShopOpen && (
               <div
-                onMouseLeave={() => setIsShopOpen(false)}
-                className="absolute -left-12 top-full mt-1 w-[720px] rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-8 shadow-xl"
+                className="absolute -left-12 top-full pt-2 w-[720px]"
               >
-                <div className="grid grid-cols-12 gap-8">
+                <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-8 shadow-xl grid grid-cols-12 gap-8">
                   {/* Left: 6 Approved Categories in 2 Columns */}
                   <div className="col-span-8">
                     <div className="flex items-center justify-between border-b border-[var(--color-decorative-border)]/60 pb-3 mb-4">
@@ -141,12 +143,6 @@ export function Header() {
             )}
           </div>
 
-          <Link
-            href="/shop"
-            className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
-          >
-            Collections
-          </Link>
           <Link
             href="/our-story"
             className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"

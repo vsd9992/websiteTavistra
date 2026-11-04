@@ -11,7 +11,7 @@ function ContactFormContent() {
   const productParam = searchParams.get("product") || "";
   const skuParam = searchParams.get("sku") || "";
   const materialsParam = searchParams.get("materials") || "";
-  const subjectParam = searchParams.get("subject") || "Architectural & Bespoke Commission (Quote Only)";
+  const subjectParam = searchParams.get("subject") || "Architectural & Bespoke Order (Quote Only)";
 
   const [submitted, setSubmitted] = useState(false);
   const [formData, setFormData] = useState({
@@ -136,7 +136,7 @@ function ContactFormContent() {
                   onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
                   className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
                 >
-                  <option>Architectural & Bespoke Commission (Quote Only)</option>
+                  <option>Architectural & Bespoke Order (Quote Only)</option>
                   <option>Made to Order Lead Time Query</option>
                   <option>Existing Order Support & Tracking</option>
                   <option>B2B Corporate Invoicing (GST)</option>
@@ -145,7 +145,7 @@ function ContactFormContent() {
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-2">
-                  Delivery PIN Code (For Distance-Band Quote)
+                  Delivery PIN Code
                 </label>
                 <input
                   type="text"
@@ -238,7 +238,7 @@ export default function ContactPage() {
               Connect with Tavistra Studio
             </h1>
             <p className="text-sm text-[var(--color-muted-light)] leading-relaxed max-w-2xl">
-              For custom architectural commissions, site-specific lighting proposals (Quote Only), general orders, or order-linked support assistance.
+              For custom architectural orders, site-specific lighting proposals (Quote Only), general orders, or order-linked support assistance.
             </p>
           </div>
 
