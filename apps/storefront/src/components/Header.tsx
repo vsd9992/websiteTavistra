@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState, useRef, useEffect } from "react";
 import { APPROVED_CATEGORIES } from "@/lib/taxonomy";
 import { useCart } from "@/context/CartContext";
@@ -38,15 +39,25 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-[var(--color-decorative-border)] bg-[var(--color-canvas)]/95 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-        {/* Brand Wordmark */}
+        {/* Brand Logo & Wordmark */}
         <div className="flex items-center gap-8">
-          <Link href="/" className="group flex flex-col">
-            <span className="font-editorial text-2xl tracking-wider text-[var(--color-ink)] transition-colors group-hover:text-[var(--color-bronze)]">
-              TAVISTRA
-            </span>
-            <span className="text-[9px] uppercase tracking-widest text-[var(--color-muted-light)]">
-              BY VDESIGN
-            </span>
+          <Link href="/" className="group flex items-center gap-3">
+            <Image
+              src="/logo-mark.png"
+              alt="Tavistra Logo Mark"
+              width={34}
+              height={28}
+              priority
+              className="h-7 w-auto object-contain transition-opacity group-hover:opacity-85"
+            />
+            <div className="flex flex-col">
+              <span className="font-editorial text-2xl tracking-wider text-[var(--color-ink)] transition-colors group-hover:text-[var(--color-bronze)] leading-none">
+                TAVISTRA
+              </span>
+              <span className="text-[9px] uppercase tracking-widest text-[var(--color-muted-light)] mt-0.5">
+                BY VDESIGN
+              </span>
+            </div>
           </Link>
         </div>
 

@@ -37,6 +37,13 @@ export default function OurStoryPage() {
               {/* Left Column: Visual Motif Card */}
               <div className="md:col-span-5 flex flex-col justify-between rounded-3xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-10 aspect-square">
                 <div>
+                  <div className="mb-6 flex items-center justify-start">
+                    <img
+                      src="/logo-full.png"
+                      alt="Tavistra Full Logo"
+                      className="h-14 w-auto object-contain"
+                    />
+                  </div>
                   <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--color-bronze)] block mb-2">
                     Name Origin
                   </span>
@@ -100,9 +107,16 @@ export default function OurStoryPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* VDesign */}
               <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-8 space-y-4">
-                <span className="text-xs font-semibold uppercase tracking-widest text-[var(--color-muted-light)] block">
-                  The Parent House
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-widest text-[var(--color-muted-light)] block">
+                    The Parent House
+                  </span>
+                  <img
+                    src="/vdesign-dark.png"
+                    alt="VDesign Logo"
+                    className="h-6 w-auto object-contain opacity-80"
+                  />
+                </div>
                 <h3 className="font-editorial text-3xl text-[var(--color-ink)]">
                   VDesign
                 </h3>

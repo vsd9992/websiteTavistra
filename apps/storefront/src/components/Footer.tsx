@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { APPROVED_CATEGORIES } from "@/lib/taxonomy";
 
 export function Footer() {
@@ -8,9 +9,20 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
           {/* Brand Philosophy */}
           <div className="space-y-4">
-            <span className="font-editorial text-2xl tracking-wider text-[var(--color-canvas)]">
-              TAVISTRA
-            </span>
+            <div className="flex items-center gap-3">
+              <div className="bg-[var(--color-canvas)] rounded-lg p-1.5 flex items-center justify-center">
+                <Image
+                  src="/logo-mark.png"
+                  alt="Tavistra Mark"
+                  width={28}
+                  height={22}
+                  className="h-5 w-auto object-contain"
+                />
+              </div>
+              <span className="font-editorial text-2xl tracking-wider text-[var(--color-canvas)]">
+                TAVISTRA
+              </span>
+            </div>
             <p className="text-xs leading-relaxed text-[var(--color-muted-dark)]">
               A design-led lifestyle and architectural décor sub-brand of VDesign. 
               Master-crafted in India across Ready Stock, Made to Order, and Bespoke editions.
