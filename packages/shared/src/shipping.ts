@@ -1,20 +1,20 @@
 import { z } from 'zod';
 
 export const ShippingZoneCode = z.enum([
-  'ZONE_A', // Local / Karnataka
-  'ZONE_B', // Regional / South & West
-  'ZONE_C', // National / Metro & North/East
-  'ZONE_D', // Special / Remote / J&K / NE / Islands
+  'ZONE_A', // Delhi NCR (Local)
+  'ZONE_B', // North India (<500km: UP, HR, PB, RJ, UK, HP)
+  'ZONE_C', // Major Metros (Mumbai, Bengaluru, Hyderabad, Chennai, Kolkata, Ahmedabad)
+  'ZONE_D', // Rest of India (Tier 2 & 3 Cities)
+  'ZONE_E', // Special / Remote (J&K, Ladakh, North East, Andaman & Nicobar, Lakshadweep)
 ]);
 export type ShippingZoneCode = z.infer<typeof ShippingZoneCode>;
+
+export type CarrierTier = 'DELHIVERY_AIR' | 'BLUEDART_SURFACE' | 'SAFEEXPRESS_PALLET';
 
 export interface ShippingZoneConfig {
   code: ShippingZoneCode;
   name: string;
-  description: string;
-  baseWeightGrams: number;
-  baseRateRupees: number;
-  perAdditionalKgRupees: number;
+  regionDescription: string;
   estimatedDaysMin: number;
   estimatedDaysMax: number;
 }
@@ -22,142 +22,244 @@ export interface ShippingZoneConfig {
 export const SHIPPING_ZONES: Record<ShippingZoneCode, ShippingZoneConfig> = {
   ZONE_A: {
     code: 'ZONE_A',
-    name: 'Zone A (Intra-State / Karnataka)',
-    description: 'Local transit with specialized white-glove courier handling.',
-    baseWeightGrams: 2000,
-    baseRateRupees: 450,
-    perAdditionalKgRupees: 80,
-    estimatedDaysMin: 2,
-    estimatedDaysMax: 3,
+    name: 'Zone A (Delhi NCR / Local)',
+    regionDescription: 'Delhi, Gurgaon, Noida, Faridabad, Ghaziabad',
+    estimatedDaysMin: 1,
+    estimatedDaysMax: 2,
   },
   ZONE_B: {
     code: 'ZONE_B',
-    name: 'Zone B (Regional / South & West)',
-    description: 'Southern & Western states (TN, KL, AP, TS, GA, MH).',
-    baseWeightGrams: 2000,
-    baseRateRupees: 750,
-    perAdditionalKgRupees: 120,
-    estimatedDaysMin: 3,
-    estimatedDaysMax: 5,
+    name: 'Zone B (North India <500 km)',
+    regionDescription: 'Haryana, Punjab, Rajasthan, Uttar Pradesh, Uttarakhand, Himachal',
+    estimatedDaysMin: 2,
+    estimatedDaysMax: 3,
   },
   ZONE_C: {
     code: 'ZONE_C',
-    name: 'Zone C (National / Metro & Rest of India)',
-    description: 'Major metros, Northern, Central and Eastern states.',
-    baseWeightGrams: 2000,
-    baseRateRupees: 1100,
-    perAdditionalKgRupees: 160,
-    estimatedDaysMin: 5,
-    estimatedDaysMax: 8,
+    name: 'Zone C (Major Metros)',
+    regionDescription: 'Bengaluru, Mumbai, Pune, Hyderabad, Chennai, Kolkata, Ahmedabad',
+    estimatedDaysMin: 3,
+    estimatedDaysMax: 5,
   },
   ZONE_D: {
     code: 'ZONE_D',
-    name: 'Zone D (Remote / Special Terrain)',
-    description: 'J&K, Ladakh, North-East, and Island territories.',
-    baseWeightGrams: 2000,
-    baseRateRupees: 1650,
-    perAdditionalKgRupees: 220,
+    name: 'Zone D (Rest of India)',
+    regionDescription: 'Tier 2 & Tier 3 cities across Central, Western & Southern India',
+    estimatedDaysMin: 5,
+    estimatedDaysMax: 7,
+  },
+  ZONE_E: {
+    code: 'ZONE_E',
+    name: 'Zone E (Special & Remote Terrain)',
+    regionDescription: 'J&K, Ladakh, North-East states, Andaman & Nicobar, Lakshadweep',
     estimatedDaysMin: 7,
     estimatedDaysMax: 12,
   },
 };
 
 /**
- * Resolves the applicable shipping zone from a 6-digit Indian PIN code.
+ * Resolves the applicable shipping zone from a 6-digit Indian PIN code
+ * (Ex-Delhi NCR logistics hub baseline from docs/deliveryFee.md).
  */
 export function resolveShippingZone(pincode: string): ShippingZoneCode {
   const cleanPin = pincode.replace(/\s+/g, '');
   if (!/^\d{6}$/.test(cleanPin)) {
-    // Default to national if format is irregular during initial estimation
-    return 'ZONE_C';
+    return 'ZONE_D'; // Fallback default
   }
 
-  const prefix2 = cleanPin.substring(0, 2);
-  const prefix3 = cleanPin.substring(0, 3);
+  const p2 = cleanPin.substring(0, 2);
+  const p3 = cleanPin.substring(0, 3);
 
-  // Zone D: Special / Remote (J&K 18-19, NE 78-79, Islands 744, Ladakh 194)
+  // Zone E: Special / Remote (J&K 18-19, NE 78-79, Islands 744, Ladakh 194, interior HP)
   if (
-    prefix2 === '18' ||
-    prefix2 === '19' ||
-    prefix2 === '79' ||
-    prefix3 === '788' ||
-    prefix3 === '789' ||
-    prefix3 === '744'
+    p2 === '18' ||
+    p2 === '19' ||
+    p2 === '79' ||
+    p3 === '788' ||
+    p3 === '789' ||
+    p3 === '744' ||
+    p3 === '172' ||
+    p3 === '175' ||
+    p3 === '176'
   ) {
-    return 'ZONE_D';
+    return 'ZONE_E';
   }
 
-  // Zone A: Karnataka (56, 57, 58, 59)
-  if (['56', '57', '58', '59'].includes(prefix2)) {
+  // Zone A: Delhi NCR (11 Delhi, 122/121 Gurgaon/Faridabad, 201 Noida/Ghaziabad)
+  if (p2 === '11' || p3 === '121' || p3 === '122' || p3 === '201') {
     return 'ZONE_A';
   }
 
-  // Zone B: Southern & Western neighbors
-  // TN (60-64), KL (67-69), AP/TS (50-53), MH (40-44), Goa (403)
-  const isSouthWest =
-    ['50', '51', '52', '53', '60', '61', '62', '63', '64', '67', '68', '69', '40', '41', '42', '43', '44'].includes(prefix2);
-  if (isSouthWest) {
+  // Zone C: Major Metros
+  // Mumbai/Pune (40, 41), Bengaluru (56), Hyderabad (50), Chennai (60), Kolkata (70), Ahmedabad (38)
+  if (['40', '41', '56', '50', '60', '70', '38'].includes(p2)) {
+    return 'ZONE_C';
+  }
+
+  // Zone B: North India (<500 km)
+  // Haryana (12, 13), Punjab (14, 15), Himachal (17), UP (20-28), Rajasthan (30-34), UK (24-26)
+  const isNorth =
+    ['12', '13', '14', '15', '17', '20', '21', '22', '23', '24', '25', '26', '27', '28', '30', '31', '32', '33', '34'].includes(p2);
+  if (isNorth) {
     return 'ZONE_B';
   }
 
-  // Zone C: National / All other Indian PIN codes
-  return 'ZONE_C';
+  // Zone D: Rest of India
+  return 'ZONE_D';
 }
 
-export interface PackageDimensions {
+export interface ItemPhysicalSpec {
+  priceRupees: number;
   weightGrams: number;
   lengthMm: number;
   widthMm: number;
   heightMm: number;
+  isFragile?: boolean;
+}
+
+export interface ShippingCalculationResult {
+  zone: ShippingZoneConfig;
+  carrierTier: CarrierTier;
+  carrierName: string;
+  actualWeightKg: number;
+  volumetricWeightKg: number;
+  billableWeightKg: number;
+  packagingTier: 'MINI' | 'SMALL' | 'MEDIUM' | 'LARGE' | 'HEAVY_CRATED';
+  packagingCostRupees: number;
+  insuranceFovRupees: number;
+  baseFreightRupees: number;
+  gstAmountRupees: number;
+  totalDeliveryFeeRupees: number;
+  transitDaysEstimate: string;
 }
 
 /**
- * Calculates billable volumetric or actual weight and applies the distance-band freight formula.
- * Volumetric divisor: 5000 (air/surface courier standard: (L cm * W cm * H cm) / 5000 = kg).
+ * Master Rate Matrix from docs/deliveryFee.md
+ * Table mapping Billable Weight Tier x Zone Code.
  */
-export function calculateDistanceBandShipping(
+interface RateBracket {
+  maxWeightKg: number;
+  packagingTier: 'MINI' | 'SMALL' | 'MEDIUM' | 'LARGE' | 'HEAVY_CRATED';
+  packagingCostRupees: number;
+  carrierTier: CarrierTier;
+  carrierName: string;
+  baseRates: Record<ShippingZoneCode, number>;
+}
+
+const RATE_BRACKETS: RateBracket[] = [
+  // 1. Mini (<= 0.5 kg) - e.g. Pocket talisman, key tags
+  {
+    maxWeightKg: 0.5,
+    packagingTier: 'MINI',
+    packagingCostRupees: 60,
+    carrierTier: 'DELHIVERY_AIR',
+    carrierName: 'Delhivery Express Air',
+    baseRates: { ZONE_A: 50, ZONE_B: 60, ZONE_C: 75, ZONE_D: 85, ZONE_E: 115 },
+  },
+  // 2. Small Fragile (<= 2 kg) - e.g. Desk organisers, compact stone
+  {
+    maxWeightKg: 2.0,
+    packagingTier: 'SMALL',
+    packagingCostRupees: 130,
+    carrierTier: 'BLUEDART_SURFACE',
+    carrierName: 'Blue Dart Fragile Surface',
+    baseRates: { ZONE_A: 190, ZONE_B: 250, ZONE_C: 360, ZONE_D: 420, ZONE_E: 580 },
+  },
+  // 3. Medium Fragile (<= 6 kg) - e.g. Wall clocks, articulated desk lamps
+  {
+    maxWeightKg: 6.0,
+    packagingTier: 'MEDIUM',
+    packagingCostRupees: 280,
+    carrierTier: 'BLUEDART_SURFACE',
+    carrierName: 'Blue Dart Surfaceline',
+    baseRates: { ZONE_A: 350, ZONE_B: 440, ZONE_C: 620, ZONE_D: 740, ZONE_E: 1050 },
+  },
+  // 4. Large Fragile (<= 22 kg) - e.g. Solid brass wall mirrors in crate
+  {
+    maxWeightKg: 22.0,
+    packagingTier: 'LARGE',
+    packagingCostRupees: 650,
+    carrierTier: 'SAFEEXPRESS_PALLET',
+    carrierName: 'Safeexpress Palletized Caged Freight',
+    baseRates: { ZONE_A: 750, ZONE_B: 950, ZONE_C: 1350, ZONE_D: 1650, ZONE_E: 2600 },
+  },
+  // 5. Heavy / Jumbo Crated (> 22 kg up to 55 kg) - e.g. Large kinetic sculptures, balcony consoles
+  {
+    maxWeightKg: 55.0,
+    packagingTier: 'HEAVY_CRATED',
+    packagingCostRupees: 1450,
+    carrierTier: 'SAFEEXPRESS_PALLET',
+    carrierName: 'Safeexpress / Gati B2B LTL Heavy',
+    baseRates: { ZONE_A: 1350, ZONE_B: 1700, ZONE_C: 2450, ZONE_D: 3050, ZONE_E: 4900 },
+  },
+];
+
+/**
+ * Calculates delivery fee conforming strictly to the All-In Formula from docs/deliveryFee.md:
+ * Total Delivery Fee = [Base Freight + Fragile Packaging + (2% FOV Insurance)] * 1.18 (GST)
+ *
+ * Enforces TAV-03 (Exactly two customer-facing price components: Product Price + Single Delivery Charge).
+ */
+export function calculateDeliveryFee(
   zoneCode: ShippingZoneCode,
-  items: PackageDimensions[]
-): {
-  zone: ShippingZoneConfig;
-  actualWeightGrams: number;
-  volumetricWeightGrams: number;
-  billableWeightGrams: number;
-  shippingChargeRupees: number;
-} {
+  items: ItemPhysicalSpec[]
+): ShippingCalculationResult {
   const zone = SHIPPING_ZONES[zoneCode];
 
-  let totalActualWeight = 0;
-  let totalVolumetricWeight = 0;
+  let totalActualWeightGrams = 0;
+  let totalVolumetricWeightGrams = 0;
+  let totalProductValueRupees = 0;
 
   for (const item of items) {
-    totalActualWeight += item.weightGrams;
+    totalActualWeightGrams += item.weightGrams;
+    totalProductValueRupees += item.priceRupees;
 
-    // Dimensions in cm
-    const lCm = item.lengthMm / 10;
-    const wCm = item.widthMm / 10;
-    const hCm = item.heightMm / 10;
+    // Convert mm to cm with 2-inch (~5cm) fragile cushioning allowance on all sides
+    // per docs/deliveryFee.md Step 1
+    const lCm = (item.lengthMm + 50) / 10;
+    const wCm = (item.widthMm + 50) / 10;
+    const hCm = (item.heightMm + 50) / 10;
 
-    // Volumetric kg * 1000 = grams
+    // Standard surface volumetric formula: (L x W x H in cm) / 5000 = kg
     const volGrams = Math.round(((lCm * wCm * hCm) / 5000) * 1000);
-    totalVolumetricWeight += volGrams;
+    totalVolumetricWeightGrams += volGrams;
   }
 
-  const billableWeightGrams = Math.max(totalActualWeight, totalVolumetricWeight);
+  const actualWeightKg = Number((totalActualWeightGrams / 1000).toFixed(2));
+  const volumetricWeightKg = Number((totalVolumetricWeightGrams / 1000).toFixed(2));
+  const billableWeightKg = Math.max(actualWeightKg, volumetricWeightKg);
 
-  // Base charge covers up to baseWeightGrams (2000g)
-  let charge = zone.baseRateRupees;
-  if (billableWeightGrams > zone.baseWeightGrams) {
-    const excessGrams = billableWeightGrams - zone.baseWeightGrams;
-    const excessKg = Math.ceil(excessGrams / 1000);
-    charge += excessKg * zone.perAdditionalKgRupees;
-  }
+  // Find appropriate rate bracket
+  const bracket =
+    RATE_BRACKETS.find((b) => billableWeightKg <= b.maxWeightKg) ||
+    RATE_BRACKETS[RATE_BRACKETS.length - 1];
+
+  const baseFreight = bracket.baseRates[zoneCode];
+  const packagingCost = bracket.packagingCostRupees;
+
+  // Carrier's Risk (FOV Insurance): 2% of product value (Min ₹100 per deliveryFee.md)
+  const insuranceFov = Math.max(100, Math.round(totalProductValueRupees * 0.02));
+
+  // Pre-tax subtotal for freight
+  const preTaxFreightSubtotal = baseFreight + packagingCost + insuranceFov;
+
+  // Statutory GST @ 18%
+  const gstAmount = Math.round(preTaxFreightSubtotal * 0.18);
+  const totalDeliveryFee = preTaxFreightSubtotal + gstAmount;
 
   return {
     zone,
-    actualWeightGrams: totalActualWeight,
-    volumetricWeightGrams: totalVolumetricWeight,
-    billableWeightGrams,
-    shippingChargeRupees: charge,
+    carrierTier: bracket.carrierTier,
+    carrierName: bracket.carrierName,
+    actualWeightKg,
+    volumetricWeightKg,
+    billableWeightKg,
+    packagingTier: bracket.packagingTier,
+    packagingCostRupees: packagingCost,
+    insuranceFovRupees: insuranceFov,
+    baseFreightRupees: baseFreight,
+    gstAmountRupees: gstAmount,
+    totalDeliveryFeeRupees: totalDeliveryFee,
+    transitDaysEstimate: `${zone.estimatedDaysMin}–${zone.estimatedDaysMax} business days`,
   };
 }

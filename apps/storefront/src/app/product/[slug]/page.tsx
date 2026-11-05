@@ -4,6 +4,7 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { MOCK_PRODUCTS } from "@/lib/products";
 import { ProductPurchaseAction } from "@/components/ProductPurchaseAction";
+import { DeliveryEstimator } from "@/components/DeliveryEstimator";
 
 interface ProductPageProps {
   params: Promise<{
@@ -172,6 +173,9 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
                 product={product}
                 formattedAdvance={formattedAdvance}
               />
+
+              {/* Distance-Band Delivery & Transit Estimator (Ex-Delhi Hub) */}
+              <DeliveryEstimator product={product} />
 
               {/* Design & Engineering Highlights */}
               <div className="pt-6 border-t border-[var(--color-decorative-border)] space-y-3">

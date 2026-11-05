@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { DeliveryEstimator } from "@/components/DeliveryEstimator";
+import { MOCK_PRODUCTS } from "@/lib/products";
 
 export const metadata = {
   title: "Delivery, Shipping & Logistics Governance — Tavistra",
@@ -9,6 +11,8 @@ export const metadata = {
 };
 
 export default function ShippingPolicyPage() {
+  const sampleProduct = MOCK_PRODUCTS[0]; // Monolith Wall Clock for interactive test
+
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
@@ -24,7 +28,7 @@ export default function ShippingPolicyPage() {
               Delivery & Shipping Policy
             </h1>
             <p className="text-sm text-[var(--color-muted-light)]">
-              Effective Date: November 2026 · Standard Pan-India Operating Protocol
+              Effective Date: November 2026 · Standard Pan-India Operating Protocol (Ex-Delhi Hub)
             </p>
           </div>
 
@@ -43,132 +47,115 @@ export default function ShippingPolicyPage() {
                   <strong>Tax-Inclusive Item Price:</strong> The published price represents the final cost of the product, inclusive of applicable Goods and Services Tax (GST) at statutory rates.
                 </li>
                 <li>
-                  <strong>Single Combined Delivery Charge:</strong> Calculated transparently using Tavistra&apos;s internal logistics pricing model based on dimensional volumetric weight, package fragility classification, and destination distance bands.
+                  <strong>Single Combined Delivery Charge:</strong> Calculated transparently using Tavistra&apos;s distance-band logistics pricing model based on packaged volumetric weight, fragility classification, and destination postal zones.
                 </li>
               </ul>
               <p>
-                All necessary custom-formed transit packaging, internal shock-absorbing braces, protective crates, and primary transit coverage are bundled directly into the delivery quotation.
+                All necessary custom-formed transit packaging, internal shock-absorbing braces, protective crates, and 100% Carrier&apos;s Risk (FOV) transit insurance are bundled directly into the delivery quotation.
               </p>
             </section>
 
-            {/* Section 2 */}
+            {/* Interactive Calculator Box */}
             <section className="space-y-3">
               <h2 className="text-xl font-semibold text-[var(--color-ink)] font-editorial">
-                2. Three Independent Fulfilment Streams & Timelines
+                2. Live Distance-Band Delivery Estimator
               </h2>
               <p>
-                Because our collections span studio ready stock, batch-produced craft editions, and commissioned site-specific art objects, order fulfilment operates under three mutually exclusive operational flows:
+                Test our real-time logistics engine across Indian postal codes (based on an Ex-Delhi dispatch origin):
+              </p>
+              <DeliveryEstimator product={sampleProduct} />
+            </section>
+
+            {/* Section 3: The 15kg Cutoff & Carrier Tiering */}
+            <section className="space-y-4">
+              <h2 className="text-xl font-semibold text-[var(--color-ink)] font-editorial">
+                3. The 15kg Cutoff & Carrier Allocation Rule
+              </h2>
+              <p>
+                Because our collections feature hand-finished hardwoods, heavy cast mineral composites, and architectural float mirrors, generic B2C courier handling is strictly tiered:
               </p>
 
-              <div className="space-y-4 pt-2">
-                <div className="p-6 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-base text-[var(--color-ink)]">A. Ready Stock (Immediate Inventory)</h3>
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-bronze)]">24–48 Hours Dispatch</span>
-                  </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                <div className="p-5 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] space-y-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-bronze)]">
+                    Standard & Fragile Consignments (≤ 15 kg)
+                  </span>
+                  <h3 className="font-semibold text-sm text-[var(--color-ink)]">
+                    Blue Dart Fragile Surface & Delhivery Air
+                  </h3>
                   <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
-                    Finished items physically verified in warehouse stock. Dispatched within 24 to 48 business hours following authoritative electronic payment clearance. Estimated transit delivery is 3 to 6 business days depending on regional postal zone.
+                    Routed through specialized conveyor-free handling with multi-layer honeycomb cushioning and 2-inch all-side protective offsets.
                   </p>
                 </div>
 
-                <div className="p-6 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-base text-[var(--color-ink)]">B. Made to Order (MTO)</h3>
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-bronze)]">Governed Lead Times</span>
-                  </div>
+                <div className="p-5 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] space-y-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-bronze)]">
+                    Heavy & Bulky Architectural Pieces (&gt; 15 kg to 55 kg)
+                  </span>
+                  <h3 className="font-semibold text-sm text-[var(--color-ink)]">
+                    Safeexpress / Gati Palletized B2B LTL
+                  </h3>
                   <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
-                    Individual fabrication begins only after the mandatory 7-day post-confirmation grace period and verification of the 25% advance. Standard workshop crafting timelines range from 14 to 28 business days. Physical carrier handover occurs only after 100% balance settlement and final Quality Control (QC) clearance.
-                  </p>
-                </div>
-
-                <div className="p-6 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-base text-[var(--color-ink)]">C. Quote Only / Bespoke Architectural</h3>
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-bronze)]">Custom Milestone Schedule</span>
-                  </div>
-                  <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
-                    Custom scale installations, specialized finishes, and non-standard architectural elements follow custom milestone delivery dates articulated in the binding written proposal. Specialized crating and dedicated logistics handling are arranged individually.
+                    Shipped exclusively in custom timber crates via palletized/caged trucking networks to eliminate transit crush risk.
                   </p>
                 </div>
               </div>
             </section>
 
-            {/* Section 3 */}
+            {/* Section 4: 5-Zone Distance Architecture */}
             <section className="space-y-3">
               <h2 className="text-xl font-semibold text-[var(--color-ink)] font-editorial">
-                3. Courier Assignment & Transit Tracking
+                4. Master 5-Zone Postal Matrix (Ex-Delhi Hub)
               </h2>
               <p>
-                We do not rely on unvetted generic drop-shippers. Courier allocation is performed manually by our dispatch desk based on consignment fragility and regional speed benchmarks. Primary carrier partners include Blue Dart Express, Delhivery Express, and specialized surface freight logistics.
+                Consignments dispatch from our primary packaging hub in Delhi NCR across five regional tiers:
               </p>
-              <p>
-                Upon package scan, an authoritative airway bill (AWB) number and direct tracking URL are dispatched via email and SMS/WhatsApp. Please allow 12 hours from initial handover for carrier tracking databases to populate real-time node checkpoints.
-              </p>
-            </section>
-
-            {/* Section 4: Brand Protection - Delivery Attempts & Customer Obligations */}
-            <section className="space-y-3">
-              <h2 className="text-xl font-semibold text-[var(--color-ink)] font-editorial">
-                4. Delivery Attempts, RTO & Customer Obligations
-              </h2>
-              <p>
-                To ensure safe custody and eliminate transit loss, the following delivery protocols are strictly enforced:
-              </p>
-              <ul className="list-disc pl-6 space-y-2">
+              <ul className="list-disc pl-6 space-y-2 text-xs">
                 <li>
-                  <strong>Three Delivery Attempts:</strong> Our logistics partners will make up to three consecutive delivery attempts. A delivery OTP or authorized recipient signature may be mandated for high-value consignments.
+                  <strong>Zone A (Delhi NCR):</strong> Delhi, Gurgaon, Noida, Faridabad, Ghaziabad (Estimated 1–2 business days).
                 </li>
                 <li>
-                  <strong>Accurate Address & Contact Details:</strong> The customer is strictly responsible for providing a complete street address, identifiable landmarks, active primary phone number, and verified PIN code. Tavistra shall not be liable for transit delays or misroutings resulting from inaccurate customer inputs.
+                  <strong>Zone B (North India &lt;500 km):</strong> Haryana, Punjab, Rajasthan, Uttar Pradesh, Uttarakhand, Himachal Pradesh (Estimated 2–3 business days).
                 </li>
                 <li>
-                  <strong>Non-Availability & Return to Origin (RTO):</strong> If delivery fails after three attempts due to customer unavailability, refusal without cause, or unreachability, the shipment will be marked Return to Origin (RTO). In such cases, actual two-way freight charges incurred by Tavistra will be deducted from any eligible refund. For Made to Order items, the customer remains responsible for re-shipping charges prior to re-dispatch.
+                  <strong>Zone C (Major Metros):</strong> Bengaluru, Mumbai, Pune, Hyderabad, Chennai, Kolkata, Ahmedabad (Estimated 3–5 business days).
                 </li>
                 <li>
-                  <strong>Gated Communities & Specialized Access:</strong> If delivery requires special security entry, building hoist permits, or high-rise elevator permissions, the customer must arrange necessary approvals in advance.
+                  <strong>Zone D (Rest of India):</strong> Tier 2 & Tier 3 cities across Central, Western and Southern India (Estimated 5–7 business days).
+                </li>
+                <li>
+                  <strong>Zone E (Special & Remote Terrain):</strong> Jammu & Kashmir, Ladakh, North-Eastern states, Andaman & Nicobar, Lakshadweep (Estimated 7–12 business days).
                 </li>
               </ul>
             </section>
 
-            {/* Section 5: Risk of Loss & Inspection on Arrival */}
+            {/* Section 5: Transit Insurance */}
             <section className="space-y-3">
               <h2 className="text-xl font-semibold text-[var(--color-ink)] font-editorial">
-                5. Transit Risk Allocation & Outer Box Inspection Protocol
+                5. Mandatory Carrier&apos;s Risk (FOV) Insurance
               </h2>
               <p>
-                Title and risk of loss pass to the customer upon verified delivery handover at the destination address. Because architectural objects, glass components, and solid brass castings require rigorous handling, customers are required to follow our mandatory arrival protocol:
+                Tavistra never books consignments under Owner&apos;s Risk (ROV). Every parcel is insured under <strong>Carrier&apos;s Risk (Freight On Value - FOV)</strong> for 100% of the invoice value.
               </p>
-              <div className="rounded-xl border border-[var(--color-control-border)]/40 bg-[var(--color-canvas)] p-5 space-y-3">
-                <h4 className="font-semibold text-xs uppercase tracking-wider text-[var(--color-ink)]">
-                  Mandatory Inspection Upon Handover:
-                </h4>
-                <ol className="list-decimal pl-5 space-y-1.5 text-xs">
-                  <li>Inspect the outer shipping crate/box for puncture holes, crushing, water exposure, or severed security seal tape prior to signing the delivery receipt.</li>
-                  <li>If obvious exterior destruction is visible, endorse the carrier delivery sheet explicitly with <em>&ldquo;Received in Damaged Condition — Subject to Inspection&rdquo;</em>, or refuse delivery and photograph the exterior.</li>
-                  <li><strong>Unboxing Video Mandate:</strong> For mirrors, delicate lighting fixtures, and collectible sculptures, we strongly advise recording an uninterrupted unboxing video from package seal to product inspection. Claims of missing parts or internal transit fractures must be notified within <strong>48 hours</strong> of carrier delivery timestamp via support@tavistra.in with photographic/video evidence.</li>
-                </ol>
-              </div>
-            </section>
-
-            {/* Section 6: Force Majeure */}
-            <section className="space-y-3">
-              <h2 className="text-xl font-semibold text-[var(--color-ink)] font-editorial">
-                6. Force Majeure & Exceptional Delays
-              </h2>
-              <p>
-                Tavistra shall not be held liable or deemed in default for transit delays or carrier failures resulting from acts beyond reasonable human control, including but not limited to severe weather disruptions, regional transport strikes, local lockdowns, floods, natural catastrophes, civil disturbances, or state regulatory border inspections. In such events, our support desk will communicate revised tracking expectations.
+              <p className="text-xs">
+                In the rare event of transit damage, customers must document outer box condition upon arrival and notify our client desk within 48 hours for immediate replacement under our Transit Guarantee.
               </p>
             </section>
 
-            <div className="pt-8 border-t border-[var(--color-decorative-border)]">
-              <p className="text-xs text-[var(--color-muted-light)]">
-                For dispatch inquiries or address verification questions, email{" "}
-                <Link href="mailto:support@tavistra.in" className="text-[var(--color-bronze)] font-semibold hover:underline">
-                  support@tavistra.in
-                </Link>{" "}
-                or call our studio logistics desk directly.
-              </p>
-            </div>
+            {/* Section 6: Delivery Attempts & Customer Obligations */}
+            <section className="space-y-3">
+              <h2 className="text-xl font-semibold text-[var(--color-ink)] font-editorial">
+                6. Delivery Attempts & Return to Origin (RTO)
+              </h2>
+              <ul className="list-disc pl-6 space-y-2 text-xs">
+                <li>
+                  <strong>Three Delivery Attempts:</strong> Carriers make up to three consecutive delivery attempts. A secure delivery OTP or signature is required.
+                </li>
+                <li>
+                  <strong>Non-Availability & RTO:</strong> If delivery fails after three attempts due to customer unavailability or invalid addresses, the parcel returns to origin. Actual two-way carrier charges will be deducted from any eligible cancellation.
+                </li>
+              </ul>
+            </section>
           </div>
         </div>
       </main>

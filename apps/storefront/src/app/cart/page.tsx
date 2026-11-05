@@ -5,6 +5,12 @@ import { useState } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { useCart } from "@/context/CartContext";
+import {
+  resolveShippingZone,
+  calculateDeliveryFee,
+  ItemPhysicalSpec,
+  ShippingCalculationResult,
+} from "@tavistra/shared";
 
 export default function CartPage() {
   const {
@@ -19,6 +25,10 @@ export default function CartPage() {
     readyStockItems.length > 0 ? "READY_STOCK" : "MADE_TO_ORDER"
   );
 
+  const [pincode, setPincode] = useState("");
+  const [shippingResult, setShippingResult] = useState<ShippingCalculationResult | null>(null);
+  const [pinError, setPinError] = useState<string | null>(null);
+
   const formatPrice = (paise: number) =>
     new Intl.NumberFormat("en-IN", {
       style: "currency",
@@ -26,19 +36,63 @@ export default function CartPage() {
       maximumFractionDigits: 0,
     }).format(paise / 100);
 
-  // Calculations for Ready Stock
+  // Ready Stock calculations
   const readyTotalPaise = readyStockItems.reduce(
     (acc, item) => acc + item.product.pricePaise * item.quantity,
     0
   );
 
-  // Calculations for Made to Order
+  // MTO calculations
   const mtoTotalPaise = mtoItems.reduce(
     (acc, item) => acc + item.product.pricePaise * item.quantity,
     0
   );
-  const mtoAdvancePaise = Math.round(mtoTotalPaise * 0.25);
-  const mtoBalancePaise = mtoTotalPaise - mtoAdvancePaise;
+
+  // Active items for physical shipping calculation
+  const activeItems = activeModeTab === "READY_STOCK" ? readyStockItems : mtoItems;
+  const activePhysicalSpecs: ItemPhysicalSpec[] = activeItems.flatMap(
+    ({ product, quantity }) =>
+      Array(quantity).fill({
+        priceRupees: product.pricePaise / 100,
+        weightGrams: product.weightGrams,
+        lengthMm: product.lengthMm,
+        widthMm: product.widthMm,
+        heightMm: product.heightMm,
+        isFragile: true,
+      })
+  );
+
+  const handleEstimateShipping = (pinToTest?: string) => {
+    const targetPin = (pinToTest || pincode).trim();
+    if (!/^\d{6}$/.test(targetPin)) {
+      setPinError("Please enter a valid 6-digit Indian PIN code.");
+      setShippingResult(null);
+      return;
+    }
+
+    if (activePhysicalSpecs.length === 0) {
+      setShippingResult(null);
+      return;
+    }
+
+    setPinError(null);
+    const zone = resolveShippingZone(targetPin);
+    const calculation = calculateDeliveryFee(zone, activePhysicalSpecs);
+    setShippingResult(calculation);
+  };
+
+  const deliveryFeePaise = shippingResult
+    ? shippingResult.totalDeliveryFeeRupees * 100
+    : 0;
+
+  // Active mode totals including delivery fee
+  const activeItemsSubtotalPaise =
+    activeModeTab === "READY_STOCK" ? readyTotalPaise : mtoTotalPaise;
+  const activeTotalPaise = activeItemsSubtotalPaise + deliveryFeePaise;
+
+  // MTO Advance: 25% of total order commitment
+  const mtoAdvancePaise = Math.round(activeTotalPaise * 0.25);
+  const mtoBalancePaise = activeTotalPaise - mtoAdvancePaise;
 
   const hasItems = readyStockItems.length > 0 || mtoItems.length > 0;
   const isMixedSelection = readyStockItems.length > 0 && mtoItems.length > 0;
@@ -79,7 +133,7 @@ export default function CartPage() {
             </div>
           ) : (
             <div>
-              {/* Mixed-Mode Separation Notice (Strict Requirement) */}
+              {/* Mixed-Mode Separation Notice */}
               {isMixedSelection && (
                 <div className="mb-8 rounded-xl border border-[var(--color-bronze)]/40 bg-[var(--color-ivory)] p-5">
                   <div className="flex items-start gap-3">
@@ -98,32 +152,31 @@ export default function CartPage() {
               <div className="flex border-b border-[var(--color-decorative-border)] mb-8">
                 <button
                   type="button"
-                  onClick={() => setActiveModeTab("READY_STOCK")}
-                  className={`pb-4 px-6 text-xs font-semibold uppercase tracking-wider transition-colors border-b-2 -mb-px flex items-center gap-2 ${
+                  onClick={() => {
+                    setActiveModeTab("READY_STOCK");
+                    setShippingResult(null);
+                  }}
+                  className={`pb-4 px-6 text-xs font-semibold uppercase tracking-wider transition-colors relative ${
                     activeModeTab === "READY_STOCK"
-                      ? "border-[var(--color-ink)] text-[var(--color-ink)]"
-                      : "border-transparent text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
+                      ? "text-[var(--color-ink)] border-b-2 border-[var(--color-ink)] font-bold"
+                      : "text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
                   }`}
                 >
-                  <span>Ready Stock</span>
-                  <span className="rounded-full bg-[var(--color-stone)] px-2 py-0.5 text-[10px]">
-                    {readyStockItems.length}
-                  </span>
+                  Ready Stock ({readyStockItems.length})
                 </button>
-
                 <button
                   type="button"
-                  onClick={() => setActiveModeTab("MADE_TO_ORDER")}
-                  className={`pb-4 px-6 text-xs font-semibold uppercase tracking-wider transition-colors border-b-2 -mb-px flex items-center gap-2 ${
+                  onClick={() => {
+                    setActiveModeTab("MADE_TO_ORDER");
+                    setShippingResult(null);
+                  }}
+                  className={`pb-4 px-6 text-xs font-semibold uppercase tracking-wider transition-colors relative ${
                     activeModeTab === "MADE_TO_ORDER"
-                      ? "border-[var(--color-ink)] text-[var(--color-ink)]"
-                      : "border-transparent text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
+                      ? "text-[var(--color-ink)] border-b-2 border-[var(--color-ink)] font-bold"
+                      : "text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
                   }`}
                 >
-                  <span>Made to Order</span>
-                  <span className="rounded-full bg-[var(--color-stone)] px-2 py-0.5 text-[10px]">
-                    {mtoItems.length}
-                  </span>
+                  Made to Order ({mtoItems.length})
                 </button>
               </div>
 
@@ -144,14 +197,14 @@ export default function CartPage() {
                             className="flex items-center justify-between rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-5"
                           >
                             <div className="space-y-1">
-                              <span className="text-[10px] uppercase tracking-wider text-[var(--color-muted-light)]">
-                                {product.subcategory}
+                              <span className="text-[10px] uppercase tracking-wider text-[var(--color-muted-light)] font-semibold">
+                                Ready Stock
                               </span>
                               <h4 className="font-semibold text-sm text-[var(--color-ink)]">
                                 {product.name}
                               </h4>
-                              <p className="text-xs font-semibold text-[var(--color-bronze)]">
-                                {formatPrice(product.pricePaise)}
+                              <p className="text-xs font-semibold text-[var(--color-ink)]">
+                                {formatPrice(product.pricePaise)} each
                               </p>
                             </div>
 
@@ -199,10 +252,44 @@ export default function CartPage() {
                           Ready Stock Summary
                         </h3>
 
+                        {/* PIN Code Delivery Estimator */}
+                        <div className="rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-4 space-y-3">
+                          <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-ink)]">
+                            Delivery PIN Code:
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              maxLength={6}
+                              value={pincode}
+                              onChange={(e) => {
+                                setPincode(e.target.value.replace(/\D/g, ""));
+                                if (pinError) setPinError(null);
+                              }}
+                              placeholder="e.g. 110001 or 560001"
+                              className="flex-1 rounded-lg border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-3 py-1.5 text-xs text-[var(--color-ink)] focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleEstimateShipping()}
+                              className="rounded-lg bg-[var(--color-ink)] px-3 py-1.5 text-xs font-semibold text-[var(--color-canvas)]"
+                            >
+                              Estimate
+                            </button>
+                          </div>
+                          {pinError && <p className="text-[10px] text-red-600 font-medium">{pinError}</p>}
+                          {shippingResult && (
+                            <p className="text-[10px] text-[var(--color-muted-light)] leading-snug">
+                              ✓ {shippingResult.zone.name} ({shippingResult.transitDaysEstimate}) via {shippingResult.carrierName}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Two-Component Price Summary */}
                         <div className="space-y-3 text-xs border-b border-[var(--color-decorative-border)] pb-4">
                           <div className="flex justify-between">
                             <span className="text-[var(--color-muted-light)]">
-                              Product Subtotal (Tax Inclusive):
+                              1. Product Subtotal (Tax Inclusive):
                             </span>
                             <span className="font-semibold text-[var(--color-ink)]">
                               {formatPrice(readyTotalPaise)}
@@ -210,10 +297,12 @@ export default function CartPage() {
                           </div>
                           <div className="flex justify-between">
                             <span className="text-[var(--color-muted-light)]">
-                              Standard Crating & Delivery:
+                              2. Insured Crating & Delivery:
                             </span>
                             <span className="font-semibold text-[var(--color-ink)]">
-                              Calculated at Address Step
+                              {shippingResult
+                                ? formatPrice(deliveryFeePaise)
+                                : "Enter PIN Code above"}
                             </span>
                           </div>
                         </div>
@@ -221,7 +310,7 @@ export default function CartPage() {
                         <div className="flex justify-between text-sm font-semibold text-[var(--color-ink)]">
                           <span>Payable at Order Confirmation:</span>
                           <span className="font-editorial text-2xl">
-                            {formatPrice(readyTotalPaise)}
+                            {formatPrice(activeTotalPaise)}
                           </span>
                         </div>
 
@@ -247,7 +336,7 @@ export default function CartPage() {
                 <div>
                   {mtoItems.length === 0 ? (
                     <div className="py-12 text-center text-xs text-[var(--color-muted-light)]">
-                      No Made to Order commissions in this tab.
+                      No Made to Order items in this tab.
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
@@ -269,7 +358,7 @@ export default function CartPage() {
                                 {formatPrice(product.pricePaise)} total
                               </p>
                               <p className="text-[11px] text-[var(--color-muted-light)]">
-                                Advance: {formatPrice(Math.round(product.pricePaise * 0.25))} (25%)
+                                25% Production Advance: {formatPrice(Math.round(product.pricePaise * 0.25))}
                               </p>
                             </div>
 
@@ -317,17 +406,62 @@ export default function CartPage() {
                           Order Summary
                         </h3>
 
+                        {/* PIN Code Delivery Estimator */}
+                        <div className="rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-4 space-y-3">
+                          <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-ink)]">
+                            Delivery PIN Code:
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              maxLength={6}
+                              value={pincode}
+                              onChange={(e) => {
+                                setPincode(e.target.value.replace(/\D/g, ""));
+                                if (pinError) setPinError(null);
+                              }}
+                              placeholder="e.g. 110001 or 560001"
+                              className="flex-1 rounded-lg border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-3 py-1.5 text-xs text-[var(--color-ink)] focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleEstimateShipping()}
+                              className="rounded-lg bg-[var(--color-ink)] px-3 py-1.5 text-xs font-semibold text-[var(--color-canvas)]"
+                            >
+                              Estimate
+                            </button>
+                          </div>
+                          {pinError && <p className="text-[10px] text-red-600 font-medium">{pinError}</p>}
+                          {shippingResult && (
+                            <p className="text-[10px] text-[var(--color-muted-light)] leading-snug">
+                              ✓ {shippingResult.zone.name} ({shippingResult.transitDaysEstimate}) via {shippingResult.carrierName}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Pricing Breakdown */}
                         <div className="space-y-3 text-xs border-b border-[var(--color-decorative-border)] pb-4">
                           <div className="flex justify-between">
                             <span className="text-[var(--color-muted-light)]">
-                              Total Agreed Order Value:
+                              1. Total Agreed Items Value:
                             </span>
                             <span className="font-semibold text-[var(--color-ink)]">
                               {formatPrice(mtoTotalPaise)}
                             </span>
                           </div>
 
-                          <div className="flex justify-between text-[var(--color-bronze)] font-semibold">
+                          <div className="flex justify-between">
+                            <span className="text-[var(--color-muted-light)]">
+                              2. Insured Crating & Freight:
+                            </span>
+                            <span className="font-semibold text-[var(--color-ink)]">
+                              {shippingResult
+                                ? formatPrice(deliveryFeePaise)
+                                : "Enter PIN Code above"}
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between pt-2 border-t border-[var(--color-decorative-border)]/60 text-[var(--color-bronze)] font-semibold text-sm">
                             <span>25% Advance Required to Start:</span>
                             <span>{formatPrice(mtoAdvancePaise)}</span>
                           </div>
@@ -343,7 +477,7 @@ export default function CartPage() {
                           <strong className="text-[var(--color-ink)] block">
                             7-Day Post-Confirmation Grace Window
                           </strong>
-                          You may request adjustments or full refund cancellation within 7 days. Physical manufacturing begins on Day 8.
+                          You may request adjustments or full refund cancellation within 7 days. Workshop manufacturing begins on Day 8.
                         </div>
 
                         <div className="space-y-2">
@@ -371,4 +505,3 @@ export default function CartPage() {
     </div>
   );
 }
-

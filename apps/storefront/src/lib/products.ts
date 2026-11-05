@@ -12,6 +12,10 @@ export interface MockProduct {
   shortDescription: string;
   materials: string[];
   dimensions: string;
+  weightGrams: number;
+  lengthMm: number;
+  widthMm: number;
+  heightMm: number;
   estimatedLeadTime: string;
   returnPolicyText: string;
   features: string[];
@@ -32,6 +36,10 @@ export const MOCK_PRODUCTS: MockProduct[] = [
       "Precision-milled aerospace aluminium body with an unlacquered brushed brass dial and silent German quartz movement.",
     materials: ["Milled Solid Aluminium", "Brushed Brass", "Silent Movement"],
     dimensions: "320mm Dia × 38mm D",
+    weightGrams: 2400,
+    lengthMm: 360,
+    widthMm: 360,
+    heightMm: 70,
     estimatedLeadTime: "Dispatches in 24–48 hours",
     returnPolicyText: "7-Day Return Guarantee eligible",
     features: [
@@ -54,6 +62,10 @@ export const MOCK_PRODUCTS: MockProduct[] = [
       "Hand-rolled architectural brass frame cradling high-definition distortion-free silvered float mirror glass.",
     materials: ["Solid Architect's Brass", "HD Silvered Float Glass", "Wood Backing"],
     dimensions: "600mm W × 900mm H × 30mm D",
+    weightGrams: 8500,
+    lengthMm: 980,
+    widthMm: 680,
+    heightMm: 80,
     estimatedLeadTime: "18–24 business days workshop crafting",
     returnPolicyText: "Made to Order: 7-day pre-production grace cancellation with 100% advance refund",
     features: [
@@ -76,6 +88,10 @@ export const MOCK_PRODUCTS: MockProduct[] = [
       "Weighted cast composite stone with integrated anodised bronze pen channels and felt-lined smartphone tray.",
     materials: ["Cast Mineral Stone", "Anodised Bronze Aluminium", "Natural Wool Felt"],
     dimensions: "280mm L × 140mm W × 45mm H",
+    weightGrams: 1800,
+    lengthMm: 310,
+    widthMm: 170,
+    heightMm: 70,
     estimatedLeadTime: "Dispatches in 24–48 hours",
     returnPolicyText: "Standard non-returnable unless defective on arrival",
     features: [
@@ -98,6 +114,10 @@ export const MOCK_PRODUCTS: MockProduct[] = [
       "Counterbalanced articulated arm in gunmetal stainless steel with warm 2700K integrated dimmable LED optic engine.",
     materials: ["Gunmetal Stainless Steel", "Counterweight Brass", "High-CRI LED 2700K"],
     dimensions: "520mm Reach × 480mm Max Height",
+    weightGrams: 4200,
+    lengthMm: 560,
+    widthMm: 240,
+    heightMm: 180,
     estimatedLeadTime: "21–28 business days workshop crafting",
     returnPolicyText: "Made to Order: 7-day pre-production grace cancellation with 100% advance refund",
     features: [
@@ -120,6 +140,10 @@ export const MOCK_PRODUCTS: MockProduct[] = [
       "Hand-finished lost-wax cast solid brass pocket talisman with screw-locking titanium wire cable.",
     materials: ["Cast Solid Brass", "Grade 5 Titanium Wire"],
     dimensions: "42mm Dia × 8mm Thickness",
+    weightGrams: 140,
+    lengthMm: 80,
+    widthMm: 80,
+    heightMm: 25,
     estimatedLeadTime: "Dispatches in 24–48 hours",
     returnPolicyText: "Standard non-returnable unless defective on arrival",
     features: [
@@ -142,6 +166,10 @@ export const MOCK_PRODUCTS: MockProduct[] = [
       "Bespoke balance-weighted kinetic sculpture for indoor lobbies, private courtyards, or architectural atriums.",
     materials: ["Hand-Beaten Bronze", "Black Granite Plinth", "Precision Ceramic Bearings"],
     dimensions: "Custom Scaled (1.2m to 2.4m Height Options)",
+    weightGrams: 35000,
+    lengthMm: 1500,
+    widthMm: 800,
+    heightMm: 800,
     estimatedLeadTime: "6–8 weeks bespoke fabrication & testing",
     returnPolicyText: "Bespoke piece: governed strictly by accepted proposal terms",
     features: [
@@ -151,4 +179,3 @@ export const MOCK_PRODUCTS: MockProduct[] = [
     ],
   },
 ];
-
