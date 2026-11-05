@@ -154,8 +154,8 @@ export default function TermsPage() {
             <div className="pt-8 border-t border-[var(--color-decorative-border)]">
               <p className="text-xs text-[var(--color-muted-light)]">
                 For legal inquiries or corporate contracting notices, contact:{" "}
-                <Link href="mailto:studio@vdesign.in" className="text-[var(--color-bronze)] font-semibold hover:underline">
-                  studio@vdesign.in
+                <Link href="mailto:support@tavistra.in" className="text-[var(--color-bronze)] font-semibold hover:underline">
+                  support@tavistra.in
                 </Link>.
               </p>
             </div>

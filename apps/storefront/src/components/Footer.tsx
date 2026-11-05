@@ -1,22 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { APPROVED_CATEGORIES } from "@/lib/taxonomy";
 
 export function Footer() {
-  const [email, setEmail] = useState("");
-  const [subscribed, setSubscribed] = useState(false);
-
-  const handleSubscribe = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (email.trim()) {
-      setSubscribed(true);
-      setEmail("");
-    }
-  };
-
   const scrollToTop = () => {
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -43,51 +31,28 @@ export function Footer() {
           </p>
         </div>
 
-        {/* Content Columns: Blocks 2, 3, 4 + Subscribe (All Top-Aligned) */}
+        {/* Content Columns: Blocks 2, 3, 4 + Contact Us (All Top-Aligned) */}
         <div className="pt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10 lg:gap-12 items-start">
-          {/* Block 2: About Us & Contact Us (Span 4) */}
-          <div className="lg:col-span-4 space-y-6">
-            {/* About Us */}
-            <div className="space-y-2">
-              <h4 className="text-sm font-semibold tracking-wide text-[var(--color-bronze)]">
-                About Us
-              </h4>
-              <p className="text-xs text-[var(--color-muted-dark)] leading-relaxed">
-                Tavistra draws its creative ethos from <em>Tvashtr</em>, the Vedic divine artisan. As the lifestyle sub-brand of VDesign, we engineer standalone objects, desk instruments, and atmospheric ambient editions with deep tactile respect for solid hardwood, architectural metals, and fine joinery.
+          {/* Column 1: About Tavistra (Span 4) */}
+          <div className="lg:col-span-4 space-y-4">
+            <h4 className="text-sm font-semibold tracking-wide text-[var(--color-bronze)]">
+              About Tavistra
+            </h4>
+            <div className="space-y-3 text-xs text-[var(--color-muted-dark)] leading-relaxed">
+              <p>
+                Tavistra draws its creative ethos from <em>Tvashtr</em>, the Vedic divine artisan who embodies the sacred impulse to shape raw matter into resolved form. As the design-led lifestyle sub-brand of VDesign, we engineer standalone décor, weighted desk instruments, and atmospheric ambient editions.
               </p>
-            </div>
-
-            {/* Contact Us */}
-            <div className="space-y-2 pt-2">
-              <h4 className="text-sm font-semibold tracking-wide text-[var(--color-bronze)]">
-                Contact Us
-              </h4>
-              <ul className="space-y-2 text-xs text-[var(--color-muted-dark)]">
-                <li className="flex items-center gap-2.5">
-                  <svg className="w-3.5 h-3.5 text-[var(--color-bronze)] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                  <a href="mailto:support@tavistra.in" className="hover:text-[var(--color-canvas)] transition-colors">
-                    support@tavistra.in
-                  </a>
-                </li>
-                <li className="flex items-center gap-2.5">
-                  <svg className="w-3.5 h-3.5 text-[var(--color-bronze)] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                  <span>VDesign · studio@vdesign.in (India)</span>
-                </li>
-                <li className="flex items-center gap-2.5 text-[11px] text-[var(--color-muted-dark)]/70">
-                  <svg className="w-3.5 h-3.5 text-[var(--color-bronze)] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>Tax-inclusive pricing · GST invoicing on all orders</span>
-                </li>
-              </ul>
+              <p>
+                Every piece is master-crafted in India with deep tactile reverence for solid hardwood, architectural metals, and fine joinery—built for endurance and timeless domestic rituals.
+              </p>
+              <div className="pt-1 text-[11px] text-[var(--color-muted-dark)]/80 flex items-center gap-2">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--color-bronze)]"></span>
+                <span>Small-batch discipline · Zero structural installation required</span>
+              </div>
             </div>
           </div>
 
-          {/* Block 3: Information / Catalogue (Span 3) */}
+          {/* Column 2: Information / Catalogue (Span 3) */}
           <div className="lg:col-span-3 space-y-4">
             <h4 className="text-sm font-semibold tracking-wide text-[var(--color-bronze)]">
               Information
@@ -111,7 +76,7 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Block 4: Helpful Links (Span 2) */}
+          {/* Column 3: Helpful Links (Span 2) */}
           <div className="lg:col-span-2 space-y-4">
             <h4 className="text-sm font-semibold tracking-wide text-[var(--color-bronze)]">
               Helpful Links
@@ -150,39 +115,49 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Column: Subscribe More Info (Span 3) */}
+          {/* Column 4: Contact Us (Replacing Subscribe More Info) (Span 3) */}
           <div className="lg:col-span-3 space-y-4">
-            <h4 className="text-sm font-semibold tracking-wide text-[var(--color-canvas)]">
-              Subscribe More Info
+            <h4 className="text-sm font-semibold tracking-wide text-[var(--color-bronze)]">
+              Contact Us
             </h4>
-            <p className="text-xs text-[var(--color-muted-dark)] leading-relaxed">
-              Join our private registry to receive notifications for small-batch editions and bespoke previews.
-            </p>
+            <div className="space-y-3 text-xs text-[var(--color-muted-dark)] leading-relaxed">
+              <p>
+                Our client desk assists with bespoke specifications, quote proposals, and order tracking across India.
+              </p>
 
-            <form onSubmit={handleSubscribe} className="space-y-3 pt-1">
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <ul className="space-y-2.5 pt-1">
+                <li className="flex items-center gap-2.5">
+                  <svg className="w-3.5 h-3.5 text-[var(--color-bronze)] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
-                </span>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your Email"
-                  required
-                  className="w-full pl-9 pr-3 py-2.5 text-xs bg-white text-zinc-900 rounded border border-transparent focus:outline-none focus:ring-2 focus:ring-[var(--color-bronze)] placeholder:text-zinc-400 shadow-sm"
-                />
-              </div>
+                  <a href="mailto:support@tavistra.in" className="hover:text-[var(--color-canvas)] transition-colors font-medium">
+                    support@tavistra.in
+                  </a>
+                </li>
+                <li className="flex items-center gap-2.5">
+                  <svg className="w-3.5 h-3.5 text-[var(--color-bronze)] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Mon – Sat, 10:00 AM – 7:00 PM IST</span>
+                </li>
+                <li className="flex items-center gap-2.5 text-[11px] text-[var(--color-muted-dark)]/80">
+                  <svg className="w-3.5 h-3.5 text-[var(--color-bronze)] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Pan-India dispatch · Statutory GST invoices</span>
+                </li>
+              </ul>
 
-              <button
-                type="submit"
-                className="w-full sm:w-auto px-6 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] bg-[var(--color-bronze)] hover:bg-[#6e5842] rounded transition-colors shadow-sm"
-              >
-                {subscribed ? "Subscribed ✓" : "Subscribe"}
-              </button>
-            </form>
+              <div className="pt-2">
+                <Link
+                  href="/contact"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] bg-[var(--color-bronze)] hover:bg-[#6e5842] rounded transition-colors"
+                >
+                  <span>Open Inquiry Desk</span>
+                  <span>→</span>
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -216,7 +191,7 @@ export function Footer() {
               </svg>
             </a>
 
-            {/* Email / Inquiry */}
+            {/* Email / Direct Inquiry */}
             <Link
               href="/contact"
               aria-label="Direct Inquiry"

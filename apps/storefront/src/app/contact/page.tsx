@@ -182,34 +182,59 @@ function ContactFormContent() {
         )}
       </div>
 
-      {/* Right Column: Studio Information (Span 5) */}
+      {/* Right Column: Studio Information & General Tavistra Knowledge (Span 5) */}
       <div className="lg:col-span-5 space-y-6">
+        {/* Client Desk Card */}
         <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-6 space-y-4">
           <span className="text-xs uppercase tracking-widest text-[var(--color-bronze)] font-semibold block">
-            Direct Contacts
+            Tavistra Client Desk
           </span>
           <div className="space-y-3 text-xs text-[var(--color-ink)]">
             <div>
-              <strong className="block text-[var(--color-muted-light)]">Design Desk & Architectural Quotes:</strong>
-              <span>studio@vdesign.in</span>
+              <strong className="block text-[var(--color-muted-light)]">Inquiries & Client Support:</strong>
+              <a href="mailto:support@tavistra.in" className="text-[var(--color-bronze)] font-semibold hover:underline">
+                support@tavistra.in
+              </a>
             </div>
             <div>
-              <strong className="block text-[var(--color-muted-light)]">Order Support & Logistics:</strong>
-              <span>support@tavistra.in</span>
+              <strong className="block text-[var(--color-muted-light)]">Response Commitment:</strong>
+              <span>All direct inquiries & custom proposals reviewed within 24 to 48 business hours.</span>
             </div>
             <div>
-              <strong className="block text-[var(--color-muted-light)]">Operating Studio Hours:</strong>
+              <strong className="block text-[var(--color-muted-light)]">Operating Desk Hours:</strong>
               <span>Monday to Saturday, 10:00 AM – 7:00 PM IST</span>
             </div>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-6 space-y-2">
+        {/* General Information Card */}
+        <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-6 space-y-3">
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
+            General Information & Fulfilment
+          </h4>
+          <ul className="space-y-2 text-xs text-[var(--color-muted-light)] leading-relaxed">
+            <li className="flex items-start gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-bronze)] mt-1.5 shrink-0"></span>
+              <span><strong>Pan-India Insured Dispatch:</strong> Master-crafted in India and delivered via specialized transit-safe freight across all serviceable PIN codes.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-bronze)] mt-1.5 shrink-0"></span>
+              <span><strong>Statutory GST Invoicing:</strong> Tax-inclusive transparent pricing with formal B2C/B2B GST invoices on all confirmed orders.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-bronze)] mt-1.5 shrink-0"></span>
+              <span><strong>Brand Heritage:</strong> Design-led standalone lifestyle & décor sub-brand of VDesign, requiring zero structural on-site installation.</span>
+            </li>
+          </ul>
+        </div>
+
+        {/* Offer Governance Card */}
+        <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/60 p-6 space-y-2">
           <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
             Quote Only Offer Governance
           </h4>
           <p className="text-[11px] text-[var(--color-muted-light)] leading-relaxed">
-            Formal proposals generated for bespoke projects remain locked for 30 calendar days from initial issuance. Work begins upon verified receipt of the 25% advance.
+            Formal proposals generated for bespoke projects remain locked for 30 calendar days from initial issuance. Production begins upon verified receipt of the 25% advance.
           </p>
           <div className="pt-2">
             <Link href="/terms" className="text-[11px] text-[var(--color-bronze)] font-semibold hover:underline">
