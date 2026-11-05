@@ -1,0 +1,445 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// -------------------------------------------------------------
+// ENUMS
+// -------------------------------------------------------------
+
+enum PurchaseMode {
+  READY_STOCK     // 100% upfront payment, immediate dispatch
+  MADE_TO_ORDER   // >=25% advance to start production, balance before dispatch, 7-day grace
+  QUOTE_ONLY      // Custom proposal with locked 30-day quote offer
+}
+
+enum OrderStatus {
+  DRAFT
+  PENDING_PAYMENT         // Awaiting initial payment (100% for Ready Stock or 25% for MTO)
+  CONFIRMED               // Initial payment verified; for MTO, 7-day cancellation grace begins
+  IN_PRODUCTION           // MTO: Grace period elapsed, production initiated
+  PRODUCTION_COMPLETED    // MTO: Production complete, awaiting 75% balance payment
+  AWAITING_DISPATCH       // 100% cumulative payment verified, packaging for courier handoff
+  DISPATCHED              // Handed to carrier with tracking number
+  DELIVERED               // Verified delivery
+  CANCELLED               // Cancelled before production start / statutory right
+  REFUNDED                // Refund processed per locked financial policy
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentType {
+  FULL_PAYMENT            // Ready Stock 100% payment
+  ADVANCE_25              // Made to Order minimum 25% production advance
+  BALANCE_75              // Made to Order 75% pre-dispatch balance
+  QUOTE_ADVANCE           // Quote Only 25% acceptance advance
+  QUOTE_BALANCE           // Quote Only 75% completion balance
+  REFUND                  // Outgoing statutory or approved refund
+}
+
+enum QuoteStatus {
+  DRAFT
+  ISSUED                  // Active 30-calendar-day offer clock ticking
+  ACCEPTED                // Customer accepted exact version & paid 25% advance
+  EXPIRED                 // 30 calendar days elapsed without verified acceptance
+  SUPERSEDED              // Replaced by a revised version (does not reset original clock)
+  REJECTED                // Declined by customer or staff
+}
+
+enum StaffRole {
+  SUPER_ADMIN
+  COMMERCE_ADMIN
+  PRODUCTION_STAFF
+  SUPPORT_STAFF
+}
+
+enum StockMovementType {
+  INITIAL_STOCK
+  RESTOCK
+  PURCHASE_RESERVATION
+  RESERVATION_EXPIRED
+  ORDER_FULFILLED
+  RETURN_RESTOCK
+  MANUAL_ADJUSTMENT
+}
+
+// -------------------------------------------------------------
+// IDENTITY & RBAC
+// -------------------------------------------------------------
+
+model User {
+  id            String          @id @default(cuid())
+  email         String          @unique
+  name          String?
+  phone         String?
+  role          StaffRole?      // Null for regular customers, populated for staff
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  addresses     CustomerAddress[]
+  orders        Order[]
+  auditLogs     AuditLog[]
+
+  @@index([email])
+}
+
+model CustomerAddress {
+  id            String          @id @default(cuid())
+  userId        String?
+  guestEmail    String?
+  fullName      String
+  phone         String
+  addressLine1  String
+  addressLine2  String?
+  city          String
+  state         String
+  pincode       String          // 6-digit Indian PIN code
+  isDefault     Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+
+  user          User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  orders        Order[]
+
+  @@index([pincode])
+  @@index([userId])
+}
+
+// -------------------------------------------------------------
+// CATALOGUE & MERCHANDISING
+// -------------------------------------------------------------
+
+model Category {
+  id            String          @id @default(cuid())
+  slug          String          @unique
+  name          String
+  description   String?
+  sortOrder     Int             @default(0)
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  products      Product[]
+}
+
+model Collection {
+  id            String          @id @default(cuid())
+  slug          String          @unique
+  name          String
+  description   String?
+  isFeatured    Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  products      ProductCollection[]
+}
+
+model Product {
+  id                    String              @id @default(cuid())
+  slug                  String              @unique
+  sku                   String              @unique
+  title                 String
+  shortDescription      String
+  fullDescription       String
+  materialDescription   String
+  dimensions            String              // Human-readable (e.g. "420mm dia x 35mm depth")
+
+  // Physical specifications for volumetric distance-band shipping
+  weightGrams           Int                 @default(1000)
+  lengthMm              Int                 @default(100)
+  widthMm               Int                 @default(100)
+  heightMm              Int                 @default(100)
+
+  // Primary purchase discipline
+  primaryMode           PurchaseMode        @default(READY_STOCK)
+
+  // Exactly two-component pricing baseline (tax-inclusive)
+  taxInclusivePrice     Decimal             @db.Decimal(10, 2)
+  gstRate               Decimal             @default(0.18) @db.Decimal(4, 2) // Default 18% GST
+
+  // Return policy (TAV-10: non-returnable by default)
+  isReturnable          Boolean             @default(false)
+  returnWindowDays      Int?                // Null if non-returnable; integer if returnable
+
+  isPublished           Boolean             @default(true)
+  categoryId            String
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  category              Category            @relation(fields: [categoryId], references: [id])
+  variants              ProductVariant[]
+  images                ProductImage[]
+  collections           ProductCollection[]
+  orderItems            OrderItem[]
+
+  @@index([slug])
+  @@index([categoryId])
+  @@index([primaryMode])
+}
+
+model ProductCollection {
+  productId     String
+  collectionId  String
+
+  product       Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  collection    Collection      @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@id([productId, collectionId])
+}
+
+model ProductVariant {
+  id                    String              @id @default(cuid())
+  productId             String
+  sku                   String              @unique
+  title                 String              // e.g. "Smoked Oak / Brushed Brass"
+  materialFinish        String
+  color                 String?
+  taxInclusivePrice     Decimal             @db.Decimal(10, 2)
+  isPublished           Boolean             @default(true)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  product               Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  inventoryLedger       InventoryLedger?
+  orderItems            OrderItem[]
+
+  @@index([productId])
+  @@index([sku])
+}
+
+model ProductImage {
+  id            String          @id @default(cuid())
+  productId     String
+  url           String
+  altText       String?
+  sortOrder     Int             @default(0)
+  isPrimary     Boolean         @default(false)
+
+  product       Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+// -------------------------------------------------------------
+// INVENTORY & STOCK LEDGER (TAV-05: Concurrency Safety)
+// -------------------------------------------------------------
+
+model InventoryLedger {
+  id                  String              @id @default(cuid())
+  variantId           String              @unique
+  availableStock      Int                 @default(0)
+  reservedStock       Int                 @default(0)
+  lowStockThreshold   Int                 @default(2)
+  updatedAt           DateTime            @updatedAt
+
+  variant             ProductVariant      @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  movements           StockMovement[]
+
+  @@index([variantId])
+}
+
+model StockMovement {
+  id                  String              @id @default(cuid())
+  inventoryLedgerId   String
+  type                StockMovementType
+  quantity            Int
+  referenceId         String?             // Order ID or Reservation token
+  notes               String?
+  createdAt           DateTime            @default(now())
+
+  ledger              InventoryLedger     @relation(fields: [inventoryLedgerId], references: [id], onDelete: Cascade)
+
+  @@index([inventoryLedgerId])
+}
+
+// -------------------------------------------------------------
+// DISTANCE-BAND SHIPPING (TAV-03 & TAV-09: Zones A, B, C, D)
+// -------------------------------------------------------------
+
+model ShippingZone {
+  id                  String              @id @default(cuid())
+  code                String              @unique // "ZONE_A", "ZONE_B", "ZONE_C", "ZONE_D"
+  name                String              // e.g. "Zone A (Karnataka / Local)"
+  description         String
+  baseWeightGrams     Int                 @default(2000) // First 2 kg
+  baseRate            Decimal             @db.Decimal(10, 2)
+  perAdditionalKgRate Decimal             @db.Decimal(10, 2)
+  estimatedDaysMin    Int                 @default(2)
+  estimatedDaysMax    Int                 @default(5)
+
+  pincodeRanges       PincodeRange[]
+}
+
+model PincodeRange {
+  id                  String              @id @default(cuid())
+  shippingZoneId      String
+  stateName           String
+  pincodePrefix       String              // e.g. "56" for Bangalore or exact 6 digits
+  isServiceable       Boolean             @default(true)
+
+  shippingZone        ShippingZone        @relation(fields: [shippingZoneId], references: [id], onDelete: Cascade)
+
+  @@index([pincodePrefix])
+  @@index([shippingZoneId])
+}
+
+// -------------------------------------------------------------
+// ORDERS & FINANCIAL LEDGER (TAV-03, TAV-04, TAV-06)
+// -------------------------------------------------------------
+
+model Order {
+  id                    String              @id @default(cuid())
+  orderNumber           String              @unique // Format: TAV-YYYYMMDD-XXXX
+  userId                String?
+  customerEmail         String
+  customerPhone         String
+  shippingAddressId     String
+  purchaseMode          PurchaseMode
+
+  // Exactly two customer-facing price components (TAV-03)
+  itemsSubtotal         Decimal             @db.Decimal(10, 2) // Component 1: Tax-inclusive items total
+  shippingCharge        Decimal             @db.Decimal(10, 2) // Component 2: Combined distance-band delivery charge
+  totalAmount           Decimal             @db.Decimal(10, 2) // itemsSubtotal + shippingCharge
+
+  // Milestone advance tracking (TAV-06)
+  requiredAdvanceAmount Decimal             @db.Decimal(10, 2) // >=25% for MTO; 100% for Ready Stock
+  amountPaid            Decimal             @default(0.00) @db.Decimal(10, 2)
+  balanceAmount         Decimal             @db.Decimal(10, 2)
+
+  status                OrderStatus         @default(PENDING_PAYMENT)
+
+  // Milestones & audit timestamps
+  confirmedAt           DateTime?           // Triggers 7-day grace period for MTO
+  productionStartedAt   DateTime?           // Locks production; ends pre-production cancellation grace
+  productionCompletedAt DateTime?
+  dispatchedAt          DateTime?
+  deliveredAt           DateTime?
+  cancelledAt           DateTime?
+
+  // Shipping & Tracking
+  carrierName           String?
+  trackingNumber        String?
+
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  user                  User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  shippingAddress       CustomerAddress     @relation(fields: [shippingAddressId], references: [id])
+  items                 OrderItem[]
+  payments              Payment[]
+
+  @@index([orderNumber])
+  @@index([customerEmail])
+  @@index([status])
+  @@index([purchaseMode])
+}
+
+model OrderItem {
+  id                    String              @id @default(cuid())
+  orderId               String
+  productId             String
+  variantId             String?
+  quantity              Int                 @default(1)
+  unitPrice             Decimal             @db.Decimal(10, 2) // Tax-inclusive snapshot
+  subtotal              Decimal             @db.Decimal(10, 2)
+
+  order                 Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product               Product             @relation(fields: [productId], references: [id])
+  variant               ProductVariant?     @relation(fields: [variantId], references: [id])
+
+  @@index([orderId])
+}
+
+model Payment {
+  id                    String              @id @default(cuid())
+  orderId               String
+  paymentType           PaymentType
+  amount                Decimal             @db.Decimal(10, 2)
+  status                PaymentStatus       @default(PENDING)
+  gateway               String              @default("PHONEPE") // "PHONEPE" or "MANUAL_BANK"
+  gatewayTransactionId  String?
+  gatewayOrderRef       String?
+  verifiedAt            DateTime?
+  notes                 String?
+  createdAt             DateTime            @default(now())
+
+  order                 Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([gatewayTransactionId])
+  @@index([status])
+}
+
+// -------------------------------------------------------------
+// QUOTATIONS (TAV-07: Quote Only 30-Day Offer Governance)
+// -------------------------------------------------------------
+
+model QuoteProposal {
+  id                    String              @id @default(cuid())
+  quoteNumber           String              @unique // Format: QTE-YYYYMMDD-XXXX
+  customerName          String
+  customerEmail         String
+  customerPhone         String
+  deliveryPincode       String
+  projectSpecifications String
+
+  status                QuoteStatus         @default(DRAFT)
+  expiresAt             DateTime            // Locked 30 calendar days from initial issuance
+  acceptedAt            DateTime?
+  linkedOrderId         String?             // Links to Order when 25% advance verified
+
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  versions              QuoteVersion[]
+
+  @@index([quoteNumber])
+  @@index([customerEmail])
+  @@index([status])
+}
+
+model QuoteVersion {
+  id                    String              @id @default(cuid())
+  quoteProposalId       String
+  versionNumber         Int                 @default(1)
+  specifications        String
+  quotedAmount          Decimal             @db.Decimal(10, 2)
+  advanceRequired       Decimal             @db.Decimal(10, 2) // 25% of quotedAmount
+  estimatedLeadDays     Int                 @default(28)
+  validUntil            DateTime
+  createdAt             DateTime            @default(now())
+
+  proposal              QuoteProposal       @relation(fields: [quoteProposalId], references: [id], onDelete: Cascade)
+
+  @@unique([quoteProposalId, versionNumber])
+  @@index([quoteProposalId])
+}
+
+// -------------------------------------------------------------
+// IMMUTABLE AUDIT LOG (TAV-12: Staff Governance)
+// -------------------------------------------------------------
+
+model AuditLog {
+  id            String          @id @default(cuid())
+  userId        String?
+  action        String          // e.g. "START_PRODUCTION", "OVERRIDE_REFUND", "PUBLISH_CATALOGUE"
+  entityType    String          // "Order", "Product", "Quote", "Inventory"
+  entityId      String
+  payloadJson   String?         // Serialized state snapshot
+  ipAddress     String?
+  createdAt     DateTime        @default(now())
+
+  user          User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([createdAt])
+}

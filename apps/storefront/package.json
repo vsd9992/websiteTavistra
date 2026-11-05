@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@tavistra/db": "workspace:*",
     "@tavistra/shared": "workspace:*",
     "next": "16.4.4",
     "react": "19.3.0",
