@@ -26,29 +26,29 @@ export function Footer() {
   return (
     <footer className="mt-auto border-t border-[var(--color-decorative-border)] bg-[var(--color-charcoal)] text-[var(--color-ivory)] relative">
       <div className="mx-auto max-w-7xl px-6 pt-16 pb-12 lg:pt-20 lg:pb-14">
-        {/* Main 4-Column Grid based on Reference Mockup */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10 lg:gap-12 items-start">
-          {/* Column 1: Brand, Tagline, About Us & Contact Us (Span 4) */}
-          <div className="lg:col-span-4 space-y-6">
-            {/* Logo & Tagline */}
-            <div>
-              <Link href="/" className="inline-block transition-opacity hover:opacity-85">
-                <Image
-                  src="/logo-full-light.png"
-                  alt="Tavistra by VDesign"
-                  width={240}
-                  height={80}
-                  priority={false}
-                  className="h-10 md:h-12 w-auto object-contain"
-                />
-              </Link>
-              <p className="mt-2 text-xs text-[var(--color-muted-dark)] tracking-wide">
-                Design-led lifestyle & architectural décor by VDesign
-              </p>
-            </div>
+        {/* Block 1: Centered Logo & Tagline */}
+        <div className="flex flex-col items-center justify-center text-center pb-12 border-b border-[var(--color-muted-dark)]/20">
+          <Link href="/" className="inline-block transition-opacity hover:opacity-85">
+            <Image
+              src="/logo-full-light.png"
+              alt="Tavistra by VDesign"
+              width={260}
+              height={86}
+              priority={false}
+              className="h-12 md:h-14 w-auto object-contain mx-auto"
+            />
+          </Link>
+          <p className="mt-3 text-xs md:text-sm text-[var(--color-muted-dark)] tracking-wider">
+            Design-led lifestyle & architectural décor by VDesign
+          </p>
+        </div>
 
+        {/* Content Columns: Blocks 2, 3, 4 + Subscribe (All Top-Aligned) */}
+        <div className="pt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10 lg:gap-12 items-start">
+          {/* Block 2: About Us & Contact Us (Span 4) */}
+          <div className="lg:col-span-4 space-y-6">
             {/* About Us */}
-            <div className="space-y-2 pt-1">
+            <div className="space-y-2">
               <h4 className="text-sm font-semibold tracking-wide text-[var(--color-bronze)]">
                 About Us
               </h4>
@@ -58,7 +58,7 @@ export function Footer() {
             </div>
 
             {/* Contact Us */}
-            <div className="space-y-2 pt-1">
+            <div className="space-y-2 pt-2">
               <h4 className="text-sm font-semibold tracking-wide text-[var(--color-bronze)]">
                 Contact Us
               </h4>
@@ -87,7 +87,7 @@ export function Footer() {
             </div>
           </div>
 
-          {/* Column 2: Information / Catalogue (Span 3) */}
+          {/* Block 3: Information / Catalogue (Span 3) */}
           <div className="lg:col-span-3 space-y-4">
             <h4 className="text-sm font-semibold tracking-wide text-[var(--color-bronze)]">
               Information
@@ -111,7 +111,7 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Column 3: Helpful Links (Span 2) */}
+          {/* Block 4: Helpful Links (Span 2) */}
           <div className="lg:col-span-2 space-y-4">
             <h4 className="text-sm font-semibold tracking-wide text-[var(--color-bronze)]">
               Helpful Links
@@ -150,7 +150,7 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Column 4: Subscribe More Info (Span 3) */}
+          {/* Column: Subscribe More Info (Span 3) */}
           <div className="lg:col-span-3 space-y-4">
             <h4 className="text-sm font-semibold tracking-wide text-[var(--color-canvas)]">
               Subscribe More Info
@@ -188,7 +188,7 @@ export function Footer() {
 
         {/* Horizontal Divider Line */}
         <div className="mt-14 pt-6 border-t border-[var(--color-muted-dark)]/20 flex flex-col md:flex-row justify-between items-center gap-4">
-          {/* Social Icons in Bronze/Orange Circles */}
+          {/* Social Icons in Bronze Circles */}
           <div className="flex items-center gap-3">
             {/* Instagram */}
             <a
@@ -235,7 +235,7 @@ export function Footer() {
         </div>
       </div>
 
-      {/* Floating Scroll to Top Button matching Reference Mockup */}
+      {/* Floating Scroll to Top Button */}
       <button
         onClick={scrollToTop}
         aria-label="Scroll to top"
