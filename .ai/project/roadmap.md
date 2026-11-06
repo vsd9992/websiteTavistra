@@ -15,7 +15,7 @@ modified: 2026-11-06
 - Milestone 2.3 (H3): PhonePe merchant onboarding preparation [Pending]
 - Milestone 2.4 (H4): Core commerce foundations (Prisma DB schema, inventory ledger, 12-slab delivery fee engine, bulk rules, database API endpoints) [Completed]
 - Milestone 2.5 (H5): Purchase journeys (separated Ready Stock, MTO, Quote Only, Bulk Inquiry checkouts, and Account & Milestone Tracking suite) [Completed]
-- Milestone 2.6 (H6): Operational admin UX & order fulfilment [Pending]
+- Milestone 2.6 (H6): Operational admin UX & order fulfilment (`apps/admin` Vite SPA with worklists, 7-day grace release, AWB assignment, and bulk inquiries) [Completed]
 
 ## Phase 3: Testing & Bug Fixing (H7)
 - Milestone 3.1: Critical requirements acceptance audit (TAV-01 to TAV-15) [Pending]
