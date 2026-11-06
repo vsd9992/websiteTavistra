@@ -5,7 +5,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { lookupPincode } from "@tavistra/shared";
+import { lookupPincode, validateEmail, validateIndianMobile } from "@tavistra/shared";
 
 function ContactFormContent() {
   const searchParams = useSearchParams();
@@ -54,8 +54,14 @@ function ContactFormContent() {
     }
   }, [productParam, skuParam, materialsParam, subjectParam, intentParam, messageParam, pincodeParam]);
 
+  const emailVal = validateEmail(formData.email);
+  const mobileVal = validateIndianMobile(formData.phone);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!emailVal.isValid || !mobileVal.isValid) {
+      return;
+    }
     setSubmitted(true);
   };
 
@@ -149,6 +155,11 @@ function ContactFormContent() {
                   placeholder="vikram@studio.in"
                   className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
                 />
+                {formData.email && !emailVal.isValid && (
+                  <p className="text-[11px] text-red-600 mt-1.5 font-medium leading-snug">
+                    ⚠ {emailVal.error}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-2">
@@ -160,8 +171,13 @@ function ContactFormContent() {
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="+91 98765 43210"
-                  className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                  className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono"
                 />
+                {formData.phone && !mobileVal.isValid && (
+                  <p className="text-[11px] text-red-600 mt-1.5 font-medium leading-snug">
+                    ⚠ {mobileVal.error}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -226,7 +242,8 @@ function ContactFormContent() {
 
             <button
               type="submit"
-              className="w-full rounded-full bg-[var(--color-ink)] py-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
+              disabled={!emailVal.isValid || !mobileVal.isValid || !formData.name.trim() || !formData.message.trim()}
+              className="w-full rounded-full bg-[var(--color-ink)] py-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
             >
               Submit Proposal Request
             </button>

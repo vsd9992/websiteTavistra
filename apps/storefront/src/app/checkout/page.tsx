@@ -12,6 +12,8 @@ import {
   calculateOrderDeliveryFee,
   checkBulkOrderCeiling,
   lookupPincode,
+  validateIndianMobile,
+  validateEmail,
   PincodeLookupResult,
   ItemPhysicalSpec,
   ShippingCalculationResult,
@@ -40,6 +42,20 @@ function CheckoutContent() {
     pincode: initialPin,
     gstin: "",
   });
+
+  const [fieldErrors, setFieldErrors] = useState<{
+    fullName?: string;
+    phone?: string;
+    email?: string;
+    address1?: string;
+  }>({});
+
+  const [touched, setTouched] = useState<{
+    fullName?: boolean;
+    phone?: boolean;
+    email?: boolean;
+    address1?: boolean;
+  }>({});
 
   const [shippingResult, setShippingResult] = useState<ShippingCalculationResult | null>(null);
   const [pinError, setPinError] = useState<string | null>(null);
@@ -73,6 +89,64 @@ function CheckoutContent() {
       quantity: item.quantity,
     }))
   );
+
+  // Live Contact & Address Validations
+  const emailValidation = validateEmail(customer.email);
+  const mobileValidation = validateIndianMobile(customer.phone);
+  const isNameValid = customer.fullName.trim().length >= 2;
+  const isAddressValid = customer.address1.trim().length >= 5;
+  const isCityValid = customer.city.trim().length >= 2;
+  const isStateValid = customer.state.trim().length >= 2;
+  const isPinValid = customer.pincode.trim().length === 6 && shippingResult !== null && !pinError;
+
+  const isFormValid =
+    emailValidation.isValid &&
+    mobileValidation.isValid &&
+    isNameValid &&
+    isAddressValid &&
+    isCityValid &&
+    isStateValid &&
+    isPinValid &&
+    !bulkCheck.isBulkEnquiryRequired;
+
+  const handleBlur = (field: "fullName" | "phone" | "email" | "address1") => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+    if (field === "phone") {
+      const res = validateIndianMobile(customer.phone);
+      setFieldErrors((prev) => ({ ...prev, phone: res.isValid ? undefined : res.error }));
+    } else if (field === "email") {
+      const res = validateEmail(customer.email);
+      setFieldErrors((prev) => ({ ...prev, email: res.isValid ? undefined : res.error }));
+    } else if (field === "fullName") {
+      const valid = customer.fullName.trim().length >= 2;
+      setFieldErrors((prev) => ({
+        ...prev,
+        fullName: valid ? undefined : "Please enter your full legal name (at least 2 characters).",
+      }));
+    } else if (field === "address1") {
+      const valid = customer.address1.trim().length >= 5;
+      setFieldErrors((prev) => ({
+        ...prev,
+        address1: valid ? undefined : "Please enter a complete delivery address (building, street).",
+      }));
+    }
+  };
+
+  const handlePhoneChange = (val: string) => {
+    setCustomer((prev) => ({ ...prev, phone: val }));
+    if (touched.phone) {
+      const res = validateIndianMobile(val);
+      setFieldErrors((prev) => ({ ...prev, phone: res.isValid ? undefined : res.error }));
+    }
+  };
+
+  const handleEmailChange = (val: string) => {
+    setCustomer((prev) => ({ ...prev, email: val }));
+    if (touched.email) {
+      const res = validateEmail(val);
+      setFieldErrors((prev) => ({ ...prev, email: res.isValid ? undefined : res.error }));
+    }
+  };
 
   // Calculate delivery fee & auto-fill city/state whenever pincode is valid
   useEffect(() => {
@@ -161,6 +235,16 @@ function CheckoutContent() {
   const handleSubmitOrder = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!isFormValid) {
+      setTouched({
+        fullName: true,
+        phone: true,
+        email: true,
+        address1: true,
+      });
+      return;
+    }
+
     if (!shippingResult) {
       setPinError("Please provide a valid 6-digit delivery PIN code to calculate delivery terms.");
       return;
@@ -184,9 +268,9 @@ function CheckoutContent() {
       const snapshot = {
         orderId: generatedOrderId,
         mode: modeParam,
-        customerName: customer.fullName,
-        email: customer.email,
-        phone: customer.phone,
+        customerName: customer.fullName.trim(),
+        email: emailValidation.normalizedEmail || customer.email.trim(),
+        phone: mobileValidation.normalizedPhone || customer.phone.trim(),
         destinationPin: customer.pincode,
         totalAmountRupees: totalOrderPaise / 100,
         amountPaidRupees: amountPayableNowPaise / 100,
@@ -406,37 +490,92 @@ function CheckoutContent() {
                     required
                     type="text"
                     value={customer.fullName}
-                    onChange={(e) => setCustomer({ ...customer, fullName: e.target.value })}
+                    onBlur={() => handleBlur("fullName")}
+                    onChange={(e) => {
+                      setCustomer({ ...customer, fullName: e.target.value });
+                      if (touched.fullName && e.target.value.trim().length >= 2) {
+                        setFieldErrors((prev) => ({ ...prev, fullName: undefined }));
+                      }
+                    }}
                     placeholder="e.g. Ar. Vikramaditya Sharma"
-                    className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                    className={`w-full rounded-xl border ${
+                      touched.fullName && fieldErrors.fullName
+                        ? "border-red-400 bg-red-50/20"
+                        : "border-[var(--color-control-border)] bg-[var(--color-canvas)]"
+                    } px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]`}
                   />
+                  {touched.fullName && fieldErrors.fullName && (
+                    <p className="text-[10px] text-red-600 font-medium mt-1">⚠ {fieldErrors.fullName}</p>
+                  )}
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
-                    Mobile Number (For Dispatch Updates) *
-                  </label>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)]">
+                      Mobile Number (For Dispatch Updates) *
+                    </label>
+                    {mobileValidation.isValid && (
+                      <span className="text-[10px] text-emerald-700 font-semibold">
+                        ✓ Valid Indian Mobile
+                      </span>
+                    )}
+                  </div>
                   <input
                     required
                     type="tel"
                     value={customer.phone}
-                    onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
+                    onBlur={() => handleBlur("phone")}
+                    onChange={(e) => handlePhoneChange(e.target.value)}
                     placeholder="+91 98765 43210"
-                    className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                    className={`w-full rounded-xl border ${
+                      touched.phone && fieldErrors.phone
+                        ? "border-red-400 bg-red-50/20"
+                        : "border-[var(--color-control-border)] bg-[var(--color-canvas)]"
+                    } px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono`}
                   />
+                  {touched.phone && fieldErrors.phone ? (
+                    <p className="text-[10px] text-red-600 font-medium mt-1">⚠ {fieldErrors.phone}</p>
+                  ) : (
+                    <p className="text-[10px] text-[var(--color-muted-light)] mt-1">
+                      10-digit Indian mobile (starts with 6–9) required for courier dispatch OTP.
+                    </p>
+                  )}
                 </div>
               </div>
               <div>
-                <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
-                  Email Address (For Tax Invoices & Order Receipts) *
-                </label>
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)]">
+                    Email Address (For Tax Invoices & Order Receipts) *
+                  </label>
+                  {emailValidation.isValid && (
+                    <span className="text-[10px] text-emerald-700 font-semibold">
+                      ✓ Direct Permanent Email
+                    </span>
+                  )}
+                </div>
                 <input
                   required
                   type="email"
                   value={customer.email}
-                  onChange={(e) => setCustomer({ ...customer, email: e.target.value })}
+                  onBlur={() => handleBlur("email")}
+                  onChange={(e) => handleEmailChange(e.target.value)}
                   placeholder="vikram@studio.in"
-                  className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                  className={`w-full rounded-xl border ${
+                    touched.email && fieldErrors.email
+                      ? "border-red-400 bg-red-50/20"
+                      : "border-[var(--color-control-border)] bg-[var(--color-canvas)]"
+                  } px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]`}
                 />
+                {touched.email && fieldErrors.email ? (
+                  <div className={`mt-1.5 p-2 rounded-lg text-[11px] font-medium leading-relaxed ${
+                    emailValidation.isRelayBanned ? "bg-amber-50 text-amber-900 border border-amber-200" : "text-red-600"
+                  }`}>
+                    ⚠ {fieldErrors.email}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-[var(--color-muted-light)] mt-1">
+                    Permanent email required for GST invoicing. Anonymous forwarding relays (e.g. @duck.com, @mozmail.com) are banned.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -485,10 +624,23 @@ function CheckoutContent() {
                   required
                   type="text"
                   value={customer.address1}
-                  onChange={(e) => setCustomer({ ...customer, address1: e.target.value })}
+                  onBlur={() => handleBlur("address1")}
+                  onChange={(e) => {
+                    setCustomer({ ...customer, address1: e.target.value });
+                    if (touched.address1 && e.target.value.trim().length >= 5) {
+                      setFieldErrors((prev) => ({ ...prev, address1: undefined }));
+                    }
+                  }}
                   placeholder="e.g. Penthouse 4B, Signature Towers"
-                  className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                  className={`w-full rounded-xl border ${
+                    touched.address1 && fieldErrors.address1
+                      ? "border-red-400 bg-red-50/20"
+                      : "border-[var(--color-control-border)] bg-[var(--color-canvas)]"
+                  } px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]`}
                 />
+                {touched.address1 && fieldErrors.address1 && (
+                  <p className="text-[10px] text-red-600 font-medium mt-1">⚠ {fieldErrors.address1}</p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -642,12 +794,12 @@ function CheckoutContent() {
             )}
 
             {/* Submit Action Button */}
-            <div className="pt-2">
+            <div className="pt-2 space-y-3">
               <button
                 type="submit"
                 form="checkout-form"
-                disabled={isProcessing || !shippingResult}
-                className="w-full rounded-full bg-[var(--color-ink)] py-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center gap-2"
+                disabled={isProcessing || !isFormValid}
+                className="w-full rounded-full bg-[var(--color-ink)] py-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center gap-2"
               >
                 {isProcessing ? (
                   <>
@@ -663,6 +815,43 @@ function CheckoutContent() {
                   `Pay & Confirm Order (${formatPrice(amountPayableNowPaise)})`
                 )}
               </button>
+
+              {!isFormValid ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-[11px] text-amber-900 space-y-1">
+                  <span className="font-semibold block text-amber-950">
+                    Required to activate payment button:
+                  </span>
+                  <ul className="list-disc pl-4 space-y-0.5 text-[10px] text-amber-800">
+                    {!isNameValid && <li>Enter full legal name (at least 2 characters)</li>}
+                    {!mobileValidation.isValid && (
+                      <li>
+                        {customer.phone ? mobileValidation.error : "Enter a valid 10-digit Indian mobile number (starts with 6–9)"}
+                      </li>
+                    )}
+                    {!emailValidation.isValid && (
+                      <li>
+                        {emailValidation.isRelayBanned
+                          ? `Use permanent email (@${emailValidation.domain} relay addresses are banned)`
+                          : customer.email ? emailValidation.error : "Enter a valid permanent email address"}
+                      </li>
+                    )}
+                    {!isPinValid && (
+                      <li>
+                        {pinError ? pinError : "Enter a serviceable 6-digit Indian PIN code"}
+                      </li>
+                    )}
+                    {!isAddressValid && <li>Enter delivery address line 1 (building, suite, street)</li>}
+                  </ul>
+                </div>
+              ) : (
+                <p className="text-[11px] text-center text-emerald-800 font-semibold flex items-center justify-center gap-1.5">
+                  <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  All mandatory fields verified · Ready for electronic checkout
+                </p>
+              )}
+
               <p className="text-[10px] text-center text-[var(--color-muted-light)] mt-2">
                 Protected by 256-bit electronic encryption · Compliant with GST & TAV-03 transparency
               </p>
