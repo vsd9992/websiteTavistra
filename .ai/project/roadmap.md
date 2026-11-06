@@ -13,7 +13,7 @@ modified: 2026-11-06
 - Milestone 2.1 (H1): Local Windows dev & Debian dev/deployment server runtime setup [Verified on port 3001]
 - Milestone 2.2 (H2): Storefront foundation, catalogue publishing, brand foundation & review-ready public site [Completed]
 - Milestone 2.3 (H3): PhonePe merchant onboarding preparation [Pending]
-- Milestone 2.4 (H4): Core commerce foundations (Prisma DB schema, inventory ledger, 12-slab delivery fee engine, bulk rules) [Active]
+- Milestone 2.4 (H4): Core commerce foundations (Prisma DB schema, inventory ledger, 12-slab delivery fee engine, bulk rules, database API endpoints) [Completed]
 - Milestone 2.5 (H5): Purchase journeys (separated Ready Stock, MTO, Quote Only, Bulk Inquiry checkouts, and Account & Milestone Tracking suite) [Completed]
 - Milestone 2.6 (H6): Operational admin UX & order fulfilment [Pending]
 
