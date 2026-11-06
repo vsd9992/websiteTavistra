@@ -97,6 +97,27 @@ export interface CatalogueItem {
   availableStock: number;
   reservedStock: number;
   isPublished: boolean;
+  shortDescription: string;
+  fullDescription: string;
+  materials: string[];
+  dimensions: string;
+  weightGrams: number;
+  packedWeightKg: number;
+  packedVolumetricKg: number;
+  returnPolicy: string;
+  markdownFile: string;
+}
+
+export interface PincodeEntry {
+  id: string;
+  pincode: string;
+  city: string;
+  state: string;
+  zoneCode: "ZONE_A" | "ZONE_B" | "ZONE_C" | "ZONE_D";
+  zoneLabel: string;
+  isServiceable: boolean;
+  carrierAccepted: boolean;
+  verifiedDate: string;
 }
 
 export interface StaffUser {
@@ -339,6 +360,15 @@ export const INITIAL_CATALOGUE: CatalogueItem[] = [
     availableStock: 8,
     reservedStock: 1,
     isPublished: true,
+    shortDescription: "Precision-milled aerospace aluminium body with an unlacquered brushed brass dial.",
+    fullDescription: "Machined from a single block of aerospace aluminium with brushed brass hands and silent German quartz movement. Concealed flush wall mounting system included.",
+    materials: ["Milled Solid Aluminium", "Brushed Brass", "Silent German Quartz Movement"],
+    dimensions: "320mm Dia × 38mm D",
+    weightGrams: 2400,
+    packedWeightKg: 3.2,
+    packedVolumetricKg: 1.8,
+    returnPolicy: "7-Day Return Guarantee eligible",
+    markdownFile: "content/products/monolith-wall-clock.md",
   },
   {
     id: "cat_02",
@@ -350,6 +380,15 @@ export const INITIAL_CATALOGUE: CatalogueItem[] = [
     availableStock: 0,
     reservedStock: 0,
     isPublished: true,
+    shortDescription: "Hand-rolled architectural brass frame cradling high-definition distortion-free float glass.",
+    fullDescription: "Solid architectural brass frame cradling high-definition distortion-free silvered float mirror glass. Reinforced heavy-gauge Z-bar wall cleat mounting.",
+    materials: ["Solid Architect's Brass", "HD Silvered Float Glass", "Engineered Wood Backing"],
+    dimensions: "600mm W × 900mm H × 30mm D",
+    weightGrams: 8500,
+    packedWeightKg: 12.5,
+    packedVolumetricKg: 10.6,
+    returnPolicy: "Made to Order: 7-day pre-production grace cancellation with 100% advance refund",
+    markdownFile: "content/products/arc-wall-mirror.md",
   },
   {
     id: "cat_03",
@@ -361,6 +400,15 @@ export const INITIAL_CATALOGUE: CatalogueItem[] = [
     availableStock: 14,
     reservedStock: 2,
     isPublished: true,
+    shortDescription: "Weighted cast composite stone with integrated anodised bronze pen channels.",
+    fullDescription: "Substantial 1.8kg weighted base prevents desk slippage with natural wool felt smartphone tray and micro-catchment for stationery clips.",
+    materials: ["Cast Mineral Stone", "Anodised Bronze Aluminium", "Natural Wool Felt"],
+    dimensions: "280mm L × 140mm W × 45mm H",
+    weightGrams: 1800,
+    packedWeightKg: 2.3,
+    packedVolumetricKg: 0.7,
+    returnPolicy: "Standard non-returnable unless defective on arrival",
+    markdownFile: "content/products/strata-desk-organiser.md",
   },
   {
     id: "cat_04",
@@ -372,6 +420,15 @@ export const INITIAL_CATALOGUE: CatalogueItem[] = [
     availableStock: 0,
     reservedStock: 0,
     isPublished: true,
+    shortDescription: "Counterbalanced articulated arm in gunmetal stainless steel with warm 2700K LED optic engine.",
+    fullDescription: "Fluid counterbalance movement with zero spring backlash, precision rotary dimmer switch, and CRI 95+ warm architectural light.",
+    materials: ["Gunmetal Stainless Steel", "Counterweight Brass", "High-CRI LED 2700K"],
+    dimensions: "520mm Reach × 480mm Max Height",
+    weightGrams: 4200,
+    packedWeightKg: 5.6,
+    packedVolumetricKg: 4.8,
+    returnPolicy: "Made to Order: 7-day pre-production grace cancellation with 100% advance refund",
+    markdownFile: "content/products/aether-desk-lamp.md",
   },
   {
     id: "cat_05",
@@ -383,6 +440,15 @@ export const INITIAL_CATALOGUE: CatalogueItem[] = [
     availableStock: 25,
     reservedStock: 0,
     isPublished: true,
+    shortDescription: "Hand-finished lost-wax cast solid brass pocket talisman with screw-locking titanium wire.",
+    fullDescription: "Smooth organic contour shaped for tactile pocket carry with heavy-duty threaded Grade 5 titanium cable.",
+    materials: ["Cast Solid Brass", "Grade 5 Titanium Wire"],
+    dimensions: "42mm Dia × 8mm Thickness",
+    weightGrams: 140,
+    packedWeightKg: 0.3,
+    packedVolumetricKg: 0.1,
+    returnPolicy: "Standard non-returnable unless defective on arrival",
+    markdownFile: "content/products/torus-key-tag.md",
   },
   {
     id: "cat_06",
@@ -394,6 +460,117 @@ export const INITIAL_CATALOGUE: CatalogueItem[] = [
     availableStock: 0,
     reservedStock: 0,
     isPublished: true,
+    shortDescription: "Bespoke balance-weighted kinetic sculpture for indoor lobbies or private courtyards.",
+    fullDescription: "Custom architectural sizing tailored to client floorplans with independently numbered and studio-signed edition certificate.",
+    materials: ["Hand-Beaten Bronze", "Black Granite Plinth", "Precision Ceramic Bearings"],
+    dimensions: "Custom Scaled (1.2m to 2.4m Height Options)",
+    weightGrams: 35000,
+    packedWeightKg: 48.0,
+    packedVolumetricKg: 38.0,
+    returnPolicy: "Bespoke commission: governed by approved quotation terms",
+    markdownFile: "content/products/oblique-wind-sculpture.md",
+  },
+];
+
+export const INITIAL_PINCODES: PincodeEntry[] = [
+  {
+    id: "pin_1",
+    pincode: "110001",
+    city: "New Delhi",
+    state: "Delhi",
+    zoneCode: "ZONE_A",
+    zoneLabel: "Zone A (Delhi NCR Local)",
+    isServiceable: true,
+    carrierAccepted: true,
+    verifiedDate: "2026-11-06",
+  },
+  {
+    id: "pin_2",
+    pincode: "122002",
+    city: "Gurugram",
+    state: "Haryana",
+    zoneCode: "ZONE_A",
+    zoneLabel: "Zone A (Delhi NCR Local)",
+    isServiceable: true,
+    carrierAccepted: true,
+    verifiedDate: "2026-11-06",
+  },
+  {
+    id: "pin_3",
+    pincode: "201301",
+    city: "Noida",
+    state: "Uttar Pradesh",
+    zoneCode: "ZONE_A",
+    zoneLabel: "Zone A (Delhi NCR Local)",
+    isServiceable: true,
+    carrierAccepted: true,
+    verifiedDate: "2026-11-06",
+  },
+  {
+    id: "pin_4",
+    pincode: "160017",
+    city: "Chandigarh",
+    state: "Chandigarh",
+    zoneCode: "ZONE_B",
+    zoneLabel: "Zone B (Regional North)",
+    isServiceable: true,
+    carrierAccepted: true,
+    verifiedDate: "2026-11-06",
+  },
+  {
+    id: "pin_5",
+    pincode: "302001",
+    city: "Jaipur",
+    state: "Rajasthan",
+    zoneCode: "ZONE_B",
+    zoneLabel: "Zone B (Regional North)",
+    isServiceable: true,
+    carrierAccepted: true,
+    verifiedDate: "2026-11-06",
+  },
+  {
+    id: "pin_6",
+    pincode: "400001",
+    city: "Mumbai",
+    state: "Maharashtra",
+    zoneCode: "ZONE_C",
+    zoneLabel: "Zone C (National Metros)",
+    isServiceable: true,
+    carrierAccepted: true,
+    verifiedDate: "2026-11-06",
+  },
+  {
+    id: "pin_7",
+    pincode: "560001",
+    city: "Bengaluru",
+    state: "Karnataka",
+    zoneCode: "ZONE_C",
+    zoneLabel: "Zone C (National Metros)",
+    isServiceable: true,
+    carrierAccepted: true,
+    verifiedDate: "2026-11-06",
+  },
+  {
+    id: "pin_8",
+    pincode: "190001",
+    city: "Srinagar",
+    state: "Jammu & Kashmir",
+    zoneCode: "ZONE_D",
+    zoneLabel: "Zone D (Special Terrain)",
+    isServiceable: true,
+    carrierAccepted: true,
+    verifiedDate: "2026-11-06",
+  },
+  {
+    id: "pin_9",
+    pincode: "194101",
+    city: "Leh",
+    state: "Ladakh",
+    zoneCode: "ZONE_D",
+    zoneLabel: "Zone D (Special Terrain)",
+    isServiceable: false,
+    carrierAccepted: false,
+    verifiedDate: "2026-11-06",
   },
 ];
 

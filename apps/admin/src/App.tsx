@@ -5,6 +5,7 @@ import {
   INITIAL_SUPPORT_TICKETS,
   INITIAL_CUSTOMERS,
   INITIAL_CATALOGUE,
+  INITIAL_PINCODES,
   STAFF_USERS,
   INITIAL_AUDIT_LOGS,
   AdminOrder,
@@ -12,13 +13,14 @@ import {
   SupportTicket,
   CustomerProfile,
   CatalogueItem,
+  PincodeEntry,
   StaffUser,
   AuditEntry,
 } from "./data";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<
-    "OVERVIEW" | "ORDERS" | "PRODUCTION" | "DISPATCH" | "TICKETS" | "CUSTOMERS" | "CATALOGUE" | "AUDIT"
+    "OVERVIEW" | "ORDERS" | "PRODUCTION" | "DISPATCH" | "TICKETS" | "CUSTOMERS" | "CATALOGUE" | "PINCODES" | "SETTINGS" | "AUDIT"
   >("OVERVIEW");
 
   // State
@@ -28,7 +30,11 @@ export default function App() {
   const [tickets, setTickets] = useState<SupportTicket[]>(INITIAL_SUPPORT_TICKETS);
   const [customers] = useState<CustomerProfile[]>(INITIAL_CUSTOMERS);
   const [catalogue, setCatalogue] = useState<CatalogueItem[]>(INITIAL_CATALOGUE);
+  const [pincodes, setPincodes] = useState<PincodeEntry[]>(INITIAL_PINCODES);
   const [auditLogs, setAuditLogs] = useState<AuditEntry[]>(INITIAL_AUDIT_LOGS);
+
+  // System Settings State
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
 
   // Search & Filters
   const [orderSearch, setOrderSearch] = useState("");
@@ -41,6 +47,12 @@ export default function App() {
 
   // Customer inspector
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerProfile | null>(null);
+
+  // Product Review Modal
+  const [reviewedProduct, setReviewedProduct] = useState<CatalogueItem | null>(null);
+
+  // PIN Code search
+  const [pinSearch, setPinSearch] = useState("");
 
   // AWB Edit State
   const [editingAwbId, setEditingAwbId] = useState<string | null>(null);
@@ -74,6 +86,7 @@ export default function App() {
     const inProductionCount = orders.filter((o) => o.status === "WORKSHOP_CRAFTING").length;
     const openTicketsCount = tickets.filter((t) => t.status === "OPEN" || t.status === "IN_PROGRESS").length;
     const newInquiriesCount = inquiries.filter((i) => i.status === "NEW").length;
+    const serviceablePinsCount = pincodes.filter((p) => p.isServiceable).length;
 
     return {
       totalRevenue,
@@ -83,8 +96,9 @@ export default function App() {
       newInquiriesCount,
       totalOrders: orders.length,
       totalCustomers: customers.length,
+      serviceablePinsCount,
     };
-  }, [orders, tickets, inquiries, customers]);
+  }, [orders, tickets, inquiries, customers, pincodes]);
 
   // Filtered Orders
   const filteredOrders = useMemo(() => {
@@ -100,6 +114,19 @@ export default function App() {
       return matchesMode && matchesSearch;
     });
   }, [orders, modeFilter, orderSearch]);
+
+  // Filtered PIN codes
+  const filteredPincodes = useMemo(() => {
+    const query = pinSearch.toLowerCase().trim();
+    if (!query) return pincodes;
+    return pincodes.filter(
+      (p) =>
+        p.pincode.includes(query) ||
+        p.city.toLowerCase().includes(query) ||
+        p.state.toLowerCase().includes(query) ||
+        p.zoneCode.toLowerCase().includes(query)
+    );
+  }, [pincodes, pinSearch]);
 
   // Release MTO order to workshop
   const handleReleaseToProduction = (orderId: string) => {
@@ -252,6 +279,45 @@ export default function App() {
     );
   };
 
+  // Toggle Pincode Serviceability
+  const handleTogglePincode = (pincodeId: string) => {
+    setPincodes((prev) =>
+      prev.map((p) => {
+        if (p.id === pincodeId) {
+          const updated = { ...p, isServiceable: !p.isServiceable };
+          logAuditAction(
+            "PINCODE_SERVICEABILITY_TOGGLE",
+            "Pincode",
+            p.pincode,
+            `PIN ${p.pincode} serviceability set to ${updated.isServiceable ? "ACTIVE" : "DISABLED"}.`
+          );
+          return updated;
+        }
+        return p;
+      })
+    );
+  };
+
+  // Download State Snapshot JSON
+  const handleExportStateSnapshot = () => {
+    const snapshot = {
+      exportedAt: new Date().toISOString(),
+      orders,
+      tickets,
+      catalogue,
+      pincodes,
+      auditLogs,
+    };
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `tavistra-admin-snapshot-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    logAuditAction("DATA_EXPORT", "System", "ALL", "Downloaded complete operational state snapshot JSON.");
+  };
+
   const formatPrice = (rupees: number) =>
     new Intl.NumberFormat("en-IN", {
       style: "currency",
@@ -261,6 +327,19 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#121214] text-[#f4f4f6]">
+      {/* Top Notice: Staging / Dev Mode Notice */}
+      <div className="bg-[#1c1c20] border-b border-[#2e2e34] px-6 py-1.5 text-[11px] text-[#9e9ea8] flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span>
+            <strong className="text-white">Internal Studio Console</strong> · Local development environment (Windows workstation).
+          </span>
+        </div>
+        <div className="text-[10px] text-[#c59b6d]">
+          Role switcher active for operational testing. Production uses tokenized session cookies.
+        </div>
+      </div>
+
       {/* Top Staff Operational Bar */}
       <header className="border-b border-[#2e2e34] bg-[#18181c] sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -314,6 +393,8 @@ export default function App() {
             { id: "TICKETS", label: `Support Tickets (${stats.openTicketsCount})` },
             { id: "CUSTOMERS", label: `Customers (${customers.length})` },
             { id: "CATALOGUE", label: `Catalogue (${catalogue.length})` },
+            { id: "PINCODES", label: `Delivery PINs (${stats.serviceablePinsCount})` },
+            { id: "SETTINGS", label: "System & Settings" },
             { id: "AUDIT", label: `Audit Log (${auditLogs.length})` },
           ].map((tab) => (
             <button
@@ -358,15 +439,15 @@ export default function App() {
                   Open Support Tickets
                 </span>
                 <p className="text-2xl font-bold text-[#f43f5e]">{stats.openTicketsCount}</p>
-                <p className="text-[11px] text-[#9e9ea8]">Alteration & delivery notes</p>
+                <p className="text-[11px] text-[#9e9ea8]">Alterations & requests</p>
               </div>
 
               <div className="p-5 rounded-2xl bg-[#1c1c20] border border-[#2e2e34] space-y-2">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-[#9e9ea8]">
-                  Registered Clients
+                  Active Delivery PINs
                 </span>
-                <p className="text-2xl font-bold text-white">{stats.totalCustomers}</p>
-                <p className="text-[11px] text-[#9e9ea8]">Practices & studio clients</p>
+                <p className="text-2xl font-bold text-white">{stats.serviceablePinsCount}</p>
+                <p className="text-[11px] text-[#9e9ea8]">Across Zones A, B, C, D</p>
               </div>
             </div>
 
@@ -710,7 +791,6 @@ export default function App() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-              {/* Tickets List (Span 5) */}
               <div className="lg:col-span-5 space-y-3">
                 {tickets.map((t) => (
                   <div
@@ -745,7 +825,6 @@ export default function App() {
                 ))}
               </div>
 
-              {/* Ticket Detail & Communication Pane (Span 7) */}
               <div className="lg:col-span-7 rounded-2xl bg-[#1c1c20] border border-[#2e2e34] p-6 space-y-5">
                 {selectedTicket ? (
                   <>
@@ -775,7 +854,6 @@ export default function App() {
                       </button>
                     </div>
 
-                    {/* Messages Thread */}
                     <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
                       {selectedTicket.messages.map((msg) => (
                         <div
@@ -795,7 +873,6 @@ export default function App() {
                       ))}
                     </div>
 
-                    {/* Reply Input */}
                     <div className="pt-3 border-t border-[#2e2e34] space-y-3">
                       <textarea
                         rows={3}
@@ -887,14 +964,14 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 7: CATALOGUE & MERCHANDISING */}
+        {/* TAB 7: CATALOGUE & PRODUCT REVIEW */}
         {activeTab === "CATALOGUE" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between border-b border-[#2e2e34] pb-3">
               <div>
                 <h2 className="text-base font-semibold text-white">Catalogue Editions & Live Inventory</h2>
                 <p className="text-xs text-[#9e9ea8]">
-                  Publish status, available workshop stock, and active reservations (TAV-02 & TAV-05).
+                  Publish status, available workshop stock, and active reservations (TAV-02 & TAV-05). Click "Review Specs" to inspect full editorial copy, dimensions, and Markdown sources.
                 </p>
               </div>
             </div>
@@ -908,13 +985,16 @@ export default function App() {
                     <th className="py-3 px-4">Purchase Mode</th>
                     <th className="py-3 px-4">Unit Price</th>
                     <th className="py-3 px-4">Stock Ledger</th>
-                    <th className="py-3 px-4 text-right">Publication</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#2e2e34]">
                   {catalogue.map((item) => (
                     <tr key={item.id} className="hover:bg-[#222228]/40 transition-colors">
-                      <td className="py-4 px-4 font-semibold text-white">{item.name}</td>
+                      <td className="py-4 px-4 font-semibold text-white">
+                        {item.name}
+                        <span className="block text-[10px] font-mono text-[#9e9ea8]">{item.slug}</span>
+                      </td>
                       <td className="py-4 px-4 text-[#9e9ea8]">{item.category}</td>
                       <td className="py-4 px-4">
                         <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#2a2a30] text-[#c59b6d]">
@@ -934,7 +1014,13 @@ export default function App() {
                           <span className="text-[11px] text-[#9e9ea8]">Workshop On-Demand</span>
                         )}
                       </td>
-                      <td className="py-4 px-4 text-right">
+                      <td className="py-4 px-4 text-right space-x-2">
+                        <button
+                          onClick={() => setReviewedProduct(item)}
+                          className="px-3 py-1 rounded-lg bg-[#24242a] text-white border border-[#3e3e46] text-xs font-semibold hover:bg-[#2e2e34]"
+                        >
+                          Review Specs
+                        </button>
                         <button
                           onClick={() => handleTogglePublish(item.id)}
                           className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
@@ -954,7 +1040,196 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 8: IMMUTABLE AUDIT LOG */}
+        {/* TAB 8: DELIVERY PIN CODES & SLABS */}
+        {activeTab === "PINCODES" && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-[#2e2e34] pb-4">
+              <div>
+                <h2 className="text-base font-semibold text-white">Delivery PIN Code Governance & 12-Slab Ladder</h2>
+                <p className="text-xs text-[#9e9ea8]">
+                  Universal enabled-PIN serviceability. Approved 12 customer-payable slabs: ₹0, ₹250, ₹500, ₹750, ₹1000, ₹1500, ₹2000, ₹2500, ₹3000, ₹4000, ₹5000, ₹7500.
+                </p>
+              </div>
+
+              <input
+                type="text"
+                placeholder="Search PIN code, city, or zone..."
+                value={pinSearch}
+                onChange={(e) => setPinSearch(e.target.value)}
+                className="rounded-xl border border-[#3e3e46] bg-[#1c1c20] px-4 py-2 text-xs text-white placeholder-[#6e6e76] w-full sm:w-64 focus:outline-none focus:border-[#c59b6d]"
+              />
+            </div>
+
+            {/* Approved Delhi Origins Callout */}
+            <div className="p-4 rounded-xl bg-[#1c1c20] border border-[#2e2e34] flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div>
+                <span className="text-[#c59b6d] font-semibold uppercase text-[10px] tracking-wider block">
+                  Approved Delhi Fulfilment Origins (2026-11-06 Policy)
+                </span>
+                <p className="text-[#9e9ea8]">
+                  Consignments originate from Delhi PINs: <strong className="text-white font-mono">110062, 110019, 110074</strong>. One common customer fee applies regardless of origin.
+                </p>
+              </div>
+              <div className="text-[11px] text-[#10b981] font-semibold bg-emerald-950/40 px-3 py-1.5 rounded-lg border border-emerald-800">
+                Universal Enabled-PIN Presumption Active
+              </div>
+            </div>
+
+            {/* PIN Table */}
+            <div className="rounded-2xl border border-[#2e2e34] bg-[#1c1c20] overflow-hidden">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-[#18181c] border-b border-[#2e2e34] text-[11px] uppercase tracking-wider text-[#9e9ea8]">
+                  <tr>
+                    <th className="py-3 px-4">PIN Code</th>
+                    <th className="py-3 px-4">Destination City & State</th>
+                    <th className="py-3 px-4">Assigned Commercial Zone</th>
+                    <th className="py-3 px-4">Carrier Pre-Check</th>
+                    <th className="py-3 px-4">Serviceability</th>
+                    <th className="py-3 px-4 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#2e2e34]">
+                  {filteredPincodes.map((pin) => (
+                    <tr key={pin.id} className="hover:bg-[#222228]/40 transition-colors">
+                      <td className="py-3.5 px-4 font-mono font-bold text-white text-sm">{pin.pincode}</td>
+                      <td className="py-3.5 px-4 text-white">
+                        {pin.city}, {pin.state}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#24242a] text-[#c59b6d]">
+                          {pin.zoneLabel}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        {pin.carrierAccepted ? (
+                          <span className="text-[#10b981] font-medium text-[11px]">✓ Surface Freight Feasible</span>
+                        ) : (
+                          <span className="text-[#f43f5e] font-medium text-[11px]">✕ Remote Air Only</span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                            pin.isServiceable
+                              ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                              : "bg-rose-950 text-rose-300 border border-rose-800"
+                          }`}
+                        >
+                          {pin.isServiceable ? "Serviceable" : "Disabled"}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <button
+                          onClick={() => handleTogglePincode(pin.id)}
+                          className={`px-3 py-1 rounded-lg text-xs font-semibold ${
+                            pin.isServiceable
+                              ? "bg-[#2a2a30] text-[#f43f5e] hover:bg-[#34343c]"
+                              : "bg-emerald-950 text-emerald-300 border border-emerald-800 hover:bg-emerald-900"
+                          }`}
+                        >
+                          {pin.isServiceable ? "Disable PIN" : "Enable PIN"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 9: SYSTEM & SETTINGS */}
+        {activeTab === "SETTINGS" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between border-b border-[#2e2e34] pb-3">
+              <div>
+                <h2 className="text-base font-semibold text-white">System Settings & Infrastructure</h2>
+                <p className="text-xs text-[#9e9ea8]">
+                  Maintenance controls, transactional SMTP infrastructure mapping, and state backup exports.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Card 1: Maintenance Mode */}
+              <div className="p-6 rounded-2xl bg-[#1c1c20] border border-[#2e2e34] space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-sm text-white">Storefront Maintenance Mode</h3>
+                  <button
+                    onClick={() => {
+                      const next = !maintenanceMode;
+                      setMaintenanceMode(next);
+                      logAuditAction(
+                        "MAINTENANCE_TOGGLE",
+                        "System",
+                        "Storefront",
+                        `Maintenance mode set to ${next ? "ENABLED" : "DISABLED"}.`
+                      );
+                    }}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                      maintenanceMode
+                        ? "bg-rose-950 text-rose-300 border border-rose-800 hover:bg-rose-900"
+                        : "bg-[#24242a] text-[#9e9ea8] border border-[#3e3e46] hover:text-white"
+                    }`}
+                  >
+                    {maintenanceMode ? "Maintenance Active" : "Storefront Live (Normal)"}
+                  </button>
+                </div>
+                <p className="text-xs text-[#9e9ea8] leading-relaxed">
+                  When enabled, all public catalog browsing displays a refined brand maintenance announcement while protecting active checkout and payment routes.
+                </p>
+              </div>
+
+              {/* Card 2: Transactional Email (SMTP) Infrastructure */}
+              <div className="p-6 rounded-2xl bg-[#1c1c20] border border-[#2e2e34] space-y-3">
+                <h3 className="font-semibold text-sm text-white">Transactional Email Architecture (SMTP)</h3>
+                <div className="p-3.5 rounded-xl bg-[#24242a] border border-[#2e2e34] space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-[#9e9ea8]">Target SMTP Host:</span>
+                    <strong className="text-white font-mono">devMachine (192.168.1.100) / VPS</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#9e9ea8]">Local Machine Policy:</span>
+                    <span className="text-[#10b981] font-semibold">Zero Local Mail Services (Protected)</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#9e9ea8]">Mail Flow:</span>
+                    <span className="text-[#c59b6d]">Queued Order Confirmations & Tickets</span>
+                  </div>
+                </div>
+                <p className="text-[11px] text-[#9e9ea8] leading-relaxed">
+                  Per repository operating rules, no local SMTP daemon is installed on this Windows workstation. Outbound notification queues and test relays run exclusively on the Debian devMachine or external provider.
+                </p>
+              </div>
+
+              {/* Card 3: Data Export & Backup */}
+              <div className="p-6 rounded-2xl bg-[#1c1c20] border border-[#2e2e34] space-y-3">
+                <h3 className="font-semibold text-sm text-white">Operational Snapshot Backup</h3>
+                <p className="text-xs text-[#9e9ea8] leading-relaxed">
+                  Export the complete operational state (orders, customer profiles, support tickets, delivery PIN whitelist, and audit logs) as a timestamped JSON file.
+                </p>
+                <button
+                  onClick={handleExportStateSnapshot}
+                  className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors shadow-sm"
+                >
+                  Download State Snapshot JSON
+                </button>
+              </div>
+
+              {/* Card 4: Brand & Entity Attribution */}
+              <div className="p-6 rounded-2xl bg-[#1c1c20] border border-[#2e2e34] space-y-3">
+                <h3 className="font-semibold text-sm text-white">Brand Entity Attribution</h3>
+                <div className="p-3.5 rounded-xl bg-[#24242a] border border-[#2e2e34] space-y-1 text-xs">
+                  <p className="text-white font-semibold">Brand: Tavistra</p>
+                  <p className="text-[#c59b6d]">Parent Entity: VDesign (Strictly, never 'VDesign Studio')</p>
+                  <p className="text-[11px] text-[#9e9ea8]">Prohibited terminology: 'Commission'</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 10: IMMUTABLE AUDIT LOG */}
         {activeTab === "AUDIT" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between border-b border-[#2e2e34] pb-3">
@@ -1000,7 +1275,7 @@ export default function App() {
         )}
       </main>
 
-      {/* Selected Order Slide-Over Modal */}
+      {/* MODAL 1: Selected Order Slide-Over */}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-2xl rounded-2xl bg-[#1c1c20] border border-[#2e2e34] p-6 space-y-6 shadow-2xl">
@@ -1082,7 +1357,100 @@ export default function App() {
         </div>
       )}
 
-      {/* Selected Customer Inspector Modal */}
+      {/* MODAL 2: Product Review Modal */}
+      {reviewedProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-[#1c1c20] border border-[#2e2e34] p-6 space-y-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-[#2e2e34] pb-4">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#c59b6d] tracking-wider block">
+                  Product Editorial & Commercial Review
+                </span>
+                <h3 className="font-semibold text-lg text-white">{reviewedProduct.name}</h3>
+                <p className="text-xs text-[#9e9ea8]">Category: {reviewedProduct.category}</p>
+              </div>
+              <button
+                onClick={() => setReviewedProduct(null)}
+                className="text-xs text-[#9e9ea8] hover:text-white"
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div className="p-4 rounded-xl bg-[#24242a] space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-[#9e9ea8]">Purchase Mode:</span>
+                  <span className="font-semibold text-[#c59b6d]">{reviewedProduct.mode}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#9e9ea8]">Tax-Inclusive Price:</span>
+                  <span className="font-semibold text-white">{formatPrice(reviewedProduct.priceRupees)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#9e9ea8]">Dimensions:</span>
+                  <span className="text-white font-mono">{reviewedProduct.dimensions}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#9e9ea8]">Net Product Weight:</span>
+                  <span className="text-white font-mono">{(reviewedProduct.weightGrams / 1000).toFixed(2)} kg</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#9e9ea8]">Packed Weight vs Volumetric:</span>
+                  <span className="text-white font-mono">
+                    {reviewedProduct.packedWeightKg} kg actual / {reviewedProduct.packedVolumetricKg} kg volumetric
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <strong className="text-[#9e9ea8] block mb-1">Editorial Description:</strong>
+                <p className="p-3 rounded-xl bg-[#16161a] border border-[#2e2e34] text-white leading-relaxed">
+                  {reviewedProduct.fullDescription}
+                </p>
+              </div>
+
+              <div>
+                <strong className="text-[#9e9ea8] block mb-1">Materials & Fine Craft:</strong>
+                <div className="flex flex-wrap gap-2">
+                  {reviewedProduct.materials.map((mat, idx) => (
+                    <span key={idx} className="px-2.5 py-1 rounded-lg bg-[#2a2a30] text-white text-[11px]">
+                      {mat}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-[#24242a] border border-[#2e2e34] space-y-1">
+                <span className="text-[10px] uppercase font-bold text-[#9e9ea8] tracking-wider block">
+                  Markdown Source Reference (Architecture Spec)
+                </span>
+                <p className="font-mono text-[11px] text-[#c59b6d]">{reviewedProduct.markdownFile}</p>
+                <p className="text-[11px] text-[#9e9ea8]">{reviewedProduct.returnPolicy}</p>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center pt-2 border-t border-[#2e2e34]">
+              <a
+                href={`http://localhost:3000/product/${reviewedProduct.slug}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-semibold text-[#c59b6d] hover:underline"
+              >
+                Open in Public Storefront ↗
+              </a>
+              <button
+                onClick={() => setReviewedProduct(null)}
+                className="px-5 py-2 rounded-xl bg-[#2e2e34] text-xs font-semibold text-white hover:bg-[#3e3e46]"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: Customer Profile Inspector */}
       {selectedCustomer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-lg rounded-2xl bg-[#1c1c20] border border-[#2e2e34] p-6 space-y-5 shadow-2xl">
