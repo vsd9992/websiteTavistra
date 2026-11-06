@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-admin-bg: #121214;
+    --color-admin-card: #1c1c20;
+    --color-admin-border: #2e2e34;
+    --color-admin-text: #f4f4f6;
+    --color-admin-muted: #9e9ea8;
+    --color-admin-bronze: #c59b6d;
+    --color-admin-emerald: #10b981;
+    --color-admin-amber: #f59e0b;
+  }
+}
+
+body {
+  background-color: var(--color-admin-bg);
+  color: var(--color-admin-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+

@@ -6,7 +6,7 @@ Milestone: Baseline Adoption & H1/H2 Execution Readiness
 Status: Concept specification imported; git connected to `websiteTavistra`; project memory updated to 2026-11-04 handoff authority.
 
 ## Active Tasks
-- [.ai/tasks/active/h4-commerce-foundations-db.md](tasks/active/h4-commerce-foundations-db.md) — H4 Core Commerce Foundations & Database Schema (Prisma, Inventory Ledger, Distance Bands)
+- [.ai/tasks/active/h6-staff-admin-portal.md](tasks/active/h6-staff-admin-portal.md) — H6 Staff Administration Portal (`apps/admin`) (Orders, Production Release, Manual Dispatch, AWB)
 
 ## Document Map
 - [AGENTS.md](../AGENTS.md) — Permanent repository operating rules & memory contract
