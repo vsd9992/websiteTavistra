@@ -23,6 +23,11 @@ export const metadata: Metadata = {
   title: "Tavistra — Design-Led Lifestyle & Décor",
   description:
     "Contemporary design-led lifestyle, objects, and architectural décor by VDesign. Master-crafted ready stock, made to order, and bespoke editions.",
+  icons: {
+    icon: "/logo-mark.png",
+    shortcut: "/logo-mark.png",
+    apple: "/logo-mark.png",
+  },
 };
 
 export default function RootLayout({
