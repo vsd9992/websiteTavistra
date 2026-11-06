@@ -394,12 +394,12 @@ export default function CartPage() {
                           </div>
                         ) : (
                           <div className="space-y-2">
-                            <button
-                              type="button"
-                              className="w-full rounded-full bg-[var(--color-ink)] py-3.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
+                            <Link
+                              href={`/checkout?mode=ready_stock${pincode ? `&pincode=${encodeURIComponent(pincode.trim())}` : ""}`}
+                              className="block w-full text-center rounded-full bg-[var(--color-ink)] py-3.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
                             >
                               Proceed to Checkout
-                            </button>
+                            </Link>
                             <p className="text-[11px] text-[var(--color-muted-light)] text-center">
                               Dispatched in 24–48 hours upon verified electronic payment.
                             </p>
@@ -574,12 +574,12 @@ export default function CartPage() {
                           </div>
                         ) : (
                           <div className="space-y-2">
-                            <button
-                              type="button"
-                              className="w-full rounded-full bg-[var(--color-ink)] py-3.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
+                            <Link
+                              href={`/checkout?mode=made_to_order${pincode ? `&pincode=${encodeURIComponent(pincode.trim())}` : ""}`}
+                              className="block w-full text-center rounded-full bg-[var(--color-ink)] py-3.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
                             >
                               Pay Advance & Checkout
-                            </button>
+                            </Link>
                             <p className="text-[11px] text-[var(--color-muted-light)] text-center">
                               Remaining balance collected after QC inspection before carrier handover.
                             </p>
