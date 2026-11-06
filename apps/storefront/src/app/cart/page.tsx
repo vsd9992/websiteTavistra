@@ -10,6 +10,8 @@ import {
   calculateDeliveryFee,
   calculateOrderDeliveryFee,
   checkBulkOrderCeiling,
+  lookupPincode,
+  PincodeLookupResult,
   ItemPhysicalSpec,
   ShippingCalculationResult,
 } from "@tavistra/shared";
@@ -29,6 +31,7 @@ export default function CartPage() {
 
   const [pincode, setPincode] = useState("");
   const [shippingResult, setShippingResult] = useState<ShippingCalculationResult | null>(null);
+  const [resolvedLocation, setResolvedLocation] = useState<string | null>(null);
   const [pinError, setPinError] = useState<string | null>(null);
 
   const formatPrice = (paise: number) =>
@@ -67,6 +70,7 @@ export default function CartPage() {
     if (!/^\d{6}$/.test(targetPin)) {
       setPinError("Please enter a valid 6-digit Indian PIN code.");
       setShippingResult(null);
+      setResolvedLocation(null);
       return;
     }
 
@@ -75,8 +79,20 @@ export default function CartPage() {
       return;
     }
 
+    const lookup = lookupPincode(targetPin);
+    if (!lookup.isServiceable) {
+      setPinError(
+        lookup.unserviceableReason ||
+          `We cannot deliver to PIN code ${targetPin}. This destination is currently not serviceable for insured fragile consignments.`
+      );
+      setShippingResult(null);
+      setResolvedLocation(lookup.city ? `${lookup.city}, ${lookup.state}` : null);
+      return;
+    }
+
     setPinError(null);
-    const zone = resolveShippingZone(targetPin);
+    setResolvedLocation(`${lookup.city}, ${lookup.state}`);
+    const zone = lookup.zoneCode;
 
     // Multi-item highest product fee rule (Decision 0004):
     // For single-destination orders with multiple items, charge a single delivery fee
@@ -343,10 +359,15 @@ export default function CartPage() {
                               Check
                             </button>
                           </div>
-                          {pinError && <p className="text-[10px] text-red-600 font-medium">{pinError}</p>}
+                          {pinError && (
+                            <div className="rounded-lg bg-red-50 p-2.5 border border-red-200 text-xs text-red-700 font-medium leading-relaxed">
+                              ⚠ {pinError}
+                            </div>
+                          )}
                           {shippingResult && (
                             <p className="text-[11px] text-[var(--color-muted-light)] leading-snug pt-0.5">
-                              ✓ {shippingResult.carrierName} · Transit: {shippingResult.transitDaysEstimate}
+                              ✓ {resolvedLocation && <strong className="text-[var(--color-ink)]">{resolvedLocation} · </strong>}
+                              {shippingResult.carrierName} · Transit: {shippingResult.transitDaysEstimate}
                             </p>
                           )}
                         </div>
@@ -511,10 +532,15 @@ export default function CartPage() {
                               Check
                             </button>
                           </div>
-                          {pinError && <p className="text-[10px] text-red-600 font-medium">{pinError}</p>}
+                          {pinError && (
+                            <div className="rounded-lg bg-red-50 p-2.5 border border-red-200 text-xs text-red-700 font-medium leading-relaxed">
+                              ⚠ {pinError}
+                            </div>
+                          )}
                           {shippingResult && (
                             <p className="text-[11px] text-[var(--color-muted-light)] leading-snug pt-0.5">
-                              ✓ {shippingResult.carrierName} · Transit: {shippingResult.transitDaysEstimate}
+                              ✓ {resolvedLocation && <strong className="text-[var(--color-ink)]">{resolvedLocation} · </strong>}
+                              {shippingResult.carrierName} · Transit: {shippingResult.transitDaysEstimate}
                             </p>
                           )}
                         </div>

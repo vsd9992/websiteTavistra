@@ -4,6 +4,8 @@ import { useState } from "react";
 import {
   resolveShippingZone,
   calculateDeliveryFee,
+  lookupPincode,
+  PincodeLookupResult,
   ItemPhysicalSpec,
   ShippingCalculationResult,
 } from "@tavistra/shared";
@@ -21,6 +23,7 @@ interface DeliveryEstimatorProps {
 export function DeliveryEstimator({ product }: DeliveryEstimatorProps) {
   const [pincode, setPincode] = useState("");
   const [result, setResult] = useState<ShippingCalculationResult | null>(null);
+  const [resolvedLocation, setResolvedLocation] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const itemSpec: ItemPhysicalSpec = {
@@ -37,11 +40,24 @@ export function DeliveryEstimator({ product }: DeliveryEstimatorProps) {
     if (!/^\d{6}$/.test(targetPin)) {
       setError("Please enter a valid 6-digit Indian PIN code.");
       setResult(null);
+      setResolvedLocation(null);
+      return;
+    }
+
+    const lookup = lookupPincode(targetPin);
+    if (!lookup.isServiceable) {
+      setError(
+        lookup.unserviceableReason ||
+          `We cannot deliver to PIN code ${targetPin}. This destination is currently not serviceable for insured fragile consignments.`
+      );
+      setResult(null);
+      setResolvedLocation(lookup.city ? `${lookup.city}, ${lookup.state}` : null);
       return;
     }
 
     setError(null);
-    const zone = resolveShippingZone(targetPin);
+    setResolvedLocation(`${lookup.city}, ${lookup.state}`);
+    const zone = lookup.zoneCode;
     const calculation = calculateDeliveryFee(zone, [itemSpec]);
     setResult(calculation);
   };
@@ -79,8 +95,8 @@ export function DeliveryEstimator({ product }: DeliveryEstimatorProps) {
               handleEstimate();
             }
           }}
-          placeholder="Enter 6-digit PIN code"
-          className="flex-1 rounded-lg border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-3 py-2 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] placeholder:text-[var(--color-muted-light)]"
+          placeholder="Enter 6-digit PIN (e.g. 110001, 560001, 400001)"
+          className="flex-1 rounded-lg border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-3 py-2 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] placeholder:text-[var(--color-muted-light)] font-mono"
         />
         <button
           type="button"
@@ -91,21 +107,26 @@ export function DeliveryEstimator({ product }: DeliveryEstimatorProps) {
         </button>
       </div>
 
-      {error && <p className="text-[11px] text-red-600 font-medium">{error}</p>}
+      {error && (
+        <div className="rounded-lg bg-red-50 p-2.5 border border-red-200 text-xs text-red-700 font-medium leading-relaxed">
+          ⚠ {error}
+        </div>
+      )}
 
       {/* Clean, Simple Estimation Result */}
       {result && (
         <div className="pt-3 border-t border-[var(--color-decorative-border)]/60 flex items-center justify-between text-xs">
           <div className="space-y-0.5">
             <p className="font-semibold text-[var(--color-ink)]">
-              Insured Delivery: ₹{result.totalDeliveryFeeRupees.toLocaleString("en-IN")}
+              {resolvedLocation && <span className="text-[var(--color-bronze)] font-medium mr-1.5">{resolvedLocation} ·</span>}
+              Insured Delivery: {result.totalDeliveryFeeRupees === 0 ? "Complimentary" : `₹${result.totalDeliveryFeeRupees.toLocaleString("en-IN")}`}
             </p>
             <p className="text-[11px] text-[var(--color-muted-light)]">
               {result.carrierName} · Transit: {result.transitDaysEstimate}
             </p>
           </div>
           <span className="text-[10px] uppercase tracking-wider font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-            100% Insured
+            Serviceable
           </span>
         </div>
       )}

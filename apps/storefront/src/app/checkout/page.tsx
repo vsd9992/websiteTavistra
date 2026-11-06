@@ -11,6 +11,8 @@ import {
   calculateDeliveryFee,
   calculateOrderDeliveryFee,
   checkBulkOrderCeiling,
+  lookupPincode,
+  PincodeLookupResult,
   ItemPhysicalSpec,
   ShippingCalculationResult,
 } from "@tavistra/shared";
@@ -72,12 +74,37 @@ function CheckoutContent() {
     }))
   );
 
-  // Calculate delivery fee whenever pincode is valid
+  // Calculate delivery fee & auto-fill city/state whenever pincode is valid
   useEffect(() => {
     const cleanPin = customer.pincode.replace(/\s+/g, "");
     if (/^\d{6}$/.test(cleanPin) && activeItems.length > 0) {
+      const lookup = lookupPincode(cleanPin);
+
+      if (!lookup.isServiceable) {
+        setPinError(
+          lookup.unserviceableReason ||
+            `We cannot deliver to PIN code ${cleanPin}. Tavistra currently services verified urban hubs across India.`
+        );
+        setShippingResult(null);
+        if (lookup.city) {
+          setCustomer((prev) => ({
+            ...prev,
+            city: lookup.city,
+            state: lookup.state,
+          }));
+        }
+        return;
+      }
+
+      // Automatically fill City and State from postal directory
+      setCustomer((prev) => ({
+        ...prev,
+        city: lookup.city,
+        state: lookup.state,
+      }));
       setPinError(null);
-      const zone = resolveShippingZone(cleanPin);
+
+      const zone = lookup.zoneCode;
 
       // Decision 0004: Highest product delivery fee applies across multi-item order
       const productCalcs = activeItems.map(({ product }) => {
@@ -415,9 +442,41 @@ function CheckoutContent() {
 
             {/* Shipping Address */}
             <div className="space-y-4 pt-4 border-t border-[var(--color-decorative-border)]">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
-                Shipping Address
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
+                  Shipping Address
+                </h3>
+                {shippingResult && customer.city && (
+                  <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                    ✓ Serviceable Hub ({customer.city}, {customer.state})
+                  </span>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
+                  6-Digit Indian PIN Code *
+                </label>
+                <input
+                  required
+                  type="text"
+                  maxLength={6}
+                  value={customer.pincode}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, "");
+                    setCustomer({ ...customer, pincode: val });
+                    if (pinError) setPinError(null);
+                  }}
+                  placeholder="Enter 6-digit PIN code (e.g. 110001, 560001, 400001)"
+                  className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono"
+                />
+                {pinError && (
+                  <div className="mt-2 rounded-xl bg-red-50 p-3 border border-red-200 text-xs text-red-700 font-medium leading-relaxed">
+                    ⚠ {pinError}
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
                   Address Line 1 (Building, Suite, Street) *
@@ -431,7 +490,8 @@ function CheckoutContent() {
                   className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
                 />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
                     Address Line 2 (Optional)
@@ -446,50 +506,29 @@ function CheckoutContent() {
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
-                    City *
+                    City (Auto-Filled) *
                   </label>
                   <input
                     required
                     type="text"
                     value={customer.city}
                     onChange={(e) => setCustomer({ ...customer, city: e.target.value })}
-                    placeholder="e.g. Gurugram"
-                    className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                    placeholder="City will auto-fill"
+                    className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-medium"
                   />
                 </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
-                    State *
+                    State (Auto-Filled) *
                   </label>
                   <input
                     required
                     type="text"
                     value={customer.state}
                     onChange={(e) => setCustomer({ ...customer, state: e.target.value })}
-                    placeholder="e.g. Haryana"
-                    className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                    placeholder="State will auto-fill"
+                    className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-medium"
                   />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
-                    6-Digit Indian PIN Code *
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    maxLength={6}
-                    value={customer.pincode}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, "");
-                      setCustomer({ ...customer, pincode: val });
-                      if (pinError) setPinError(null);
-                    }}
-                    placeholder="e.g. 122002"
-                    className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono"
-                  />
-                  {pinError && <p className="text-[10px] text-red-600 mt-1 font-medium">{pinError}</p>}
                 </div>
               </div>
             </div>

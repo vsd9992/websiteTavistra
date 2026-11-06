@@ -5,6 +5,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { lookupPincode } from "@tavistra/shared";
 
 function ContactFormContent() {
   const searchParams = useSearchParams();
@@ -189,11 +190,23 @@ function ContactFormContent() {
                 <input
                   type="text"
                   value={formData.pincode}
-                  onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, pincode: e.target.value.replace(/\D/g, "") })}
                   placeholder="e.g. 560001"
                   maxLength={6}
-                  className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                  className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono"
                 />
+                {formData.pincode.length === 6 && (() => {
+                  const lookup = lookupPincode(formData.pincode);
+                  return lookup.isServiceable ? (
+                    <p className="text-[11px] text-emerald-700 font-medium mt-1.5 flex items-center gap-1">
+                      ✓ Serviceable Hub: {lookup.city}, {lookup.state}
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-red-600 font-medium mt-1.5">
+                      ⚠ {lookup.unserviceableReason || "Destination outside standard delivery network — custom freight required."}
+                    </p>
+                  );
+                })()}
               </div>
             </div>
 

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export * from './shipping';
+export * from './pincodes';
 
 /**
  * Tavistra Purchase Modes (Independent lifecycles per TAV-04)
