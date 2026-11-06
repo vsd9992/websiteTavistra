@@ -5,27 +5,27 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Seeding Tavistra Commerce Engine database...');
 
-  // 1. Seed Shipping Zones (TAV-03 & TAV-09)
-  console.log('Seeding Shipping Zones & PIN Code mappings...');
+  // 1. Seed Shipping Zones (TAV-03 & TAV-09: Delhi Origin 110062/110019/110074)
+  console.log('Seeding Shipping Zones & PIN Code mappings (Delhi Origin)...');
 
   const zoneA = await prisma.shippingZone.upsert({
     where: { code: 'ZONE_A' },
     update: {},
     create: {
       code: 'ZONE_A',
-      name: 'Zone A (Intra-State / Karnataka)',
-      description: 'Local express transit with specialized courier handling.',
+      name: 'Zone A (Delhi NCR / Local)',
+      description: 'Local Delhi NCR white-glove direct carrier transit.',
       baseWeightGrams: 2000,
-      baseRate: 450.0,
-      perAdditionalKgRate: 80.0,
-      estimatedDaysMin: 2,
-      estimatedDaysMax: 3,
+      baseRate: 250.0,
+      perAdditionalKgRate: 50.0,
+      estimatedDaysMin: 1,
+      estimatedDaysMax: 2,
       pincodeRanges: {
         create: [
-          { stateName: 'Karnataka', pincodePrefix: '56', isServiceable: true },
-          { stateName: 'Karnataka', pincodePrefix: '57', isServiceable: true },
-          { stateName: 'Karnataka', pincodePrefix: '58', isServiceable: true },
-          { stateName: 'Karnataka', pincodePrefix: '59', isServiceable: true },
+          { stateName: 'Delhi', pincodePrefix: '11', isServiceable: true },
+          { stateName: 'Haryana', pincodePrefix: '121', isServiceable: true }, // Faridabad
+          { stateName: 'Haryana', pincodePrefix: '122', isServiceable: true }, // Gurugram
+          { stateName: 'Uttar Pradesh', pincodePrefix: '201', isServiceable: true }, // Noida/Ghaziabad
         ],
       },
     },
@@ -36,20 +36,20 @@ async function main() {
     update: {},
     create: {
       code: 'ZONE_B',
-      name: 'Zone B (Regional / South & West)',
-      description: 'Southern & Western states (TN, KL, AP, TS, GA, MH).',
+      name: 'Zone B (Regional / North & Nearby)',
+      description: 'Northern & nearby regional states (HR, PB, CH, RJ, UP, HP).',
       baseWeightGrams: 2000,
-      baseRate: 750.0,
-      perAdditionalKgRate: 120.0,
-      estimatedDaysMin: 3,
-      estimatedDaysMax: 5,
+      baseRate: 500.0,
+      perAdditionalKgRate: 80.0,
+      estimatedDaysMin: 2,
+      estimatedDaysMax: 4,
       pincodeRanges: {
         create: [
-          { stateName: 'Tamil Nadu', pincodePrefix: '60', isServiceable: true },
-          { stateName: 'Kerala', pincodePrefix: '68', isServiceable: true },
-          { stateName: 'Telangana', pincodePrefix: '50', isServiceable: true },
-          { stateName: 'Maharashtra', pincodePrefix: '40', isServiceable: true },
-          { stateName: 'Goa', pincodePrefix: '403', isServiceable: true },
+          { stateName: 'Punjab', pincodePrefix: '14', isServiceable: true },
+          { stateName: 'Chandigarh', pincodePrefix: '16', isServiceable: true },
+          { stateName: 'Rajasthan', pincodePrefix: '30', isServiceable: true },
+          { stateName: 'Uttar Pradesh', pincodePrefix: '22', isServiceable: true },
+          { stateName: 'Himachal Pradesh', pincodePrefix: '17', isServiceable: true },
         ],
       },
     },
@@ -60,19 +60,21 @@ async function main() {
     update: {},
     create: {
       code: 'ZONE_C',
-      name: 'Zone C (National / Metro & Rest of India)',
-      description: 'Major metros, Northern, Central and Eastern states.',
+      name: 'Zone C (National Metros / Central, West & South)',
+      description: 'Major national economic hubs (MH, KA, TS, TN, WB, GJ).',
       baseWeightGrams: 2000,
-      baseRate: 1100.0,
-      perAdditionalKgRate: 160.0,
-      estimatedDaysMin: 5,
-      estimatedDaysMax: 8,
+      baseRate: 1000.0,
+      perAdditionalKgRate: 120.0,
+      estimatedDaysMin: 3,
+      estimatedDaysMax: 6,
       pincodeRanges: {
         create: [
-          { stateName: 'Delhi NCR', pincodePrefix: '11', isServiceable: true },
-          { stateName: 'Gujarat', pincodePrefix: '38', isServiceable: true },
+          { stateName: 'Maharashtra', pincodePrefix: '40', isServiceable: true },
+          { stateName: 'Karnataka', pincodePrefix: '56', isServiceable: true },
+          { stateName: 'Telangana', pincodePrefix: '50', isServiceable: true },
+          { stateName: 'Tamil Nadu', pincodePrefix: '60', isServiceable: true },
           { stateName: 'West Bengal', pincodePrefix: '70', isServiceable: true },
-          { stateName: 'Rajasthan', pincodePrefix: '30', isServiceable: true },
+          { stateName: 'Gujarat', pincodePrefix: '38', isServiceable: true },
         ],
       },
     },
@@ -83,18 +85,18 @@ async function main() {
     update: {},
     create: {
       code: 'ZONE_D',
-      name: 'Zone D (Remote / Special Terrain)',
-      description: 'J&K, Ladakh, North-East, and Island territories.',
+      name: 'Zone D (Special Terrain / Long Distance)',
+      description: 'J&K, Assam, North-East, and Island territories.',
       baseWeightGrams: 2000,
-      baseRate: 1650.0,
-      perAdditionalKgRate: 220.0,
-      estimatedDaysMin: 7,
-      estimatedDaysMax: 12,
+      baseRate: 1500.0,
+      perAdditionalKgRate: 180.0,
+      estimatedDaysMin: 5,
+      estimatedDaysMax: 9,
       pincodeRanges: {
         create: [
+          { stateName: 'Jammu & Kashmir', pincodePrefix: '18', isServiceable: true },
           { stateName: 'Jammu & Kashmir', pincodePrefix: '19', isServiceable: true },
           { stateName: 'Assam', pincodePrefix: '78', isServiceable: true },
-          { stateName: 'Andaman & Nicobar', pincodePrefix: '744', isServiceable: true },
         ],
       },
     },

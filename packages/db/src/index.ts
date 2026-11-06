@@ -15,5 +15,15 @@ if (process.env.NODE_ENV !== "production") {
   global.prisma = prisma;
 }
 
-export * from "@prisma/client";
+export {
+  PrismaClient,
+  PurchaseMode,
+  OrderStatus,
+  PaymentStatus,
+  PaymentType,
+  QuoteStatus,
+  StaffRole,
+  StockMovementType,
+  Prisma,
+} from "@prisma/client";
 

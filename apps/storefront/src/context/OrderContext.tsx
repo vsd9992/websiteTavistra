@@ -140,6 +140,19 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
       }
       return updated;
     });
+
+    // Asynchronously persist to database via backend API
+    try {
+      fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(order),
+      }).catch(() => {
+        // Silent catch for offline development
+      });
+    } catch {
+      // Ignore network errors in offline dev
+    }
   };
 
   const lookupOrder = (orderId: string, phoneOrEmail: string): OrderRecord | null => {

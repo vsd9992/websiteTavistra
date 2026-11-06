@@ -105,6 +105,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       if (updatedUser) {
         localStorage.setItem("tavistra_user", JSON.stringify(updatedUser));
+        // Asynchronously sync profile to backend database
+        fetch("/api/account", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: updatedUser.name,
+            email: updatedUser.email,
+            phone: updatedUser.phone,
+            gstin: updatedUser.gstin,
+          }),
+        }).catch(() => {
+          // Silent catch for offline development
+        });
       } else {
         localStorage.removeItem("tavistra_user");
       }
