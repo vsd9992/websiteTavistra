@@ -398,7 +398,7 @@ export default function CartPage() {
                               type="button"
                               className="w-full rounded-full bg-[var(--color-ink)] py-3.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
                             >
-                              Proceed to Ready Stock Checkout (100%)
+                              Add to Cart
                             </button>
                             <p className="text-[11px] text-[var(--color-muted-light)] text-center">
                               Dispatched in 24–48 hours upon verified electronic payment.
