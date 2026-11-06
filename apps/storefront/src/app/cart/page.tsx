@@ -121,6 +121,45 @@ export default function CartPage() {
   const mtoAdvancePaise = Math.round(activeTotalPaise * 0.25);
   const mtoBalancePaise = activeTotalPaise - mtoAdvancePaise;
 
+  const getBulkEnquiryHref = () => {
+    const lines = activeItems.map(
+      (item) =>
+        `• ${item.product.name} (Qty: ${item.quantity}) — ${formatPrice(item.product.pricePaise * item.quantity)}`
+    );
+    const totalQty = activeItems.reduce((acc, i) => acc + i.quantity, 0);
+    const modeLabel = activeModeTab === "READY_STOCK" ? "Ready Stock" : "Made to Order";
+    const subtotalFormatted = formatPrice(activeItemsSubtotalPaise);
+
+    const messageLines = [
+      `Bulk Order Quotation Request (${modeLabel})`,
+      pincode ? `Destination PIN Code: ${pincode}` : "Destination PIN: (Not specified)",
+      "",
+      "Selected Products & Quantities:",
+      ...lines,
+      "",
+      `Total Units: ${totalQty}`,
+      `Estimated Items Subtotal: ${subtotalFormatted}`,
+      "",
+      "Please provide formal negotiated bulk quotation, commercial freight assessment, and dispatch schedule.",
+    ];
+
+    const primaryProduct = activeItems[0]?.product.name || "Multiple Products";
+    const productNameSummary =
+      activeItems.length > 1
+        ? `${primaryProduct} + ${activeItems.length - 1} other item(s) (${totalQty} units)`
+        : `${primaryProduct} (${totalQty} units)`;
+
+    const params = new URLSearchParams({
+      intent: "bulk",
+      subject: "Bulk Order Quotation Request",
+      productName: productNameSummary,
+      pincode: pincode.trim(),
+      message: messageLines.join("\n"),
+    });
+
+    return `/contact?${params.toString()}`;
+  };
+
   const hasItems = readyStockItems.length > 0 || mtoItems.length > 0;
   const isMixedSelection = readyStockItems.length > 0 && mtoItems.length > 0;
 
@@ -347,7 +386,7 @@ export default function CartPage() {
                               <strong>Bulk Order Required:</strong> {bulkCheck.message}
                             </div>
                             <Link
-                              href="/contact"
+                              href={getBulkEnquiryHref()}
                               className="block w-full text-center rounded-full bg-[var(--color-ink)] py-3.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
                             >
                               Request Bulk Order Quotation
@@ -527,7 +566,7 @@ export default function CartPage() {
                               <strong>Bulk Order Required:</strong> {bulkCheck.message}
                             </div>
                             <Link
-                              href="/contact"
+                              href={getBulkEnquiryHref()}
                               className="block w-full text-center rounded-full bg-[var(--color-ink)] py-3.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
                             >
                               Request Bulk Order Quotation

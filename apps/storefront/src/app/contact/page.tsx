@@ -8,10 +8,17 @@ import { Footer } from "@/components/Footer";
 
 function ContactFormContent() {
   const searchParams = useSearchParams();
-  const productParam = searchParams.get("product") || "";
+  const intentParam = searchParams.get("intent") || "";
+  const productParam = searchParams.get("product") || searchParams.get("productName") || "";
   const skuParam = searchParams.get("sku") || "";
   const materialsParam = searchParams.get("materials") || "";
-  const subjectParam = searchParams.get("subject") || "Architectural & Bespoke Order (Quote Only)";
+  const subjectParam =
+    searchParams.get("subject") ||
+    (intentParam === "bulk"
+      ? "Bulk Order Quotation Request"
+      : "Architectural & Bespoke Order (Quote Only)");
+  const pincodeParam = searchParams.get("pincode") || "";
+  const messageParam = searchParams.get("message") || "";
 
   const [submitted, setSubmitted] = useState(false);
   const [formData, setFormData] = useState({
@@ -19,24 +26,32 @@ function ContactFormContent() {
     email: "",
     phone: "",
     subject: subjectParam,
-    pincode: "",
+    pincode: pincodeParam,
     productName: productParam,
-    message: productParam
-      ? `Inquiring for Quote on: ${productParam} (Ref: ${skuParam || "Bespoke"})\nSpecified Materials: ${materialsParam || "Standard Studio Finish"}\n\nProject / Custom Dimensions Requirements:`
-      : "",
+    message:
+      messageParam ||
+      (productParam
+        ? `Inquiring for Quote on: ${productParam} (Ref: ${skuParam || "Bespoke"})\nSpecified Materials: ${materialsParam || "Standard Studio Finish"}\n\nProject / Custom Dimensions Requirements:`
+        : ""),
   });
 
   // Keep form synchronized if query params change
   useEffect(() => {
-    if (productParam) {
+    if (productParam || intentParam || messageParam || pincodeParam || subjectParam) {
       setFormData((prev) => ({
         ...prev,
-        productName: productParam,
-        subject: subjectParam,
-        message: prev.message || `Inquiring for Quote on: ${productParam} (Ref: ${skuParam || "Bespoke"})\nSpecified Materials: ${materialsParam || "Standard Studio Finish"}\n\nProject / Custom Dimensions Requirements:`,
+        productName: productParam || prev.productName,
+        subject: subjectParam || prev.subject,
+        pincode: pincodeParam || prev.pincode,
+        message:
+          messageParam ||
+          prev.message ||
+          (productParam
+            ? `Inquiring for Quote on: ${productParam} (Ref: ${skuParam || "Bespoke"})\nSpecified Materials: ${materialsParam || "Standard Studio Finish"}\n\nProject / Custom Dimensions Requirements:`
+            : ""),
       }));
     }
-  }, [productParam, skuParam, materialsParam, subjectParam]);
+  }, [productParam, skuParam, materialsParam, subjectParam, intentParam, messageParam, pincodeParam]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,7 +68,7 @@ function ContactFormContent() {
               Inquiry Received
             </span>
             <p className="text-xs text-[var(--color-muted-light)] leading-relaxed max-w-md mx-auto">
-              Thank you, {formData.name}. Our architectural design desk will review your specifications for{" "}
+              Thank you, {formData.name}. Our commercial and architectural design desk will review your specifications for{" "}
               <strong>{formData.productName || "your project"}</strong> and contact you within 24 to 48 business hours with a formal proposal.
             </p>
             <button
@@ -66,8 +81,31 @@ function ContactFormContent() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Pre-filled Reference Badge if coming from a Quote Only Product */}
-            {productParam && (
+            {/* Bulk Order Transfer Badge */}
+            {intentParam === "bulk" ? (
+              <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-4 flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] uppercase tracking-wider text-amber-900 font-semibold block flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                    Bulk Order Quotation Transfer
+                  </span>
+                  <span className="text-xs font-semibold text-[var(--color-ink)]">
+                    {formData.productName || "Cart items transferred for wholesale / bulk review"}
+                  </span>
+                  {formData.pincode && (
+                    <p className="text-[11px] text-[var(--color-muted-light)]">
+                      Destination PIN Code: <span className="font-semibold text-[var(--color-ink)]">{formData.pincode}</span>
+                    </p>
+                  )}
+                </div>
+                <span className="rounded-md bg-[var(--color-canvas)] px-2.5 py-1 text-[11px] font-semibold text-amber-800 border border-amber-200">
+                  Bulk Enquiry
+                </span>
+              </div>
+            ) : productParam ? (
+              /* Pre-filled Reference Badge if coming from a Quote Only Product */
               <div className="rounded-xl border border-[var(--color-bronze)]/40 bg-[var(--color-ivory)] p-4 flex items-center justify-between">
                 <div>
                   <span className="text-[10px] uppercase tracking-wider text-[var(--color-bronze)] font-semibold block">
@@ -81,7 +119,7 @@ function ContactFormContent() {
                   Quote Only
                 </span>
               </div>
-            )}
+            ) : null}
 
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-2">
@@ -136,6 +174,7 @@ function ContactFormContent() {
                   onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
                   className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
                 >
+                  <option>Bulk Order Quotation Request</option>
                   <option>Architectural & Bespoke Order (Quote Only)</option>
                   <option>Made to Order Lead Time Query</option>
                   <option>Existing Order Support & Tracking</option>
@@ -164,11 +203,11 @@ function ContactFormContent() {
               </label>
               <textarea
                 required
-                rows={5}
+                rows={6}
                 value={formData.message}
                 onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                 placeholder="Outline your required dimensions, metal finish preferences, quantities, or site mounting details..."
-                className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono leading-relaxed"
               />
             </div>
 
