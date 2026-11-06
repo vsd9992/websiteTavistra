@@ -76,3 +76,16 @@ One Tavistra-owned repository; public storefront and private staff admin as logi
 **No immediate owner decision needed** to finish the developer handoff. Before provider selection/actual build commitment, obtain a hosting/operations budget range, realistic catalogue and traffic assumptions, payment provider terms, and clarity on who handles production incidents and routine maintenance. These are execution inputs, not grounds to reopen Phase 1–3.
 
 **Next deliverable:** consolidate a developer-ready handoff package with repository/document authority, acceptance traceability, module boundaries, ordered work packages, unresolved procurement/operational gates and release checklist. Do not write or deploy website code here.
+
+
+## 2026-11-06 — Current delivery and bulk checkout acceptance override
+
+**Effective source:** [current handoff baseline](current-effective-handoff-baseline.md), [approved product/delivery pricing](../website/delivery-fee-pricing-approved.md), [PIN launch policy](../website/delivery-pincode-launch-policy.md). This later owner decision overrides incompatible historical calculation and serviceability implementation assumptions above.
+
+- At **ordinary order** validation, allow maximum **10 units per product across variants** and **10 distinct order lines**. Exceed either: direct to staff **bulk enquiry**, no ordinary order/payment; staff agree potential bulk discount and actual delivery charge before a subsequent mode-specific commitment. Quantity =10 is allowed. Do not combine distinct purchase modes as one order to enforce limits.
+- Ordinary delivery charge = **one highest owner-configured product × destination commercial band slab**, with 12 allowed amounts (₹0 through ₹7,500), not a runtime distance-plus-weight surcharge formula. Packed volume/weight remain costing inputs only. Charge snapshots persist after acceptance.
+- The selected **delivery fee is final customer-payable**; no GST increment or surprise transport fee at checkout. Tax liabilities where applicable are internally accounted for in that accepted amount, with lawful invoices/adjustments (CGST Act s.15(2)(c) makes presumed GST exemption unsafe).
+- An approved PIN permits any normal product by default. Staff handle rare infeasibility; no launch SKU×PIN carrier restriction matrix. Missing pricing is **not** ₹0 and must not allow ordinary paid checkout; use existing authorised manual estimate flow.
+- Made to Order/Quote Only: practically check shipping feasibility during independent seven-day confirmed-order no-start grace; unresolved critical infeasibility **blocks actual production start** even after grace expires. Verified payment and customer rights remain intact.
+- Accepted order delivery fee is **not routinely repriced or partly refunded** after a partial item cancellation. Apply full seller-side nonfulfilment refund to a wholly cancelled order, and preserve applicable statutory or agreed adjustments.
+- Add regression tests for 10 vs 11 units, 10 vs 11 lines, same product split across variants, bulk enquiry without payment, no tax added to accepted shipping amount, missing tariff no free checkout, unshippable MTO pre-start hold, seller refund with delivery fee, and partial cancellation preserving accepted delivery fee except legal remedy.

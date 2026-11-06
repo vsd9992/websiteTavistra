@@ -8,6 +8,8 @@ import { useCart } from "@/context/CartContext";
 import {
   resolveShippingZone,
   calculateDeliveryFee,
+  calculateOrderDeliveryFee,
+  checkBulkOrderCeiling,
   ItemPhysicalSpec,
   ShippingCalculationResult,
 } from "@tavistra/shared";
@@ -50,16 +52,14 @@ export default function CartPage() {
 
   // Active items for physical shipping calculation
   const activeItems = activeModeTab === "READY_STOCK" ? readyStockItems : mtoItems;
-  const activePhysicalSpecs: ItemPhysicalSpec[] = activeItems.flatMap(
-    ({ product, quantity }) =>
-      Array(quantity).fill({
-        priceRupees: product.pricePaise / 100,
-        weightGrams: product.weightGrams,
-        lengthMm: product.lengthMm,
-        widthMm: product.widthMm,
-        heightMm: product.heightMm,
-        isFragile: true,
-      })
+
+  // Bulk order check per 2026-11-06 Owner Policy:
+  // <= 10 units per single product AND <= 10 line items
+  const bulkCheck = checkBulkOrderCeiling(
+    activeItems.map((item) => ({
+      productId: item.product.id,
+      quantity: item.quantity,
+    }))
   );
 
   const handleEstimateShipping = (pinToTest?: string) => {
@@ -70,15 +70,42 @@ export default function CartPage() {
       return;
     }
 
-    if (activePhysicalSpecs.length === 0) {
+    if (activeItems.length === 0) {
       setShippingResult(null);
       return;
     }
 
     setPinError(null);
     const zone = resolveShippingZone(targetPin);
-    const calculation = calculateDeliveryFee(zone, activePhysicalSpecs);
-    setShippingResult(calculation);
+
+    // Multi-item highest product fee rule (Decision 0004):
+    // For single-destination orders with multiple items, charge a single delivery fee
+    // equal to the highest applicable product delivery fee, NOT the sum.
+    const productCalcs = activeItems.map(({ product }) => {
+      const spec: ItemPhysicalSpec = {
+        productId: product.id,
+        priceRupees: product.pricePaise / 100,
+        weightGrams: product.weightGrams,
+        lengthMm: product.lengthMm,
+        widthMm: product.widthMm,
+        heightMm: product.heightMm,
+        isFragile: true,
+      };
+      return calculateDeliveryFee(zone, [spec]);
+    });
+
+    const highestFee = calculateOrderDeliveryFee(
+      productCalcs.map((c) => c.totalDeliveryFeeRupees)
+    );
+    const primaryCalc = productCalcs.reduce(
+      (max, curr) => (curr.totalDeliveryFeeRupees > max.totalDeliveryFeeRupees ? curr : max),
+      productCalcs[0]
+    );
+
+    setShippingResult({
+      ...primaryCalc,
+      totalDeliveryFeeRupees: highestFee,
+    });
   };
 
   const deliveryFeePaise = shippingResult
@@ -314,17 +341,31 @@ export default function CartPage() {
                           </span>
                         </div>
 
-                        <div className="space-y-2">
-                          <button
-                            type="button"
-                            className="w-full rounded-full bg-[var(--color-ink)] py-3.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
-                          >
-                            Proceed to Ready Stock Checkout (100%)
-                          </button>
-                          <p className="text-[11px] text-[var(--color-muted-light)] text-center">
-                            Dispatched in 24–48 hours upon verified electronic payment.
-                          </p>
-                        </div>
+                        {bulkCheck.isBulkEnquiryRequired ? (
+                          <div className="space-y-3">
+                            <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-[11px] text-amber-900 leading-relaxed">
+                              <strong>Bulk Order Required:</strong> {bulkCheck.message}
+                            </div>
+                            <Link
+                              href="/contact"
+                              className="block w-full text-center rounded-full bg-[var(--color-ink)] py-3.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
+                            >
+                              Request Bulk Order Quotation
+                            </Link>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <button
+                              type="button"
+                              className="w-full rounded-full bg-[var(--color-ink)] py-3.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
+                            >
+                              Proceed to Ready Stock Checkout (100%)
+                            </button>
+                            <p className="text-[11px] text-[var(--color-muted-light)] text-center">
+                              Dispatched in 24–48 hours upon verified electronic payment.
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -480,17 +521,31 @@ export default function CartPage() {
                           You may request adjustments or full refund cancellation within 7 days. Workshop manufacturing begins on Day 8.
                         </div>
 
-                        <div className="space-y-2">
-                          <button
-                            type="button"
-                            className="w-full rounded-full bg-[var(--color-ink)] py-3.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
-                          >
-                            Pay 25% Advance ({formatPrice(mtoAdvancePaise)})
-                          </button>
-                          <p className="text-[11px] text-[var(--color-muted-light)] text-center">
-                            Remaining balance collected after QC inspection before carrier handover.
-                          </p>
-                        </div>
+                        {bulkCheck.isBulkEnquiryRequired ? (
+                          <div className="space-y-3">
+                            <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-[11px] text-amber-900 leading-relaxed">
+                              <strong>Bulk Order Required:</strong> {bulkCheck.message}
+                            </div>
+                            <Link
+                              href="/contact"
+                              className="block w-full text-center rounded-full bg-[var(--color-ink)] py-3.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
+                            >
+                              Request Bulk Order Quotation
+                            </Link>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <button
+                              type="button"
+                              className="w-full rounded-full bg-[var(--color-ink)] py-3.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
+                            >
+                              Pay 25% Advance ({formatPrice(mtoAdvancePaise)})
+                            </button>
+                            <p className="text-[11px] text-[var(--color-muted-light)] text-center">
+                              Remaining balance collected after QC inspection before carrier handover.
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

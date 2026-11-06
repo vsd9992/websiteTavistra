@@ -109,12 +109,82 @@ export function resolveShippingZone(pincode: string): ShippingZoneCode {
 }
 
 export interface ItemPhysicalSpec {
+  productId?: string;
   priceRupees: number;
   weightGrams: number;
   lengthMm: number;
   widthMm: number;
   heightMm: number;
   isFragile?: boolean;
+}
+
+/**
+ * Approved Configurable Fee Ladder (INR) per 2026-11-06 Owner Policy
+ */
+export const DELIVERY_FEE_SLABS = [
+  0, 250, 500, 750, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 7500,
+] as const;
+export type DeliveryFeeSlab = typeof DELIVERY_FEE_SLABS[number];
+
+/**
+ * Matches an estimated freight exposure to the nearest approved ladder slab.
+ */
+export function matchDeliveryFeeSlab(amountRupees: number): DeliveryFeeSlab {
+  if (amountRupees <= 0) return 0;
+  for (const slab of DELIVERY_FEE_SLABS) {
+    if (slab >= amountRupees) return slab;
+  }
+  return 7500;
+}
+
+/**
+ * Highest Product Fee Rule for Multi-Item Orders (2026-11-06 Owner Policy)
+ * For a single destination order with multiple items, charge one delivery fee
+ * equal to the highest applicable product delivery fee, not the sum.
+ * Tavistra absorbs extra freight variance.
+ */
+export function calculateOrderDeliveryFee(productFees: number[]): number {
+  if (!productFees || productFees.length === 0) return 0;
+  return Math.max(0, ...productFees);
+}
+
+/**
+ * Bulk Order Ceiling Validation (2026-11-06 Owner Policy)
+ * Up to 10 units of any single product AND up to 10 distinct order line items.
+ * Breaching either ceiling directs the customer to Bulk Order Enquiry.
+ */
+export interface BulkCeilingCheck {
+  isBulkEnquiryRequired: boolean;
+  reason?: 'EXCEEDS_MAX_UNITS_PER_PRODUCT' | 'EXCEEDS_MAX_DISTINCT_LINES';
+  message?: string;
+}
+
+export function checkBulkOrderCeiling(
+  items: { productId: string; quantity: number }[]
+): BulkCeilingCheck {
+  if (items.length > 10) {
+    return {
+      isBulkEnquiryRequired: true,
+      reason: 'EXCEEDS_MAX_DISTINCT_LINES',
+      message: 'Orders with more than 10 line items must be placed via Bulk Order Enquiry.',
+    };
+  }
+
+  const productQtyMap = new Map<string, number>();
+  for (const item of items) {
+    const current = productQtyMap.get(item.productId) || 0;
+    const total = current + item.quantity;
+    if (total > 10) {
+      return {
+        isBulkEnquiryRequired: true,
+        reason: 'EXCEEDS_MAX_UNITS_PER_PRODUCT',
+        message: 'Orders exceeding 10 units of a single product must be placed via Bulk Order Enquiry.',
+      };
+    }
+    productQtyMap.set(item.productId, total);
+  }
+
+  return { isBulkEnquiryRequired: false };
 }
 
 export interface ShippingCalculationResult {
@@ -240,12 +310,15 @@ export function calculateDeliveryFee(
   // Carrier's Risk (FOV Insurance): 2% of product value (Min ₹100 per deliveryFee.md)
   const insuranceFov = Math.max(100, Math.round(totalProductValueRupees * 0.02));
 
-  // Pre-tax subtotal for freight
+  // Pre-tax subtotal for freight benchmarking
   const preTaxFreightSubtotal = baseFreight + packagingCost + insuranceFov;
 
-  // Statutory GST @ 18%
-  const gstAmount = Math.round(preTaxFreightSubtotal * 0.18);
-  const totalDeliveryFee = preTaxFreightSubtotal + gstAmount;
+  // Snaps to approved 12-slab fee ladder (2026-11-06 Owner Policy)
+  // Tax-inclusive final customer payable amount (TAV-03)
+  const totalDeliveryFee = matchDeliveryFeeSlab(preTaxFreightSubtotal * 1.18);
+
+  // Statutory GST @ 18% embedded within the tax-inclusive fee (CGST s.15(2)(c))
+  const gstAmount = Math.round(totalDeliveryFee * (18 / 118));
 
   return {
     zone,

@@ -18,12 +18,14 @@ Having completed the review-ready public storefront shell (H2), we now establish
    - `InventoryLedger` & `StockReservation` (Concurrently safe stock control, prevents overselling).
    - `Order`, `OrderItem`, `OrderStatus` (Mode-separated lifecycle, 25% advance vs 100% full balance tracking).
    - `PaymentLedger` (Payment records, gateway references, advance vs balance reconciliation).
-   - `ShippingZone` & `PincodeRange` (Zones A, B, C, D distance bands).
+   - `ShippingZone` & `PincodeDirectory` (Commercial distance bands, universal enabled-PIN serviceability).
    - `QuoteProposal` & `QuoteVersion` (30-day quote price lock, 7-day confirmation grace).
-3. **Shipping Calculation Engine (`packages/shared`)**:
-   - Distance band resolver mapping destination PIN code to Zone A/B/C/D.
-   - Presumptive freight charge calculator based on product volumetric weight and zone.
+3. **Shipping & Commerce Engine (`packages/shared`)**:
+   - Approved 12-slab fee ladder: `0, 250, 500, 750, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 7500` INR.
+   - Highest-product-fee calculation rule for multi-item checkout (TAV-03 compliant single combined fee).
+   - Bulk order threshold check: enforces <= 10 units per SKU and <= 10 line items, redirecting excess to Bulk Order Enquiry.
 4. **Catalogue & Zone Seeding**:
-   - Seed script importing the 6 approved categories, initial products, and shipping matrix into the database.
+   - Seed script importing the 6 approved categories, initial products, and candidate PIN codes into the database.
 5. **Monorepo Integration**:
    - Link `packages/db` and `packages/shared` to `apps/storefront` and `apps/admin`.
+

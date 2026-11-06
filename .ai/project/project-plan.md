@@ -1,20 +1,23 @@
 # Project Plan
 
-modified: 2026-11-04
+modified: 2026-11-06
 
 ## Objective
 Deliver Tavistra (`websiteTavistra`) — a premium design-led lifestyle and décor website and commerce platform (VDesign sub-brand). Phases 1–4 concept/planning specification is completed and locked as the authoritative blueprint. The current focus is technical implementation readiness and execution according to the Phase 4 Developer Handoff roadmap.
 
 ## Authority & Master Blueprint
 - **Canonical Concept Specification**: Imported into `docs/` from the concept repository (`vsd9992/Tavistra`).
-- **Controlling Handoff Baseline**: `docs/roadmap/current-effective-handoff-baseline.md` and `docs/decisions/current-production-payment-lifecycle.md` (supersedes all older historical OPEN/LOCKED conflicts).
+- **Controlling Handoff Baseline**: `docs/roadmap/current-effective-handoff-baseline.md`, `docs/decisions/current-production-payment-lifecycle.md`, and `docs/website/delivery-fee-pricing-approved.md` (supersedes all older historical OPEN/LOCKED conflicts).
 - **Core Principles**:
   - Three independent purchasing/fulfilment modes: **Ready Stock**, **Made to Order (MTO)**, and **Quote Only**.
   - No mixed-mode checkouts or forced consolidated dispatch at launch.
   - Payment gates: >= 25% verified advance before MTO/Quote Only physical production start; 100% cumulative verified payment before dispatch.
   - Independent clocks: Quote Only 30-day offer clock and 7-day post-confirmation grace period are completely independent.
-  - Transparent pricing: Tax-inclusive product price + single combined delivery charge. No hidden customer packing/fragility fees.
-  - Internal delivery engine: Presumptive kilometres and distance bands by pincode; no live carrier rate API dependencies.
+  - Transparent pricing (TAV-03): Tax-inclusive product price + single combined delivery fee. No hidden customer packing, fuel surcharge, or fragility fees at checkout.
+  - Delivery fee schedule (2026-11-06): Owner-configured product-specific delivery fee from an approved 12-slab ladder (`0, 250, 500, 750, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 7500` INR).
+  - Multi-item single delivery charge: Highest applicable product delivery fee applies across multi-item orders; excess freight variance absorbed.
+  - Bulk order governance: Standard checkout allows up to 10 units of any single product and up to 10 distinct lines. Exceeding either ceiling triggers a Bulk Order Enquiry workflow.
+  - Universal enabled-PIN serviceability: Enabled PINs are presumed serviceable for standard catalogue items; 7-day grace period allows courier feasibility verification for MTO/bespoke pieces.
   - Hostinger small VPS target & PhonePe gateway (requires public review-ready website before merchant activation).
 
 ## Git & Project Repositories
