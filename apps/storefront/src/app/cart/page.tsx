@@ -253,9 +253,9 @@ export default function CartPage() {
                         </h3>
 
                         {/* PIN Code Delivery Estimator */}
-                        <div className="rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-4 space-y-3">
+                        <div className="rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-3.5 space-y-2">
                           <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-ink)]">
-                            Delivery PIN Code:
+                            Delivery PIN Code
                           </label>
                           <div className="flex gap-2">
                             <input
@@ -266,21 +266,21 @@ export default function CartPage() {
                                 setPincode(e.target.value.replace(/\D/g, ""));
                                 if (pinError) setPinError(null);
                               }}
-                              placeholder="e.g. 110001 or 560001"
+                              placeholder="Enter 6-digit PIN code"
                               className="flex-1 rounded-lg border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-3 py-1.5 text-xs text-[var(--color-ink)] focus:outline-none"
                             />
                             <button
                               type="button"
                               onClick={() => handleEstimateShipping()}
-                              className="rounded-lg bg-[var(--color-ink)] px-3 py-1.5 text-xs font-semibold text-[var(--color-canvas)]"
+                              className="rounded-lg bg-[var(--color-ink)] px-3.5 py-1.5 text-xs font-semibold text-[var(--color-canvas)]"
                             >
-                              Estimate
+                              Check
                             </button>
                           </div>
                           {pinError && <p className="text-[10px] text-red-600 font-medium">{pinError}</p>}
                           {shippingResult && (
-                            <p className="text-[10px] text-[var(--color-muted-light)] leading-snug">
-                              ✓ {shippingResult.zone.name} ({shippingResult.transitDaysEstimate}) via {shippingResult.carrierName}
+                            <p className="text-[11px] text-[var(--color-muted-light)] leading-snug pt-0.5">
+                              ✓ {shippingResult.carrierName} · Transit: {shippingResult.transitDaysEstimate}
                             </p>
                           )}
                         </div>
@@ -407,9 +407,9 @@ export default function CartPage() {
                         </h3>
 
                         {/* PIN Code Delivery Estimator */}
-                        <div className="rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-4 space-y-3">
+                        <div className="rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-3.5 space-y-2">
                           <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-ink)]">
-                            Delivery PIN Code:
+                            Delivery PIN Code
                           </label>
                           <div className="flex gap-2">
                             <input
@@ -420,21 +420,21 @@ export default function CartPage() {
                                 setPincode(e.target.value.replace(/\D/g, ""));
                                 if (pinError) setPinError(null);
                               }}
-                              placeholder="e.g. 110001 or 560001"
+                              placeholder="Enter 6-digit PIN code"
                               className="flex-1 rounded-lg border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-3 py-1.5 text-xs text-[var(--color-ink)] focus:outline-none"
                             />
                             <button
                               type="button"
                               onClick={() => handleEstimateShipping()}
-                              className="rounded-lg bg-[var(--color-ink)] px-3 py-1.5 text-xs font-semibold text-[var(--color-canvas)]"
+                              className="rounded-lg bg-[var(--color-ink)] px-3.5 py-1.5 text-xs font-semibold text-[var(--color-canvas)]"
                             >
-                              Estimate
+                              Check
                             </button>
                           </div>
                           {pinError && <p className="text-[10px] text-red-600 font-medium">{pinError}</p>}
                           {shippingResult && (
-                            <p className="text-[10px] text-[var(--color-muted-light)] leading-snug">
-                              ✓ {shippingResult.zone.name} ({shippingResult.transitDaysEstimate}) via {shippingResult.carrierName}
+                            <p className="text-[11px] text-[var(--color-muted-light)] leading-snug pt-0.5">
+                              ✓ {shippingResult.carrierName} · Transit: {shippingResult.transitDaysEstimate}
                             </p>
                           )}
                         </div>
