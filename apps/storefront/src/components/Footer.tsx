@@ -83,7 +83,7 @@ export function Footer() {
             </h4>
             <ul className="space-y-2.5 text-xs text-[var(--color-muted-dark)]">
               <li>
-                <Link href="/track" className="hover:text-[var(--color-canvas)] transition-colors text-[var(--color-ivory)] font-medium">
+                <Link href="/track" className="hover:text-[var(--color-canvas)] transition-colors">
                   Track Order Milestones
                 </Link>
               </li>
