@@ -83,6 +83,16 @@ export function Footer() {
             </h4>
             <ul className="space-y-2.5 text-xs text-[var(--color-muted-dark)]">
               <li>
+                <Link href="/track" className="hover:text-[var(--color-canvas)] transition-colors text-[var(--color-ivory)] font-medium">
+                  Track Order Milestones
+                </Link>
+              </li>
+              <li>
+                <Link href="/account" className="hover:text-[var(--color-canvas)] transition-colors">
+                  Client Account Portal
+                </Link>
+              </li>
+              <li>
                 <Link href="/contact" className="hover:text-[var(--color-canvas)] transition-colors">
                   Contact & Inquiry
                 </Link>

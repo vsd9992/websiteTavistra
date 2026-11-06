@@ -168,3 +168,4 @@ export function validateIndianMobile(phone: string): MobileValidationResult {
     normalizedPhone: `+91 ${tenDigitNumber.substring(0, 5)} ${tenDigitNumber.substring(5)}`,
   };
 }
+

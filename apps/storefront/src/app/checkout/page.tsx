@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { useCart } from "@/context/CartContext";
+import { useOrders, OrderRecord } from "@/context/OrderContext";
 import {
   resolveShippingZone,
   calculateDeliveryFee,
@@ -28,6 +29,7 @@ function CheckoutContent() {
   const initialPin = searchParams.get("pincode") || "";
 
   const { readyStockItems, mtoItems, clearCart } = useCart();
+  const { saveOrder } = useOrders();
   const activeItems = modeParam === "READY_STOCK" ? readyStockItems : mtoItems;
 
   // Form State
@@ -265,7 +267,48 @@ function CheckoutContent() {
           ? `TAV-RS-${new Date().getFullYear()}-${randomSuffix}`
           : `TAV-MTO-${new Date().getFullYear()}-${randomSuffix}`;
 
-      const snapshot = {
+      const orderRecord: OrderRecord = {
+        id: generatedOrderId,
+        mode: modeParam,
+        customerName: customer.fullName.trim(),
+        email: emailValidation.normalizedEmail || customer.email.trim(),
+        phone: mobileValidation.normalizedPhone || customer.phone.trim(),
+        addressLine1: customer.address1.trim(),
+        city: customer.city.trim(),
+        state: customer.state.trim(),
+        destinationPin: customer.pincode,
+        items: activeItems.map((item) => ({
+          name: item.product.name,
+          quantity: item.quantity,
+          pricePaise: item.product.pricePaise,
+        })),
+        itemsSubtotalRupees: itemsSubtotalPaise / 100,
+        deliveryFeeRupees: deliveryFeePaise / 100,
+        totalAmountRupees: totalOrderPaise / 100,
+        amountPaidRupees: amountPayableNowPaise / 100,
+        balanceDueRupees: balanceDueLaterPaise / 100,
+        carrierName: shippingResult.carrierName,
+        transitEstimate: shippingResult.transitDaysEstimate,
+        status: modeParam === "MADE_TO_ORDER" ? "GRACE_PERIOD_ACTIVE" : "PAYMENT_CONFIRMED",
+        statusLabel:
+          modeParam === "MADE_TO_ORDER"
+            ? "7-Day Confirmation Grace Window Active"
+            : "Order Confirmed · Ready for Inspection",
+        statusDescription:
+          modeParam === "MADE_TO_ORDER"
+            ? "25% advance verified. Physical workshop machining begins on Day 8. Specification alterations or 100% refund cancellation permitted within initial 7 days."
+            : "100% payment verified. Scheduled for white-glove crating and dispatch within 24–48 hours.",
+        graceDaysRemaining: modeParam === "MADE_TO_ORDER" ? 7 : undefined,
+        createdAt: new Date().toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        }),
+      };
+
+      saveOrder(orderRecord);
+
+      setCompletedOrder({
         orderId: generatedOrderId,
         mode: modeParam,
         customerName: customer.fullName.trim(),
@@ -286,9 +329,7 @@ function CheckoutContent() {
           month: "long",
           year: "numeric",
         }),
-      };
-
-      setCompletedOrder(snapshot);
+      });
       clearCart(modeParam);
       setIsProcessing(false);
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -408,10 +449,10 @@ function CheckoutContent() {
               Print Official Receipt
             </button>
             <Link
-              href="/shop"
+              href={`/track?orderId=${completedOrder.orderId}&contact=${encodeURIComponent(completedOrder.phone)}`}
               className="flex-1 rounded-full bg-[var(--color-ink)] py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors text-center shadow-sm"
             >
-              Explore Collection
+              Track Order Lifecycle →
             </Link>
           </div>
         </div>

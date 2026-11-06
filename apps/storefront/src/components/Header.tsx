@@ -153,6 +153,12 @@ export function Header() {
             Our Story
           </Link>
           <Link
+            href="/track"
+            className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
+          >
+            Track
+          </Link>
+          <Link
             href="/contact"
             className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
           >
@@ -167,6 +173,12 @@ export function Header() {
             className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
           >
             Search
+          </Link>
+          <Link
+            href="/account"
+            className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
+          >
+            Account
           </Link>
           <Link
             href="/cart"
@@ -228,6 +240,20 @@ export function Header() {
           </div>
 
           <div className="pt-6 border-t border-[var(--color-decorative-border)] space-y-2 text-xs">
+            <Link
+              href="/track"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="block font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)]"
+            >
+              Track Order Milestones
+            </Link>
+            <Link
+              href="/account"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="block font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)]"
+            >
+              Client Account & Addresses
+            </Link>
             <Link
               href="/shipping"
               onClick={() => setIsMobileMenuOpen(false)}

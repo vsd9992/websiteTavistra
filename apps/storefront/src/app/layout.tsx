@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Instrument_Serif, Manrope } from "next/font/google";
 import { CartProvider } from "@/context/CartContext";
+import { AuthProvider } from "@/context/AuthContext";
+import { OrderProvider } from "@/context/OrderContext";
 import "./globals.css";
 
 const instrumentSerif = Instrument_Serif({
@@ -34,7 +36,11 @@ export default function RootLayout({
       className={`${instrumentSerif.variable} ${manrope.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-[var(--color-canvas)] text-[var(--color-ink)] font-[family-name:var(--font-ui)]">
-        <CartProvider>{children}</CartProvider>
+        <AuthProvider>
+          <OrderProvider>
+            <CartProvider>{children}</CartProvider>
+          </OrderProvider>
+        </AuthProvider>
       </body>
     </html>
   );
