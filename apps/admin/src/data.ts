@@ -44,6 +44,80 @@ export interface BulkInquiry {
   submittedAt: string;
 }
 
+export interface SupportTicket {
+  id: string;
+  ticketNumber: string;
+  orderNumber?: string;
+  customerName: string;
+  email: string;
+  phone: string;
+  subject: string;
+  category:
+    | "ORDER_INQUIRY"
+    | "SPEC_ALTERATION"
+    | "DELIVERY_SCHEDULE"
+    | "DAMAGE_REPORT"
+    | "CANCELLATION";
+  priority: "NORMAL" | "HIGH" | "URGENT";
+  status: "OPEN" | "IN_PROGRESS" | "RESOLVED";
+  createdAt: string;
+  messages: {
+    id: string;
+    sender: "CUSTOMER" | "STAFF";
+    authorName: string;
+    text: string;
+    timestamp: string;
+  }[];
+}
+
+export interface CustomerProfile {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  practiceOrStudio?: string;
+  gstin?: string;
+  isRegistered: boolean;
+  totalOrders: number;
+  lifetimeSpendRupees: number;
+  city: string;
+  state: string;
+  pincode: string;
+  createdAt: string;
+  notes?: string;
+}
+
+export interface CatalogueItem {
+  id: string;
+  slug: string;
+  name: string;
+  category: string;
+  mode: "READY_STOCK" | "MADE_TO_ORDER" | "QUOTE_ONLY";
+  priceRupees: number;
+  availableStock: number;
+  reservedStock: number;
+  isPublished: boolean;
+}
+
+export interface StaffUser {
+  id: string;
+  name: string;
+  email: string;
+  role: "SUPER_ADMIN" | "COMMERCE_ADMIN" | "PRODUCTION_STAFF" | "SUPPORT_STAFF";
+  roleLabel: string;
+  avatarInitials: string;
+}
+
+export interface AuditEntry {
+  id: string;
+  staffName: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  timestamp: string;
+  details: string;
+}
+
 export const INITIAL_ORDERS: AdminOrder[] = [
   {
     id: "ord_1001",
@@ -63,7 +137,7 @@ export const INITIAL_ORDERS: AdminOrder[] = [
     itemsSubtotalRupees: 30900,
     deliveryFeeRupees: 500,
     totalAmountRupees: 31400,
-    amountPaidRupees: 31400, // 100% full verified payment
+    amountPaidRupees: 31400,
     balanceDueRupees: 0,
     status: "DISPATCHED",
     carrierName: "Blue Dart Fragile Surface",
@@ -87,8 +161,8 @@ export const INITIAL_ORDERS: AdminOrder[] = [
     itemsSubtotalRupees: 38000,
     deliveryFeeRupees: 1000,
     totalAmountRupees: 39000,
-    amountPaidRupees: 9750, // 25% verified advance
-    balanceDueRupees: 29250, // 75% remaining
+    amountPaidRupees: 9750,
+    balanceDueRupees: 29250,
     status: "GRACE_PERIOD_ACTIVE",
     carrierName: "Safeexpress Caged Freight",
     graceDaysRemaining: 4,
@@ -111,7 +185,7 @@ export const INITIAL_ORDERS: AdminOrder[] = [
     itemsSubtotalRupees: 85000,
     deliveryFeeRupees: 1500,
     totalAmountRupees: 86500,
-    amountPaidRupees: 21625, // 25% verified advance
+    amountPaidRupees: 21625,
     balanceDueRupees: 64875,
     status: "WORKSHOP_CRAFTING",
     carrierName: "Blue Dart Express",
@@ -150,3 +224,232 @@ export const INITIAL_BULK_INQUIRIES: BulkInquiry[] = [
   },
 ];
 
+export const INITIAL_SUPPORT_TICKETS: SupportTicket[] = [
+  {
+    id: "tck_801",
+    ticketNumber: "TCK-2026-801",
+    orderNumber: "TAV-MTO-2026-2002",
+    customerName: "Ar. Vikramaditya Sharma",
+    email: "vikramaditya@studiovishnu.in",
+    phone: "+91 98765 43210",
+    subject: "Requesting Satin Finish Alteration within 7-Day Grace",
+    category: "SPEC_ALTERATION",
+    priority: "HIGH",
+    status: "OPEN",
+    createdAt: "Nov 6, 2026 14:20 IST",
+    messages: [
+      {
+        id: "msg_1",
+        sender: "CUSTOMER",
+        authorName: "Ar. Vikramaditya Sharma",
+        text: "Greetings. My order TAV-MTO-2026-2002 is currently in its Day 4 grace window. Could the frame patina for the Arc Mirror be adjusted from Aged Antique to Raw Satin Brushed before Day 8 workshop machining begins?",
+        timestamp: "Nov 6, 2026 14:20 IST",
+      },
+    ],
+  },
+  {
+    id: "tck_802",
+    ticketNumber: "TCK-2026-802",
+    orderNumber: "TAV-RS-2026-1001",
+    customerName: "Ar. Vikramaditya Sharma",
+    email: "vikramaditya@studiovishnu.in",
+    phone: "+91 98765 43210",
+    subject: "Delivery Appointment Scheduling with Blue Dart",
+    category: "DELIVERY_SCHEDULE",
+    priority: "NORMAL",
+    status: "IN_PROGRESS",
+    createdAt: "Nov 5, 2026 10:15 IST",
+    messages: [
+      {
+        id: "msg_2",
+        sender: "CUSTOMER",
+        authorName: "Ar. Vikramaditya Sharma",
+        text: "Please request the courier partner to arrange delivery after 2 PM on Monday when the studio concierge is on duty.",
+        timestamp: "Nov 5, 2026 10:15 IST",
+      },
+      {
+        id: "msg_3",
+        sender: "STAFF",
+        authorName: "Kavita (Fulfilment Desk)",
+        text: "Acknowledged, Vikramaditya. Special handling instruction has been logged with Blue Dart hub under AWB BD-DEL-89472911 for afternoon delivery appointment.",
+        timestamp: "Nov 5, 2026 11:30 IST",
+      },
+    ],
+  },
+];
+
+export const INITIAL_CUSTOMERS: CustomerProfile[] = [
+  {
+    id: "cust_01",
+    name: "Ar. Vikramaditya Sharma",
+    email: "vikramaditya@studiovishnu.in",
+    phone: "+91 98765 43210",
+    practiceOrStudio: "Studio Vishnu Architecture",
+    gstin: "07AAAAA0000A1Z5",
+    isRegistered: true,
+    totalOrders: 2,
+    lifetimeSpendRupees: 70400,
+    city: "Gurugram",
+    state: "Haryana",
+    pincode: "122002",
+    createdAt: "October 2026",
+    notes: "Principal architect. High-value repeat acquisitions.",
+  },
+  {
+    id: "cust_02",
+    name: "Siddharth Nambiar",
+    email: "snambiar@archdesign.co",
+    phone: "+91 98111 22334",
+    practiceOrStudio: "Nambiar Design Associates",
+    gstin: "07BBBBB1111B2Z6",
+    isRegistered: true,
+    totalOrders: 1,
+    lifetimeSpendRupees: 86500,
+    city: "New Delhi",
+    state: "Delhi",
+    pincode: "110024",
+    createdAt: "October 2026",
+    notes: "Specializes in luxury residential fit-outs.",
+  },
+  {
+    id: "cust_03",
+    name: "Meera Krishnan",
+    email: "meera@studiovayu.in",
+    phone: "+91 98450 11223",
+    practiceOrStudio: "Studio Vayu Architecture",
+    isRegistered: false,
+    totalOrders: 0,
+    lifetimeSpendRupees: 0,
+    city: "Bengaluru",
+    state: "Karnataka",
+    pincode: "560001",
+    createdAt: "November 2026",
+    notes: "Commercial inquiry lead (25 units).",
+  },
+];
+
+export const INITIAL_CATALOGUE: CatalogueItem[] = [
+  {
+    id: "cat_01",
+    slug: "monolith-minimalist-wall-clock",
+    name: "Monolith Minimalist Wall Clock",
+    category: "Home Décor & Objects",
+    mode: "READY_STOCK",
+    priceRupees: 14500,
+    availableStock: 8,
+    reservedStock: 1,
+    isPublished: true,
+  },
+  {
+    id: "cat_02",
+    slug: "arc-solid-brass-wall-mirror",
+    name: "Arc Sculptural Brass Wall Mirror",
+    category: "Home Décor & Objects",
+    mode: "MADE_TO_ORDER",
+    priceRupees: 38000,
+    availableStock: 0,
+    reservedStock: 0,
+    isPublished: true,
+  },
+  {
+    id: "cat_03",
+    slug: "strata-modular-desk-organiser",
+    name: "Strata Modular Desk Organiser",
+    category: "Desk & Workspace",
+    mode: "READY_STOCK",
+    priceRupees: 8200,
+    availableStock: 14,
+    reservedStock: 2,
+    isPublished: true,
+  },
+  {
+    id: "cat_04",
+    slug: "aether-kinetic-desk-lamp",
+    name: "Aether Architectural Desk Lamp",
+    category: "Lighting & Ambience",
+    mode: "MADE_TO_ORDER",
+    priceRupees: 42500,
+    availableStock: 0,
+    reservedStock: 0,
+    isPublished: true,
+  },
+  {
+    id: "cat_05",
+    slug: "torus-sculptural-brass-key-tag",
+    name: "Torus Sculptural Brass Key Tag",
+    category: "Personal Accessories",
+    mode: "READY_STOCK",
+    priceRupees: 3400,
+    availableStock: 25,
+    reservedStock: 0,
+    isPublished: true,
+  },
+  {
+    id: "cat_06",
+    slug: "oblique-kinetic-wind-sculpture",
+    name: "Oblique Site-Specific Art Sculpture",
+    category: "Art & Collectibles",
+    mode: "QUOTE_ONLY",
+    priceRupees: 120000,
+    availableStock: 0,
+    reservedStock: 0,
+    isPublished: true,
+  },
+];
+
+export const STAFF_USERS: StaffUser[] = [
+  {
+    id: "usr_admin_1",
+    name: "Ar. Vikramaditya (Admin)",
+    email: "admin@vdesign.in",
+    role: "SUPER_ADMIN",
+    roleLabel: "Super Administrator · Executive Control",
+    avatarInitials: "AV",
+  },
+  {
+    id: "usr_prod_2",
+    name: "Rajesh Sharma (Workshop Head)",
+    email: "workshop@vdesign.in",
+    role: "PRODUCTION_STAFF",
+    roleLabel: "Production Staff · Workshop Machining Release",
+    avatarInitials: "RS",
+  },
+  {
+    id: "usr_comm_3",
+    name: "Kavita Rao (Client Desk)",
+    email: "clientdesk@tavistra.in",
+    role: "SUPPORT_STAFF",
+    roleLabel: "Support Specialist · Courier & Ticket Resolution",
+    avatarInitials: "KR",
+  },
+];
+
+export const INITIAL_AUDIT_LOGS: AuditEntry[] = [
+  {
+    id: "aud_01",
+    staffName: "Ar. Vikramaditya (Admin)",
+    action: "AWB_ASSIGNED",
+    entityType: "Order",
+    entityId: "TAV-RS-2026-1001",
+    timestamp: "Nov 5, 2026 16:45 IST",
+    details: "Assigned Blue Dart carrier AWB BD-DEL-89472911 to consignment.",
+  },
+  {
+    id: "aud_02",
+    staffName: "Rajesh Sharma",
+    action: "PRODUCTION_RELEASE",
+    entityType: "Order",
+    entityId: "TAV-MTO-2026-2003",
+    timestamp: "Nov 5, 2026 09:30 IST",
+    details: "Day 8 confirmation grace elapsed. Released 2x Aether Lamps to CNC brass milling.",
+  },
+  {
+    id: "aud_03",
+    staffName: "Kavita Rao",
+    action: "TICKET_NOTE_ADDED",
+    entityType: "SupportTicket",
+    entityId: "TCK-2026-802",
+    timestamp: "Nov 5, 2026 11:30 IST",
+    details: "Logged concierge afternoon delivery instruction for Blue Dart courier.",
+  },
+];
