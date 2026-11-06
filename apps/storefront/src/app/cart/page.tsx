@@ -398,7 +398,7 @@ export default function CartPage() {
                               type="button"
                               className="w-full rounded-full bg-[var(--color-ink)] py-3.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
                             >
-                              Add to Cart
+                              Proceed to Checkout
                             </button>
                             <p className="text-[11px] text-[var(--color-muted-light)] text-center">
                               Dispatched in 24–48 hours upon verified electronic payment.
@@ -578,7 +578,7 @@ export default function CartPage() {
                               type="button"
                               className="w-full rounded-full bg-[var(--color-ink)] py-3.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
                             >
-                              Pay 25% Advance ({formatPrice(mtoAdvancePaise)})
+                              Pay Advance & Checkout
                             </button>
                             <p className="text-[11px] text-[var(--color-muted-light)] text-center">
                               Remaining balance collected after QC inspection before carrier handover.
