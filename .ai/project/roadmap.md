@@ -14,7 +14,7 @@ modified: 2026-11-06
 - Milestone 2.2 (H2): Storefront foundation, catalogue publishing, brand foundation & review-ready public site [Completed]
 - Milestone 2.3 (H3): PhonePe merchant onboarding preparation [Pending]
 - Milestone 2.4 (H4): Core commerce foundations (Prisma DB schema, inventory ledger, 12-slab delivery fee engine, bulk rules) [Active]
-- Milestone 2.5 (H5): Purchase journeys (separated Ready Stock, MTO, Quote Only, Bulk Inquiry checkouts) [In Progress — Dedicated Checkout Flow Built]
+- Milestone 2.5 (H5): Purchase journeys (separated Ready Stock, MTO, Quote Only, Bulk Inquiry checkouts, and Account & Milestone Tracking suite) [Completed]
 - Milestone 2.6 (H6): Operational admin UX & order fulfilment [Pending]
 
 ## Phase 3: Testing & Bug Fixing (H7)
