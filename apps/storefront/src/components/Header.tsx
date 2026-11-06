@@ -153,12 +153,6 @@ export function Header() {
             Our Story
           </Link>
           <Link
-            href="/track"
-            className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
-          >
-            Track
-          </Link>
-          <Link
             href="/contact"
             className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
           >
@@ -166,28 +160,77 @@ export function Header() {
           </Link>
         </nav>
 
-        {/* Right Utility Navigation */}
-        <div className="flex items-center gap-5">
+        {/* Right Utility Navigation (Minimalist Luxury Symbols) */}
+        <div className="flex items-center gap-4 sm:gap-5">
+          {/* Search Icon */}
           <Link
             href="/shop"
-            className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
+            className="p-1.5 text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
+            aria-label="Search catalogue"
+            title="Search"
           >
-            Search
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+              />
+            </svg>
           </Link>
+
+          {/* Account Icon */}
           <Link
             href="/account"
-            className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
+            className="p-1.5 text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
+            aria-label="Client account"
+            title="Account"
           >
-            Account
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
+              />
+            </svg>
           </Link>
+
+          {/* Cart Icon */}
           <Link
             href="/cart"
-            className="flex items-center gap-2 rounded-full border border-[var(--color-stone)] bg-[var(--color-ivory)] px-4 py-2 text-xs font-semibold text-[var(--color-ink)] transition-colors hover:border-[var(--color-control-border)]"
+            className="relative p-1.5 text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
+            aria-label={`Shopping bag with ${totalItemCount} items`}
+            title="Cart"
           >
-            <span>Cart</span>
-            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[var(--color-ink)] text-[10px] text-[var(--color-canvas)]">
-              {totalItemCount}
-            </span>
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119.993z"
+              />
+            </svg>
+            {totalItemCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[var(--color-ink)] px-1 text-[9px] font-semibold text-[var(--color-canvas)] leading-none">
+                {totalItemCount}
+              </span>
+            )}
           </Link>
 
           {/* Mobile Hamburger Toggle */}
