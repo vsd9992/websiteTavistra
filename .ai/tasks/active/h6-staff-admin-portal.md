@@ -33,7 +33,18 @@ With the customer-facing storefront (H2), purchase journeys (H5), and commerce d
    - **Live Catalogue Governance**: `GET` and `PATCH /api/admin/catalogue` connected to PostgreSQL `Product.isPublished`. Admin portal allows 1-click toggling between "Publish" and "Draft" with modal review. Storefront `/shop`, `/category/[slug]`, and `/product/[slug]` dynamically filter by `isPublished: true` with `<Suspense>` streaming.
    - **Delivery PIN Code Governance**: `GET` and `PATCH /api/admin/pincodes` connected to PostgreSQL `PincodeRange.isServiceable`. Real-time validation endpoint `GET /api/pincodes/check` allows staff to suspend or activate PIN codes/zones, and `/checkout` immediately blocks suspended PINs with an informative alert.
    - **System Maintenance & Hiatus Engine**: `SystemSetting` model added to Prisma (`MAINTENANCE_MODE`, `STUDIO_HIATUS`, `ANNOUNCEMENT_BANNER`). Public `GET /api/settings` and Admin `GET/PATCH /api/admin/settings`. Storefront `Header` renders a luxury announcement bar during hiatus/notices, and `/checkout` gracefully freezes checkout when maintenance mode is active.
-6. **Full Monorepo Build & Verification**:
-   - Clean compilation (`pnpm build`) with 0 errors across all 45 routes and admin distribution bundle.
-   - Real-world database verification script (`verify_governance.ts`) confirmed publication toggling, PIN checks, and system settings updates against PostgreSQL on `devMachine` (`192.168.1.100:5433`).
+6. **Quote Only 30-Day Architectural Proposal Lifecycle (TAV-07)**:
+   - Proposal generation API (`/api/quotes`) with automatic versioning, revision management preserving the strict original 30-day offer clock, and branded luxury HTML quotation emails via containerized Mailpit SMTP.
+   - Public quote review page (`/quote/[quoteNumber]`) with validity countdown, detailed scope/line-item breakdowns, and 1-click **"Accept Proposal & Pay 25% Advance"** atomic checkout.
+   - Staff admin interface ("Inquiries & Proposals" tab) allowing commercial staff to issue bespoke proposals directly from customer inquiries.
+7. **Markdown Product Importer & Catalogue Reviewer**:
+   - Markdown parser and upsert engine (`/api/admin/catalogue/import`) supporting both bulk sync from repository markdown files (`docs/products/*.md`) and raw frontmatter upload.
+   - Authoritative product markdown editions created in `docs/products/` with YAML frontmatter specs and luxury editorial descriptions.
+8. **Automated End-to-End Integration Test Suite**:
+   - 35 automated integration tests (`packages/db/tests/comprehensive-e2e.ts`) verifying all lifecycles against live PostgreSQL (`192.168.1.100:5433`) and Mailpit SMTP (`192.168.1.100:1025`): **35 passed, 0 failed**.
+9. **Live Deployment to `devMachine` (`192.168.1.100`)**:
+   - Built and deployed monorepo on remote Debian host `192.168.1.100`.
+   - Storefront running on port 3001 (`http://192.168.1.100:3001`).
+   - Admin running on port 3002 (`http://192.168.1.100:3002`).
+   - Verified HTTP 200 OK and live database query responses across both services.
 
