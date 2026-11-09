@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@tavistra/db";
+import { sendTicketEmail } from "@/lib/email";
 
 export async function GET() {
   try {
@@ -82,6 +83,16 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Dispatch asynchronous support ticket confirmation email to customer
+    sendTicketEmail({
+      ticketNumber: ticket.ticketNumber,
+      customerName: ticket.customerName,
+      customerEmail: ticket.email,
+      subject: ticket.subject,
+      messageText: message,
+      isStaffReply: false,
+    }).catch((err) => console.warn("Ticket email dispatch error:", err));
+
     return NextResponse.json({
       success: true,
       ticketNumber: ticket.ticketNumber,
@@ -92,3 +103,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
+

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, OrderStatus } from "@tavistra/db";
+import { sendBalancePaymentClearedEmail } from "@/lib/email";
 
 export async function POST(
   req: NextRequest,
@@ -70,6 +71,15 @@ export async function POST(
       },
     });
 
+    // Dispatch asynchronous balance payment receipt email
+    sendBalancePaymentClearedEmail({
+      orderNumber: updatedOrder.orderNumber,
+      customerName: updatedOrder.shippingAddress?.fullName || "Client",
+      customerEmail: updatedOrder.customerEmail,
+      amountPaidRupees: balanceDue,
+      totalAmountRupees: Number(updatedOrder.totalAmount),
+    }).catch((err) => console.warn("Balance payment email dispatch error:", err));
+
     return NextResponse.json({
       success: true,
       message: `Balance payment of ₹${balanceDue.toLocaleString("en-IN")} successfully verified and recorded. Cumulative 100% payment achieved.`,
@@ -86,3 +96,4 @@ export async function POST(
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
+

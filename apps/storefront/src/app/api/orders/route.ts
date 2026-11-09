@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, PurchaseMode, OrderStatus } from "@tavistra/db";
+import { sendOrderConfirmationEmail } from "@/lib/email";
 
 // Helper to compute grace days remaining from confirmedAt
 function computeGraceDaysRemaining(confirmedAt: Date | null): number {
@@ -358,6 +359,29 @@ export async function POST(req: NextRequest) {
         },
       },
     });
+
+    // Dispatch asynchronous order confirmation email
+    sendOrderConfirmationEmail({
+      orderNumber: order.orderNumber,
+      customerName,
+      customerEmail: email,
+      mode: purchaseModeEnum,
+      items: Array.isArray(items)
+        ? items.map((it: { name: string; quantity?: number; pricePaise?: number; priceRupees?: number }) => ({
+            name: it.name,
+            quantity: it.quantity || 1,
+            priceRupees: (it.pricePaise ? it.pricePaise / 100 : it.priceRupees) || 1000,
+          }))
+        : [],
+      itemsSubtotalRupees,
+      deliveryFeeRupees,
+      totalAmountRupees,
+      amountPaidRupees,
+      balanceDueRupees,
+      city,
+      state,
+      pincode: destinationPin,
+    }).catch((err) => console.warn("Order confirmation email dispatch failed:", err));
 
     return NextResponse.json({
       success: true,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@tavistra/db";
+import { sendTicketEmail } from "@/lib/email";
 
 export async function POST(
   req: NextRequest,
@@ -36,6 +37,19 @@ export async function POST(
       });
     }
 
+    // If reply is from staff, dispatch email directly to customer
+    if (!sender || sender === "STAFF") {
+      sendTicketEmail({
+        ticketNumber: ticket.ticketNumber,
+        customerName: ticket.customerName,
+        customerEmail: ticket.email,
+        subject: ticket.subject,
+        messageText: text,
+        isStaffReply: true,
+        authorName: authorName || "Studio Concierge",
+      }).catch((err) => console.warn("Staff ticket reply email error:", err));
+    }
+
     return NextResponse.json({
       success: true,
       message: newMsg,
@@ -45,3 +59,4 @@ export async function POST(
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
+

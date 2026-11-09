@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, OrderStatus } from "@tavistra/db";
+import { sendQcPhotosReadyEmail } from "@/lib/email";
 
 export async function GET(
   req: NextRequest,
@@ -46,6 +47,9 @@ export async function PATCH(
       where: {
         OR: [{ id }, { orderNumber: id.toUpperCase() }],
       },
+      include: {
+        shippingAddress: true,
+      },
     });
 
     if (!order) {
@@ -80,6 +84,15 @@ export async function PATCH(
           productionCompletedAt: new Date(),
         },
       });
+
+      // Dispatch asynchronous QC photos ready email notification
+      sendQcPhotosReadyEmail({
+        orderNumber: order.orderNumber,
+        customerName: order.shippingAddress?.fullName || "Client",
+        customerEmail: order.customerEmail,
+        qcNotes: qcNotes || order.qcNotes || undefined,
+        balanceDueRupees: Number(order.balanceAmount),
+      }).catch((err) => console.warn("QC email dispatch error:", err));
 
       return NextResponse.json({
         success: true,
@@ -153,3 +166,4 @@ export async function PATCH(
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
+
