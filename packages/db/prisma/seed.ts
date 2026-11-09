@@ -341,6 +341,243 @@ async function main() {
     });
   }
 
+  // 4. Seed Operational Test Users & Orders
+  console.log('Seeding Operational Test Users, Orders & Financial Ledgers...');
+
+  const user1 = await prisma.user.upsert({
+    where: { email: 'arjun.mehta@studio.in' },
+    update: {},
+    create: {
+      email: 'arjun.mehta@studio.in',
+      name: 'Arjun Mehta',
+      phone: '+91 98101 23456',
+    },
+  });
+
+  const address1 = await prisma.customerAddress.create({
+    data: {
+      userId: user1.id,
+      fullName: 'Arjun Mehta',
+      phone: '+91 98101 23456',
+      addressLine1: 'B-42 Defence Colony, Ring Road',
+      city: 'New Delhi',
+      state: 'Delhi',
+      pincode: '110024',
+      isDefault: true,
+    },
+  });
+
+  const user2 = await prisma.user.upsert({
+    where: { email: 'vikramaditya@studiovishnu.in' },
+    update: {},
+    create: {
+      email: 'vikramaditya@studiovishnu.in',
+      name: 'Ar. Vikramaditya Sharma',
+      phone: '+91 98765 43210',
+    },
+  });
+
+  const address2 = await prisma.customerAddress.create({
+    data: {
+      userId: user2.id,
+      fullName: 'Ar. Vikramaditya Sharma',
+      phone: '+91 98765 43210',
+      addressLine1: '14 Barakhamba Road, Connaught Place',
+      city: 'New Delhi',
+      state: 'Delhi',
+      pincode: '110001',
+      isDefault: true,
+    },
+  });
+
+  const productClock = await prisma.product.findUnique({ where: { slug: 'monolith-minimalist-wall-clock' } });
+  const productMirror = await prisma.product.findUnique({ where: { slug: 'arc-solid-brass-wall-mirror' } });
+
+  // Order 1: Ready Stock - Dispatched
+  await prisma.order.upsert({
+    where: { orderNumber: 'TAV-RS-2026-1001' },
+    update: {},
+    create: {
+      orderNumber: 'TAV-RS-2026-1001',
+      userId: user1.id,
+      customerEmail: user1.email,
+      customerPhone: user1.phone,
+      shippingAddressId: address1.id,
+      purchaseMode: PurchaseMode.READY_STOCK,
+      itemsSubtotal: 6997.0,
+      shippingCharge: 500.0,
+      totalAmount: 7497.0,
+      requiredAdvanceAmount: 7497.0,
+      amountPaid: 7497.0,
+      balanceAmount: 0.0,
+      status: 'DISPATCHED',
+      confirmedAt: new Date(Date.now() - 4 * 86400000),
+      dispatchedAt: new Date(Date.now() - 1 * 86400000),
+      carrierName: 'Blue Dart Fragile Surface',
+      trackingNumber: 'BD-DEL-89472911',
+      items: {
+        create: [
+          {
+            productId: productClock!.id,
+            quantity: 1,
+            unitPrice: 6997.0,
+            subtotal: 6997.0,
+          },
+        ],
+      },
+      payments: {
+        create: {
+          paymentType: 'FULL_PAYMENT',
+          amount: 7497.0,
+          status: 'COMPLETED',
+          gateway: 'PHONEPE',
+          gatewayTransactionId: 'TXN-BD-7497-1001',
+          verifiedAt: new Date(Date.now() - 4 * 86400000),
+        },
+      },
+    },
+  });
+
+  // Order 2: Made to Order - 7-Day Grace Active, 25% paid, 75% due
+  await prisma.order.upsert({
+    where: { orderNumber: 'TAV-MTO-2026-2002' },
+    update: {},
+    create: {
+      orderNumber: 'TAV-MTO-2026-2002',
+      userId: user2.id,
+      customerEmail: user2.email,
+      customerPhone: user2.phone,
+      shippingAddressId: address2.id,
+      purchaseMode: PurchaseMode.MADE_TO_ORDER,
+      itemsSubtotal: 28500.0,
+      shippingCharge: 1500.0,
+      totalAmount: 30000.0,
+      requiredAdvanceAmount: 7500.0,
+      amountPaid: 7500.0,
+      balanceAmount: 22500.0,
+      status: 'CONFIRMED',
+      confirmedAt: new Date(Date.now() - 3 * 86400000), // Day 3 of 7
+      carrierName: 'Safeexpress Caged Heavy Freight',
+      items: {
+        create: [
+          {
+            productId: productMirror!.id,
+            quantity: 1,
+            unitPrice: 28500.0,
+            subtotal: 28500.0,
+          },
+        ],
+      },
+      payments: {
+        create: {
+          paymentType: 'ADVANCE_25',
+          amount: 7500.0,
+          status: 'COMPLETED',
+          gateway: 'PHONEPE',
+          gatewayTransactionId: 'TXN-MTO-7500-2002',
+          verifiedAt: new Date(Date.now() - 3 * 86400000),
+        },
+      },
+    },
+  });
+
+  // Order 3: Made to Order - Crafting in workshop with QC Photos ready
+  await prisma.order.upsert({
+    where: { orderNumber: 'TAV-MTO-2026-2004' },
+    update: {},
+    create: {
+      orderNumber: 'TAV-MTO-2026-2004',
+      userId: user2.id,
+      customerEmail: user2.email,
+      customerPhone: user2.phone,
+      shippingAddressId: address2.id,
+      purchaseMode: PurchaseMode.MADE_TO_ORDER,
+      itemsSubtotal: 30500.0,
+      shippingCharge: 1500.0,
+      totalAmount: 32000.0,
+      requiredAdvanceAmount: 8000.0,
+      amountPaid: 8000.0,
+      balanceAmount: 24000.0,
+      status: 'PRODUCTION_COMPLETED',
+      confirmedAt: new Date(Date.now() - 14 * 86400000),
+      productionStartedAt: new Date(Date.now() - 6 * 86400000),
+      productionCompletedAt: new Date(Date.now() - 1 * 86400000),
+      carrierName: 'Blue Dart Fragile Surface',
+      qcNotes: 'Hand-beveled edges verified. Brass brushed patina uniform and sealed with aerospace microcrystalline wax.',
+      qcImages: JSON.stringify([
+        'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80',
+        'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80'
+      ]),
+      items: {
+        create: [
+          {
+            productId: productMirror!.id,
+            quantity: 1,
+            unitPrice: 30500.0,
+            subtotal: 30500.0,
+          },
+        ],
+      },
+      payments: {
+        create: {
+          paymentType: 'ADVANCE_25',
+          amount: 8000.0,
+          status: 'COMPLETED',
+          gateway: 'PHONEPE',
+          gatewayTransactionId: 'TXN-QC-8000-2004',
+          verifiedAt: new Date(Date.now() - 14 * 86400000),
+        },
+      },
+    },
+  });
+
+  // 5. Seed Support Tickets
+  console.log('Seeding Support Tickets & Messages...');
+  const ticket1 = await prisma.supportTicket.upsert({
+    where: { ticketNumber: 'TCK-2026-101' },
+    update: {},
+    create: {
+      ticketNumber: 'TCK-2026-101',
+      orderNumber: 'TAV-MTO-2026-2002',
+      customerName: 'Ar. Vikramaditya Sharma',
+      email: 'vikramaditya@studiovishnu.in',
+      phone: '+91 98765 43210',
+      subject: 'Inquiry regarding brass edge finish variation',
+      category: 'SPEC_ALTERATION',
+      priority: 'HIGH',
+      status: 'OPEN',
+      messages: {
+        create: [
+          {
+            sender: 'CUSTOMER',
+            authorName: 'Ar. Vikramaditya Sharma',
+            text: 'Greetings. For our Arc Solid Brass Wall Mirror order, can we request a slightly deeper brushed patina on the outer rim to match our site hardware?',
+          },
+        ],
+      },
+    },
+  });
+
+  // 6. Seed Bulk Inquiries
+  console.log('Seeding Bulk Inquiries...');
+  await prisma.bulkInquiry.upsert({
+    where: { inquiryNumber: 'INQ-2026-801' },
+    update: {},
+    create: {
+      inquiryNumber: 'INQ-2026-801',
+      clientName: 'Sunita Singhania',
+      practiceOrStudio: 'Studio Lotus Architects',
+      email: 'procurement@studiolotus.in',
+      phone: '+91 98110 55432',
+      destinationCity: 'New Delhi',
+      destinationPincode: '110049',
+      requestedEditions: 'Monolith Minimalist Wall Clock (Custom 600mm variant)',
+      quantityUnits: 14,
+      specifications: 'Custom 600mm oversized architectural wall clocks for private boutique hotel lobby suites. Need unified courier transit and staggered delivery.',
+      status: 'NEW',
+    },
+  });
+
   console.log('Database seeding successfully completed.');
 }
 

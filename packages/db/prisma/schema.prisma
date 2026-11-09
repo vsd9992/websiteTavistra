@@ -328,6 +328,10 @@ model Order {
   carrierName           String?
   trackingNumber        String?
 
+  // Workshop QC Inspection & Customer Transparency
+  qcNotes               String?
+  qcImages              String?             // JSON array of image URLs (e.g. ["/images/qc/qc-1.jpg"])
+
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
 
@@ -443,4 +447,69 @@ model AuditLog {
   @@index([action])
   @@index([createdAt])
 }
+
+// -------------------------------------------------------------
+// SUPPORT TICKETS & CUSTOMER DESK
+// -------------------------------------------------------------
+
+model SupportTicket {
+  id            String          @id @default(cuid())
+  ticketNumber  String          @unique // e.g. TCK-2026-1001
+  orderNumber   String?
+  customerName  String
+  email         String
+  phone         String
+  subject       String
+  category      String          // ORDER_INQUIRY, SPEC_ALTERATION, DELIVERY_SCHEDULE, DAMAGE_REPORT, CANCELLATION
+  priority      String          @default("NORMAL") // NORMAL, HIGH, URGENT
+  status        String          @default("OPEN")   // OPEN, IN_PROGRESS, RESOLVED
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  messages      TicketMessage[]
+
+  @@index([ticketNumber])
+  @@index([email])
+  @@index([orderNumber])
+  @@index([status])
+}
+
+model TicketMessage {
+  id            String          @id @default(cuid())
+  ticketId      String
+  sender        String          // CUSTOMER, STAFF
+  authorName    String
+  text          String
+  createdAt     DateTime        @default(now())
+
+  ticket        SupportTicket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+}
+
+// -------------------------------------------------------------
+// COMMERCIAL BULK INQUIRIES & ARCHITECTURAL SPECS
+// -------------------------------------------------------------
+
+model BulkInquiry {
+  id                  String          @id @default(cuid())
+  inquiryNumber       String          @unique // e.g. INQ-2026-1001
+  clientName          String
+  practiceOrStudio    String?
+  email               String
+  phone               String
+  destinationCity     String
+  destinationPincode  String
+  requestedEditions   String
+  quantityUnits       Int             @default(10)
+  specifications      String
+  status              String          @default("NEW") // NEW, IN_REVIEW, QUOTE_ISSUED, CLOSED
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  @@index([inquiryNumber])
+  @@index([email])
+  @@index([status])
+}
+
 

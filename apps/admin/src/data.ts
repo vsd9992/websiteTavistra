@@ -17,15 +17,21 @@ export interface AdminOrder {
   balanceDueRupees: number;
   status:
     | "PAYMENT_CONFIRMED"
+    | "CONFIRMED"
     | "GRACE_PERIOD_ACTIVE"
+    | "IN_PRODUCTION"
     | "WORKSHOP_CRAFTING"
     | "QC_INSPECTION"
+    | "PRODUCTION_COMPLETED"
+    | "AWAITING_DISPATCH"
     | "DISPATCHED"
     | "DELIVERED"
     | "CANCELLED";
   carrierName: string;
   awbNumber?: string;
   graceDaysRemaining?: number;
+  qcNotes?: string;
+  qcImages?: string[];
   placedAt: string;
 }
 

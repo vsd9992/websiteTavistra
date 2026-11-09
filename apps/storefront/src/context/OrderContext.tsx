@@ -3,15 +3,23 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 
 export type OrderStatus =
+  | "PENDING_PAYMENT"
   | "PAYMENT_CONFIRMED"
+  | "CONFIRMED"
   | "GRACE_PERIOD_ACTIVE"
+  | "IN_PRODUCTION"
   | "WORKSHOP_CRAFTING"
   | "QC_INSPECTION"
+  | "PRODUCTION_COMPLETED"
+  | "AWAITING_DISPATCH"
   | "DISPATCHED"
-  | "DELIVERED";
+  | "DELIVERED"
+  | "CANCELLED"
+  | "REFUNDED";
 
 export interface OrderRecord {
   id: string;
+  orderNumber?: string;
   mode: "READY_STOCK" | "MADE_TO_ORDER";
   customerName: string;
   email: string;
@@ -33,6 +41,8 @@ export interface OrderRecord {
   statusLabel: string;
   statusDescription: string;
   graceDaysRemaining?: number;
+  qcNotes?: string;
+  qcImages?: string[];
   createdAt: string;
 }
 

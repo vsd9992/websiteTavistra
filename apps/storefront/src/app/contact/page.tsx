@@ -22,6 +22,8 @@ function ContactFormContent() {
   const messageParam = searchParams.get("message") || "";
 
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [referenceNumber, setReferenceNumber] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -57,12 +59,60 @@ function ContactFormContent() {
   const emailVal = validateEmail(formData.email);
   const mobileVal = validateIndianMobile(formData.phone);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!emailVal.isValid || !mobileVal.isValid) {
       return;
     }
-    setSubmitted(true);
+
+    setSubmitting(true);
+    try {
+      const isBulkOrQuote =
+        intentParam === "bulk" ||
+        formData.subject.toLowerCase().includes("bulk") ||
+        formData.subject.toLowerCase().includes("quote") ||
+        formData.subject.toLowerCase().includes("architectural");
+
+      if (isBulkOrQuote) {
+        const res = await fetch("/api/inquiries", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone,
+            pincode: formData.pincode,
+            productName: formData.productName,
+            message: formData.message,
+          }),
+        });
+        const data = await res.json();
+        if (data.inquiryNumber) {
+          setReferenceNumber(data.inquiryNumber);
+        }
+      } else {
+        const res = await fetch("/api/tickets", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone,
+            subject: formData.subject,
+            message: formData.message,
+          }),
+        });
+        const data = await res.json();
+        if (data.ticketNumber) {
+          setReferenceNumber(data.ticketNumber);
+        }
+      }
+    } catch (err) {
+      console.warn("Backend submission error, continuing with local confirmation:", err);
+    } finally {
+      setSubmitting(false);
+      setSubmitted(true);
+    }
   };
 
   return (
@@ -72,11 +122,16 @@ function ContactFormContent() {
         {submitted ? (
           <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-10 text-center space-y-4">
             <span className="font-editorial text-3xl text-[var(--color-ink)] block">
-              Inquiry Received
+              Inquiry Registered
             </span>
+            {referenceNumber && (
+              <span className="inline-block px-3 py-1 rounded-full text-xs font-mono font-bold bg-[var(--color-ink)] text-[var(--color-canvas)]">
+                Reference: {referenceNumber}
+              </span>
+            )}
             <p className="text-xs text-[var(--color-muted-light)] leading-relaxed max-w-md mx-auto">
-              Thank you, {formData.name}. Our commercial and architectural design desk will review your specifications for{" "}
-              <strong>{formData.productName || "your project"}</strong> and contact you within 24 to 48 business hours with a formal proposal.
+              Thank you, {formData.name}. Our commercial and architectural design desk has logged your request for{" "}
+              <strong>{formData.productName || "your project"}</strong> into our central studio queue. A formal proposal will be dispatched to <strong>{formData.email}</strong>.
             </p>
             <button
               type="button"
@@ -242,10 +297,10 @@ function ContactFormContent() {
 
             <button
               type="submit"
-              disabled={!emailVal.isValid || !mobileVal.isValid || !formData.name.trim() || !formData.message.trim()}
+              disabled={submitting || !emailVal.isValid || !mobileVal.isValid || !formData.name.trim() || !formData.message.trim()}
               className="w-full rounded-full bg-[var(--color-ink)] py-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
             >
-              Submit Proposal Request
+              {submitting ? "Transmitting Request to Studio..." : "Submit Proposal Request"}
             </button>
           </form>
         )}

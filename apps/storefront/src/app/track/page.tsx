@@ -7,6 +7,12 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { useOrders, OrderRecord } from "@/context/OrderContext";
 
+interface TrackedOrder extends OrderRecord {
+  orderNumber?: string;
+  qcNotes?: string;
+  qcImages?: string[];
+}
+
 function TrackOrderContent() {
   const searchParams = useSearchParams();
   const initialOrderId = searchParams.get("orderId") || "";
@@ -17,22 +23,54 @@ function TrackOrderContent() {
   const [orderId, setOrderId] = useState(initialOrderId);
   const [contact, setContact] = useState(initialContact);
   const [searched, setSearched] = useState(false);
-  const [matchedOrder, setMatchedOrder] = useState<OrderRecord | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [matchedOrder, setMatchedOrder] = useState<TrackedOrder | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [payingBalance, setPayingBalance] = useState(false);
+  const [paymentSuccessMessage, setPaymentSuccessMessage] = useState<string | null>(null);
+
+  // Direct server query function
+  const fetchOrderFromServer = async (ref: string, contactInfo?: string) => {
+    setLoading(true);
+    setSearchError(null);
+    try {
+      const url = `/api/orders?orderId=${encodeURIComponent(ref.trim())}${
+        contactInfo ? `&contact=${encodeURIComponent(contactInfo.trim())}` : ""
+      }`;
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (data.found && data.order) {
+        setMatchedOrder(data.order);
+        setSearched(true);
+        setLoading(false);
+        return true;
+      }
+    } catch (err) {
+      console.warn("Backend lookup error, falling back to local storage:", err);
+    }
+
+    // Local fallback
+    const local = lookupOrder(ref, contactInfo || "");
+    if (local) {
+      setMatchedOrder(local);
+      setSearched(true);
+      setLoading(false);
+      return true;
+    }
+
+    setMatchedOrder(null);
+    setSearched(true);
+    setLoading(false);
+    return false;
+  };
 
   // Auto-lookup if query params provided
   useEffect(() => {
     if (initialOrderId) {
-      // Find matching order
-      const found = orders.find(
-        (o) => o.id.toUpperCase() === initialOrderId.trim().toUpperCase()
-      );
-      if (found) {
-        setMatchedOrder(found);
-        setSearched(true);
-      }
+      fetchOrderFromServer(initialOrderId, initialContact);
     }
-  }, [initialOrderId, orders]);
+  }, [initialOrderId, initialContact]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,33 +78,42 @@ function TrackOrderContent() {
       setSearchError("Please enter your Order Reference (e.g. TAV-RS-2026-1001).");
       return;
     }
+    fetchOrderFromServer(orderId, contact);
+  };
 
-    setSearchError(null);
-    setSearched(true);
+  const handlePayBalance = async () => {
+    if (!matchedOrder) return;
+    setPayingBalance(true);
+    setPaymentSuccessMessage(null);
 
-    const found = lookupOrder(orderId, contact);
-    if (found) {
-      setMatchedOrder(found);
-    } else {
-      // Fallback lookup by Order ID if contact is empty or matches partial
-      const direct = orders.find(
-        (o) => o.id.toUpperCase() === orderId.trim().toUpperCase()
-      );
-      if (direct) {
-        setMatchedOrder(direct);
+    try {
+      const res = await fetch(`/api/orders/${matchedOrder.id}/pay-balance`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gateway: "PHONEPE" }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setPaymentSuccessMessage(
+          `Payment of ₹${matchedOrder.balanceDueRupees.toLocaleString("en-IN")} cleared successfully! Your order is now 100% verified.`
+        );
+        // Refresh order details from server
+        await fetchOrderFromServer(matchedOrder.id, matchedOrder.email);
       } else {
-        setMatchedOrder(null);
+        alert(data.error || "Unable to complete balance payment.");
       }
+    } catch {
+      alert("Network error processing balance payment.");
+    } finally {
+      setPayingBalance(false);
     }
   };
 
   const loadExample = (exId: string, exContact: string) => {
     setOrderId(exId);
     setContact(exContact);
-    setSearchError(null);
-    setSearched(true);
-    const found = orders.find((o) => o.id === exId);
-    setMatchedOrder(found || null);
+    fetchOrderFromServer(exId, exContact);
   };
 
   const formatPrice = (amountRupees: number) =>
@@ -91,58 +138,60 @@ function TrackOrderContent() {
         </p>
       </div>
 
-      {/* Search Bar Card */}
-      <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-6 sm:p-8 space-y-4 shadow-sm max-w-3xl mx-auto">
-        <form onSubmit={handleSearch} className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-          <div className="sm:col-span-6">
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1">
-              Order Reference *
-            </label>
-            <input
-              required
-              type="text"
-              value={orderId}
-              onChange={(e) => {
-                setOrderId(e.target.value);
-                if (searchError) setSearchError(null);
-              }}
-              placeholder="e.g. TAV-RS-2026-1001"
-              className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono"
-            />
+      {/* Tracking Search Form */}
+      <div className="mx-auto max-w-2xl rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-8 shadow-sm space-y-6">
+        <form onSubmit={handleSearch} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label htmlFor="orderId" className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
+                Order Reference *
+              </label>
+              <input
+                id="orderId"
+                type="text"
+                placeholder="TAV-RS-2026-1001"
+                value={orderId}
+                onChange={(e) => setOrderId(e.target.value)}
+                className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-4 py-3 text-xs text-[var(--color-ink)] placeholder-[var(--color-muted-light)] focus:border-[var(--color-ink)] focus:outline-none font-mono"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="contact" className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
+                Billing Email or Mobile
+              </label>
+              <input
+                id="contact"
+                type="text"
+                placeholder="email@domain.com or 98101..."
+                value={contact}
+                onChange={(e) => setContact(e.target.value)}
+                className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-4 py-3 text-xs text-[var(--color-ink)] placeholder-[var(--color-muted-light)] focus:border-[var(--color-ink)] focus:outline-none"
+              />
+            </div>
           </div>
-          <div className="sm:col-span-4">
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1">
-              Mobile or Email
-            </label>
-            <input
-              type="text"
-              value={contact}
-              onChange={(e) => setContact(e.target.value)}
-              placeholder="+91 98765 43210"
-              className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
-            />
-          </div>
-          <div className="sm:col-span-2 flex items-end">
-            <button
-              type="submit"
-              className="w-full rounded-xl bg-[var(--color-ink)] py-2.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
-            >
-              Search
-            </button>
-          </div>
+
+          {searchError && (
+            <p className="text-xs text-rose-700 bg-rose-50 p-3 rounded-lg border border-rose-200">
+              {searchError}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-full bg-[var(--color-ink)] py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm disabled:opacity-50"
+          >
+            {loading ? "Searching Authoritative Records..." : "Locate Consignment & Production Record"}
+          </button>
         </form>
 
-        {searchError && (
-          <p className="text-xs text-red-600 font-medium">{searchError}</p>
-        )}
-
-        {/* Quick Demo Previews */}
-        <div className="pt-2 border-t border-[var(--color-decorative-border)]/60 flex flex-wrap items-center gap-2 text-xs">
-          <span className="text-[11px] text-[var(--color-muted-light)]">Quick Previews:</span>
+        {/* Quick Example Chips */}
+        <div className="pt-4 border-t border-[var(--color-decorative-border)]/60 flex flex-wrap items-center gap-2">
+          <span className="text-[11px] text-[var(--color-muted-light)]">Test Records in Database:</span>
           <button
             type="button"
-            onClick={() => loadExample("TAV-RS-2026-1001", "vikramaditya@studiovishnu.in")}
-            className="rounded-full border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] px-3 py-1 text-[11px] font-medium text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors"
+            onClick={() => loadExample("TAV-RS-2026-1001", "arjun.mehta@studio.in")}
+            className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-medium text-blue-900 hover:bg-blue-100 transition-colors"
           >
             Ready Stock Dispatched (1001)
           </button>
@@ -153,8 +202,22 @@ function TrackOrderContent() {
           >
             Made to Order in 7-Day Grace (2002)
           </button>
+          <button
+            type="button"
+            onClick={() => loadExample("TAV-MTO-2026-2004", "vikramaditya@studiovishnu.in")}
+            className="rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-[11px] font-medium text-emerald-900 hover:bg-emerald-100 transition-colors"
+          >
+            MTO Finished with QC Photos (2004)
+          </button>
         </div>
       </div>
+
+      {/* Success Notification */}
+      {paymentSuccessMessage && (
+        <div className="mx-auto max-w-2xl p-4 rounded-xl border border-emerald-300 bg-emerald-50 text-xs text-emerald-900 font-semibold text-center">
+          ✓ {paymentSuccessMessage}
+        </div>
+      )}
 
       {/* Result Card */}
       {searched && (
@@ -204,24 +267,52 @@ function TrackOrderContent() {
                       <p className="text-[11px] text-[var(--color-muted-light)]">₹{matchedOrder.amountPaidRupees.toLocaleString("en-IN")} received</p>
                     </div>
 
-                    <div className="p-4 rounded-xl border-2 border-amber-400 bg-amber-50 space-y-1">
-                      <span className="text-[10px] uppercase font-bold text-amber-900 tracking-wider">Step 2 · Active</span>
+                    <div className={`p-4 rounded-xl border space-y-1 ${
+                      matchedOrder.status === "CONFIRMED"
+                        ? "border-2 border-amber-400 bg-amber-50"
+                        : "border-emerald-300 bg-emerald-50/70"
+                    }`}>
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-amber-900">
+                        Step 2 · {matchedOrder.status === "CONFIRMED" ? "Active" : "Complete"}
+                      </span>
                       <h4 className="text-xs font-semibold text-[var(--color-ink)]">7-Day Confirmation Grace</h4>
                       <p className="text-[11px] text-amber-900 font-medium">
-                        {matchedOrder.graceDaysRemaining !== undefined ? `${matchedOrder.graceDaysRemaining} days remaining` : "Active window"}
+                        {matchedOrder.status === "CONFIRMED"
+                          ? `${matchedOrder.graceDaysRemaining !== undefined ? matchedOrder.graceDaysRemaining : 4} days remaining`
+                          : "Grace concluded · Machined"}
                       </p>
                     </div>
 
-                    <div className="p-4 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] opacity-60 space-y-1">
-                      <span className="text-[10px] uppercase font-bold text-[var(--color-muted-light)] tracking-wider">Step 3 · Pending</span>
+                    <div className={`p-4 rounded-xl border space-y-1 ${
+                      matchedOrder.status === "IN_PRODUCTION"
+                        ? "border-2 border-blue-400 bg-blue-50"
+                        : matchedOrder.status === "PRODUCTION_COMPLETED" || matchedOrder.status === "AWAITING_DISPATCH" || matchedOrder.status === "DISPATCHED"
+                        ? "border-emerald-300 bg-emerald-50/70"
+                        : "border-[var(--color-decorative-border)] bg-[var(--color-ivory)] opacity-60"
+                    }`}>
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-ink)]">
+                        Step 3 · {matchedOrder.status === "IN_PRODUCTION" ? "Active" : matchedOrder.status === "CONFIRMED" ? "Pending" : "Complete"}
+                      </span>
                       <h4 className="text-xs font-semibold text-[var(--color-ink)]">Workshop Machining</h4>
-                      <p className="text-[11px] text-[var(--color-muted-light)]">Commences on Day 8</p>
+                      <p className="text-[11px] text-[var(--color-muted-light)]">
+                        {matchedOrder.status === "IN_PRODUCTION" ? "Active Crafting in Studio" : matchedOrder.status === "CONFIRMED" ? "Commences on Day 8" : "Machining Finished"}
+                      </p>
                     </div>
 
-                    <div className="p-4 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] opacity-60 space-y-1">
-                      <span className="text-[10px] uppercase font-bold text-[var(--color-muted-light)] tracking-wider">Step 4 · Pending</span>
-                      <h4 className="text-xs font-semibold text-[var(--color-ink)]">QC & Crated Dispatch</h4>
-                      <p className="text-[11px] text-[var(--color-muted-light)]">Remaining 75% balance</p>
+                    <div className={`p-4 rounded-xl border space-y-1 ${
+                      matchedOrder.status === "DISPATCHED"
+                        ? "border-2 border-emerald-500 bg-emerald-50"
+                        : matchedOrder.status === "PRODUCTION_COMPLETED" || matchedOrder.status === "AWAITING_DISPATCH"
+                        ? "border-2 border-amber-400 bg-amber-50"
+                        : "border-[var(--color-decorative-border)] bg-[var(--color-ivory)] opacity-60"
+                    }`}>
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-ink)]">
+                        Step 4 · {matchedOrder.status === "DISPATCHED" ? "In Transit" : matchedOrder.status === "PRODUCTION_COMPLETED" ? "QC Ready" : "Pending"}
+                      </span>
+                      <h4 className="text-xs font-semibold text-[var(--color-ink)]">QC & Insured Handover</h4>
+                      <p className="text-[11px] text-[var(--color-muted-light)]">
+                        {matchedOrder.balanceDueRupees === 0 ? "100% Paid" : `₹${matchedOrder.balanceDueRupees.toLocaleString("en-IN")} due`}
+                      </p>
                     </div>
                   </div>
                 ) : (
@@ -267,6 +358,45 @@ function TrackOrderContent() {
                 </div>
               </div>
 
+              {/* STUDIO WORKSHOP QC PHOTOS GALLERY (IF AVAILABLE) */}
+              {matchedOrder.qcImages && matchedOrder.qcImages.length > 0 && (
+                <div className="space-y-4 pt-6 border-t border-[var(--color-decorative-border)]">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] uppercase tracking-widest text-[var(--color-bronze)] font-semibold block">
+                        Studio Workshop Verification
+                      </span>
+                      <h3 className="font-editorial text-2xl text-[var(--color-ink)]">
+                        Finished Piece QC Inspection Photos
+                      </h3>
+                    </div>
+                    <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                      ✓ Quality Control Passed
+                    </span>
+                  </div>
+                  {matchedOrder.qcNotes && (
+                    <div className="p-4 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] text-xs text-[var(--color-ink)] leading-relaxed">
+                      <strong className="block text-[11px] uppercase tracking-wider text-[var(--color-muted-light)] pb-1">Master Craftsman Notes:</strong>
+                      {matchedOrder.qcNotes}
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {matchedOrder.qcImages.map((imgUrl, i) => (
+                      <div key={i} className="group relative rounded-xl overflow-hidden border border-[var(--color-decorative-border)] aspect-[16/10] bg-neutral-100">
+                        <img
+                          src={imgUrl}
+                          alt={`QC Inspection ${i + 1}`}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                        <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 text-white text-[10px] backdrop-blur-sm">
+                          QC Photo {i + 1}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Items & Delivery Details (2 Columns) */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 pt-4 border-t border-[var(--color-decorative-border)]">
                 {/* Left: Ordered Objects (Span 7) */}
@@ -295,7 +425,7 @@ function TrackOrderContent() {
                   </div>
                 </div>
 
-                {/* Right: Payment Ledger & Safeguards (Span 5) */}
+                {/* Right: Payment Ledger, 75% Balance Action & Safeguards (Span 5) */}
                 <div className="lg:col-span-5 space-y-4">
                   <h3 className="text-xs uppercase tracking-widest text-[var(--color-ink)] font-semibold">
                     Two-Component Price & Payment
@@ -329,6 +459,31 @@ function TrackOrderContent() {
                     )}
                   </div>
 
+                  {/* DAY 1 ENABLED 75% BALANCE PAYMENT ACTION */}
+                  {matchedOrder.balanceDueRupees > 0 && (
+                    <div className="rounded-xl border border-amber-300 bg-amber-50/80 p-5 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-amber-900">
+                          Balance Settlement (Day 1 Enabled)
+                        </span>
+                        <span className="text-xs font-bold text-amber-900">
+                          {formatPrice(matchedOrder.balanceDueRupees)}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-amber-800 leading-relaxed">
+                        You may clear your remaining balance now or after reviewing workshop QC photos. Under studio policy, 100% payment must be verified before crating and courier handover.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handlePayBalance}
+                        disabled={payingBalance}
+                        className="w-full rounded-full bg-emerald-800 py-3 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50"
+                      >
+                        {payingBalance ? "Verifying PhonePe Gateway..." : `Pay Remaining Balance (${formatPrice(matchedOrder.balanceDueRupees)})`}
+                      </button>
+                    </div>
+                  )}
+
                   {/* Actions */}
                   <div className="space-y-2">
                     <button
@@ -349,20 +504,16 @@ function TrackOrderContent() {
               </div>
             </div>
           ) : (
-            /* Not Found Screen */
-            <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-12 text-center space-y-4 max-w-xl mx-auto shadow-sm">
-              <span className="font-editorial text-3xl text-[var(--color-ink)] block">
+            <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-12 text-center space-y-4">
+              <span className="font-editorial text-2xl text-[var(--color-ink)] block">
                 No Record Located
               </span>
-              <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
-                We could not locate an active order matching reference <strong>{orderId}</strong>. Please check your confirmation SMS or email, or select one of the quick previews above.
+              <p className="text-xs text-[var(--color-muted-light)] max-w-md mx-auto">
+                We could not locate an active studio order matching reference <strong className="font-mono text-[var(--color-ink)]">{orderId}</strong> with the provided contact information.
               </p>
-              <Link
-                href="/contact"
-                className="inline-block rounded-full bg-[var(--color-ink)] px-6 py-2.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors"
-              >
-                Inquire with Support
-              </Link>
+              <p className="text-[11px] text-[var(--color-muted-light)]">
+                Please double-check your Order Confirmation SMS/Email or contact our studio desk for direct assistance.
+              </p>
             </div>
           )}
         </>
@@ -373,16 +524,10 @@ function TrackOrderContent() {
 
 export default function TrackOrderPage() {
   return (
-    <div className="flex min-h-screen flex-col bg-[var(--color-canvas)]">
+    <div className="min-h-screen flex flex-col bg-[var(--color-canvas)] text-[var(--color-ink)]">
       <Header />
       <main className="flex-1">
-        <Suspense
-          fallback={
-            <div className="mx-auto max-w-5xl py-24 px-6 text-center text-xs text-[var(--color-muted-light)]">
-              Loading tracking desk...
-            </div>
-          }
-        >
+        <Suspense fallback={<div className="py-20 text-center text-xs text-[var(--color-muted-light)]">Loading Order Tracking...</div>}>
           <TrackOrderContent />
         </Suspense>
       </main>
@@ -390,4 +535,3 @@ export default function TrackOrderPage() {
     </div>
   );
 }
-

@@ -1,32 +1,34 @@
-# Task: H6 Staff Administration Portal (`apps/admin`)
+# Task: H6 Staff Administration Portal (`apps/admin`) & Centralized Commerce Synchronization
 
-**Status:** IN PROGRESS  
+**Status:** COMPLETED & VERIFIED  
 **Created:** 2026-11-06  
+**Modified:** 2026-11-09  
 **Owner:** Antigravity / User  
 **Package:** H6 (Staff Administration & Fulfilment Operations)
 
 ## Context & Objectives
-With the customer-facing storefront (H2), purchase journeys (H5), and commerce database foundations (H4) complete, we now build the private staff administration portal (`apps/admin`) specified in `docs/roadmap/phase-3-admin-ux-specification.md` and Decision `0002-pnpm-monorepo-structure.md`.
+With the customer-facing storefront (H2), purchase journeys (H5), and commerce database foundations (H4) complete, we established the unified operational backend connecting the storefront and admin portals ("two sides of the same coin") backed by live PostgreSQL on `devMachine` (`192.168.1.100:5433`).
 
-## Key Deliverables
-1. **Scaffold `apps/admin` Application**:
-   - Vite + React + TypeScript + Tailwind CSS workspace application.
-   - Package setup (`package.json`, `tsconfig.json`, `vite.config.ts`, `tailwind.config.js`).
-   - Integrated with `@tavistra/shared`.
-2. **Staff Administration Shell & Navigation**:
-   - Clean, high-density layout for studio operations.
-   - Navigation: **Overview**, **Orders & Payments**, **Production Release (7-Day Grace)**, **Fulfilment & AWB**, and **Commercial Inquiries**.
-3. **Core Operational Views**:
-   - **Orders & Payments**: Mode-separated records (Ready Stock vs Made to Order), financial ledger (25% advance vs 100% full payment), customer contact.
-   - **Production Release & 7-Day Grace Matrix**:
-     - Visual countdown of confirmed MTO orders.
-     - Production hold guards preventing physical machining prior to Day 8.
-     - Action to release to "Workshop Crafting" on Day 8 or process 100% advance cancellation.
-   - **Dispatch & Courier Assignment**:
-     - Assign white-glove courier partners (Blue Dart, Safeexpress, Delhivery).
-     - Enter and update carrier Air Waybill (AWB) numbers.
-   - **Commercial Bulk Inquiries & Custom Proposals**:
-     - View bulk/custom quotation submissions.
-4. **Build & Monorepo Verification**:
-   - Typechecking and static distribution build verification.
+## Key Deliverables Completed
+1. **Live PostgreSQL Infrastructure (`devMachine` `192.168.1.100:5433`)**:
+   - Containerized PostgreSQL 17 (`tavistra-postgres`) on port 5433.
+   - Extended Prisma schema with `qcNotes`, `qcImages` on `Order`, plus `SupportTicket`, `TicketMessage`, and `BulkInquiry`.
+   - Seeded active orders (`TAV-RS-2026-1001`, `TAV-MTO-2026-2002`, `TAV-MTO-2026-2004`), support tickets (`TCK-2026-101`), and commercial inquiries (`INQ-2026-801`).
+2. **Centralized Backend REST APIs (`apps/storefront/src/app/api`)**:
+   - `GET /api/orders`: Server-queried order tracking by reference and phone/email, email order history, and full admin worklist.
+   - `PATCH /api/orders/[id]`: State transitions with **Hard 100% Payment Gate** blocking dispatch/AWB entry when `balanceDue > 0`.
+   - `POST /api/orders/[id]/pay-balance`: Day 1 enabled 75% balance payment recording verified PhonePe ledger entry and unlocking dispatch readiness.
+   - `POST /api/inquiries` & `GET /api/inquiries`: Bulk and architectural quote ingestion from `/contact`.
+   - `POST /api/tickets` & `GET /api/tickets`: Client desk support ticket ingestion and thread replies.
+3. **Storefront Tracking & QC Transparency ([`/track`](file:///d:/_devProjects/Tavistra/apps/storefront/src/app/track/page.tsx))**:
+   - Centralized database query so tracking works cross-device (mobile SMS click, tablet, desktop).
+   - Day 1 active **"Pay Remaining Balance (75%)"** card and instant ledger payment.
+   - Interactive **"Finished Piece QC Inspection Photos"** gallery displaying workshop photos and master craftsman notes directly to the customer.
+4. **Staff Admin Portal (`apps/admin`) Operational Hardening**:
+   - Vite proxy forwarding `/api` to Next.js backend on port 3000.
+   - Live synchronization on mount for Orders, Inquiries, Tickets, and Customers.
+   - Hard dispatch lockout in UI: when `balanceDueRupees > 0`, AWB inputs are disabled and a `Dispatch Blocked` security warning is displayed with a "Copy Balance Link" action.
+   - Dedicated **"Workshop QC Photos & Review"** action enabling staff to upload inspection photos directly to the customer portal.
+5. **Full Monorepo Build & Typecheck**:
+   - Clean compilation (`pnpm build`) with 0 errors across all 39 routes and admin distribution bundle.
 

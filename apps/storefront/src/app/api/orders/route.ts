@@ -1,24 +1,185 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, PurchaseMode, OrderStatus } from "@tavistra/db";
 
+// Helper to compute grace days remaining from confirmedAt
+function computeGraceDaysRemaining(confirmedAt: Date | null): number {
+  if (!confirmedAt) return 7;
+  const elapsedMs = Date.now() - new Date(confirmedAt).getTime();
+  const elapsedDays = Math.floor(elapsedMs / (1000 * 60 * 60 * 24));
+  return Math.max(0, 7 - elapsedDays);
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const orderId = searchParams.get("orderId");
   const contact = searchParams.get("contact");
-
-  if (!orderId) {
-    return NextResponse.json(
-      { error: "Order Reference parameter is required." },
-      { status: 400 }
-    );
-  }
+  const email = searchParams.get("email");
 
   try {
-    const cleanId = orderId.trim().toUpperCase();
-    const order = await prisma.order.findFirst({
-      where: {
-        orderNumber: cleanId,
-      },
+    // 1. Single order lookup (e.g. Guest Tracking /track)
+    if (orderId) {
+      const cleanId = orderId.trim().toUpperCase();
+      const order = await prisma.order.findFirst({
+        where: {
+          orderNumber: cleanId,
+        },
+        include: {
+          items: {
+            include: {
+              product: true,
+            },
+          },
+          shippingAddress: true,
+          payments: true,
+        },
+      });
+
+      if (!order) {
+        return NextResponse.json({ found: false, order: null });
+      }
+
+      // Verify contact if supplied
+      if (contact) {
+        const cleanContact = contact.trim().toLowerCase().replace(/[\s\-()]/g, "");
+        const emailMatches = order.customerEmail.toLowerCase() === cleanContact;
+        const cleanPhone = order.customerPhone.replace(/[\s\-()]/g, "");
+        const phoneMatches =
+          cleanPhone.includes(cleanContact) || cleanContact.includes(cleanPhone);
+
+        if (!emailMatches && !phoneMatches) {
+          return NextResponse.json({
+            found: false,
+            order: null,
+            message: "Order located, but contact details did not match.",
+          });
+        }
+      }
+
+      const graceDays = computeGraceDaysRemaining(order.confirmedAt);
+      const qcImagesArray = order.qcImages ? JSON.parse(order.qcImages) : [];
+
+      return NextResponse.json({
+        found: true,
+        order: {
+          id: order.orderNumber,
+          orderNumber: order.orderNumber,
+          mode: order.purchaseMode,
+          customerName: order.shippingAddress.fullName,
+          email: order.customerEmail,
+          phone: order.customerPhone,
+          addressLine1: order.shippingAddress.addressLine1,
+          city: order.shippingAddress.city,
+          state: order.shippingAddress.state,
+          destinationPin: order.shippingAddress.pincode,
+          items: order.items.map((i) => ({
+            name: i.product?.title || "Architectural Edition",
+            quantity: i.quantity,
+            pricePaise: Math.round(Number(i.unitPrice) * 100),
+            priceRupees: Number(i.unitPrice),
+          })),
+          itemsSubtotalRupees: Number(order.itemsSubtotal),
+          deliveryFeeRupees: Number(order.shippingCharge),
+          totalAmountRupees: Number(order.totalAmount),
+          amountPaidRupees: Number(order.amountPaid),
+          balanceDueRupees: Number(order.balanceAmount),
+          carrierName: order.carrierName || "Pending Carrier Assignment",
+          awbNumber: order.trackingNumber || undefined,
+          transitEstimate: "2–4 business days",
+          status: order.status,
+          statusLabel:
+            order.status === "DISPATCHED"
+              ? "In Transit with Carrier"
+              : order.status === "AWAITING_DISPATCH"
+              ? "100% Paid — Packing for Dispatch"
+              : order.status === "PRODUCTION_COMPLETED"
+              ? "Workshop Crafting Completed — QC Verified"
+              : order.status === "IN_PRODUCTION"
+              ? "Machining in Progress in VDesign Workshop"
+              : order.purchaseMode === "MADE_TO_ORDER"
+              ? "7-Day Confirmation Grace Window Active"
+              : "Order Confirmed",
+          statusDescription:
+            order.status === "DISPATCHED"
+              ? `Consignment handed over to ${order.carrierName || "carrier"} under AWB ${order.trackingNumber || ""}.`
+              : order.status === "AWAITING_DISPATCH"
+              ? "Cumulative 100% payment verified. Workshop packaging and carrier scheduling active."
+              : order.status === "PRODUCTION_COMPLETED"
+              ? "Quality control verified. Customer inspection photos ready. Final balance settlement enabled."
+              : order.status === "IN_PRODUCTION"
+              ? "Precision crafting and machining currently active in our studio workshop."
+              : order.purchaseMode === "MADE_TO_ORDER"
+              ? "25% advance verified. Physical workshop machining begins on Day 8. 100% refund cancellation permitted within initial 7 days."
+              : "Consignment crated and scheduled for dispatch.",
+          graceDaysRemaining: graceDays,
+          qcNotes: order.qcNotes || undefined,
+          qcImages: qcImagesArray,
+          createdAt: order.createdAt.toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+          }),
+        },
+      });
+    }
+
+    // 2. Lookup by customer email (e.g. /account/orders)
+    if (email) {
+      const orders = await prisma.order.findMany({
+        where: {
+          customerEmail: email.toLowerCase().trim(),
+        },
+        include: {
+          items: {
+            include: {
+              product: true,
+            },
+          },
+          shippingAddress: true,
+          payments: true,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      return NextResponse.json({
+        orders: orders.map((order) => ({
+          id: order.orderNumber,
+          orderNumber: order.orderNumber,
+          mode: order.purchaseMode,
+          customerName: order.shippingAddress.fullName,
+          email: order.customerEmail,
+          phone: order.customerPhone,
+          addressLine1: order.shippingAddress.addressLine1,
+          city: order.shippingAddress.city,
+          state: order.shippingAddress.state,
+          destinationPin: order.shippingAddress.pincode,
+          items: order.items.map((i) => ({
+            name: i.product?.title || "Architectural Edition",
+            quantity: i.quantity,
+            pricePaise: Math.round(Number(i.unitPrice) * 100),
+            priceRupees: Number(i.unitPrice),
+          })),
+          itemsSubtotalRupees: Number(order.itemsSubtotal),
+          deliveryFeeRupees: Number(order.shippingCharge),
+          totalAmountRupees: Number(order.totalAmount),
+          amountPaidRupees: Number(order.amountPaid),
+          balanceDueRupees: Number(order.balanceAmount),
+          carrierName: order.carrierName || "Pending Carrier Assignment",
+          awbNumber: order.trackingNumber || undefined,
+          status: order.status,
+          graceDaysRemaining: computeGraceDaysRemaining(order.confirmedAt),
+          qcNotes: order.qcNotes || undefined,
+          qcImages: order.qcImages ? JSON.parse(order.qcImages) : [],
+          createdAt: order.createdAt.toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+          }),
+        })),
+      });
+    }
+
+    // 3. Admin all orders list
+    const allOrders = await prisma.order.findMany({
       include: {
         items: {
           include: {
@@ -28,45 +189,25 @@ export async function GET(req: NextRequest) {
         shippingAddress: true,
         payments: true,
       },
+      orderBy: { createdAt: "desc" },
     });
 
-    if (!order) {
-      return NextResponse.json({ found: false, order: null });
-    }
-
-    // Verify contact if supplied
-    if (contact) {
-      const cleanContact = contact.trim().toLowerCase().replace(/[\s\-()]/g, "");
-      const emailMatches = order.customerEmail.toLowerCase() === cleanContact;
-      const cleanPhone = order.customerPhone.replace(/[\s\-()]/g, "");
-      const phoneMatches =
-        cleanPhone.includes(cleanContact) || cleanContact.includes(cleanPhone);
-
-      if (!emailMatches && !phoneMatches) {
-        return NextResponse.json({
-          found: false,
-          order: null,
-          message: "Order located, but contact details did not match.",
-        });
-      }
-    }
-
     return NextResponse.json({
-      found: true,
-      order: {
-        id: order.orderNumber,
+      orders: allOrders.map((order) => ({
+        id: order.id,
+        orderNumber: order.orderNumber,
         mode: order.purchaseMode,
         customerName: order.shippingAddress.fullName,
         email: order.customerEmail,
         phone: order.customerPhone,
-        addressLine1: order.shippingAddress.addressLine1,
+        address: order.shippingAddress.addressLine1,
         city: order.shippingAddress.city,
         state: order.shippingAddress.state,
-        destinationPin: order.shippingAddress.pincode,
+        pincode: order.shippingAddress.pincode,
         items: order.items.map((i) => ({
-          name: i.product.title,
+          name: i.product?.title || "Architectural Edition",
           quantity: i.quantity,
-          pricePaise: Math.round(Number(i.unitPrice) * 100),
+          priceRupees: Number(i.unitPrice),
         })),
         itemsSubtotalRupees: Number(order.itemsSubtotal),
         deliveryFeeRupees: Number(order.shippingCharge),
@@ -75,28 +216,22 @@ export async function GET(req: NextRequest) {
         balanceDueRupees: Number(order.balanceAmount),
         carrierName: order.carrierName || "Pending Carrier Assignment",
         awbNumber: order.trackingNumber || undefined,
-        transitEstimate: "2–4 business days",
         status: order.status,
-        statusLabel:
-          order.purchaseMode === "MADE_TO_ORDER"
-            ? "7-Day Confirmation Grace Window Active"
-            : "In Transit with Carrier",
-        statusDescription:
-          order.purchaseMode === "MADE_TO_ORDER"
-            ? "25% advance verified. Physical workshop machining begins on Day 8. 100% refund cancellation permitted within initial 7 days."
-            : "Consignment crated and scheduled for dispatch.",
-        createdAt: order.createdAt.toLocaleDateString("en-IN", {
+        graceDaysRemaining: computeGraceDaysRemaining(order.confirmedAt),
+        qcNotes: order.qcNotes || undefined,
+        qcImages: order.qcImages ? JSON.parse(order.qcImages) : [],
+        placedAt: order.createdAt.toLocaleDateString("en-IN", {
           day: "numeric",
-          month: "long",
+          month: "short",
           year: "numeric",
         }),
-      },
+      })),
     });
   } catch (error) {
-    console.warn("Database lookup unavailable, returning null for fallback:", error);
+    console.error("API GET /api/orders error:", error);
     return NextResponse.json(
-      { found: false, order: null, databaseConnected: false },
-      { status: 200 }
+      { error: "Internal Server Error fetching orders" },
+      { status: 500 }
     );
   }
 }
@@ -124,7 +259,7 @@ export async function POST(req: NextRequest) {
       carrierName,
     } = body;
 
-    // Check if user already exists
+    // Check or create customer user
     let user = await prisma.user.findUnique({
       where: { email: email.toLowerCase() },
     });
@@ -152,11 +287,45 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Determine purchase mode enum
     const purchaseModeEnum =
       mode === "MADE_TO_ORDER" ? PurchaseMode.MADE_TO_ORDER : PurchaseMode.READY_STOCK;
 
-    // Create order record with items and payment ledger entry
+    // Resolve or find product references for items
+    const orderItemsData = [];
+    if (Array.isArray(items) && items.length > 0) {
+      for (const it of items) {
+        // Try finding matching product by title
+        const product = await prisma.product.findFirst({
+          where: { title: { contains: it.name } },
+        });
+
+        if (product) {
+          orderItemsData.push({
+            productId: product.id,
+            quantity: it.quantity || 1,
+            unitPrice: (it.pricePaise ? it.pricePaise / 100 : it.priceRupees) || 1000,
+            subtotal:
+              (it.quantity || 1) *
+              ((it.pricePaise ? it.pricePaise / 100 : it.priceRupees) || 1000),
+          });
+        } else {
+          // Fallback to first product in DB
+          const firstProduct = await prisma.product.findFirst();
+          if (firstProduct) {
+            orderItemsData.push({
+              productId: firstProduct.id,
+              quantity: it.quantity || 1,
+              unitPrice: (it.pricePaise ? it.pricePaise / 100 : it.priceRupees) || 1000,
+              subtotal:
+                (it.quantity || 1) *
+                ((it.pricePaise ? it.pricePaise / 100 : it.priceRupees) || 1000),
+            });
+          }
+        }
+      }
+    }
+
+    // Create order record with financial ledger and initial payment
     const order = await prisma.order.create({
       data: {
         orderNumber: id,
@@ -171,18 +340,19 @@ export async function POST(req: NextRequest) {
         requiredAdvanceAmount: amountPaidRupees,
         amountPaid: amountPaidRupees,
         balanceAmount: balanceDueRupees,
-        status:
-          mode === "MADE_TO_ORDER"
-            ? OrderStatus.CONFIRMED
-            : OrderStatus.CONFIRMED,
+        status: OrderStatus.CONFIRMED,
         confirmedAt: new Date(),
-        carrierName: carrierName || "Blue Dart Express",
+        carrierName: carrierName || "Blue Dart Fragile Surface",
+        items: {
+          create: orderItemsData,
+        },
         payments: {
           create: {
             paymentType: mode === "MADE_TO_ORDER" ? "ADVANCE_25" : "FULL_PAYMENT",
             amount: amountPaidRupees,
             status: "COMPLETED",
             gateway: "PHONEPE",
+            gatewayTransactionId: `TXN-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
             verifiedAt: new Date(),
           },
         },
@@ -195,15 +365,13 @@ export async function POST(req: NextRequest) {
       persistedToDatabase: true,
     });
   } catch (error) {
-    console.warn("Database persistence bypass (saving locally):", error);
+    console.error("Database persistence error in POST /api/orders:", error);
     return NextResponse.json(
       {
-        success: true,
-        persistedToDatabase: false,
-        message: "Saved in application state (offline / local storage fallback).",
+        success: false,
+        error: "Failed to persist order to database",
       },
-      { status: 200 }
+      { status: 500 }
     );
   }
 }
-
