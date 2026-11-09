@@ -578,6 +578,34 @@ async function main() {
     },
   });
 
+  // 7. Seed System Governance & Hiatus Settings
+  console.log('Seeding System Settings...');
+  const settings = [
+    {
+      key: 'MAINTENANCE_MODE',
+      value: 'false',
+      description: 'Global maintenance mode toggle. When true, checkout is frozen.',
+    },
+    {
+      key: 'STUDIO_HIATUS',
+      value: 'false',
+      description: 'Studio hiatus toggle for workshop maintenance periods.',
+    },
+    {
+      key: 'ANNOUNCEMENT_BANNER',
+      value: 'Studio craftsmanship running normally. All editions dispatched on schedule.',
+      description: 'Top luxury notification banner displayed on storefront.',
+    },
+  ];
+
+  for (const s of settings) {
+    await prisma.systemSetting.upsert({
+      where: { key: s.key },
+      update: { description: s.description },
+      create: s,
+    });
+  }
+
   console.log('Database seeding successfully completed.');
 }
 

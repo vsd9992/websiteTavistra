@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { MOCK_PRODUCTS } from "@/lib/products";
+import { getPublishedProductBySlug } from "@/lib/catalogueService";
 import { ProductPurchaseAction } from "@/components/ProductPurchaseAction";
 import { DeliveryEstimator } from "@/components/DeliveryEstimator";
 
@@ -18,9 +20,9 @@ export async function generateStaticParams() {
   }));
 }
 
-export default async function ProductDetailPage({ params }: ProductPageProps) {
+async function ProductDetailContent({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const product = MOCK_PRODUCTS.find((p) => p.slug === slug);
+  const product = await getPublishedProductBySlug(slug);
 
   if (!product) {
     notFound();
@@ -40,166 +42,197 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
   }).format(mtoAdvancePaise / 100);
 
   return (
+    <>
+      {/* Breadcrumbs */}
+      <nav className="flex items-center gap-2 text-xs text-[var(--color-muted-light)] mb-10">
+        <Link href="/" className="hover:text-[var(--color-ink)]">
+          Home
+        </Link>
+        <span>/</span>
+        <Link href="/shop" className="hover:text-[var(--color-ink)]">
+          Shop
+        </Link>
+        <span>/</span>
+        <Link
+          href={`/category/${product.categorySlug}`}
+          className="hover:text-[var(--color-ink)]"
+        >
+          {product.categoryName}
+        </Link>
+        <span>/</span>
+        <span className="text-[var(--color-ink)] font-semibold truncate max-w-xs">
+          {product.name}
+        </span>
+      </nav>
+
+      {/* Product Detail Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+        {/* Left Column: Visual Representation (7 cols) */}
+        <div className="lg:col-span-7 space-y-6">
+          <div className="aspect-[4/3] rounded-2xl bg-[var(--color-ivory)] border border-[var(--color-decorative-border)] flex items-center justify-center p-8 relative overflow-hidden shadow-sm">
+            <div className="text-center space-y-3">
+              <span className="inline-block px-3 py-1 rounded-full bg-[var(--color-canvas)] border border-[var(--color-control-border)] text-[10px] uppercase tracking-wider font-semibold text-[var(--color-bronze)]">
+                {product.mode === "MADE_TO_ORDER"
+                  ? "Crafted to Order"
+                  : product.mode === "QUOTE_ONLY"
+                  ? "Architectural Quotation"
+                  : "Ready Stock Edition"}
+              </span>
+              <h2 className="font-editorial text-2xl text-[var(--color-ink)]">
+                {product.name}
+              </h2>
+              <p className="text-xs text-[var(--color-muted-light)] max-w-md mx-auto">
+                {product.materials.join(" · ")}
+              </p>
+            </div>
+          </div>
+
+          {/* Dimension & Weight Specs Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl bg-[var(--color-ivory)] border border-[var(--color-decorative-border)] text-center text-xs">
+            <div>
+              <span className="text-[10px] uppercase tracking-wider text-[var(--color-muted-light)] block mb-1">
+                Dimensions
+              </span>
+              <span className="font-semibold text-[var(--color-ink)]">
+                {product.dimensions}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase tracking-wider text-[var(--color-muted-light)] block mb-1">
+                Net Weight
+              </span>
+              <span className="font-semibold text-[var(--color-ink)]">
+                {(product.weightGrams / 1000).toFixed(2)} kg
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase tracking-wider text-[var(--color-muted-light)] block mb-1">
+                Lead Time
+              </span>
+              <span className="font-semibold text-[var(--color-ink)]">
+                {product.estimatedLeadTime}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase tracking-wider text-[var(--color-muted-light)] block mb-1">
+                Policy
+              </span>
+              <span className="font-semibold text-[var(--color-ink)]">
+                {product.returnPolicyText}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Commercial & Action Pane (5 cols) */}
+        <div className="lg:col-span-5 space-y-6">
+          <div className="border-b border-[var(--color-decorative-border)] pb-6 space-y-3">
+            <h1 className="font-editorial text-3xl sm:text-4xl text-[var(--color-ink)]">
+              {product.name}
+            </h1>
+            <p className="text-xs text-[var(--color-muted-light)]">
+              Category: {product.categoryName} · {product.subcategory}
+            </p>
+
+            {/* Authoritative Tax-Inclusive Pricing */}
+            <div className="pt-2">
+              <span className="font-editorial text-3xl text-[var(--color-ink)]">
+                {formattedPrice}
+              </span>
+              <span className="ml-2 text-xs text-[var(--color-muted-light)]">
+                (Inclusive of all applicable GST taxes)
+              </span>
+            </div>
+
+            {/* MTO Advance Callout if Applicable */}
+            {product.mode === "MADE_TO_ORDER" && (
+              <div className="p-3.5 rounded-xl bg-[var(--color-ivory)] border border-[var(--color-bronze)]/30 text-xs space-y-1">
+                <div className="flex justify-between items-center font-semibold text-[var(--color-ink)]">
+                  <span>25% Production Advance:</span>
+                  <span className="text-[var(--color-bronze)] font-editorial text-base">
+                    {formattedAdvance}
+                  </span>
+                </div>
+                <p className="text-[11px] text-[var(--color-muted-light)] leading-relaxed">
+                  Remaining 75% balance due upon workshop QC inspection and customer approval prior to white-glove dispatch.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Description */}
+          <div className="text-sm text-[var(--color-muted-light)] leading-relaxed space-y-4">
+            <p>{product.shortDescription}</p>
+          </div>
+
+          {/* Materials Badge List */}
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-2">
+              Authoritative Materials & Craftsmanship
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {product.materials.map((m, idx) => (
+                <span
+                  key={idx}
+                  className="px-3 py-1 rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] text-xs text-[var(--color-ink)] font-medium"
+                >
+                  {m}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Dynamic Distance-Band Delivery Estimator */}
+          <DeliveryEstimator product={product} />
+
+          {/* Purchase Action (Add to Cart / Request Quote) */}
+          <div className="pt-4 border-t border-[var(--color-decorative-border)]">
+            <ProductPurchaseAction product={product} formattedAdvance={formattedAdvance} />
+          </div>
+
+          {/* Design & Engineering Highlights */}
+          <div className="pt-6 border-t border-[var(--color-decorative-border)] space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
+              Design & Engineering Highlights
+            </h3>
+            <ul className="list-disc pl-5 space-y-1.5 text-xs text-[var(--color-muted-light)]">
+              {product.features.map((f, i) => (
+                <li key={i}>{f}</li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Policy Quick Links */}
+          <div className="pt-4 border-t border-[var(--color-decorative-border)] flex items-center justify-between text-xs text-[var(--color-muted-light)]">
+            <Link href="/shipping" className="hover:text-[var(--color-bronze)] underline">
+              Shipping & Distance Bands
+            </Link>
+            <Link href="/returns-refunds" className="hover:text-[var(--color-bronze)] underline">
+              Returns & Cancellations
+            </Link>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+export default function ProductDetailPage({ params }: ProductPageProps) {
+  return (
     <div className="flex min-h-screen flex-col">
       <Header />
 
       <main className="flex-1 py-16 px-6 bg-[var(--color-canvas)]">
         <div className="mx-auto max-w-7xl">
-          {/* Breadcrumbs */}
-          <nav className="flex items-center gap-2 text-xs text-[var(--color-muted-light)] mb-10">
-            <Link href="/" className="hover:text-[var(--color-ink)]">
-              Home
-            </Link>
-            <span>/</span>
-            <Link href="/shop" className="hover:text-[var(--color-ink)]">
-              Shop
-            </Link>
-            <span>/</span>
-            <Link
-              href={`/category/${product.categorySlug}`}
-              className="hover:text-[var(--color-ink)]"
-            >
-              {product.categoryName}
-            </Link>
-            <span>/</span>
-            <span className="text-[var(--color-ink)] font-semibold truncate max-w-xs">
-              {product.name}
-            </span>
-          </nav>
-
-          {/* Product Layout: 2 Columns */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16">
-            {/* Left: Gallery Showcase */}
-            <div className="lg:col-span-7 space-y-6">
-              <div className="flex aspect-[4/3] w-full items-center justify-center rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-8">
-                <div className="text-center">
-                  <span className="font-editorial text-4xl italic text-[var(--color-bronze)]/50 block mb-2">
-                    Tavistra Studio Edition
-                  </span>
-                  <span className="text-xs uppercase tracking-widest text-[var(--color-muted-light)]">
-                    {product.name}
-                  </span>
-                </div>
+          <Suspense
+            fallback={
+              <div className="py-20 text-center text-xs text-[var(--color-muted-light)]">
+                Loading product specifications...
               </div>
-
-              {/* Material & Dimension Callouts */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-5 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)]">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1">
-                    Primary Materials
-                  </h4>
-                  <p className="text-xs font-semibold text-[var(--color-ink)]">
-                    {product.materials.join(" · ")}
-                  </p>
-                </div>
-                <div className="p-5 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)]">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1">
-                    Dimensions
-                  </h4>
-                  <p className="text-xs font-semibold text-[var(--color-ink)]">
-                    {product.dimensions}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Right: Commercial Information & Purchase Gate */}
-            <div className="lg:col-span-5 space-y-8">
-              <div>
-                {/* Mode Tag */}
-                <div className="mb-3">
-                  <span className="inline-block rounded-md bg-[var(--color-stone)] px-3 py-1 text-xs font-semibold text-[var(--color-ink)]">
-                    {product.mode === "READY_STOCK" && "Ready Stock · Available Now"}
-                    {product.mode === "MADE_TO_ORDER" && "Made to Order · Workshop Batch"}
-                    {product.mode === "QUOTE_ONLY" && "Quote Only · Architectural Commission"}
-                  </span>
-                </div>
-
-                <h1 className="font-editorial text-3xl sm:text-4xl text-[var(--color-ink)] leading-tight mb-3">
-                  {product.name}
-                </h1>
-
-                <p className="text-sm text-[var(--color-muted-light)] leading-relaxed">
-                  {product.shortDescription}
-                </p>
-              </div>
-
-              {/* Price & Fulfilment Transparency */}
-              <div className="p-6 rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] space-y-4">
-                {product.mode === "QUOTE_ONLY" ? (
-                  <div>
-                    <span className="text-xs font-semibold text-[var(--color-bronze)] uppercase tracking-wider">
-                      Price On Proposal
-                    </span>
-                    <p className="text-xs text-[var(--color-muted-light)] mt-1">
-                      Final quotation tailored to site dimensions, electrical requirements, and custom finishes.
-                    </p>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="flex items-baseline gap-3">
-                      <span className="font-editorial text-3xl font-semibold text-[var(--color-ink)]">
-                        {formattedPrice}
-                      </span>
-                      <span className="text-xs text-[var(--color-muted-light)] font-medium">
-                        Tax Inclusive (GST Included)
-                      </span>
-                    </div>
-
-                    {product.mode === "MADE_TO_ORDER" && (
-                      <div className="mt-3 pt-3 border-t border-[var(--color-decorative-border)]/60 text-xs text-[var(--color-muted-light)] space-y-1">
-                        <p className="text-[var(--color-ink)] font-semibold">
-                          Advance Gate: {formattedAdvance} (25% to start production)
-                        </p>
-                        <p className="text-[11px]">
-                          Governed by 7-day confirmation grace period. Remaining 75% balance payable upon QC clearance prior to dispatch.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Lead Time & Dispatch */}
-                <div className="text-xs text-[var(--color-muted-light)] pt-3 border-t border-[var(--color-decorative-border)]/60 flex items-center justify-between">
-                  <span>Logistics Status:</span>
-                  <span className="font-semibold text-[var(--color-ink)]">
-                    {product.estimatedLeadTime}
-                  </span>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <ProductPurchaseAction
-                product={product}
-                formattedAdvance={formattedAdvance}
-              />
-
-              {/* Distance-Band Delivery & Transit Estimator (Ex-Delhi Hub) */}
-              <DeliveryEstimator product={product} />
-
-              {/* Design & Engineering Highlights */}
-              <div className="pt-6 border-t border-[var(--color-decorative-border)] space-y-3">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
-                  Design & Engineering Highlights
-                </h3>
-                <ul className="list-disc pl-5 space-y-1.5 text-xs text-[var(--color-muted-light)]">
-                  {product.features.map((f, i) => (
-                    <li key={i}>{f}</li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Policy Quick Links */}
-              <div className="pt-4 border-t border-[var(--color-decorative-border)] flex items-center justify-between text-xs text-[var(--color-muted-light)]">
-                <Link href="/shipping" className="hover:text-[var(--color-bronze)] underline">
-                  Shipping & Distance Bands
-                </Link>
-                <Link href="/returns-refunds" className="hover:text-[var(--color-bronze)] underline">
-                  Returns & Cancellations
-                </Link>
-              </div>
-            </div>
-          </div>
+            }
+          >
+            <ProductDetailContent params={params} />
+          </Suspense>
         </div>
       </main>
 
@@ -207,4 +240,3 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
     </div>
   );
 }
-

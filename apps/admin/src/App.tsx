@@ -35,6 +35,12 @@ export default function App() {
 
   // System Settings State
   const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [studioHiatus, setStudioHiatus] = useState(false);
+  const [announcementBanner, setAnnouncementBanner] = useState(
+    "Studio craftsmanship running normally. All editions dispatched on schedule."
+  );
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [settingsSaveSuccess, setSettingsSaveSuccess] = useState(false);
 
   // Search & Filters
   const [orderSearch, setOrderSearch] = useState("");
@@ -125,6 +131,44 @@ export default function App() {
         }
       })
       .catch((err) => console.warn("Live customers fetch error, using local state:", err));
+
+    // 5. Fetch Catalogue from Database
+    fetch("/api/admin/catalogue")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.catalogue && data.catalogue.length > 0) {
+          setCatalogue(data.catalogue);
+        }
+      })
+      .catch((err) => console.warn("Live catalogue fetch error, using local state:", err));
+
+    // 6. Fetch PIN Codes from Database
+    fetch("/api/admin/pincodes")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.pincodes && data.pincodes.length > 0) {
+          setPincodes(data.pincodes);
+        }
+      })
+      .catch((err) => console.warn("Live pincodes fetch error, using local state:", err));
+
+    // 7. Fetch System Settings & Governance from Database
+    fetch("/api/admin/settings")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data) {
+          if (typeof data.maintenanceMode === "boolean") {
+            setMaintenanceMode(data.maintenanceMode);
+          }
+          if (typeof data.studioHiatus === "boolean") {
+            setStudioHiatus(data.studioHiatus);
+          }
+          if (data.announcementBanner) {
+            setAnnouncementBanner(data.announcementBanner);
+          }
+        }
+      })
+      .catch((err) => console.warn("Live settings fetch error, using local state:", err));
   }, []);
 
   // Statistics
@@ -421,42 +465,149 @@ export default function App() {
     );
   };
 
-  // Toggle Catalogue Publication
-  const handleTogglePublish = (itemId: string) => {
+  // Toggle Catalogue Publication with DB synchronization
+  const handleTogglePublish = async (itemId: string) => {
+    const item = catalogue.find((c) => c.id === itemId);
+    if (!item) return;
+    const nextPublished = !item.isPublished;
+
     setCatalogue((prev) =>
-      prev.map((item) => {
-        if (item.id === itemId) {
-          const updated = { ...item, isPublished: !item.isPublished };
-          logAuditAction(
-            "CATALOGUE_TOGGLE",
-            "CatalogueItem",
-            item.slug,
-            `Publication status toggled to ${updated.isPublished ? "PUBLISHED" : "UNPUBLISHED"}.`
-          );
-          return updated;
-        }
-        return item;
-      })
+      prev.map((c) => (c.id === itemId ? { ...c, isPublished: nextPublished } : c))
     );
+
+    logAuditAction(
+      "CATALOGUE_TOGGLE",
+      "CatalogueItem",
+      item.slug,
+      `Publication status toggled to ${nextPublished ? "PUBLISHED" : "UNPUBLISHED"}.`
+    );
+
+    try {
+      await fetch("/api/admin/catalogue", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: itemId,
+          isPublished: nextPublished,
+          staffName: currentStaff.name,
+        }),
+      });
+    } catch (err) {
+      console.warn("Failed to persist catalogue toggle to server:", err);
+    }
   };
 
-  // Toggle Pincode Serviceability
-  const handleTogglePincode = (pincodeId: string) => {
+  // Toggle Pincode Serviceability with DB synchronization
+  const handleTogglePincode = async (pincodeId: string) => {
+    const pin = pincodes.find((p) => p.id === pincodeId);
+    if (!pin) return;
+    const nextServiceable = !pin.isServiceable;
+
     setPincodes((prev) =>
-      prev.map((p) => {
-        if (p.id === pincodeId) {
-          const updated = { ...p, isServiceable: !p.isServiceable };
-          logAuditAction(
-            "PINCODE_SERVICEABILITY_TOGGLE",
-            "Pincode",
-            p.pincode,
-            `PIN ${p.pincode} serviceability set to ${updated.isServiceable ? "ACTIVE" : "DISABLED"}.`
-          );
-          return updated;
-        }
-        return p;
-      })
+      prev.map((p) => (p.id === pincodeId ? { ...p, isServiceable: nextServiceable } : p))
     );
+
+    logAuditAction(
+      "PINCODE_SERVICEABILITY_TOGGLE",
+      "Pincode",
+      pin.pincode,
+      `PIN ${pin.pincode} serviceability set to ${nextServiceable ? "ACTIVE" : "DISABLED"}.`
+    );
+
+    try {
+      await fetch("/api/admin/pincodes", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: pincodeId,
+          isServiceable: nextServiceable,
+          staffName: currentStaff.name,
+        }),
+      });
+    } catch (err) {
+      console.warn("Failed to persist pincode toggle to server:", err);
+    }
+  };
+
+  // Toggle Maintenance Mode with DB synchronization
+  const handleToggleMaintenance = async () => {
+    const next = !maintenanceMode;
+    setMaintenanceMode(next);
+    logAuditAction(
+      "MAINTENANCE_TOGGLE",
+      "System",
+      "Storefront",
+      `Maintenance mode set to ${next ? "ENABLED" : "DISABLED"}.`
+    );
+
+    try {
+      await fetch("/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "MAINTENANCE_MODE",
+          value: String(next),
+          staffName: currentStaff.name,
+        }),
+      });
+    } catch (err) {
+      console.warn("Failed to persist maintenance setting:", err);
+    }
+  };
+
+  // Toggle Studio Hiatus with DB synchronization
+  const handleToggleHiatus = async () => {
+    const next = !studioHiatus;
+    setStudioHiatus(next);
+    logAuditAction(
+      "STUDIO_HIATUS_TOGGLE",
+      "System",
+      "Workshop",
+      `Studio hiatus banner set to ${next ? "ACTIVE" : "INACTIVE"}.`
+    );
+
+    try {
+      await fetch("/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "STUDIO_HIATUS",
+          value: String(next),
+          staffName: currentStaff.name,
+        }),
+      });
+    } catch (err) {
+      console.warn("Failed to persist studio hiatus setting:", err);
+    }
+  };
+
+  // Save Announcement Banner with DB synchronization
+  const handleSaveAnnouncement = async () => {
+    setIsSavingSettings(true);
+    setSettingsSaveSuccess(false);
+    try {
+      await fetch("/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "ANNOUNCEMENT_BANNER",
+          value: announcementBanner,
+          staffName: currentStaff.name,
+        }),
+      });
+      logAuditAction(
+        "ANNOUNCEMENT_BANNER_UPDATE",
+        "System",
+        "Broadcast",
+        `Announcement banner updated: "${announcementBanner}"`
+      );
+      setSettingsSaveSuccess(true);
+      setTimeout(() => setSettingsSaveSuccess(false), 3000);
+    } catch (err) {
+      console.warn("Failed to persist announcement banner:", err);
+    } finally {
+      setIsSavingSettings(false);
+    }
   };
 
   // Download State Snapshot JSON
@@ -1344,33 +1495,70 @@ export default function App() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Card 1: Maintenance Mode */}
-              <div className="p-6 rounded-2xl bg-[#1c1c20] border border-[#2e2e34] space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-sm text-white">Storefront Maintenance Mode</h3>
+              {/* Card 1: Maintenance Mode & Studio Hiatus Governance */}
+              <div className="p-6 rounded-2xl bg-[#1c1c20] border border-[#2e2e34] space-y-5">
+                <div className="flex items-center justify-between border-b border-[#2e2e34] pb-3">
+                  <div>
+                    <h3 className="font-semibold text-sm text-white">Storefront Checkout Freeze (Maintenance)</h3>
+                    <p className="text-[11px] text-[#9e9ea8]">
+                      Freezes checkout and transactions while keeping product catalog reviewable.
+                    </p>
+                  </div>
                   <button
-                    onClick={() => {
-                      const next = !maintenanceMode;
-                      setMaintenanceMode(next);
-                      logAuditAction(
-                        "MAINTENANCE_TOGGLE",
-                        "System",
-                        "Storefront",
-                        `Maintenance mode set to ${next ? "ENABLED" : "DISABLED"}.`
-                      );
-                    }}
+                    onClick={handleToggleMaintenance}
                     className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                       maintenanceMode
                         ? "bg-rose-950 text-rose-300 border border-rose-800 hover:bg-rose-900"
                         : "bg-[#24242a] text-[#9e9ea8] border border-[#3e3e46] hover:text-white"
                     }`}
                   >
-                    {maintenanceMode ? "Maintenance Active" : "Storefront Live (Normal)"}
+                    {maintenanceMode ? "Maintenance Active" : "Storefront Live"}
                   </button>
                 </div>
-                <p className="text-xs text-[#9e9ea8] leading-relaxed">
-                  When enabled, all public catalog browsing displays a refined brand maintenance announcement while protecting active checkout and payment routes.
-                </p>
+
+                <div className="flex items-center justify-between border-b border-[#2e2e34] pb-3">
+                  <div>
+                    <h3 className="font-semibold text-sm text-white">Studio Hiatus Banner</h3>
+                    <p className="text-[11px] text-[#9e9ea8]">
+                      Displays top notification bar alerting patrons of scheduled studio pauses.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleToggleHiatus}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                      studioHiatus
+                        ? "bg-amber-950 text-amber-300 border border-amber-800 hover:bg-amber-900"
+                        : "bg-[#24242a] text-[#9e9ea8] border border-[#3e3e46] hover:text-white"
+                    }`}
+                  >
+                    {studioHiatus ? "Hiatus Banner ON" : "Banner Hidden"}
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-white block">
+                    Storefront Broadcast Announcement Text
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={announcementBanner}
+                    onChange={(e) => setAnnouncementBanner(e.target.value)}
+                    className="w-full rounded-xl border border-[#3e3e46] bg-[#16161a] p-3 text-xs text-white placeholder-[#6e6e76] focus:border-[#c59b6d] focus:outline-none"
+                    placeholder="Enter announcement text to broadcast to storefront visitors..."
+                  />
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[10px] text-[#9e9ea8]">
+                      Broadcasts live on the storefront header.
+                    </span>
+                    <button
+                      onClick={handleSaveAnnouncement}
+                      disabled={isSavingSettings}
+                      className="px-4 py-1.5 rounded-lg bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors disabled:opacity-50"
+                    >
+                      {isSavingSettings ? "Saving..." : settingsSaveSuccess ? "Saved ✓" : "Save Announcement"}
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* Card 2: Transactional Email (SMTP) Infrastructure */}
@@ -1624,14 +1812,32 @@ export default function App() {
             </div>
 
             <div className="flex justify-between items-center pt-2 border-t border-[#2e2e34]">
-              <a
-                href={`http://localhost:3000/product/${reviewedProduct.slug}`}
-                target="_blank"
-                rel="noreferrer"
-                className="text-xs font-semibold text-[#c59b6d] hover:underline"
-              >
-                Open in Public Storefront ↗
-              </a>
+              <div className="flex items-center gap-3">
+                <a
+                  href={`http://localhost:3000/product/${reviewedProduct.slug}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs font-semibold text-[#c59b6d] hover:underline"
+                >
+                  Open in Public Storefront ↗
+                </a>
+                <button
+                  onClick={() => {
+                    handleTogglePublish(reviewedProduct.id);
+                    setReviewedProduct({
+                      ...reviewedProduct,
+                      isPublished: !reviewedProduct.isPublished,
+                    });
+                  }}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                    reviewedProduct.isPublished
+                      ? "bg-[#2a2a30] text-[#f43f5e] hover:bg-[#34343c]"
+                      : "bg-emerald-950 text-emerald-300 border border-emerald-800 hover:bg-emerald-900"
+                  }`}
+                >
+                  {reviewedProduct.isPublished ? "Switch to Draft" : "Publish to Storefront"}
+                </button>
+              </div>
               <button
                 onClick={() => setReviewedProduct(null)}
                 className="px-5 py-2 rounded-xl bg-[#2e2e34] text-xs font-semibold text-white hover:bg-[#3e3e46]"

@@ -62,6 +62,8 @@ function CheckoutContent() {
   const [shippingResult, setShippingResult] = useState<ShippingCalculationResult | null>(null);
   const [pinError, setPinError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [maintenanceMessage, setMaintenanceMessage] = useState("");
   const [completedOrder, setCompletedOrder] = useState<{
     orderId: string;
     mode: "READY_STOCK" | "MADE_TO_ORDER";
@@ -101,7 +103,21 @@ function CheckoutContent() {
   const isStateValid = customer.state.trim().length >= 2;
   const isPinValid = customer.pincode.trim().length === 6 && shippingResult !== null && !pinError;
 
+  // Check live system maintenance status
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.maintenanceMode) {
+          setMaintenanceMode(true);
+          setMaintenanceMessage(data.announcementBanner);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const isFormValid =
+    !maintenanceMode &&
     emailValidation.isValid &&
     mobileValidation.isValid &&
     isNameValid &&
@@ -152,65 +168,77 @@ function CheckoutContent() {
 
   // Calculate delivery fee & auto-fill city/state whenever pincode is valid
   useEffect(() => {
+    let isCancelled = false;
     const cleanPin = customer.pincode.replace(/\s+/g, "");
-    if (/^\d{6}$/.test(cleanPin) && activeItems.length > 0) {
-      const lookup = lookupPincode(cleanPin);
 
-      if (!lookup.isServiceable) {
-        setPinError(
-          lookup.unserviceableReason ||
-            `We cannot deliver to PIN code ${cleanPin}. Tavistra currently services verified urban hubs across India.`
-        );
-        setShippingResult(null);
-        if (lookup.city) {
+    if (/^\d{6}$/.test(cleanPin) && activeItems.length > 0) {
+      // Query real-time API with static lookup fallback
+      fetch(`/api/pincodes/check?pincode=${cleanPin}`)
+        .then((res) => (res.ok ? res.json() : lookupPincode(cleanPin)))
+        .catch(() => lookupPincode(cleanPin))
+        .then((lookup) => {
+          if (isCancelled) return;
+
+          if (!lookup.isServiceable) {
+            setPinError(
+              lookup.unserviceableReason ||
+                `We cannot deliver to PIN code ${cleanPin}. Deliveries to this area are currently suspended by Studio Logistics.`
+            );
+            setShippingResult(null);
+            if (lookup.city) {
+              setCustomer((prev) => ({
+                ...prev,
+                city: lookup.city,
+                state: lookup.state,
+              }));
+            }
+            return;
+          }
+
+          // Automatically fill City and State from postal directory
           setCustomer((prev) => ({
             ...prev,
             city: lookup.city,
             state: lookup.state,
           }));
-        }
-        return;
-      }
+          setPinError(null);
 
-      // Automatically fill City and State from postal directory
-      setCustomer((prev) => ({
-        ...prev,
-        city: lookup.city,
-        state: lookup.state,
-      }));
-      setPinError(null);
+          const zone = lookup.zoneCode;
 
-      const zone = lookup.zoneCode;
+          // Decision 0004: Highest product delivery fee applies across multi-item order
+          const productCalcs = activeItems.map(({ product }) => {
+            const spec: ItemPhysicalSpec = {
+              productId: product.id,
+              priceRupees: product.pricePaise / 100,
+              weightGrams: product.weightGrams,
+              lengthMm: product.lengthMm,
+              widthMm: product.widthMm,
+              heightMm: product.heightMm,
+              isFragile: true,
+            };
+            return calculateDeliveryFee(zone, [spec]);
+          });
 
-      // Decision 0004: Highest product delivery fee applies across multi-item order
-      const productCalcs = activeItems.map(({ product }) => {
-        const spec: ItemPhysicalSpec = {
-          productId: product.id,
-          priceRupees: product.pricePaise / 100,
-          weightGrams: product.weightGrams,
-          lengthMm: product.lengthMm,
-          widthMm: product.widthMm,
-          heightMm: product.heightMm,
-          isFragile: true,
-        };
-        return calculateDeliveryFee(zone, [spec]);
-      });
+          const highestFee = calculateOrderDeliveryFee(
+            productCalcs.map((c) => c.totalDeliveryFeeRupees)
+          );
+          const primaryCalc = productCalcs.reduce(
+            (max, curr) => (curr.totalDeliveryFeeRupees > max.totalDeliveryFeeRupees ? curr : max),
+            productCalcs[0]
+          );
 
-      const highestFee = calculateOrderDeliveryFee(
-        productCalcs.map((c) => c.totalDeliveryFeeRupees)
-      );
-      const primaryCalc = productCalcs.reduce(
-        (max, curr) => (curr.totalDeliveryFeeRupees > max.totalDeliveryFeeRupees ? curr : max),
-        productCalcs[0]
-      );
-
-      setShippingResult({
-        ...primaryCalc,
-        totalDeliveryFeeRupees: highestFee,
-      });
+          setShippingResult({
+            ...primaryCalc,
+            totalDeliveryFeeRupees: highestFee,
+          });
+        });
     } else if (cleanPin.length > 0 && cleanPin.length < 6) {
       setShippingResult(null);
     }
+
+    return () => {
+      isCancelled = true;
+    };
   }, [customer.pincode, activeItems]);
 
   // Pricing calculations
@@ -836,6 +864,18 @@ function CheckoutContent() {
 
             {/* Submit Action Button */}
             <div className="pt-2 space-y-3">
+              {maintenanceMode && (
+                <div className="rounded-xl border border-rose-300 bg-rose-50/90 p-4 text-xs text-rose-950 space-y-1">
+                  <span className="font-semibold block text-rose-950">
+                    Workshop Operations & Maintenance Notice:
+                  </span>
+                  <p className="text-[11px] text-rose-900 leading-relaxed">
+                    {maintenanceMessage ||
+                      "Order placement is temporarily frozen for scheduled workshop maintenance & annual calibration. Browsing and project inquiries remain active."}
+                  </p>
+                </div>
+              )}
+
               <button
                 type="submit"
                 form="checkout-form"
@@ -850,6 +890,8 @@ function CheckoutContent() {
                     </svg>
                     Processing Secure Payment...
                   </>
+                ) : maintenanceMode ? (
+                  "Checkout Suspended (Workshop Hiatus)"
                 ) : modeParam === "MADE_TO_ORDER" ? (
                   `Pay 25% Advance (${formatPrice(amountPayableNowPaise)})`
                 ) : (
@@ -863,6 +905,11 @@ function CheckoutContent() {
                     Required to activate payment button:
                   </span>
                   <ul className="list-disc pl-4 space-y-0.5 text-[10px] text-amber-800">
+                    {maintenanceMode && (
+                      <li className="font-semibold text-rose-900">
+                        Checkout is temporarily paused during workshop maintenance
+                      </li>
+                    )}
                     {!isNameValid && <li>Enter full legal name (at least 2 characters)</li>}
                     {!mobileValidation.isValid && (
                       <li>

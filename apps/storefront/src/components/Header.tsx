@@ -9,8 +9,25 @@ import { useCart } from "@/context/CartContext";
 export function Header() {
   const [isShopOpen, setIsShopOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [systemNotice, setSystemNotice] = useState<{
+    maintenanceMode: boolean;
+    studioHiatus: boolean;
+    announcementBanner: string;
+  } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { totalItemCount } = useCart();
+
+  // Load system notices & hiatus announcements
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && (data.maintenanceMode || data.studioHiatus)) {
+          setSystemNotice(data);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Close dropdown on outside click or Escape
   useEffect(() => {
@@ -38,6 +55,21 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-[var(--color-decorative-border)] bg-[var(--color-canvas)]/95 backdrop-blur-md">
+      {systemNotice && (systemNotice.maintenanceMode || systemNotice.studioHiatus) && (
+        <aside
+          role="status"
+          aria-live="polite"
+          className="bg-[#1f1a16] text-[#c59b6d] border-b border-[#3e3428] px-4 py-2 text-center text-xs tracking-wide flex items-center justify-center gap-2"
+        >
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#c59b6d] animate-pulse" />
+          <span className="font-semibold uppercase tracking-wider text-[10px]">
+            {systemNotice.maintenanceMode ? "Studio Operations Notice" : "Workshop Hiatus"}:
+          </span>
+          <span className="text-[#e2ded9] text-[11px] font-medium">
+            {systemNotice.announcementBanner}
+          </span>
+        </aside>
+      )}
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
         {/* Brand Mark Only */}
         <div className="flex items-center gap-8">

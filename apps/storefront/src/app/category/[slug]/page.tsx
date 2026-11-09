@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { ProductCard } from "@/components/ProductCard";
-import { MOCK_PRODUCTS } from "@/lib/products";
+import { getPublishedProducts } from "@/lib/catalogueService";
 import { APPROVED_CATEGORIES } from "@/lib/taxonomy";
 
 interface CategoryPageProps {
@@ -37,7 +37,8 @@ async function CategoryContent({
     notFound();
   }
 
-  const categoryProducts = MOCK_PRODUCTS.filter((p) => {
+  const published = await getPublishedProducts();
+  const categoryProducts = published.filter((p) => {
     if (p.categorySlug !== category.slug) return false;
     if (activeSubcategory && p.subcategory !== activeSubcategory) return false;
     return true;

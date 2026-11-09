@@ -512,4 +512,19 @@ model BulkInquiry {
   @@index([status])
 }
 
+// -------------------------------------------------------------
+// SYSTEM SETTINGS & STUDIO GOVERNANCE (Hiatus & Maintenance)
+// -------------------------------------------------------------
+
+model SystemSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique // e.g. "MAINTENANCE_MODE", "STUDIO_HIATUS", "ANNOUNCEMENT_BANNER"
+  value       String   // e.g. "false", "true", "Studio craft operations paused..."
+  description String?
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@index([key])
+}
+
 

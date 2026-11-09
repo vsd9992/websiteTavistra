@@ -29,6 +29,11 @@ With the customer-facing storefront (H2), purchase journeys (H5), and commerce d
    - Live synchronization on mount for Orders, Inquiries, Tickets, and Customers.
    - Hard dispatch lockout in UI: when `balanceDueRupees > 0`, AWB inputs are disabled and a `Dispatch Blocked` security warning is displayed with a "Copy Balance Link" action.
    - Dedicated **"Workshop QC Photos & Review"** action enabling staff to upload inspection photos directly to the customer portal.
-5. **Full Monorepo Build & Typecheck**:
-   - Clean compilation (`pnpm build`) with 0 errors across all 39 routes and admin distribution bundle.
+5. **Studio Governance & Operations Suite**:
+   - **Live Catalogue Governance**: `GET` and `PATCH /api/admin/catalogue` connected to PostgreSQL `Product.isPublished`. Admin portal allows 1-click toggling between "Publish" and "Draft" with modal review. Storefront `/shop`, `/category/[slug]`, and `/product/[slug]` dynamically filter by `isPublished: true` with `<Suspense>` streaming.
+   - **Delivery PIN Code Governance**: `GET` and `PATCH /api/admin/pincodes` connected to PostgreSQL `PincodeRange.isServiceable`. Real-time validation endpoint `GET /api/pincodes/check` allows staff to suspend or activate PIN codes/zones, and `/checkout` immediately blocks suspended PINs with an informative alert.
+   - **System Maintenance & Hiatus Engine**: `SystemSetting` model added to Prisma (`MAINTENANCE_MODE`, `STUDIO_HIATUS`, `ANNOUNCEMENT_BANNER`). Public `GET /api/settings` and Admin `GET/PATCH /api/admin/settings`. Storefront `Header` renders a luxury announcement bar during hiatus/notices, and `/checkout` gracefully freezes checkout when maintenance mode is active.
+6. **Full Monorepo Build & Verification**:
+   - Clean compilation (`pnpm build`) with 0 errors across all 45 routes and admin distribution bundle.
+   - Real-world database verification script (`verify_governance.ts`) confirmed publication toggling, PIN checks, and system settings updates against PostgreSQL on `devMachine` (`192.168.1.100:5433`).
 
