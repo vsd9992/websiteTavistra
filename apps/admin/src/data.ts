@@ -37,6 +37,7 @@ export interface AdminOrder {
 
 export interface BulkInquiry {
   id: string;
+  inquiryNumber?: string;
   clientName: string;
   practiceOrStudio: string;
   email: string;

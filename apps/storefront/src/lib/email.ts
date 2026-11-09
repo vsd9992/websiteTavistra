@@ -56,7 +56,7 @@ function wrapLuxuryEmailTemplate(title: string, subtitle: string, bodyContent: s
       ${bodyContent}
     </div>
     <div class="footer">
-      <p style="margin: 0 0 6px 0;"><strong>VDesign Studio</strong> · New Delhi, India</p>
+      <p style="margin: 0 0 6px 0;"><strong>VDesign</strong> · New Delhi, India</p>
       <p style="margin: 0;">Bespoke Architectural Editions & Timeless Lifestyle Objects</p>
       <p style="margin: 8px 0 0 0; font-size: 10px; color: #a39f94;">This is an authoritative communication concerning your acquisition.</p>
     </div>
@@ -357,3 +357,103 @@ export async function sendTicketEmail(params: {
     html,
   });
 }
+
+// 5. Send Formal 30-Day Architectural Quote Proposal (TAV-07)
+export async function sendQuoteProposalEmail(params: {
+  quoteNumber: string;
+  versionNumber: number;
+  customerName: string;
+  customerEmail: string;
+  specifications: string;
+  quotedAmountRupees: number;
+  advanceRequiredRupees: number;
+  balanceDueRupees: number;
+  estimatedLeadDays: number;
+  expiresAt: Date;
+}) {
+  const {
+    quoteNumber,
+    versionNumber,
+    customerName,
+    customerEmail,
+    specifications,
+    quotedAmountRupees,
+    advanceRequiredRupees,
+    balanceDueRupees,
+    estimatedLeadDays,
+    expiresAt,
+  } = params;
+
+  const quoteUrl = `${appUrl}/quote/${encodeURIComponent(quoteNumber)}`;
+  const formattedExpiry = new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(expiresAt));
+
+  const formatRupees = (val: number) =>
+    new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }).format(val);
+
+  const bodyContent = `
+    <p>Dear ${customerName},</p>
+    <p>Our architectural craftsmanship and design team has formulated a formal proposal for your bespoke project under reference <strong style="font-family: monospace;">${quoteNumber} (Revision ${versionNumber})</strong>.</p>
+    
+    <div class="card">
+      <div style="margin-bottom: 14px;">
+        <span class="badge" style="background-color: #fef3c7; color: #92400e; border: 1px solid #fde68a;">30-Day Locked Commercial Offer</span>
+      </div>
+      <strong style="color: #141412; font-size: 13px; display: block; margin-bottom: 6px;">Project Specifications:</strong>
+      <p style="margin: 0 0 16px 0; font-size: 12px; color: #5a574f; white-space: pre-line;">${specifications}</p>
+
+      <div class="ledger-row">
+        <span>Estimated Workshop Production:</span>
+        <strong>${estimatedLeadDays} Days (From Advance Verification)</strong>
+      </div>
+      <div class="ledger-row">
+        <span>Offer Validity Guarantee:</span>
+        <strong>Locked until ${formattedExpiry}</strong>
+      </div>
+      <div class="ledger-row">
+        <span>Total Quoted Value (Tax-Inclusive):</span>
+        <strong style="color: #141412;">${formatRupees(quotedAmountRupees)}</strong>
+      </div>
+      <div class="ledger-row" style="background-color: #faf2ea; padding: 6px 8px; border-radius: 4px; margin: 4px 0;">
+        <span style="color: #8e6c46; font-weight: 600;">25% Production Advance:</span>
+        <strong style="color: #8e6c46;">${formatRupees(advanceRequiredRupees)}</strong>
+      </div>
+      <div class="ledger-row">
+        <span style="color: #726e64;">Remaining Balance (Due post-QC):</span>
+        <span style="color: #726e64;">${formatRupees(balanceDueRupees)}</span>
+      </div>
+    </div>
+
+    <div style="text-align: center; margin: 30px 0 10px 0;">
+      <a href="${quoteUrl}" class="btn" style="background-color: #8e6c46;">Review Proposal & Pay 25% Advance</a>
+    </div>
+    <p style="font-size: 11px; text-align: center; color: #8a867c;">
+      Direct review link: <a href="${quoteUrl}" style="color: #8e6c46;">${quoteUrl}</a>
+    </p>
+
+    <div style="margin-top: 24px; padding: 14px; background-color: #f9f8f5; border-radius: 6px; font-size: 11px; color: #726e64; line-height: 1.5;">
+      <strong>Authoritative Policy (TAV-07):</strong> This quotation is locked against materials and artisanal labor cost escalations for 30 calendar days from initial issuance. Upon payment of the 25% production advance, workshop craftsmanship commences immediately.
+    </div>
+  `;
+
+  const html = wrapLuxuryEmailTemplate(
+    "Formal Architectural Proposal",
+    `Offer: ${quoteNumber} · Revision ${versionNumber}`,
+    bodyContent
+  );
+
+  return transporter.sendMail({
+    from: smtpFrom,
+    to: customerEmail,
+    subject: `[VDesign] Formal 30-Day Architectural Proposal — ${quoteNumber}`,
+    html,
+  });
+}
+

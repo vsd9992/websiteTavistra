@@ -18,9 +18,31 @@ import {
   AuditEntry,
 } from "./data";
 
+export interface AdminProposal {
+  id: string;
+  quoteNumber: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  deliveryPincode: string;
+  projectSpecifications: string;
+  status: "DRAFT" | "ISSUED" | "ACCEPTED" | "EXPIRED" | "SUPERSEDED";
+  expiresAt: string;
+  acceptedAt: string | null;
+  linkedOrderId: string | null;
+  versions: {
+    id: string;
+    versionNumber: number;
+    specifications: string;
+    quotedAmount: number;
+    advanceRequired: number;
+    estimatedLeadDays: number;
+  }[];
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<
-    "OVERVIEW" | "ORDERS" | "PRODUCTION" | "DISPATCH" | "TICKETS" | "CUSTOMERS" | "CATALOGUE" | "PINCODES" | "SETTINGS" | "AUDIT"
+    "OVERVIEW" | "ORDERS" | "PRODUCTION" | "DISPATCH" | "TICKETS" | "CUSTOMERS" | "PROPOSALS" | "CATALOGUE" | "PINCODES" | "SETTINGS" | "AUDIT"
   >("OVERVIEW");
 
   // State
@@ -32,6 +54,27 @@ export default function App() {
   const [catalogue, setCatalogue] = useState<CatalogueItem[]>(INITIAL_CATALOGUE);
   const [pincodes, setPincodes] = useState<PincodeEntry[]>(INITIAL_PINCODES);
   const [auditLogs, setAuditLogs] = useState<AuditEntry[]>(INITIAL_AUDIT_LOGS);
+  const [proposals, setProposals] = useState<AdminProposal[]>([]);
+
+  // Proposal modal state
+  const [isProposalModalOpen, setIsProposalModalOpen] = useState(false);
+  const [proposalForm, setProposalForm] = useState({
+    inquiryId: "",
+    customerName: "",
+    customerEmail: "",
+    customerPhone: "",
+    deliveryPincode: "",
+    projectSpecifications: "",
+    quotedAmountRupees: 50000,
+    estimatedLeadDays: 28,
+  });
+  const [isSubmittingProposal, setIsSubmittingProposal] = useState(false);
+
+  // Markdown Importer State
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [markdownInput, setMarkdownInput] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
+  const [importFeedback, setImportFeedback] = useState<string | null>(null);
 
   // System Settings State
   const [maintenanceMode, setMaintenanceMode] = useState(false);
@@ -169,6 +212,16 @@ export default function App() {
         }
       })
       .catch((err) => console.warn("Live settings fetch error, using local state:", err));
+
+    // 8. Fetch Quotes & Architectural Proposals
+    fetch("/api/quotes")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.proposals && data.proposals.length > 0) {
+          setProposals(data.proposals);
+        }
+      })
+      .catch((err) => console.warn("Live proposals fetch error:", err));
   }, []);
 
   // Statistics
@@ -610,6 +663,106 @@ export default function App() {
     }
   };
 
+  // Create Formal 30-Day Architectural Proposal (TAV-07)
+  const handleCreateProposal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmittingProposal(true);
+    try {
+      const res = await fetch("/api/quotes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...proposalForm,
+          staffName: currentStaff.name,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create proposal");
+
+      setProposals((prev) => [data.proposal, ...prev]);
+      logAuditAction(
+        "QUOTE_PROPOSAL_ISSUED",
+        "QuoteProposal",
+        data.proposal.quoteNumber,
+        `Proposal issued to ${proposalForm.customerEmail} for ₹${Number(proposalForm.quotedAmountRupees).toLocaleString("en-IN")}.`
+      );
+      setIsProposalModalOpen(false);
+      if (proposalForm.inquiryId) {
+        setInquiries((prev) =>
+          prev.map((i) => (i.id === proposalForm.inquiryId ? { ...i, status: "QUOTE_ISSUED" } : i))
+        );
+      }
+    } catch (err: unknown) {
+      alert((err as Error).message || "Error issuing proposal");
+    } finally {
+      setIsSubmittingProposal(false);
+    }
+  };
+
+  // Sync Markdown Product Editions from docs/products
+  const handleSyncMarkdownDocs = async () => {
+    setIsImporting(true);
+    setImportFeedback("Scanning docs/products/*.md and syncing with PostgreSQL...");
+    try {
+      const res = await fetch("/api/admin/catalogue/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ syncFromDocs: true, staffName: currentStaff.name }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Sync failed");
+
+      setImportFeedback(`Successfully synced ${data.count} editions from docs/products!`);
+      const catRes = await fetch("/api/admin/catalogue");
+      const catData = await catRes.json();
+      if (catData.catalogue) setCatalogue(catData.catalogue);
+
+      logAuditAction(
+        "MARKDOWN_CATALOGUE_SYNC",
+        "Catalogue",
+        "docs/products",
+        `Synced ${data.count} product markdown editions to database.`
+      );
+    } catch (err: unknown) {
+      setImportFeedback(`Error: ${(err as Error).message}`);
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // Import Single Custom Markdown Specification
+  const handleImportSingleMarkdown = async () => {
+    if (!markdownInput.trim()) return;
+    setIsImporting(true);
+    setImportFeedback("Parsing YAML frontmatter and specifications...");
+    try {
+      const res = await fetch("/api/admin/catalogue/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ markdownContent: markdownInput, staffName: currentStaff.name }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Import failed");
+
+      setImportFeedback(`Successfully imported '${data.product.title}' (${data.product.sku})!`);
+      const catRes = await fetch("/api/admin/catalogue");
+      const catData = await catRes.json();
+      if (catData.catalogue) setCatalogue(catData.catalogue);
+
+      logAuditAction(
+        "MARKDOWN_PRODUCT_IMPORT",
+        "Product",
+        data.product.slug,
+        `Imported product ${data.product.title} from custom markdown.`
+      );
+      setMarkdownInput("");
+    } catch (err: unknown) {
+      setImportFeedback(`Error: ${(err as Error).message}`);
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   // Download State Snapshot JSON
   const handleExportStateSnapshot = () => {
     const snapshot = {
@@ -704,6 +857,7 @@ export default function App() {
             { id: "DISPATCH", label: "Fulfilment & AWB" },
             { id: "TICKETS", label: `Support Tickets (${stats.openTicketsCount})` },
             { id: "CUSTOMERS", label: `Customers (${customers.length})` },
+            { id: "PROPOSALS", label: `Inquiries & Quotes (${inquiries.length + proposals.length})` },
             { id: "CATALOGUE", label: `Catalogue (${catalogue.length})` },
             { id: "PINCODES", label: `Delivery PINs (${stats.serviceablePinsCount})` },
             { id: "SETTINGS", label: "System & Settings" },
@@ -1308,15 +1462,211 @@ export default function App() {
           </div>
         )}
 
+        {/* TAB: INQUIRIES & PROPOSALS (TAV-07) */}
+        {activeTab === "PROPOSALS" && (
+          <div className="space-y-8">
+            {/* Header */}
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#2e2e34] pb-4">
+              <div>
+                <h2 className="text-base font-semibold text-white">Commercial Inquiries & 30-Day Architectural Proposals</h2>
+                <p className="text-xs text-[#9e9ea8]">
+                  Architectural trade inquiries, locked 30-day proposals (TAV-07), and verified 25% production advance conversions.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setProposalForm({
+                    inquiryId: "",
+                    customerName: "",
+                    customerEmail: "",
+                    customerPhone: "",
+                    deliveryPincode: "110001",
+                    projectSpecifications: "",
+                    quotedAmountRupees: 65000,
+                    estimatedLeadDays: 28,
+                  });
+                  setIsProposalModalOpen(true);
+                }}
+                className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors shadow-sm"
+              >
+                + Issue Bespoke 30-Day Proposal
+              </button>
+            </div>
+
+            {/* Section 1: Active 30-Day Quotations */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                <span>Formal 30-Day Locked Proposals ({proposals.length})</span>
+                <span className="text-[10px] text-[#c59b6d] font-normal">TAV-07 Independent 30-Day Clock</span>
+              </h3>
+
+              {proposals.length === 0 ? (
+                <div className="p-8 rounded-2xl bg-[#1c1c20] border border-[#2e2e34] text-center text-xs text-[#9e9ea8]">
+                  No formal proposals issued yet. Issue a bespoke proposal from incoming inquiries below.
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-[#2e2e34] bg-[#1c1c20] overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#18181c] border-b border-[#2e2e34] text-[11px] uppercase tracking-wider text-[#9e9ea8]">
+                      <tr>
+                        <th className="py-3 px-4">Quote Number</th>
+                        <th className="py-3 px-4">Client & Pincode</th>
+                        <th className="py-3 px-4">Quoted Amount</th>
+                        <th className="py-3 px-4">25% Advance</th>
+                        <th className="py-3 px-4">Status & Clock</th>
+                        <th className="py-3 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#2e2e34]">
+                      {proposals.map((p) => {
+                        const latestVer = p.versions?.[0];
+                        const amount = latestVer ? Number(latestVer.quotedAmount) : 0;
+                        const advance = latestVer ? Number(latestVer.advanceRequired) : 0;
+                        const isAccepted = p.status === "ACCEPTED";
+                        const isExpired = p.status === "EXPIRED";
+
+                        return (
+                          <tr key={p.id} className="hover:bg-[#222228]/40 transition-colors">
+                            <td className="py-4 px-4 font-mono font-bold text-white">
+                              {p.quoteNumber}
+                              <span className="block text-[10px] font-sans text-[#9e9ea8]">
+                                Rev {latestVer?.versionNumber || 1}
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 text-white">
+                              {p.customerName}
+                              <span className="block text-[10px] text-[#9e9ea8]">
+                                {p.customerEmail} · PIN {p.deliveryPincode}
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 font-semibold text-white">{formatPrice(amount)}</td>
+                            <td className="py-4 px-4 font-semibold text-[#c59b6d]">{formatPrice(advance)}</td>
+                            <td className="py-4 px-4">
+                              <span
+                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                                  isAccepted
+                                    ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                                    : isExpired
+                                    ? "bg-rose-950 text-rose-300 border border-rose-800"
+                                    : "bg-amber-950 text-amber-300 border border-amber-800"
+                                }`}
+                              >
+                                {isAccepted ? "Accepted & Order Active" : isExpired ? "Offer Expired" : "30-Day Offer Active"}
+                              </span>
+                              {p.linkedOrderId && (
+                                <span className="block text-[10px] font-mono text-[#10b981] mt-1">
+                                  Order ID: {p.linkedOrderId.slice(0, 12)}...
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-4 px-4 text-right space-x-2">
+                              <a
+                                href={`http://localhost:3000/quote/${p.quoteNumber}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-3 py-1.5 rounded-lg bg-[#2a2a30] text-xs font-semibold text-[#c59b6d] hover:bg-[#34343c]"
+                              >
+                                View Proposal ↗
+                              </a>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Section 2: Incoming Bulk & Architectural Inquiries */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-white">Incoming Commercial & Bulk Inquiries ({inquiries.length})</h3>
+              <div className="rounded-2xl border border-[#2e2e34] bg-[#1c1c20] overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#18181c] border-b border-[#2e2e34] text-[11px] uppercase tracking-wider text-[#9e9ea8]">
+                    <tr>
+                      <th className="py-3 px-4">Inquiry Ref</th>
+                      <th className="py-3 px-4">Client / Studio</th>
+                      <th className="py-3 px-4">Requested Editions</th>
+                      <th className="py-3 px-4">Units</th>
+                      <th className="py-3 px-4">Destination</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#2e2e34]">
+                    {inquiries.map((inq) => (
+                      <tr key={inq.id} className="hover:bg-[#222228]/40 transition-colors">
+                        <td className="py-4 px-4 font-mono font-bold text-white">{inq.inquiryNumber || inq.id}</td>
+                        <td className="py-4 px-4 text-white">
+                          {inq.clientName}
+                          <span className="block text-[10px] text-[#c59b6d]">{inq.practiceOrStudio || "Private Patron"}</span>
+                          <span className="block text-[10px] text-[#9e9ea8]">{inq.email}</span>
+                        </td>
+                        <td className="py-4 px-4 text-white max-w-xs">{inq.requestedEditions}</td>
+                        <td className="py-4 px-4 font-bold text-white">{inq.quantityUnits}</td>
+                        <td className="py-4 px-4 text-[#9e9ea8]">
+                          {inq.destinationCity} (PIN {inq.destinationPincode})
+                        </td>
+                        <td className="py-4 px-4">
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                              inq.status === "NEW"
+                                ? "bg-amber-950 text-amber-300 border border-amber-800"
+                                : inq.status === "QUOTE_ISSUED"
+                                ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                                : "bg-[#24242a] text-[#9e9ea8]"
+                            }`}
+                          >
+                            {inq.status === "QUOTE_ISSUED" ? "Proposal Issued" : inq.status}
+                          </span>
+                        </td>
+                        <td className="py-4 px-4 text-right">
+                          <button
+                            onClick={() => {
+                              setProposalForm({
+                                inquiryId: inq.id,
+                                customerName: inq.clientName,
+                                customerEmail: inq.email,
+                                customerPhone: inq.phone,
+                                deliveryPincode: inq.destinationPincode,
+                                projectSpecifications: `Commercial Edition: ${inq.requestedEditions} (${inq.quantityUnits} Units).\nSpecifications: ${inq.specifications}`,
+                                quotedAmountRupees: 125000,
+                                estimatedLeadDays: 28,
+                              });
+                              setIsProposalModalOpen(true);
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors"
+                          >
+                            Issue 30-Day Proposal
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* TAB 7: CATALOGUE & PRODUCT REVIEW */}
         {activeTab === "CATALOGUE" && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between border-b border-[#2e2e34] pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#2e2e34] pb-3">
               <div>
                 <h2 className="text-base font-semibold text-white">Catalogue Editions & Live Inventory</h2>
                 <p className="text-xs text-[#9e9ea8]">
                   Publish status, available workshop stock, and active reservations (TAV-02 & TAV-05). Click "Review Specs" to inspect full editorial copy, dimensions, and Markdown sources.
                 </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setIsImportModalOpen(true)}
+                  className="px-3.5 py-1.5 rounded-lg bg-[#2e2e34] border border-[#3e3e46] text-xs font-semibold text-white hover:bg-[#3e3e46] flex items-center gap-1.5"
+                >
+                  <span>📝</span> Import / Sync Markdown
+                </button>
               </div>
             </div>
 
@@ -2008,6 +2358,236 @@ export default function App() {
               >
                 Publish QC Photos to Customer Portal
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: Issue 30-Day Formal Architectural Proposal (TAV-07) */}
+      {isProposalModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-xl rounded-2xl bg-[#1c1c20] border border-[#2e2e34] p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-[#2e2e34] pb-3">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#c59b6d] tracking-wider block">
+                  Commercial Offer Engine · TAV-07
+                </span>
+                <h3 className="font-semibold text-base text-white">Issue 30-Day Locked Architectural Proposal</h3>
+              </div>
+              <button
+                onClick={() => setIsProposalModalOpen(false)}
+                className="text-xs text-[#9e9ea8] hover:text-white"
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateProposal} className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-white font-semibold">Client Legal Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={proposalForm.customerName}
+                    onChange={(e) => setProposalForm({ ...proposalForm, customerName: e.target.value })}
+                    className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-2.5 text-white focus:outline-none focus:border-[#c59b6d]"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-white font-semibold">Client Email (Proposal Destination)</label>
+                  <input
+                    type="email"
+                    required
+                    value={proposalForm.customerEmail}
+                    onChange={(e) => setProposalForm({ ...proposalForm, customerEmail: e.target.value })}
+                    className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-2.5 text-white focus:outline-none focus:border-[#c59b6d]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-white font-semibold">Client Contact Phone</label>
+                  <input
+                    type="text"
+                    value={proposalForm.customerPhone}
+                    onChange={(e) => setProposalForm({ ...proposalForm, customerPhone: e.target.value })}
+                    className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-2.5 text-white focus:outline-none focus:border-[#c59b6d]"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-white font-semibold">Destination Delivery PIN</label>
+                  <input
+                    type="text"
+                    required
+                    value={proposalForm.deliveryPincode}
+                    onChange={(e) => setProposalForm({ ...proposalForm, deliveryPincode: e.target.value })}
+                    className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-2.5 font-mono text-white focus:outline-none focus:border-[#c59b6d]"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-white font-semibold">Project Scope & Architectural Specifications</label>
+                <textarea
+                  rows={4}
+                  required
+                  value={proposalForm.projectSpecifications}
+                  onChange={(e) => setProposalForm({ ...proposalForm, projectSpecifications: e.target.value })}
+                  className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-3 text-white focus:outline-none focus:border-[#c59b6d] font-mono text-[11px]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-white font-semibold">Total Quoted Value (₹ Tax-Inclusive)</label>
+                  <input
+                    type="number"
+                    min="1000"
+                    step="500"
+                    required
+                    value={proposalForm.quotedAmountRupees}
+                    onChange={(e) => setProposalForm({ ...proposalForm, quotedAmountRupees: Number(e.target.value) })}
+                    className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-2.5 text-white focus:outline-none focus:border-[#c59b6d] font-bold"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-white font-semibold">Estimated Lead Time (Days)</label>
+                  <input
+                    type="number"
+                    min="7"
+                    max="180"
+                    required
+                    value={proposalForm.estimatedLeadDays}
+                    onChange={(e) => setProposalForm({ ...proposalForm, estimatedLeadDays: Number(e.target.value) })}
+                    className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-2.5 text-white focus:outline-none focus:border-[#c59b6d]"
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-[#24242a] border border-[#2e2e34] space-y-1">
+                <div className="flex justify-between text-[#c59b6d] font-semibold">
+                  <span>25% Production Advance Required:</span>
+                  <span>{formatPrice(Math.round(proposalForm.quotedAmountRupees * 0.25))}</span>
+                </div>
+                <div className="flex justify-between text-[#9e9ea8]">
+                  <span>75% Final Balance (Due post-QC):</span>
+                  <span>{formatPrice(proposalForm.quotedAmountRupees - Math.round(proposalForm.quotedAmountRupees * 0.25))}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#2e2e34]">
+                <button
+                  type="button"
+                  onClick={() => setIsProposalModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-[#3e3e46] text-xs text-[#9e9ea8] hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingProposal}
+                  className="px-5 py-2 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors disabled:opacity-50"
+                >
+                  {isSubmittingProposal ? "Dispatching Proposal..." : "Issue Proposal & Send Email"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 6: Markdown Product Importer */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-[#1c1c20] border border-[#2e2e34] p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-[#2e2e34] pb-3">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#c59b6d] tracking-wider block">
+                  Markdown Publishing Pipeline (WEB-007 / WEB-008)
+                </span>
+                <h3 className="font-semibold text-base text-white">Import & Review Product Specifications</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setIsImportModalOpen(false);
+                  setImportFeedback(null);
+                }}
+                className="text-xs text-[#9e9ea8] hover:text-white"
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            {/* Bulk Disk Sync Option */}
+            <div className="p-4 rounded-xl bg-[#24242a] border border-[#2e2e34] flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <strong className="text-white text-xs block">Sync Authoritative Directory</strong>
+                <p className="text-[11px] text-[#9e9ea8]">
+                  Automatically parse and upsert all edition markdown files from <code className="font-mono text-[#c59b6d]">docs/products/*.md</code>.
+                </p>
+              </div>
+              <button
+                onClick={handleSyncMarkdownDocs}
+                disabled={isImporting}
+                className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors disabled:opacity-50"
+              >
+                {isImporting ? "Syncing..." : "Sync docs/products/*.md"}
+              </button>
+            </div>
+
+            {/* Custom Paste / Upload Option */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-white block">
+                Or Paste Product Markdown (YAML Frontmatter + Body)
+              </label>
+              <textarea
+                rows={10}
+                placeholder="---&#10;sku: TAV-ED-001&#10;slug: kinetic-brass-object&#10;title: Kinetic Brass Object&#10;category: art-collectibles&#10;primaryMode: READY_STOCK&#10;taxInclusivePrice: 18500&#10;---&#10;&#10;# Title&#10;Description..."
+                value={markdownInput}
+                onChange={(e) => setMarkdownInput(e.target.value)}
+                className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-3 text-xs font-mono text-white placeholder-[#6e6e76] focus:outline-none focus:border-[#c59b6d]"
+              />
+            </div>
+
+            {/* Feedback Message */}
+            {importFeedback && (
+              <div
+                className={`p-3 rounded-xl text-xs ${
+                  importFeedback.startsWith("Error")
+                    ? "bg-rose-950/60 border border-rose-800 text-rose-300"
+                    : "bg-emerald-950/60 border border-emerald-800 text-emerald-300"
+                }`}
+              >
+                {importFeedback}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-3 border-t border-[#2e2e34]">
+              <span className="text-[11px] text-[#9e9ea8]">
+                Preserves two-component pricing and non-executable documentation integrity.
+              </span>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsImportModalOpen(false);
+                    setImportFeedback(null);
+                  }}
+                  className="px-4 py-2 rounded-xl border border-[#3e3e46] text-xs text-[#9e9ea8] hover:text-white"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={handleImportSingleMarkdown}
+                  disabled={isImporting || !markdownInput.trim()}
+                  className="px-5 py-2 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors disabled:opacity-50"
+                >
+                  {isImporting ? "Importing..." : "Import Specification"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
