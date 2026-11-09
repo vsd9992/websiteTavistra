@@ -18,6 +18,7 @@ Status: Studio Governance, Quote Proposal Lifecycle, Markdown Catalogue Importer
 - [docs/roadmap/phase-4-developer-handoff.md](../docs/roadmap/phase-4-developer-handoff.md) — Developer handoff and integration gates
 - [docs/website/delivery-fee-pricing-approved.md](../docs/website/delivery-fee-pricing-approved.md) — Approved 12-slab delivery fee & bulk order policy (2026-11-06)
 - [docs/website/delivery-pincode-launch-policy.md](../docs/website/delivery-pincode-launch-policy.md) — Approved PIN code launch governance (2026-11-06)
+- [docs/testing/pre-live-acceptance-runbook.md](../docs/testing/pre-live-acceptance-runbook.md) — Pre-Live Acceptance & Quality Assurance Runbook (Phase 3 UAT Checklist)
 
 ## Current Decisions
 - [.ai/decisions/current/0001-dev-deployment-environment.md](decisions/current/0001-dev-deployment-environment.md) — Local Windows development with remote Debian dev/deployment server (`192.168.1.100`)
