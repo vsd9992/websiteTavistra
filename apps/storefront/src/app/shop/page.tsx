@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { ProductCard } from "@/components/ProductCard";
@@ -13,6 +14,7 @@ export const metadata = {
 };
 
 async function ShopContent() {
+  await connection();
   const publishedProducts = await getPublishedProducts();
 
   return (

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -16,12 +17,6 @@ interface CategoryPageProps {
   }>;
 }
 
-export async function generateStaticParams() {
-  return APPROVED_CATEGORIES.map((cat) => ({
-    slug: cat.slug,
-  }));
-}
-
 async function CategoryContent({
   params,
   searchParams,
@@ -29,6 +24,7 @@ async function CategoryContent({
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ sub?: string }>;
 }) {
+  await connection();
   const { slug } = await params;
   const { sub: activeSubcategory } = await searchParams;
   const category = APPROVED_CATEGORIES.find((cat) => cat.slug === slug);

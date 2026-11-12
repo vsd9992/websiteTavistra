@@ -30,3 +30,6 @@ Thumbs.db
 *.sqlite3
 *.db
 
+# Media storage
+storage/
+

@@ -62,9 +62,10 @@ export async function GET() {
         weightGrams: p.weightGrams,
         packedWeightKg: Math.round((p.weightGrams / 1000 + 0.4) * 10) / 10,
         packedVolumetricKg: Math.round(((p.lengthMm * p.widthMm * p.heightMm) / 5000000) * 10) / 10,
-        returnPolicy: p.isReturnable
-          ? `${p.returnWindowDays || 7}-Day Return Guarantee`
-          : "Crafted to Order / Non-returnable",
+        returnPolicy:
+          p.isReturnable && typeof p.returnWindowDays === "number" && p.returnWindowDays > 0
+            ? `${p.returnWindowDays}-Day Return Guarantee`
+            : "Crafted to Order / Non-returnable",
         variants: p.variants.map((v) => ({
           id: v.id,
           sku: v.sku,

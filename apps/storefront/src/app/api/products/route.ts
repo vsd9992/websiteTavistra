@@ -103,9 +103,10 @@ export async function GET() {
           p.primaryMode === "READY_STOCK"
             ? "Dispatches in 24–48 hours"
             : "Handcrafted to order — 3 to 4 weeks workshop lead time",
-        returnPolicyText: p.isReturnable
-          ? `${p.returnWindowDays || 7}-Day Return Guarantee eligible`
-          : "Crafted to Order / Non-returnable",
+        returnPolicyText:
+          p.isReturnable && typeof p.returnWindowDays === "number" && p.returnWindowDays > 0
+            ? `${p.returnWindowDays}-Day Return Guarantee eligible`
+            : "Crafted to Order / Non-returnable",
         features: [
           `Dimensions: ${p.dimensions}`,
           `Craft Material: ${p.materialDescription}`,

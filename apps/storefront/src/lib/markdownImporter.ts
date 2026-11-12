@@ -267,7 +267,10 @@ export function parseProductMarkdown(content: string): ParsedMarkdownProduct {
     widthMm: Number(doc.widthMm ?? 100),
     heightMm: Number(doc.heightMm ?? 100),
     isReturnable: Boolean(doc.isReturnable),
-    returnWindowDays: doc.returnWindowDays ? Number(doc.returnWindowDays) : null,
+    returnWindowDays:
+      doc.returnWindowDays !== undefined && doc.returnWindowDays !== null && doc.returnWindowDays !== ""
+        ? Number(doc.returnWindowDays)
+        : null,
     materialDescription: String(doc.materialDescription || "Architectural materials"),
     shortDescription,
     fullDescription,

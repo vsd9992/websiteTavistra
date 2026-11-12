@@ -8,13 +8,13 @@ productType: Wall Clocks
 primaryMode: READY_STOCK
 taxInclusivePrice: 14500.00
 gstRate: 0.18
-weightGrams: 2400
+weightGrams: 5400
 dimensions: 320mm Dia × 38mm D
 lengthMm: 360
 widthMm: 360
 heightMm: 70
 isReturnable: true
-returnWindowDays: 7
+returnWindowDays: 0
 materialDescription: Milled Solid Aluminium, Brushed Brass, German Silent Quartz Movement
 isPublished: true
 

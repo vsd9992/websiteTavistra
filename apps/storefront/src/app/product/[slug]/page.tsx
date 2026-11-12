@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -13,13 +14,8 @@ interface ProductPageProps {
   }>;
 }
 
-export async function generateStaticParams() {
-  return MOCK_PRODUCTS.map((p) => ({
-    slug: p.slug,
-  }));
-}
-
 async function ProductDetailContent({ params }: { params: Promise<{ slug: string }> }) {
+  await connection();
   const { slug } = await params;
   const product = await getPublishedProductBySlug(slug);
 
