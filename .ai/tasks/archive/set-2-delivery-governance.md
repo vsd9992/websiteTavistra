@@ -25,3 +25,15 @@ Finalize and harden Set 2 as an isolated functional unit, ensuring postal code s
    - Strictly verified parent brand entity nomenclature: **VDesign** (never "VDesign Studio"). Sub-brand: **Tavistra**.
    - Prohibited terms ("commission") absent across storefront and customer copy.
    - Legal and institutional policy pages active: `/shipping`, `/terms`, `/privacy`, `/returns-refunds`, `/our-story`, `/contact`.
+
+## Live Automated Verification Results (2026-11-12)
+- **Suite**: `packages/db/tests/verify-set2-delivery-governance.ts` (`pnpm --filter @tavistra/db test:set2`)
+- **Target**: Storefront `http://192.168.1.100:3001` & PostgreSQL `192.168.1.100:5433`
+- **Result**: **55 passed, 0 failed (100% success rate)**
+  - *Section 1 (Fee Ladder & Ceiling Rules)*: 12 checks passed (12 slabs, slab matching, multi-item highest fee absorption, 10-unit single product boundary, split-line unit aggregation, 10 distinct lines boundary).
+  - *Section 2 (PIN Serviceability & Zones)*: 10 checks passed (Zone A, B, C, E resolution, live API checks for Delhi/Bengaluru/Mumbai, HTTP 400 malformed PIN validation).
+  - *Section 3 (Admin PIN Toggle & Audit Logging)*: 5 checks passed (Admin listing, toggle off, live public unserviceable notice, PostgreSQL `AuditLog` record verification, clean restoration).
+  - *Section 4 (Studio Controls & Settings)*: 4 checks passed (Public settings, admin settings, maintenance mode on/off roundtrip with live API check).
+  - *Section 5 (Institutional Copy & Brand Compliance)*: 24 checks passed (HTTP 200, "VDesign" confirmed, "VDesign Studio" absent, "commission" absent across all 6 pages: `/shipping`, `/terms`, `/privacy`, `/returns-refunds`, `/our-story`, `/contact`).
+
+
