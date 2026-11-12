@@ -29,3 +29,4 @@ Implement an isolated, production-grade product content pipeline supporting a ma
    - `/shop`: Fix category filter navigation (`STR-05`), allowing seamless clearing back to "All Products".
    - Cards display `From ₹X` when variants differ in price.
    - `/product/[slug]`: Image gallery with thumbnail selection, interactive variant dropdown/buttons updating price, SKU, stock status, and variant-specific image.
+

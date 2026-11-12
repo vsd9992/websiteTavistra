@@ -99,9 +99,10 @@ export default function App() {
   });
   const [isSubmittingProposal, setIsSubmittingProposal] = useState(false);
 
-  // Markdown Importer State
+  // Markdown / ZIP Importer State
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [markdownInput, setMarkdownInput] = useState("");
+  const [selectedZipFile, setSelectedZipFile] = useState<File | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [importFeedback, setImportFeedback] = useState<string | null>(null);
 
@@ -739,6 +740,54 @@ export default function App() {
         `Imported product ${data.product.title} from custom markdown.`
       );
       setMarkdownInput("");
+    } catch (err: unknown) {
+      setImportFeedback(`Error: ${(err as Error).message}`);
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // Upload and unpack .zip product package (<product-slug>.zip with .md + images/)
+  const handleUploadZipPackage = async () => {
+    if (!selectedZipFile) return;
+    setIsImporting(true);
+    setImportFeedback(`Unpacking '${selectedZipFile.name}' and extracting images...`);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedZipFile);
+      formData.append("staffName", currentStaff.name);
+
+      const res = await fetch("/api/admin/catalogue/import", {
+        method: "POST",
+        body: formData,
+      });
+
+      const raw = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        throw new Error(`Server returned HTTP ${res.status}: ${raw.slice(0, 120)}`);
+      }
+
+      if (!res.ok) throw new Error(data.error || "Failed to unpack and import package");
+
+      setImportFeedback(
+        `Successfully imported '${data.product.title}' (${data.product.sku}) with ${data.extractedImages?.length || 0} media file(s)!`
+      );
+
+      const catData = await fetchJson<{ catalogue?: CatalogueItem[] }>("/api/admin/catalogue");
+      if (catData.catalogue) setCatalogue(catData.catalogue);
+
+      logAuditAction(
+        "PRODUCT_ZIP_PACKAGE_IMPORTED",
+        "Product",
+        data.product.slug,
+        `Imported product package ${selectedZipFile.name} with ${data.extractedImages?.length || 0} images.`
+      );
+
+      setSelectedZipFile(null);
     } catch (err: unknown) {
       setImportFeedback(`Error: ${(err as Error).message}`);
     } finally {
@@ -1693,9 +1742,10 @@ export default function App() {
                 <thead className="bg-[#18181c] border-b border-[#2e2e34] text-[11px] uppercase tracking-wider text-[#9e9ea8]">
                   <tr>
                     <th className="py-3 px-4">Product Work</th>
-                    <th className="py-3 px-4">Category</th>
+                    <th className="py-3 px-4">Category / Taxon</th>
                     <th className="py-3 px-4">Purchase Mode</th>
-                    <th className="py-3 px-4">Unit Price</th>
+                    <th className="py-3 px-4">Pricing</th>
+                    <th className="py-3 px-4">Variants / Editions</th>
                     <th className="py-3 px-4">Stock Ledger</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
@@ -1704,16 +1754,51 @@ export default function App() {
                   {catalogue.map((item) => (
                     <tr key={item.id} className="hover:bg-[#222228]/40 transition-colors">
                       <td className="py-4 px-4 font-semibold text-white">
-                        {item.name}
-                        <span className="block text-[10px] font-mono text-[#9e9ea8]">{item.slug}</span>
+                        <div className="flex items-center gap-3">
+                          {item.primaryImageUrl ? (
+                            <img
+                              src={item.primaryImageUrl}
+                              alt={item.name}
+                              className="h-10 w-10 rounded-lg object-cover border border-[#3e3e46] shrink-0"
+                            />
+                          ) : (
+                            <div className="h-10 w-10 rounded-lg bg-[#24242a] border border-[#3e3e46] flex items-center justify-center text-[10px] text-[#c59b6d] font-bold shrink-0">
+                              ED
+                            </div>
+                          )}
+                          <div>
+                            <span className="text-white block">{item.name}</span>
+                            <span className="block text-[10px] font-mono text-[#9e9ea8]">
+                              {item.sku ? `${item.sku} · ` : ""}{item.slug}
+                            </span>
+                          </div>
+                        </div>
                       </td>
-                      <td className="py-4 px-4 text-[#9e9ea8]">{item.category}</td>
+                      <td className="py-4 px-4 text-[#9e9ea8]">
+                        <span className="text-white block">{item.category}</span>
+                        {item.subcategory && (
+                          <span className="text-[10px] text-[#c59b6d] block">{item.subcategory}</span>
+                        )}
+                      </td>
                       <td className="py-4 px-4">
                         <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#2a2a30] text-[#c59b6d]">
                           {item.mode}
                         </span>
                       </td>
-                      <td className="py-4 px-4 font-semibold text-white">{formatPrice(item.priceRupees)}</td>
+                      <td className="py-4 px-4 font-semibold text-white">
+                        {item.isVariablePrice && item.minPriceRupees
+                          ? `From ${formatPrice(item.minPriceRupees)}`
+                          : formatPrice(item.priceRupees)}
+                      </td>
+                      <td className="py-4 px-4 text-xs text-[#9e9ea8]">
+                        {item.variants && item.variants.length > 0 ? (
+                          <span>
+                            <strong className="text-white">{item.variants.length}</strong> edition(s)
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-[#6e6e76]">Standard</span>
+                        )}
+                      </td>
                       <td className="py-4 px-4">
                         {item.mode === "READY_STOCK" ? (
                           <div className="text-[11px]">
@@ -2127,6 +2212,26 @@ export default function App() {
             </div>
 
             <div className="space-y-4 text-xs">
+              {/* Product Gallery Images Preview in Review Modal */}
+              {reviewedProduct.imageUrls && reviewedProduct.imageUrls.length > 0 && (
+                <div className="space-y-2">
+                  <strong className="text-[#9e9ea8] block">Attached Media Gallery ({reviewedProduct.imageUrls.length}):</strong>
+                  <div className="flex flex-wrap gap-2">
+                    {reviewedProduct.imageUrls.map((url, i) => (
+                      <a
+                        key={i}
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="relative h-16 w-20 rounded-lg overflow-hidden border border-[#3e3e46] hover:border-[#c59b6d] transition-all shrink-0"
+                      >
+                        <img src={url} alt={`Preview ${i + 1}`} className="h-full w-full object-cover" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="p-4 rounded-xl bg-[#24242a] space-y-2">
                 <div className="flex justify-between">
                   <span className="text-[#9e9ea8]">Purchase Mode:</span>
@@ -2134,8 +2239,24 @@ export default function App() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[#9e9ea8]">Tax-Inclusive Price:</span>
-                  <span className="font-semibold text-white">{formatPrice(reviewedProduct.priceRupees)}</span>
+                  <span className="font-semibold text-white">
+                    {reviewedProduct.isVariablePrice && reviewedProduct.minPriceRupees
+                      ? `From ${formatPrice(reviewedProduct.minPriceRupees)}`
+                      : formatPrice(reviewedProduct.priceRupees)}
+                  </span>
                 </div>
+                {reviewedProduct.subcategory && (
+                  <div className="flex justify-between">
+                    <span className="text-[#9e9ea8]">Subcategory:</span>
+                    <span className="text-white font-medium">{reviewedProduct.subcategory}</span>
+                  </div>
+                )}
+                {reviewedProduct.productType && (
+                  <div className="flex justify-between">
+                    <span className="text-[#9e9ea8]">Product Type:</span>
+                    <span className="text-[#c59b6d] font-mono">{reviewedProduct.productType}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-[#9e9ea8]">Dimensions:</span>
                   <span className="text-white font-mono">{reviewedProduct.dimensions}</span>
@@ -2151,6 +2272,32 @@ export default function App() {
                   </span>
                 </div>
               </div>
+
+              {/* Variants Breakdown in Review Modal */}
+              {reviewedProduct.variants && reviewedProduct.variants.length > 0 && (
+                <div className="space-y-2">
+                  <strong className="text-[#9e9ea8] block">Configured Editions / Variants ({reviewedProduct.variants.length}):</strong>
+                  <div className="divide-y divide-[#2e2e34] border border-[#2e2e34] rounded-xl overflow-hidden bg-[#16161a]">
+                    {reviewedProduct.variants.map((v) => (
+                      <div key={v.id} className="p-3 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2.5">
+                          {v.imageUrl && (
+                            <img src={v.imageUrl} alt={v.title} className="h-8 w-8 rounded object-cover border border-[#3e3e46]" />
+                          )}
+                          <div>
+                            <span className="text-white font-medium block">{v.title}</span>
+                            <span className="text-[10px] text-[#9e9ea8] font-mono">{v.sku}</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[#c59b6d] font-semibold block">{formatPrice(v.priceRupees)}</span>
+                          <span className="text-[10px] text-emerald-400">{v.stock} in stock</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <strong className="text-[#9e9ea8] block mb-1">Editorial Description:</strong>
@@ -2538,31 +2685,58 @@ export default function App() {
               </button>
             </div>
 
-            {/* Bulk Disk Sync Option */}
+            {/* Option 1: Master Product Package (.ZIP with .md + images/) */}
+            <div className="p-4 rounded-xl bg-[#24242a] border border-[#2e2e34] space-y-3">
+              <div>
+                <strong className="text-white text-xs block">Upload Master Product Package (.zip)</strong>
+                <p className="text-[11px] text-[#9e9ea8]">
+                  Upload an isolated product archive containing <code className="font-mono text-[#c59b6d]">&lt;slug&gt;.md</code> and its <code className="font-mono text-[#c59b6d]">images/</code> folder. Media is extracted into persistent host storage automatically.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <input
+                  type="file"
+                  accept=".zip"
+                  onChange={(e) => setSelectedZipFile(e.target.files?.[0] || null)}
+                  className="text-xs text-[#9e9ea8] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#2e2e34] file:text-white hover:file:bg-[#3e3e46] cursor-pointer"
+                />
+                <button
+                  type="button"
+                  onClick={handleUploadZipPackage}
+                  disabled={isImporting || !selectedZipFile}
+                  className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors disabled:opacity-50"
+                >
+                  {isImporting ? "Processing Package..." : "Unpack & Import .zip"}
+                </button>
+              </div>
+            </div>
+
+            {/* Option 2: Bulk Disk Sync Option */}
             <div className="p-4 rounded-xl bg-[#24242a] border border-[#2e2e34] flex flex-wrap items-center justify-between gap-4">
               <div>
                 <strong className="text-white text-xs block">Sync Authoritative Directory</strong>
                 <p className="text-[11px] text-[#9e9ea8]">
-                  Automatically parse and upsert all edition markdown files from <code className="font-mono text-[#c59b6d]">docs/products/*.md</code>.
+                  Automatically parse and upsert all edition markdown and folder packages from <code className="font-mono text-[#c59b6d]">docs/products/*</code>.
                 </p>
               </div>
               <button
                 onClick={handleSyncMarkdownDocs}
                 disabled={isImporting}
-                className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors disabled:opacity-50"
+                className="px-4 py-2 rounded-xl bg-[#2e2e34] border border-[#3e3e46] text-white font-semibold text-xs hover:bg-[#3e3e46] transition-colors disabled:opacity-50"
               >
-                {isImporting ? "Syncing..." : "Sync docs/products/*.md"}
+                {isImporting ? "Syncing..." : "Sync docs/products/*"}
               </button>
             </div>
 
-            {/* Custom Paste / Upload Option */}
+            {/* Option 3: Custom Paste / Upload Option */}
             <div className="space-y-2">
               <label className="text-xs font-semibold text-white block">
-                Or Paste Product Markdown (YAML Frontmatter + Body)
+                Or Paste Custom Product Markdown (YAML Frontmatter + Body)
               </label>
               <textarea
-                rows={10}
-                placeholder="---&#10;sku: TAV-ED-001&#10;slug: kinetic-brass-object&#10;title: Kinetic Brass Object&#10;category: art-collectibles&#10;primaryMode: READY_STOCK&#10;taxInclusivePrice: 18500&#10;---&#10;&#10;# Title&#10;Description..."
+                rows={8}
+                placeholder="---&#10;sku: TAV-ED-001&#10;slug: kinetic-brass-object&#10;title: Kinetic Brass Object&#10;category: art-collectibles&#10;subcategory: Sculptures & Art Objects&#10;primaryMode: READY_STOCK&#10;taxInclusivePrice: 18500&#10;variants:&#10;  - sku: TAV-ED-001-A&#10;    title: Brushed Brass&#10;    taxInclusivePrice: 18500&#10;    initialStock: 5&#10;---&#10;&#10;# Title&#10;Description..."
                 value={markdownInput}
                 onChange={(e) => setMarkdownInput(e.target.value)}
                 className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-3 text-xs font-mono text-white placeholder-[#6e6e76] focus:outline-none focus:border-[#c59b6d]"

@@ -32,3 +32,4 @@
   - Physical specifications (weight, dimensions, returnability, mode).
   - Delivery slab logic is decoupled from `.md` files and managed centrally in the database.
 - Media storage: Uploaded images are extracted into persistent host storage on `devMachine` and served via `/uploads/products/<slug>/...` ensuring persistence across redeploys.
+

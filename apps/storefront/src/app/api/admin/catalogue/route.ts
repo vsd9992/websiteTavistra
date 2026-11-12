@@ -6,10 +6,14 @@ export async function GET() {
     const products = await prisma.product.findMany({
       include: {
         category: true,
+        images: {
+          orderBy: { sortOrder: "asc" },
+        },
         variants: {
           include: {
             inventoryLedger: true,
           },
+          orderBy: { createdAt: "asc" },
         },
       },
       orderBy: { createdAt: "asc" },
@@ -17,8 +21,20 @@ export async function GET() {
 
     const items = products.map((p) => {
       const primaryVariant = p.variants[0];
-      const availableStock = primaryVariant?.inventoryLedger?.availableStock ?? 0;
-      const reservedStock = primaryVariant?.inventoryLedger?.reservedStock ?? 0;
+      const availableStock = p.variants.reduce(
+        (sum, v) => sum + (v.inventoryLedger?.availableStock ?? 0),
+        0
+      );
+      const reservedStock = p.variants.reduce(
+        (sum, v) => sum + (v.inventoryLedger?.reservedStock ?? 0),
+        0
+      );
+
+      const variantPrices = p.variants.map((v) => Number(v.taxInclusivePrice));
+      const minPrice = variantPrices.length > 0 ? Math.min(...variantPrices) : Number(p.taxInclusivePrice);
+      const maxPrice = variantPrices.length > 0 ? Math.max(...variantPrices) : Number(p.taxInclusivePrice);
+
+      const primaryImage = p.images.find((img) => img.isPrimary) || p.images[0];
 
       return {
         id: p.id,
@@ -27,11 +43,18 @@ export async function GET() {
         name: p.title,
         category: p.category.name,
         categorySlug: p.category.slug,
+        subcategory: p.subcategory || null,
+        productType: p.productType || null,
         mode: p.primaryMode,
         priceRupees: Number(p.taxInclusivePrice),
+        minPriceRupees: minPrice,
+        maxPriceRupees: maxPrice,
+        isVariablePrice: minPrice !== maxPrice,
         availableStock,
         reservedStock,
         isPublished: p.isPublished,
+        primaryImageUrl: primaryImage ? primaryImage.url : null,
+        imageUrls: p.images.map((img) => img.url),
         shortDescription: p.shortDescription,
         fullDescription: p.fullDescription,
         materials: p.materialDescription.split(",").map((m) => m.trim()),
@@ -42,7 +65,18 @@ export async function GET() {
         returnPolicy: p.isReturnable
           ? `${p.returnWindowDays || 7}-Day Return Guarantee`
           : "Crafted to Order / Non-returnable",
-        markdownFile: `docs/products/${p.slug}.md`,
+        variants: p.variants.map((v) => ({
+          id: v.id,
+          sku: v.sku,
+          title: v.title,
+          materialFinish: v.materialFinish,
+          color: v.color,
+          imageUrl: v.imageUrl,
+          priceRupees: Number(v.taxInclusivePrice),
+          stock: v.inventoryLedger?.availableStock ?? 0,
+          isPublished: v.isPublished,
+        })),
+        markdownFile: `docs/products/${p.slug}/${p.slug}.md`,
       };
     });
 
@@ -102,4 +136,3 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
-

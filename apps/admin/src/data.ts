@@ -94,16 +94,38 @@ export interface CustomerProfile {
   notes?: string;
 }
 
+export interface CatalogueVariantItem {
+  id: string;
+  sku: string;
+  title: string;
+  materialFinish?: string;
+  color?: string;
+  imageUrl?: string | null;
+  priceRupees: number;
+  stock: number;
+  isPublished?: boolean;
+}
+
 export interface CatalogueItem {
   id: string;
   slug: string;
+  sku?: string;
   name: string;
   category: string;
+  categorySlug?: string;
+  subcategory?: string | null;
+  productType?: string | null;
   mode: "READY_STOCK" | "MADE_TO_ORDER" | "QUOTE_ONLY";
   priceRupees: number;
+  minPriceRupees?: number;
+  maxPriceRupees?: number;
+  isVariablePrice?: boolean;
   availableStock: number;
   reservedStock: number;
   isPublished: boolean;
+  primaryImageUrl?: string | null;
+  imageUrls?: string[];
+  variants?: CatalogueVariantItem[];
   shortDescription: string;
   fullDescription: string;
   materials: string[];

@@ -152,6 +152,10 @@ model Product {
   materialDescription   String
   dimensions            String              // Human-readable (e.g. "420mm dia x 35mm depth")
 
+  // Taxonomy tags (TAV-02 / taxonomy.md)
+  subcategory           String?             // e.g. "Clocks", "Mirrors", "Desk Organisation"
+  productType           String?             // e.g. "Wall Clocks", "Wall Mirrors"
+
   // Physical specifications for volumetric distance-band shipping
   weightGrams           Int                 @default(1000)
   lengthMm              Int                 @default(100)
@@ -202,6 +206,7 @@ model ProductVariant {
   title                 String              // e.g. "Smoked Oak / Brushed Brass"
   materialFinish        String
   color                 String?
+  imageUrl              String?             // Variant-specific hero/thumbnail image
   taxInclusivePrice     Decimal             @db.Decimal(10, 2)
   isPublished           Boolean             @default(true)
   createdAt             DateTime            @default(now())
