@@ -55,8 +55,6 @@ variants:
     description: Deep blackened bronze tone achieved through studio patination, sealed with organic micro-crystalline wax.
     # dimensions and weight omitted: inherits master (42mm Dia × 8mm Thickness, 140g)
     isPublished: true
-    # dimensions and weight omitted: inherits master (42mm Dia × 8mm Thickness, 140g)
-    isPublished: true
 ---
 
 # Torus Sculptural Brass Key Tag
