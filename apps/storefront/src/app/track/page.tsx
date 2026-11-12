@@ -28,6 +28,7 @@ function TrackOrderContent() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [payingBalance, setPayingBalance] = useState(false);
   const [paymentSuccessMessage, setPaymentSuccessMessage] = useState<string | null>(null);
+  const [paymentErrorMessage, setPaymentErrorMessage] = useState<string | null>(null);
 
   // Direct server query function
   const fetchOrderFromServer = async (ref: string, contactInfo?: string) => {
@@ -37,7 +38,7 @@ function TrackOrderContent() {
       const url = `/api/orders?orderId=${encodeURIComponent(ref.trim())}${
         contactInfo ? `&contact=${encodeURIComponent(contactInfo.trim())}` : ""
       }`;
-      const res = await fetch(url, { credentials: "include" });
+      const res = await fetch(url, { credentials: "include", cache: "no-store" });
       const data = await res.json();
 
       if (res.ok && data.found && data.order) {
@@ -88,6 +89,7 @@ function TrackOrderContent() {
     if (!matchedOrder) return;
     setPayingBalance(true);
     setPaymentSuccessMessage(null);
+    setPaymentErrorMessage(null);
 
     try {
       const res = await fetch(`/api/orders/${matchedOrder.id}/pay-balance`, {
@@ -97,17 +99,17 @@ function TrackOrderContent() {
       });
       const data = await res.json();
 
-      if (data.success) {
+      if (res.ok && data.success) {
         setPaymentSuccessMessage(
           `Payment of ₹${matchedOrder.balanceDueRupees.toLocaleString("en-IN")} cleared successfully! Your order is now 100% verified.`
         );
         // Refresh order details from server
-        await fetchOrderFromServer(matchedOrder.id, matchedOrder.email);
+        await fetchOrderFromServer(matchedOrder.id, contact || matchedOrder.email);
       } else {
-        alert(data.error || "Unable to complete balance payment.");
+        setPaymentErrorMessage(data.error || "Unable to complete balance payment.");
       }
     } catch {
-      alert("Network error processing balance payment.");
+      setPaymentErrorMessage("Network error processing balance payment.");
     } finally {
       setPayingBalance(false);
     }
@@ -215,10 +217,15 @@ function TrackOrderContent() {
         </div>
       </div>
 
-      {/* Success Notification */}
+      {/* Success / Error Notifications */}
       {paymentSuccessMessage && (
         <div className="mx-auto max-w-2xl p-4 rounded-xl border border-emerald-300 bg-emerald-50 text-xs text-emerald-900 font-semibold text-center">
           ✓ {paymentSuccessMessage}
+        </div>
+      )}
+      {paymentErrorMessage && (
+        <div className="mx-auto max-w-2xl p-4 rounded-xl border border-rose-300 bg-rose-50 text-xs text-rose-800 font-semibold text-center">
+          {paymentErrorMessage}
         </div>
       )}
 
@@ -245,10 +252,24 @@ function TrackOrderContent() {
                     Placed on {matchedOrder.createdAt} · Client: <strong className="text-[var(--color-ink)]">{matchedOrder.customerName}</strong>
                   </p>
                 </div>
-                <div className="text-left sm:text-right space-y-1">
-                  <span className="inline-block rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
-                    {matchedOrder.statusLabel}
-                  </span>
+                <div className="text-left sm:text-right space-y-1.5">
+                  <div className="flex flex-wrap sm:justify-end gap-2">
+                    <span
+                      className={`inline-block rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wider border ${
+                        matchedOrder.status === "CANCELLED" || matchedOrder.status === "REFUNDED"
+                          ? "bg-rose-50 text-rose-800 border-rose-200"
+                          : matchedOrder.balanceDueRupees <= 0
+                          ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                          : "bg-amber-50 text-amber-800 border-amber-200"
+                      }`}
+                    >
+                      {matchedOrder.paymentStatusLabel ||
+                        (matchedOrder.balanceDueRupees <= 0 ? "100% Paid — Verified" : "25% Advance Paid")}
+                    </span>
+                    <span className="inline-block rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wider bg-[var(--color-ivory)] text-[var(--color-ink)] border border-[var(--color-decorative-border)]">
+                      {matchedOrder.statusLabel}
+                    </span>
+                  </div>
                   <p className="text-xs text-[var(--color-muted-light)]">
                     Destination: {matchedOrder.city}, {matchedOrder.state} ({matchedOrder.destinationPin})
                   </p>
@@ -261,35 +282,50 @@ function TrackOrderContent() {
                   Milestone Lifecycle Progress
                 </h3>
 
-                {matchedOrder.mode === "MADE_TO_ORDER" ? (
+                {matchedOrder.status === "CANCELLED" || matchedOrder.status === "REFUNDED" ? (
+                  <div className="p-5 rounded-xl border border-rose-300 bg-rose-50 text-xs text-rose-900 space-y-1">
+                    <span className="text-[10px] uppercase font-bold tracking-wider block">
+                      Consignment Cancelled
+                    </span>
+                    <p className="font-medium">{matchedOrder.statusDescription}</p>
+                  </div>
+                ) : matchedOrder.mode === "MADE_TO_ORDER" ? (
                   /* MTO Stepper */
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                     <div className="p-4 rounded-xl border border-emerald-300 bg-emerald-50/70 space-y-1">
                       <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider">Step 1 · Complete</span>
-                      <h4 className="text-xs font-semibold text-[var(--color-ink)]">25% Advance Verified</h4>
-                      <p className="text-[11px] text-[var(--color-muted-light)]">₹{matchedOrder.amountPaidRupees.toLocaleString("en-IN")} received</p>
+                      <h4 className="text-xs font-semibold text-[var(--color-ink)]">
+                        {matchedOrder.balanceDueRupees <= 0 ? "100% Payment Verified" : "25% Advance Verified"}
+                      </h4>
+                      <p className="text-[11px] text-[var(--color-muted-light)]">
+                        ₹{matchedOrder.amountPaidRupees.toLocaleString("en-IN")} received
+                      </p>
                     </div>
 
                     <div className={`p-4 rounded-xl border space-y-1 ${
                       matchedOrder.status === "CONFIRMED"
-                        ? "border-2 border-amber-400 bg-amber-50"
+                        ? matchedOrder.isGraceActive === false
+                          ? "border-2 border-emerald-400 bg-emerald-50"
+                          : "border-2 border-amber-400 bg-amber-50"
                         : "border-emerald-300 bg-emerald-50/70"
                     }`}>
                       <span className="text-[10px] uppercase font-bold tracking-wider text-amber-900">
-                        Step 2 · {matchedOrder.status === "CONFIRMED" ? "Active" : "Complete"}
+                        Step 2 · {matchedOrder.status === "CONFIRMED" ? (matchedOrder.isGraceActive === false ? "Ready Day 8+" : "Active") : "Complete"}
                       </span>
                       <h4 className="text-xs font-semibold text-[var(--color-ink)]">7-Day Confirmation Grace</h4>
                       <p className="text-[11px] text-amber-900 font-medium">
                         {matchedOrder.status === "CONFIRMED"
-                          ? `${matchedOrder.graceDaysRemaining !== undefined ? matchedOrder.graceDaysRemaining : 4} days remaining`
-                          : "Grace concluded · Machined"}
+                          ? matchedOrder.graceDaysRemaining && matchedOrder.graceDaysRemaining > 0
+                            ? `${matchedOrder.graceDaysRemaining} day(s) left${matchedOrder.releaseEligibleDate ? ` · Start ${matchedOrder.releaseEligibleDate}` : ""}`
+                            : "Grace elapsed · Ready for release"
+                          : "Grace concluded · Released"}
                       </p>
                     </div>
 
                     <div className={`p-4 rounded-xl border space-y-1 ${
                       matchedOrder.status === "IN_PRODUCTION"
                         ? "border-2 border-blue-400 bg-blue-50"
-                        : matchedOrder.status === "PRODUCTION_COMPLETED" || matchedOrder.status === "AWAITING_DISPATCH" || matchedOrder.status === "DISPATCHED"
+                        : matchedOrder.status === "PRODUCTION_COMPLETED" || matchedOrder.status === "AWAITING_DISPATCH" || matchedOrder.status === "DISPATCHED" || matchedOrder.status === "DELIVERED"
                         ? "border-emerald-300 bg-emerald-50/70"
                         : "border-[var(--color-decorative-border)] bg-[var(--color-ivory)] opacity-60"
                     }`}>
@@ -303,14 +339,14 @@ function TrackOrderContent() {
                     </div>
 
                     <div className={`p-4 rounded-xl border space-y-1 ${
-                      matchedOrder.status === "DISPATCHED"
+                      matchedOrder.status === "DELIVERED" || matchedOrder.status === "DISPATCHED"
                         ? "border-2 border-emerald-500 bg-emerald-50"
                         : matchedOrder.status === "PRODUCTION_COMPLETED" || matchedOrder.status === "AWAITING_DISPATCH"
                         ? "border-2 border-amber-400 bg-amber-50"
                         : "border-[var(--color-decorative-border)] bg-[var(--color-ivory)] opacity-60"
                     }`}>
                       <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-ink)]">
-                        Step 4 · {matchedOrder.status === "DISPATCHED" ? "In Transit" : matchedOrder.status === "PRODUCTION_COMPLETED" ? "QC Ready" : "Pending"}
+                        Step 4 · {matchedOrder.status === "DELIVERED" ? "Delivered" : matchedOrder.status === "DISPATCHED" ? "In Transit" : matchedOrder.status === "AWAITING_DISPATCH" ? "100% Paid · Crating" : matchedOrder.status === "PRODUCTION_COMPLETED" ? "QC Ready" : "Pending"}
                       </span>
                       <h4 className="text-xs font-semibold text-[var(--color-ink)]">QC & Insured Handover</h4>
                       <p className="text-[11px] text-[var(--color-muted-light)]">
@@ -327,21 +363,43 @@ function TrackOrderContent() {
                       <p className="text-[11px] text-[var(--color-muted-light)]">Electronic verification done</p>
                     </div>
 
-                    <div className="p-4 rounded-xl border border-emerald-300 bg-emerald-50/70 space-y-1">
-                      <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider">Step 2 · Complete</span>
+                    <div className={`p-4 rounded-xl border space-y-1 ${
+                      matchedOrder.status === "DISPATCHED" || matchedOrder.status === "DELIVERED"
+                        ? "border-emerald-300 bg-emerald-50/70"
+                        : "border-2 border-amber-400 bg-amber-50"
+                    }`}>
+                      <span className="text-[10px] uppercase font-bold text-amber-900 tracking-wider">
+                        Step 2 · {matchedOrder.status === "DISPATCHED" || matchedOrder.status === "DELIVERED" ? "Complete" : "Active"}
+                      </span>
                       <h4 className="text-xs font-semibold text-[var(--color-ink)]">Inspection & Crating</h4>
                       <p className="text-[11px] text-[var(--color-muted-light)]">Multi-layer protective box</p>
                     </div>
 
-                    <div className="p-4 rounded-xl border-2 border-emerald-500 bg-emerald-50 space-y-1">
-                      <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider">Step 3 · Active</span>
+                    <div className={`p-4 rounded-xl border space-y-1 ${
+                      matchedOrder.status === "DELIVERED"
+                        ? "border-emerald-300 bg-emerald-50/70"
+                        : matchedOrder.status === "DISPATCHED"
+                        ? "border-2 border-emerald-500 bg-emerald-50"
+                        : "border-[var(--color-decorative-border)] bg-[var(--color-ivory)] opacity-60"
+                    }`}>
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-800">
+                        Step 3 · {matchedOrder.status === "DELIVERED" ? "Complete" : matchedOrder.status === "DISPATCHED" ? "Active" : "Pending"}
+                      </span>
                       <h4 className="text-xs font-semibold text-[var(--color-ink)]">In Transit with Carrier</h4>
                       <p className="text-[11px] text-[var(--color-muted-light)]">{matchedOrder.carrierName}</p>
                     </div>
 
-                    <div className="p-4 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] opacity-60 space-y-1">
-                      <span className="text-[10px] uppercase font-bold text-[var(--color-muted-light)] tracking-wider">Step 4 · Pending</span>
-                      <h4 className="text-xs font-semibold text-[var(--color-ink)]">Out for Delivery</h4>
+                    <div className={`p-4 rounded-xl border space-y-1 ${
+                      matchedOrder.status === "DELIVERED"
+                        ? "border-2 border-emerald-500 bg-emerald-50"
+                        : "border-[var(--color-decorative-border)] bg-[var(--color-ivory)] opacity-60"
+                    }`}>
+                      <span className="text-[10px] uppercase font-bold text-[var(--color-muted-light)] tracking-wider">
+                        Step 4 · {matchedOrder.status === "DELIVERED" ? "Complete" : "Pending"}
+                      </span>
+                      <h4 className="text-xs font-semibold text-[var(--color-ink)]">
+                        {matchedOrder.status === "DELIVERED" ? "Delivered" : "Out for Delivery"}
+                      </h4>
                       <p className="text-[11px] text-[var(--color-muted-light)]">Estimated {matchedOrder.transitEstimate}</p>
                     </div>
                   </div>
@@ -463,7 +521,9 @@ function TrackOrderContent() {
                   </div>
 
                   {/* DAY 1 ENABLED 75% BALANCE PAYMENT ACTION */}
-                  {matchedOrder.balanceDueRupees > 0 && (
+                  {matchedOrder.balanceDueRupees > 0 &&
+                    matchedOrder.status !== "CANCELLED" &&
+                    matchedOrder.status !== "REFUNDED" && (
                     <div className="rounded-xl border border-amber-300 bg-amber-50/80 p-5 space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] uppercase font-bold tracking-wider text-amber-900">

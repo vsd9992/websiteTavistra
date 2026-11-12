@@ -26,10 +26,15 @@ export interface AdminOrder {
     | "AWAITING_DISPATCH"
     | "DISPATCHED"
     | "DELIVERED"
-    | "CANCELLED";
+    | "CANCELLED"
+    | "REFUNDED";
   carrierName: string;
   awbNumber?: string;
   graceDaysRemaining?: number;
+  isGraceActive?: boolean;
+  releaseEligibleDate?: string | null;
+  isFullyPaid?: boolean;
+  paymentStatusLabel?: string;
   qcNotes?: string;
   qcImages?: string[];
   placedAt: string;

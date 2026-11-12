@@ -12,14 +12,7 @@ import {
   ShippingCalcItemInput,
 } from "@/lib/logisticsEngine";
 import { getAuthenticatedUser } from "@/lib/auth";
-
-// Helper to compute grace days remaining from confirmedAt
-function computeGraceDaysRemaining(confirmedAt: Date | null): number {
-  if (!confirmedAt) return 7;
-  const elapsedMs = Date.now() - new Date(confirmedAt).getTime();
-  const elapsedDays = Math.floor(elapsedMs / (1000 * 60 * 60 * 24));
-  return Math.max(0, 7 - elapsedDays);
-}
+import { deriveOrderStatusPresentation, safeParseQcImages } from "@/lib/orderStatus";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -86,8 +79,8 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      const graceDays = computeGraceDaysRemaining(order.confirmedAt);
-      const qcImagesArray = order.qcImages ? JSON.parse(order.qcImages) : [];
+      const qcImagesArray = safeParseQcImages(order.qcImages);
+      const presentation = deriveOrderStatusPresentation(order);
 
       return NextResponse.json({
         found: true,
@@ -117,31 +110,7 @@ export async function GET(req: NextRequest) {
           awbNumber: order.trackingNumber || undefined,
           transitEstimate: "2–4 business days",
           status: order.status,
-          statusLabel:
-            order.status === "DISPATCHED"
-              ? "In Transit with Carrier"
-              : order.status === "AWAITING_DISPATCH"
-              ? "100% Paid — Packing for Dispatch"
-              : order.status === "PRODUCTION_COMPLETED"
-              ? "Workshop Crafting Completed — QC Verified"
-              : order.status === "IN_PRODUCTION"
-              ? "Machining in Progress in Tavistra Workshop"
-              : order.purchaseMode === "MADE_TO_ORDER"
-              ? "7-Day Confirmation Grace Window Active"
-              : "Order Confirmed",
-          statusDescription:
-            order.status === "DISPATCHED"
-              ? `Consignment handed over to ${order.carrierName || "carrier"} under AWB ${order.trackingNumber || ""}.`
-              : order.status === "AWAITING_DISPATCH"
-              ? "Cumulative 100% payment verified. Workshop packaging and carrier scheduling active."
-              : order.status === "PRODUCTION_COMPLETED"
-              ? "Quality control verified. Customer inspection photos ready. Final balance settlement enabled."
-              : order.status === "IN_PRODUCTION"
-              ? "Precision crafting and machining currently active in our studio workshop."
-              : order.purchaseMode === "MADE_TO_ORDER"
-              ? "25% advance verified. Physical workshop machining begins on Day 8. 100% refund cancellation permitted within initial 7 days."
-              : "Consignment crated and scheduled for dispatch.",
-          graceDaysRemaining: graceDays,
+          ...presentation,
           qcNotes: order.qcNotes || undefined,
           qcImages: qcImagesArray,
           createdAt: order.createdAt.toLocaleDateString("en-IN", {
@@ -204,9 +173,9 @@ export async function GET(req: NextRequest) {
           carrierName: order.carrierName || "Pending Carrier Assignment",
           awbNumber: order.trackingNumber || undefined,
           status: order.status,
-          graceDaysRemaining: computeGraceDaysRemaining(order.confirmedAt),
+          ...deriveOrderStatusPresentation(order),
           qcNotes: order.qcNotes || undefined,
-          qcImages: order.qcImages ? JSON.parse(order.qcImages) : [],
+          qcImages: safeParseQcImages(order.qcImages),
           createdAt: order.createdAt.toLocaleDateString("en-IN", {
             day: "numeric",
             month: "long",
@@ -255,9 +224,9 @@ export async function GET(req: NextRequest) {
         carrierName: order.carrierName || "Pending Carrier Assignment",
         awbNumber: order.trackingNumber || undefined,
         status: order.status,
-        graceDaysRemaining: computeGraceDaysRemaining(order.confirmedAt),
+        ...deriveOrderStatusPresentation(order),
         qcNotes: order.qcNotes || undefined,
-        qcImages: order.qcImages ? JSON.parse(order.qcImages) : [],
+        qcImages: safeParseQcImages(order.qcImages),
         placedAt: order.createdAt.toLocaleDateString("en-IN", {
           day: "numeric",
           month: "short",

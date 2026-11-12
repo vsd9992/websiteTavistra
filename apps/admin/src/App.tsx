@@ -119,7 +119,10 @@ export default function App() {
   // Search & Filters
   const [orderSearch, setOrderSearch] = useState("");
   const [modeFilter, setModeFilter] = useState<"ALL" | "READY_STOCK" | "MADE_TO_ORDER">("ALL");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [copiedLinkOrderId, setCopiedLinkOrderId] = useState<string | null>(null);
 
   // Ticket detail view
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
@@ -135,6 +138,8 @@ export default function App() {
   const [qcOrderModal, setQcOrderModal] = useState<AdminOrder | null>(null);
   const [qcNotesInput, setQcNotesInput] = useState("");
   const [qcImageInput, setQcImageInput] = useState("");
+  const [isUploadingQc, setIsUploadingQc] = useState(false);
+  const [qcUploadError, setQcUploadError] = useState<string | null>(null);
 
   // AWB Edit State
   const [editingAwbId, setEditingAwbId] = useState<string | null>(null);
@@ -237,6 +242,7 @@ export default function App() {
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
       const matchesMode = modeFilter === "ALL" || order.mode === modeFilter;
+      const matchesStatus = statusFilter === "ALL" || order.status === statusFilter;
       const query = orderSearch.toLowerCase().trim();
       const matchesSearch =
         !query ||
@@ -244,137 +250,212 @@ export default function App() {
         order.customerName.toLowerCase().includes(query) ||
         order.email.toLowerCase().includes(query) ||
         order.pincode.includes(query);
-      return matchesMode && matchesSearch;
+      return matchesMode && matchesStatus && matchesSearch;
     });
-  }, [orders, modeFilter, orderSearch]);
+  }, [orders, modeFilter, statusFilter, orderSearch]);
 
-  // Release MTO order to workshop
-  const handleReleaseToProduction = async (orderId: string) => {
-    try {
-      await fetch(`/api/orders/${orderId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "RELEASE_TO_WORKSHOP" }),
-      });
-    } catch (err) {
-      console.warn("Backend release error:", err);
-    }
-
-    setOrders((prev) =>
-      prev.map((o) => {
-        if (o.id === orderId) {
-          logAuditAction(
-            "PRODUCTION_RELEASE",
-            "Order",
-            o.orderNumber,
-            `Released to workshop crafting. Initial 7-day confirmation grace concluded.`
-          );
-          return {
-            ...o,
-            status: "WORKSHOP_CRAFTING",
-            graceDaysRemaining: 0,
-          };
-        }
-        return o;
-      })
-    );
+  const getStorefrontBalanceLink = (orderNumber: string) => {
+    const origin =
+      typeof window !== "undefined" && window.location.port === "3002"
+        ? `${window.location.protocol}//${window.location.hostname}:3001`
+        : typeof window !== "undefined"
+        ? window.location.origin
+        : "http://192.168.1.100:3001";
+    return `${origin}/track?orderId=${encodeURIComponent(orderNumber)}`;
   };
 
-  // Cancel MTO order during grace
-  const handleCancelOrder = async (orderId: string) => {
-    if (confirm("Are you sure you want to process a 100% full pre-production refund cancellation?")) {
-      try {
-        await fetch(`/api/orders/${orderId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "CANCEL_ORDER" }),
-        });
-      } catch (err) {
-        console.warn("Backend cancel error:", err);
+  const handleCopyBalanceLink = async (order: AdminOrder) => {
+    const link = getStorefrontBalanceLink(order.orderNumber);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(link);
       }
+    } catch {
+      // Clipboard API requires HTTPS or user focus; feedback banner still shows exact URL
+    }
+    setCopiedLinkOrderId(order.id);
+    setActionFeedback({
+      type: "success",
+      text: `Copied Balance Payment URL for ${order.orderNumber}: ${link}`,
+    });
+    setTimeout(() => {
+      setCopiedLinkOrderId((prev) => (prev === order.id ? null : prev));
+    }, 4000);
+  };
 
-      setOrders((prev) =>
-        prev.map((o) => {
-          if (o.id === orderId) {
-            logAuditAction(
-              "ORDER_CANCELLED_REFUND",
-              "Order",
-              o.orderNumber,
-              `Processed 100% pre-production advance refund (₹${o.amountPaidRupees.toLocaleString("en-IN")}) during 7-day grace.`
-            );
-            return {
-              ...o,
-              status: "CANCELLED",
-            };
-          }
-          return o;
-        })
+  // Release MTO order to workshop (strict Day 8 IST enforcement)
+  const handleReleaseToProduction = async (orderId: string) => {
+    setActionFeedback(null);
+    const target = orders.find((o) => o.id === orderId);
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "RELEASE_TO_WORKSHOP",
+          staffName: currentStaff.name,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setActionFeedback({
+          type: "error",
+          text: data.message || data.error || "Unable to release order to workshop.",
+        });
+        return;
+      }
+      logAuditAction(
+        "PRODUCTION_RELEASE",
+        "Order",
+        target?.orderNumber || orderId,
+        `Released to workshop crafting. Initial 7-day confirmation grace concluded.`
       );
+      setActionFeedback({
+        type: "success",
+        text: data.message || `Released ${target?.orderNumber || orderId} to workshop machining.`,
+      });
+      await syncBackendData();
+    } catch (err) {
+      setActionFeedback({
+        type: "error",
+        text: `Backend release failed: ${(err as Error).message}`,
+      });
+    }
+  };
+
+  // Cancel order pre-production / pre-dispatch (100% refund)
+  const handleCancelOrder = async (orderId: string) => {
+    if (!confirm("Are you sure you want to process a 100% full pre-production refund cancellation?")) {
+      return;
+    }
+    setActionFeedback(null);
+    const target = orders.find((o) => o.id === orderId);
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "CANCEL_ORDER",
+          staffName: currentStaff.name,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setActionFeedback({
+          type: "error",
+          text: data.message || data.error || "Unable to cancel order.",
+        });
+        return;
+      }
+      logAuditAction(
+        "ORDER_CANCELLED_REFUND",
+        "Order",
+        target?.orderNumber || orderId,
+        `Processed 100% pre-production refund (₹${(target?.amountPaidRupees || 0).toLocaleString("en-IN")}).`
+      );
+      setActionFeedback({
+        type: "success",
+        text: data.message || `Order ${target?.orderNumber || orderId} cancelled cleanly.`,
+      });
+      await syncBackendData();
+    } catch (err) {
+      setActionFeedback({
+        type: "error",
+        text: `Backend cancel failed: ${(err as Error).message}`,
+      });
+    }
+  };
+
+  // Upload local workshop QC images to /uploads/qc/<orderNumber>/
+  const handleQcFileUpload = async (files: FileList | null) => {
+    if (!qcOrderModal || !files || files.length === 0) return;
+    setIsUploadingQc(true);
+    setQcUploadError(null);
+    try {
+      const formData = new FormData();
+      Array.from(files).forEach((f) => formData.append("files", f));
+      const res = await fetch(`/api/admin/orders/${qcOrderModal.id}/qc-upload`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok || !Array.isArray(data.urls)) {
+        setQcUploadError(data.error || "Failed to upload workshop QC images.");
+        return;
+      }
+      const existing = qcImageInput
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const merged = Array.from(new Set([...existing, ...data.urls]));
+      setQcImageInput(merged.join("\n"));
+    } catch (err) {
+      setQcUploadError(`Upload failed: ${(err as Error).message}`);
+    } finally {
+      setIsUploadingQc(false);
     }
   };
 
   // Save Workshop QC Inspection Photos & Notes
   const handleSaveQc = async () => {
     if (!qcOrderModal) return;
+    setQcUploadError(null);
     const images = qcImageInput
       .split("\n")
       .map((s) => s.trim())
       .filter(Boolean);
 
     try {
-      await fetch(`/api/orders/${qcOrderModal.id}`, {
+      const res = await fetch(`/api/orders/${qcOrderModal.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "UPDATE_QC",
           qcNotes: qcNotesInput.trim(),
-          qcImages: images.length > 0 ? images : undefined,
+          qcImages: images,
+          staffName: currentStaff.name,
         }),
       });
+      const data = await res.json();
+      if (!res.ok) {
+        setQcUploadError(data.message || data.error || "Unable to save QC inspection.");
+        return;
+      }
+      logAuditAction(
+        "QC_PHOTOS_PUBLISHED",
+        "Order",
+        qcOrderModal.orderNumber,
+        `Uploaded ${images.length} QC verification photo(s) with craftsman quality notes.`
+      );
+      setActionFeedback({
+        type: "success",
+        text: data.message || `Published ${images.length} QC photo(s) for ${qcOrderModal.orderNumber}.`,
+      });
+      setQcOrderModal(null);
+      setQcNotesInput("");
+      setQcImageInput("");
+      await syncBackendData();
     } catch (err) {
-      console.warn("Backend QC save error:", err);
+      setQcUploadError(`Backend QC save failed: ${(err as Error).message}`);
     }
-
-    setOrders((prev) =>
-      prev.map((o) => {
-        if (o.id === qcOrderModal.id) {
-          logAuditAction(
-            "QC_PHOTOS_PUBLISHED",
-            "Order",
-            o.orderNumber,
-            `Uploaded ${images.length} QC verification photos to customer portal with craftsman quality notes.`
-          );
-          return {
-            ...o,
-            status: "PRODUCTION_COMPLETED",
-            qcNotes: qcNotesInput.trim(),
-            qcImages: images,
-          };
-        }
-        return o;
-      })
-    );
-    setQcOrderModal(null);
-    setQcNotesInput("");
-    setQcImageInput("");
   };
 
   // Save AWB and Carrier with HARD 100% PAYMENT LOCKOUT
   const handleSaveAwb = async (orderId: string) => {
     if (!awbInput.trim()) return;
+    setActionFeedback(null);
     const targetOrder = orders.find((o) => o.id === orderId);
 
     // HARD SECURITY GATE: 100% cumulative payment verified before dispatch
     if (targetOrder && targetOrder.balanceDueRupees > 0) {
-      alert(
-        `⛔ DISPATCH BLOCKED: Customer still owes ₹${targetOrder.balanceDueRupees.toLocaleString(
-          "en-IN"
-        )} (75% balance). Under TAV-06 and studio policy, 100% payment must be cleared prior to physical packing or carrier handover.`
-      );
+      setActionFeedback({
+        type: "error",
+        text: `Dispatch Blocked — 100% Payment Required. Balance Due: ₹${targetOrder.balanceDueRupees.toLocaleString("en-IN")}.`,
+      });
       return;
     }
 
-    const finalCarrier = carrierInput || targetOrder?.carrierName || "Blue Dart Fragile Surface";
+    const finalCarrier = carrierInput.trim() || targetOrder?.carrierName || "Blue Dart Fragile Surface";
     const finalAwb = awbInput.trim().toUpperCase();
 
     try {
@@ -385,39 +466,76 @@ export default function App() {
           action: "DISPATCH",
           carrierName: finalCarrier,
           awbNumber: finalAwb,
+          staffName: currentStaff.name,
         }),
       });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.message || data.error || "Unable to dispatch order.");
+        setActionFeedback({
+          type: "error",
+          text: data.message || data.error || "Unable to dispatch order.",
+        });
         return;
       }
+      logAuditAction(
+        "AWB_ASSIGNED",
+        "Order",
+        targetOrder?.orderNumber || orderId,
+        `Assigned carrier ${finalCarrier} with AWB tracking ${finalAwb}.`
+      );
+      setActionFeedback({
+        type: "success",
+        text: data.message || `Dispatched ${targetOrder?.orderNumber || orderId} via ${finalCarrier}.`,
+      });
+      setEditingAwbId(null);
+      setCarrierInput("");
+      setAwbInput("");
+      await syncBackendData();
     } catch (err) {
-      console.warn("Backend dispatch error:", err);
+      setActionFeedback({
+        type: "error",
+        text: `Backend dispatch failed: ${(err as Error).message}`,
+      });
     }
+  };
 
-    setOrders((prev) =>
-      prev.map((o) => {
-        if (o.id === orderId) {
-          logAuditAction(
-            "AWB_ASSIGNED",
-            "Order",
-            o.orderNumber,
-            `Assigned carrier ${finalCarrier} with AWB tracking ${finalAwb}.`
-          );
-          return {
-            ...o,
-            carrierName: finalCarrier,
-            awbNumber: finalAwb,
-            status: "DISPATCHED",
-          };
-        }
-        return o;
-      })
-    );
-    setEditingAwbId(null);
-    setCarrierInput("");
-    setAwbInput("");
+  const handleMarkDelivered = async (orderId: string) => {
+    setActionFeedback(null);
+    const targetOrder = orders.find((o) => o.id === orderId);
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "MARK_DELIVERED",
+          staffName: currentStaff.name,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setActionFeedback({
+          type: "error",
+          text: data.message || data.error || "Unable to mark order delivered.",
+        });
+        return;
+      }
+      logAuditAction(
+        "ORDER_DELIVERED",
+        "Order",
+        targetOrder?.orderNumber || orderId,
+        "Marked consignment delivered cleanly."
+      );
+      setActionFeedback({
+        type: "success",
+        text: data.message || `Order ${targetOrder?.orderNumber || orderId} marked delivered.`,
+      });
+      await syncBackendData();
+    } catch (err) {
+      setActionFeedback({
+        type: "error",
+        text: `Backend update failed: ${(err as Error).message}`,
+      });
+    }
   };
 
   // Send reply to support ticket
@@ -990,26 +1108,72 @@ export default function App() {
         {/* TAB 2: ORDERS WORKLIST */}
         {activeTab === "ORDERS" && (
           <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-2xl bg-[#1c1c20] border border-[#2e2e34]">
-              <input
-                type="text"
-                placeholder="Search order ref, client, or PIN..."
-                value={orderSearch}
-                onChange={(e) => setOrderSearch(e.target.value)}
-                className="rounded-xl border border-[#3e3e46] bg-[#121214] px-4 py-2 text-xs text-white placeholder-[#6e6e76] w-full sm:w-72 focus:outline-none focus:border-[#c59b6d]"
-              />
-              <div className="flex items-center gap-2 self-start sm:self-auto">
-                {(["ALL", "READY_STOCK", "MADE_TO_ORDER"] as const).map((m) => (
+            {actionFeedback && (
+              <div
+                className={`p-3.5 rounded-xl border text-xs flex items-center justify-between ${
+                  actionFeedback.type === "error"
+                    ? "bg-red-950/50 border-red-800/70 text-red-200"
+                    : "bg-emerald-950/50 border-emerald-800/70 text-emerald-200"
+                }`}
+              >
+                <span>{actionFeedback.text}</span>
+                <button
+                  onClick={() => setActionFeedback(null)}
+                  className="text-[11px] opacity-75 hover:opacity-100 ml-4"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            <div className="space-y-3 p-4 rounded-2xl bg-[#1c1c20] border border-[#2e2e34]">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <input
+                  type="text"
+                  placeholder="Search order ref, client, or PIN..."
+                  value={orderSearch}
+                  onChange={(e) => setOrderSearch(e.target.value)}
+                  className="rounded-xl border border-[#3e3e46] bg-[#121214] px-4 py-2 text-xs text-white placeholder-[#6e6e76] w-full sm:w-72 focus:outline-none focus:border-[#c59b6d]"
+                />
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  {(["ALL", "READY_STOCK", "MADE_TO_ORDER"] as const).map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setModeFilter(m)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                        modeFilter === m
+                          ? "bg-[#c59b6d] text-[#121214]"
+                          : "bg-[#24242a] text-[#9e9ea8] hover:text-white"
+                      }`}
+                    >
+                      {m === "ALL" ? "All Modes" : m === "READY_STOCK" ? "Ready Stock" : "Made to Order"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-[#2e2e34]">
+                <span className="text-[10px] uppercase tracking-wider text-[#9e9ea8] mr-1">Status:</span>
+                {[
+                  { id: "ALL", label: "All" },
+                  { id: "CONFIRMED", label: "Confirmed" },
+                  { id: "IN_PRODUCTION", label: "In Production" },
+                  { id: "PRODUCTION_COMPLETED", label: "QC Completed" },
+                  { id: "AWAITING_DISPATCH", label: "Awaiting Dispatch" },
+                  { id: "DISPATCHED", label: "Dispatched" },
+                  { id: "DELIVERED", label: "Delivered" },
+                  { id: "CANCELLED", label: "Cancelled" },
+                ].map((st) => (
                   <button
-                    key={m}
-                    onClick={() => setModeFilter(m)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                      modeFilter === m
-                        ? "bg-[#c59b6d] text-[#121214]"
+                    key={st.id}
+                    onClick={() => setStatusFilter(st.id)}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                      statusFilter === st.id
+                        ? "bg-white text-[#121214]"
                         : "bg-[#24242a] text-[#9e9ea8] hover:text-white"
                     }`}
                   >
-                    {m === "ALL" ? "All Modes" : m === "READY_STOCK" ? "Ready Stock" : "Made to Order"}
+                    {st.label}
                   </button>
                 ))}
               </div>
@@ -1082,12 +1246,30 @@ export default function App() {
         {/* TAB 3: PRODUCTION & 7-DAY GRACE */}
         {activeTab === "PRODUCTION" && (
           <div className="space-y-6">
+            {actionFeedback && (
+              <div
+                className={`p-3.5 rounded-xl border text-xs flex items-center justify-between ${
+                  actionFeedback.type === "error"
+                    ? "bg-red-950/50 border-red-800/70 text-red-200"
+                    : "bg-emerald-950/50 border-emerald-800/70 text-emerald-200"
+                }`}
+              >
+                <span>{actionFeedback.text}</span>
+                <button
+                  onClick={() => setActionFeedback(null)}
+                  className="text-[11px] opacity-75 hover:opacity-100 ml-4"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             <div className="p-5 rounded-2xl bg-amber-950/20 border border-amber-800/40 space-y-2">
               <h3 className="font-semibold text-sm text-amber-300 flex items-center gap-2">
                 <span>⚠️</span> 7-Day Confirmation Grace & Production Cutoff (TAV-06)
               </h3>
               <p className="text-xs text-amber-200/80 leading-relaxed">
-                Made to Order pieces enforce an independent 7-calendar-day grace period. Physical workshop machining strictly commences on <strong>Day 8</strong>. Customers are entitled to pre-production alterations or 100% full refund cancellations during this grace window.
+                Made to Order pieces enforce an independent 7-calendar-day grace period (local IST date = Day 0). Physical workshop machining strictly commences on <strong>Day 8</strong>. Customers are entitled to pre-production alterations or 100% full refund cancellations during this grace window, and staff must verify courier feasibility for the destination PIN before release.
               </p>
             </div>
 
@@ -1095,7 +1277,14 @@ export default function App() {
               {orders
                 .filter((o) => o.mode === "MADE_TO_ORDER")
                 .map((order) => {
-                  const isGraceActive = order.status === "GRACE_PERIOD_ACTIVE";
+                  const isCancelled = order.status === "CANCELLED" || order.status === "REFUNDED";
+                  const isConfirmedAwaitingRelease =
+                    order.status === "CONFIRMED" || order.status === "GRACE_PERIOD_ACTIVE";
+                  const isGraceWindowOpen =
+                    isConfirmedAwaitingRelease &&
+                    (order.isGraceActive ?? (order.graceDaysRemaining ?? 0) > 0);
+                  const matchedPin = pincodes.find((p) => p.pincode === order.pincode);
+                  const isPinFeasible = matchedPin ? matchedPin.isServiceable : false;
 
                   return (
                     <div
@@ -1109,7 +1298,9 @@ export default function App() {
                         </div>
                         <span
                           className={`px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider ${
-                            isGraceActive
+                            isCancelled
+                              ? "bg-red-950 text-red-300 border border-red-800"
+                              : isGraceWindowOpen
                               ? "bg-amber-950 text-amber-300 border border-amber-800"
                               : "bg-emerald-950 text-emerald-300 border border-emerald-800"
                           }`}
@@ -1131,49 +1322,88 @@ export default function App() {
 
                       <div className="p-4 rounded-xl bg-[#24242a] space-y-2 text-xs">
                         <div className="flex justify-between text-[#9e9ea8]">
-                          <span>Verified Advance (25%):</span>
-                          <span className="font-semibold text-white">{formatPrice(order.amountPaidRupees)}</span>
+                          <span>Amount Verified Paid:</span>
+                          <span className="font-semibold text-[#10b981]">{formatPrice(order.amountPaidRupees)}</span>
                         </div>
                         <div className="flex justify-between text-[#9e9ea8]">
-                          <span>Pre-Dispatch Balance (75%):</span>
-                          <span className="font-semibold text-white">{formatPrice(order.balanceDueRupees)}</span>
+                          <span>Pre-Dispatch Balance:</span>
+                          <span className="font-semibold text-white">
+                            {order.balanceDueRupees <= 0 ? "₹0 (100% Settled)" : formatPrice(order.balanceDueRupees)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-[#9e9ea8]">
+                          <span>Courier Feasibility ({order.pincode}):</span>
+                          <span className={`font-semibold ${isPinFeasible ? "text-emerald-400" : "text-amber-300"}`}>
+                            {isPinFeasible ? `✓ Verified (${matchedPin?.zoneCode || "Active PIN"})` : "⚠ Review PIN Feasibility"}
+                          </span>
                         </div>
                         <div className="flex justify-between text-[#f59e0b] pt-1 border-t border-[#2e2e34]">
                           <span>Grace Window Status:</span>
                           <span className="font-bold">
-                            {isGraceActive
-                              ? `${order.graceDaysRemaining} Days Remaining (Day 8 release)`
-                              : "Grace Completed / Released"}
+                            {isCancelled
+                              ? "Cancelled & Refunded"
+                              : isGraceWindowOpen
+                              ? `${order.graceDaysRemaining ?? 7} Day(s) Remaining${order.releaseEligibleDate ? ` (Release ${order.releaseEligibleDate})` : ""}`
+                              : isConfirmedAwaitingRelease
+                              ? "Day 8 Reached — Eligible for Release"
+                              : "Grace Concluded / Released"}
                           </span>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-3 pt-2">
-                        {isGraceActive ? (
-                          <>
-                            <button
-                              onClick={() => handleReleaseToProduction(order.id)}
-                              className="flex-1 py-2.5 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors shadow-sm"
-                            >
-                              Release to Workshop Machining
-                            </button>
-                            <button
-                              onClick={() => handleCancelOrder(order.id)}
-                              className="py-2.5 px-4 rounded-xl border border-red-800/60 text-red-400 font-semibold text-xs hover:bg-red-950/40 transition-colors"
-                            >
-                              100% Pre-Prod Refund
-                            </button>
-                          </>
+                        {isCancelled ? (
+                          <div className="w-full text-center py-2 text-xs text-red-300 font-semibold bg-red-950/20 border border-red-800/40 rounded-xl">
+                            Pre-Production Cancellation Completed
+                          </div>
+                        ) : isConfirmedAwaitingRelease ? (
+                          <div className="w-full space-y-2">
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => handleReleaseToProduction(order.id)}
+                                disabled={isGraceWindowOpen}
+                                title={
+                                  isGraceWindowOpen
+                                    ? `Physical production blocked during 7-day grace window until Day 8 (${order.releaseEligibleDate || "grace end"}).`
+                                    : "Release order to workshop machining"
+                                }
+                                className="flex-1 py-2.5 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors shadow-sm disabled:opacity-45 disabled:cursor-not-allowed"
+                              >
+                                {isGraceWindowOpen
+                                  ? `Locked in Grace (${order.graceDaysRemaining ?? 7}d left)`
+                                  : "Release to Workshop Machining"}
+                              </button>
+                              <button
+                                onClick={() => handleCancelOrder(order.id)}
+                                className="py-2.5 px-4 rounded-xl border border-red-800/60 text-red-400 font-semibold text-xs hover:bg-red-950/40 transition-colors"
+                              >
+                                100% Pre-Prod Refund
+                              </button>
+                            </div>
+                            {isGraceWindowOpen && (
+                              <p className="text-[11px] text-amber-300/80">
+                                Hard TAV-06 Gate: Machining release unlocks automatically on Day 8 ({order.releaseEligibleDate || "after grace"}).
+                              </p>
+                            )}
+                          </div>
                         ) : (
                           <div className="w-full space-y-2">
                             <div className="w-full text-center py-2 text-xs text-[#10b981] font-semibold bg-emerald-950/20 border border-emerald-800/40 rounded-xl">
-                              ✓ {order.status === "PRODUCTION_COMPLETED" ? "QC Passed & Completed" : "Machining in Progress in Tavistra Workshop"}
+                              ✓{" "}
+                              {order.status === "PRODUCTION_COMPLETED"
+                                ? "QC Passed & Completed"
+                                : order.status === "AWAITING_DISPATCH"
+                                ? "QC Passed · 100% Paid · Awaiting Dispatch"
+                                : order.status === "DISPATCHED" || order.status === "DELIVERED"
+                                ? `Consignment ${order.status}`
+                                : "Machining in Progress in Tavistra Workshop"}
                             </div>
                             <button
                               onClick={() => {
                                 setQcOrderModal(order);
                                 setQcNotesInput(order.qcNotes || "");
                                 setQcImageInput(order.qcImages?.join("\n") || "");
+                                setQcUploadError(null);
                               }}
                               className="w-full py-2.5 rounded-xl bg-[#2a2a30] border border-[#3e3e46] text-xs font-semibold text-white hover:bg-[#34343c] transition-colors flex items-center justify-center gap-2"
                             >
@@ -1181,7 +1411,11 @@ export default function App() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                               </svg>
-                              <span>Upload Workshop QC Photos & Review</span>
+                              <span>
+                                {order.qcImages && order.qcImages.length > 0
+                                  ? `Manage QC Photos (${order.qcImages.length}) & Notes`
+                                  : "Upload Workshop QC Photos & Review"}
+                              </span>
                             </button>
                           </div>
                         )}
@@ -1196,6 +1430,24 @@ export default function App() {
         {/* TAB 4: DISPATCH & AWB */}
         {activeTab === "DISPATCH" && (
           <div className="space-y-6">
+            {actionFeedback && (
+              <div
+                className={`p-3.5 rounded-xl border text-xs flex items-center justify-between ${
+                  actionFeedback.type === "error"
+                    ? "bg-red-950/50 border-red-800/70 text-red-200"
+                    : "bg-emerald-950/50 border-emerald-800/70 text-emerald-200"
+                }`}
+              >
+                <span>{actionFeedback.text}</span>
+                <button
+                  onClick={() => setActionFeedback(null)}
+                  className="text-[11px] opacity-75 hover:opacity-100 ml-4"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             <div className="flex items-center justify-between border-b border-[#2e2e34] pb-3">
               <div>
                 <h2 className="text-base font-semibold text-white">Carrier Consignment & AWB Assignment</h2>
@@ -1230,20 +1482,33 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* HARD DISPATCH GUARD: IF BALANCE DUE > 0, DISPATCH IS LOCKED */}
-                  {order.balanceDueRupees > 0 ? (
-                    <div className="flex flex-col sm:flex-row items-center gap-3">
+                  {order.status === "CANCELLED" || order.status === "REFUNDED" ? (
+                    <span className="px-3.5 py-2 rounded-xl bg-red-950/30 border border-red-800/50 text-xs text-red-300 font-medium">
+                      Cancelled — Dispatch Locked
+                    </span>
+                  ) : order.balanceDueRupees > 0 ? (
+                    <div className="flex flex-wrap items-center gap-3">
                       <div className="px-3.5 py-2 rounded-xl bg-amber-950/40 border border-amber-800/60 text-xs text-amber-300 flex items-center gap-2 font-medium">
                         <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                         </svg>
-                        <span>Dispatch Blocked: {formatPrice(order.balanceDueRupees)} Balance Due</span>
+                        <span>
+                          Dispatch Blocked — 100% Payment Required. Balance Due: {formatPrice(order.balanceDueRupees)}
+                        </span>
                       </div>
                       <button
-                        onClick={() => alert(`Client Balance Payment URL:\nhttp://localhost:3000/track?orderId=${order.orderNumber}\n\nClient may clear remaining 75% balance from this link.`)}
+                        type="button"
+                        disabled
+                        className="px-3.5 py-2 rounded-xl bg-[#24242a] text-xs font-semibold text-[#6e6e76] border border-[#2e2e34] cursor-not-allowed"
+                      >
+                        Packed & Dispatched (Locked)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyBalanceLink(order)}
                         className="px-3.5 py-2 rounded-xl bg-[#2a2a30] text-xs font-semibold text-[#c59b6d] hover:bg-[#34343c] border border-[#3e3e46] transition-colors"
                       >
-                        Copy Balance Link
+                        {copiedLinkOrderId === order.id ? "✓ Copied Balance Link" : "Copy Balance Link"}
                       </button>
                     </div>
                   ) : editingAwbId === order.id ? (
@@ -1266,7 +1531,7 @@ export default function App() {
                         onClick={() => handleSaveAwb(order.id)}
                         className="px-4 py-2 rounded-xl bg-[#10b981] text-[#121214] font-semibold text-xs"
                       >
-                        Save
+                        Packed & Dispatched
                       </button>
                       <button
                         onClick={() => setEditingAwbId(null)}
@@ -1276,16 +1541,28 @@ export default function App() {
                       </button>
                     </div>
                   ) : (
-                    <button
-                      onClick={() => {
-                        setEditingAwbId(order.id);
-                        setCarrierInput(order.carrierName);
-                        setAwbInput(order.awbNumber || "");
-                      }}
-                      className="px-4 py-2 rounded-xl bg-[#2a2a30] text-xs font-semibold text-white hover:bg-[#34343c] transition-colors"
-                    >
-                      {order.awbNumber ? "Edit AWB / Carrier" : "+ Assign Carrier & AWB"}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {order.status !== "DELIVERED" && (
+                        <button
+                          onClick={() => {
+                            setEditingAwbId(order.id);
+                            setCarrierInput(order.carrierName);
+                            setAwbInput(order.awbNumber || "");
+                          }}
+                          className="px-4 py-2 rounded-xl bg-[#2a2a30] text-xs font-semibold text-white hover:bg-[#34343c] transition-colors"
+                        >
+                          {order.awbNumber ? "Edit AWB / Carrier" : "+ Assign Carrier & Packed & Dispatched"}
+                        </button>
+                      )}
+                      {order.status === "DISPATCHED" && (
+                        <button
+                          onClick={() => handleMarkDelivered(order.id)}
+                          className="px-4 py-2 rounded-xl bg-emerald-950/60 border border-emerald-700/70 text-xs font-semibold text-emerald-300 hover:bg-emerald-900/60 transition-colors"
+                        >
+                          ✓ Mark Delivered
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               ))}
@@ -2031,10 +2308,45 @@ export default function App() {
                   <span>Amount Verified Paid:</span>
                   <span>{formatPrice(selectedOrder.amountPaidRupees)}</span>
                 </div>
-                {selectedOrder.balanceDueRupees > 0 && (
+                {selectedOrder.balanceDueRupees > 0 ? (
                   <div className="flex justify-between text-[#f59e0b] font-semibold">
                     <span>Pre-Dispatch Balance Due (75%):</span>
                     <span>{formatPrice(selectedOrder.balanceDueRupees)}</span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between text-[#10b981] font-semibold">
+                    <span>Payment Settlement:</span>
+                    <span>100% Paid & Cleared</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-3 rounded-xl bg-[#16161a] border border-[#2e2e34] space-y-1 text-[11px] text-[#9e9ea8]">
+                <div className="flex justify-between">
+                  <span>Milestone Status:</span>
+                  <strong className="text-white">{selectedOrder.status}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span>Carrier & AWB:</span>
+                  <strong className="text-white">
+                    {selectedOrder.carrierName} {selectedOrder.awbNumber ? `(${selectedOrder.awbNumber})` : "(Pending)"}
+                  </strong>
+                </div>
+                {selectedOrder.qcImages && selectedOrder.qcImages.length > 0 && (
+                  <div className="pt-2">
+                    <span className="block mb-1.5 text-white font-semibold">
+                      Uploaded QC Inspection Photos ({selectedOrder.qcImages.length}):
+                    </span>
+                    <div className="grid grid-cols-3 gap-2">
+                      {selectedOrder.qcImages.map((img, i) => (
+                        <img
+                          key={i}
+                          src={img}
+                          alt={`QC ${i + 1}`}
+                          className="h-16 w-full object-cover rounded-lg border border-[#2e2e34]"
+                        />
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -2381,32 +2693,72 @@ export default function App() {
                 />
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="block text-white font-semibold">
-                    Inspection Photo URLs (One URL per line)
+                    Workshop QC Photos (Upload from Computer or Paste URLs)
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setQcImageInput(
-                        "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80\nhttps://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80"
-                      );
-                    }}
-                    className="text-[10px] text-[#c59b6d] hover:underline"
-                  >
-                    + Insert Sample Workshop Photos
-                  </button>
+                  <label className="cursor-pointer rounded-lg bg-[#2a2a30] border border-[#3e3e46] px-3 py-1.5 text-[11px] font-semibold text-[#c59b6d] hover:bg-[#34343c] transition-colors">
+                    {isUploadingQc ? "Uploading..." : "+ Upload Image Files"}
+                    <input
+                      type="file"
+                      accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                      multiple
+                      disabled={isUploadingQc}
+                      onChange={(e) => {
+                        void handleQcFileUpload(e.target.files);
+                        e.target.value = "";
+                      }}
+                      className="hidden"
+                    />
+                  </label>
                 </div>
+
+                {qcUploadError && (
+                  <div className="rounded-lg border border-red-800/70 bg-red-950/50 p-2.5 text-[11px] text-red-200">
+                    {qcUploadError}
+                  </div>
+                )}
+
+                {qcImageInput
+                  .split("\n")
+                  .map((s) => s.trim())
+                  .filter(Boolean).length > 0 && (
+                  <div className="grid grid-cols-3 gap-2">
+                    {qcImageInput
+                      .split("\n")
+                      .map((s) => s.trim())
+                      .filter(Boolean)
+                      .map((imgUrl, idx) => (
+                        <div key={idx} className="relative group rounded-lg overflow-hidden border border-[#2e2e34] aspect-[16/10] bg-[#121214]">
+                          <img src={imgUrl} alt={`QC preview ${idx + 1}`} className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = qcImageInput
+                                .split("\n")
+                                .map((s) => s.trim())
+                                .filter((u, i) => u && i !== idx);
+                              setQcImageInput(next.join("\n"));
+                            }}
+                            className="absolute top-1 right-1 rounded bg-black/75 px-1.5 py-0.5 text-[10px] text-white opacity-90 hover:opacity-100"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                )}
+
                 <textarea
                   rows={3}
-                  placeholder="https://.../photo-1.jpg&#10;https://.../photo-2.jpg"
+                  placeholder="/uploads/qc/TAV-.../photo-1.jpg&#10;https://.../photo-2.jpg"
                   value={qcImageInput}
                   onChange={(e) => setQcImageInput(e.target.value)}
                   className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-3 text-xs font-mono text-white placeholder-[#6e6e76] focus:outline-none focus:border-[#c59b6d]"
                 />
                 <p className="text-[11px] text-[#9e9ea8]">
-                  These photos will be rendered directly inside the customer's /track and order portal so they can inspect their piece before final dispatch.
+                  Uploaded photos are stored in `/uploads/qc/{qcOrderModal.orderNumber}/` and rendered inside the customer's /track and account order portal.
                 </p>
               </div>
 

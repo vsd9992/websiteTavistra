@@ -49,6 +49,10 @@ export interface OrderRecord {
   status: OrderStatus;
   statusLabel: string;
   statusDescription: string;
+  paymentStatusLabel?: string;
+  isFullyPaid?: boolean;
+  isGraceActive?: boolean;
+  releaseEligibleDate?: string | null;
   graceDaysRemaining?: number;
   qcNotes?: string;
   qcImages?: string[];
