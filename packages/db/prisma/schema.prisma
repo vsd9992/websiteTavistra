@@ -301,6 +301,7 @@ model PincodeRange {
   cityLabel           String?             // Human-readable city/locality label
   pincodePrefix       String              @unique // e.g. "11", "110", or exact 6 digits "110062"
   isServiceable       Boolean             @default(true)
+  coverageMode        String              @default("STRICT_WHITELIST") // "STRICT_WHITELIST" | "ALLOW_ALL_IN_PREFIX"
   unserviceableReason String?             // Customer-facing notice if suspended
   source              String              @default("REGION_PREFIX") // "REGION_PREFIX", "URBAN_884", "ADMIN_OVERRIDE"
   updatedAt           DateTime            @updatedAt @default(now())

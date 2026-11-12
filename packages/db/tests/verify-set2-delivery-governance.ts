@@ -286,58 +286,67 @@ async function runSet2Verification() {
   // --------------------------------------------------------------------------
   console.log("\n--- Section 6: Hierarchical Nested PINs, Admin 12-Slab Matrix & Overrides ---");
 
-  // Test 6.1: Nested 6-digit Override vs 2-digit Parent Inheritance
-  const nestedTestPin = "110043";
+  // Test 6.1: Strict 6-Digit Whitelist (380053 Unlisted -> Blocked) & Nested Override Lifecycle
+  const unlistedPin = "380053";
+  const checkUnlistedBefore = await (await fetch(`${STOREFRONT_URL}/api/pincodes/check?pincode=${unlistedPin}`)).json();
+  assert(
+    checkUnlistedBefore.isServiceable === false && checkUnlistedBefore.resolutionType === "NOT_IN_WHITELIST",
+    "Unlisted PIN 380053 Rejected (No Blanket Prefix Fallback)",
+    "Hierarchy PIN",
+    `${unlistedPin} resolved to resolutionType=${checkUnlistedBefore.resolutionType}, serviceable=${checkUnlistedBefore.isServiceable}`
+  );
+
+  const checkSiblingAhmedabad = await (await fetch(`${STOREFRONT_URL}/api/pincodes/check?pincode=380001`)).json();
+  assert(
+    checkSiblingAhmedabad.isServiceable === true && checkSiblingAhmedabad.resolutionType === "EXACT_6_DIGIT",
+    "Whitelisted Sibling PIN 380001 Serviceable",
+    "Hierarchy PIN",
+    `380001 remains serviceable=${checkSiblingAhmedabad.isServiceable} (tier=${checkSiblingAhmedabad.resolutionType})`
+  );
+
+  // Add 380053 explicitly -> becomes serviceable
   const createOverrideRes = await fetch(`${STOREFRONT_URL}/api/admin/pincodes`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       action: "UPSERT_RULE",
-      pincodePrefix: nestedTestPin,
-      cityLabel: "Najafgarh Outer Test",
-      stateName: "Delhi",
-      zoneCode: "ZONE_B",
-      isServiceable: false,
-      unserviceableReason: "QA nested 6-digit temporary hold",
+      pincodePrefix: unlistedPin,
+      cityLabel: "Ahmedabad Science City QA",
+      stateName: "Gujarat",
+      zoneCode: "ZONE_C",
+      isServiceable: true,
       staffName: "QA Suite",
     }),
   });
   const createOverrideJson = await createOverrideRes.json();
   const createdRuleId = createOverrideJson.rule?.id;
   assert(
-    createOverrideRes.ok && createOverrideJson.rule?.pincodePrefix === nestedTestPin && Boolean(createdRuleId),
-    "Nested 6-Digit Override Creation",
+    createOverrideRes.ok && createOverrideJson.rule?.pincodePrefix === unlistedPin && Boolean(createdRuleId),
+    "Exact 6-Digit Whitelist PIN Addition",
     "Hierarchy PIN",
-    `Created disabled override for ${nestedTestPin} (id=${createdRuleId})`
+    `Created enabled rule for ${unlistedPin} (id=${createdRuleId})`
   );
 
-  const checkNestedBlocked = await (await fetch(`${STOREFRONT_URL}/api/pincodes/check?pincode=${nestedTestPin}`)).json();
+  const checkAddedEnabled = await (await fetch(`${STOREFRONT_URL}/api/pincodes/check?pincode=${unlistedPin}`)).json();
   assert(
-    checkNestedBlocked.isServiceable === false && checkNestedBlocked.resolutionType === "EXACT_6_DIGIT",
-    "Exact 6-Digit Match Precedence",
+    checkAddedEnabled.isServiceable === true && checkAddedEnabled.resolutionType === "EXACT_6_DIGIT",
+    "Added PIN 380053 Becomes Serviceable",
     "Hierarchy PIN",
-    `${nestedTestPin} resolved to resolutionType=${checkNestedBlocked.resolutionType}, serviceable=${checkNestedBlocked.isServiceable}`
+    `${unlistedPin} resolved to resolutionType=${checkAddedEnabled.resolutionType}, serviceable=${checkAddedEnabled.isServiceable}`
   );
 
-  const checkSiblingDelhi = await (await fetch(`${STOREFRONT_URL}/api/pincodes/check?pincode=110001`)).json();
-  assert(
-    checkSiblingDelhi.isServiceable === true,
-    "Sibling Delhi PIN Unaffected",
-    "Hierarchy PIN",
-    `110001 remains serviceable=${checkSiblingDelhi.isServiceable} (tier=${checkSiblingDelhi.resolutionType})`
-  );
-
+  // Delete 380053 -> reverts back to NOT_IN_WHITELIST (unserviceable)
   const deleteOverrideRes = await fetch(`${STOREFRONT_URL}/api/admin/pincodes?id=${encodeURIComponent(createdRuleId)}`, {
     method: "DELETE",
   });
-  assert(deleteOverrideRes.ok, "Delete Nested 6-Digit Override", "Hierarchy PIN", `Deleted override ${nestedTestPin}`);
+  assert(deleteOverrideRes.ok, "Delete 6-Digit PIN Rule", "Hierarchy PIN", `Deleted rule ${unlistedPin}`);
 
-  const checkInheritedAgain = await (await fetch(`${STOREFRONT_URL}/api/pincodes/check?pincode=${nestedTestPin}`)).json();
+  const checkDeletedUnlisted = await (await fetch(`${STOREFRONT_URL}/api/pincodes/check?pincode=${unlistedPin}`)).json();
   assert(
-    checkInheritedAgain.isServiceable === true && checkInheritedAgain.resolutionType !== "EXACT_6_DIGIT",
-    "Fallback Inheritance Restored",
+    checkDeletedUnlisted.isServiceable === false && checkDeletedUnlisted.resolutionType === "NOT_IN_WHITELIST",
+    "Deleted PIN 380053 Reverts to Unserviceable",
     "Hierarchy PIN",
-    `After deletion, ${nestedTestPin} fell back to tier=${checkInheritedAgain.resolutionType}, serviceable=${checkInheritedAgain.isServiceable}`
+    `After deletion, ${unlistedPin} reverted to tier=${checkDeletedUnlisted.resolutionType}, serviceable=${checkDeletedUnlisted.isServiceable}`
   );
 
   // Test 6.2: Admin Logistics Endpoint (Direct & Via Admin Vite Proxy)

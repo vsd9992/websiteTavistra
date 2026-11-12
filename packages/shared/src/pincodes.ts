@@ -171,7 +171,7 @@ export function lookupPincode(pincode: string): PincodeLookupResult {
     };
   }
 
-  // 2. Check prefix matches (longest prefix first: 4-digit, 3-digit, then 2-digit)
+  // 2. Check prefix directory for region/state metadata only (strict 6-digit whitelist policy: no blanket prefix enablement)
   const p4 = cleanPin.substring(0, 4);
   const p3 = cleanPin.substring(0, 3);
   const p2 = cleanPin.substring(0, 2);
@@ -182,25 +182,16 @@ export function lookupPincode(pincode: string): PincodeLookupResult {
     POSTAL_PREFIX_DIRECTORY[p2];
 
   if (prefixMatch) {
-    if (!prefixMatch.isServiceable) {
-      return {
-        pincode: cleanPin,
-        isServiceable: false,
-        city: prefixMatch.city,
-        state: prefixMatch.state,
-        zoneCode,
-        unserviceableReason:
-          prefixMatch.reason ||
-          `We cannot deliver to PIN code ${cleanPin}. This destination is currently not serviceable for insured fragile consignments.`,
-      };
-    }
-
     return {
       pincode: cleanPin,
-      isServiceable: true,
+      isServiceable: false,
       city: prefixMatch.city,
       state: prefixMatch.state,
       zoneCode,
+      unserviceableReason: !prefixMatch.isServiceable
+        ? prefixMatch.reason ||
+          `We cannot deliver to PIN code ${cleanPin}. This destination is currently not serviceable for insured fragile consignments.`
+        : `PIN code ${cleanPin} (${prefixMatch.state}) is not currently in our verified 6-digit delivery directory.`,
     };
   }
 
@@ -211,7 +202,7 @@ export function lookupPincode(pincode: string): PincodeLookupResult {
     city: '',
     state: '',
     zoneCode: 'ZONE_D',
-    unserviceableReason: `We cannot deliver to PIN code ${cleanPin}. Tavistra currently services verified urban hubs across India.`,
+    unserviceableReason: `PIN code ${cleanPin} is not in our verified delivery directory.`,
   };
 }
 

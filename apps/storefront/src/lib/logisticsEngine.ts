@@ -21,7 +21,12 @@ export interface AuthoritativePincodeResult {
   transitDaysEstimate: string;
   matchedRulePrefix: string | null;
   matchedRuleId: string | null;
-  resolutionType: "EXACT_6_DIGIT" | "PREFIX_4_DIGIT" | "PREFIX_3_DIGIT" | "PREFIX_2_DIGIT" | "URBAN_CANDIDATE_DB" | "FALLBACK";
+  resolutionType:
+    | "EXACT_6_DIGIT"
+    | "PREFIX_ALLOW_ALL"
+    | "PREFIX_BLOCKED"
+    | "NOT_IN_WHITELIST"
+    | "FALLBACK";
   unserviceableReason?: string;
 }
 
@@ -282,42 +287,64 @@ export async function resolvePincodeHierarchy(pincodeRaw: string): Promise<Autho
 
   // Pick longest prefix match (Exact 6-digit beats 4-digit beats 3-digit beats 2-digit)
   matchedRules.sort((a, b) => b.pincodePrefix.length - a.pincodePrefix.length);
-  const winningRule = matchedRules[0] || null;
+  const exactRule = matchedRules.find((r) => r.pincodePrefix.length === 6) || null;
+  const prefixRules = matchedRules.filter((r) => r.pincodePrefix.length < 6);
+  const blockedPrefix = prefixRules.find((r) => !r.isServiceable) || null;
+  const longestPrefix = prefixRules[0] || null;
 
-  if (winningRule) {
-    const len = winningRule.pincodePrefix.length;
-    const resolutionType =
-      len === 6
-        ? "EXACT_6_DIGIT"
-        : len === 4
-        ? "PREFIX_4_DIGIT"
-        : len === 3
-        ? "PREFIX_3_DIGIT"
-        : "PREFIX_2_DIGIT";
+  // 1. If any governing region/sub-prefix (e.g. 194 Leh or paused region 38) is disabled, block delivery
+  if (blockedPrefix) {
+    const zoneCode = (blockedPrefix.shippingZone.code as ShippingZoneCode) || baseLookup.zoneCode;
+    const zoneMin = blockedPrefix.shippingZone.estimatedDaysMin;
+    const zoneMax = blockedPrefix.shippingZone.estimatedDaysMax;
+    const cityDisplay = baseLookup.city || blockedPrefix.cityLabel || blockedPrefix.stateName;
+    const stateDisplay = baseLookup.state || blockedPrefix.stateName;
 
-    const zoneCode = (winningRule.shippingZone.code as ShippingZoneCode) || baseLookup.zoneCode;
-    const zoneMin = winningRule.shippingZone.estimatedDaysMin;
-    const zoneMax = winningRule.shippingZone.estimatedDaysMax;
-    const cityDisplay = baseLookup.city || winningRule.cityLabel || winningRule.stateName;
-    const stateDisplay = baseLookup.state || winningRule.stateName;
+    return {
+      pincode: cleanPin,
+      isServiceable: false,
+      city: cityDisplay,
+      state: stateDisplay,
+      locality: baseLookup.locality || blockedPrefix.cityLabel || undefined,
+      zoneCode,
+      zoneName: blockedPrefix.shippingZone.name,
+      estimatedDaysMin: zoneMin,
+      estimatedDaysMax: zoneMax,
+      transitDaysEstimate: `${zoneMin}–${zoneMax} business days`,
+      matchedRulePrefix: blockedPrefix.pincodePrefix,
+      matchedRuleId: blockedPrefix.id,
+      resolutionType: "PREFIX_BLOCKED",
+      unserviceableReason:
+        blockedPrefix.unserviceableReason ||
+        `Deliveries to ${cityDisplay} (${blockedPrefix.pincodePrefix}xxxx) are currently suspended by Studio Logistics.`,
+    };
+  }
 
-    if (!winningRule.isServiceable) {
+  // 2. Exact 6-digit rule in PostgreSQL (Strict Whitelist / Admin Override)
+  if (exactRule) {
+    const zoneCode = (exactRule.shippingZone.code as ShippingZoneCode) || baseLookup.zoneCode;
+    const zoneMin = exactRule.shippingZone.estimatedDaysMin;
+    const zoneMax = exactRule.shippingZone.estimatedDaysMax;
+    const cityDisplay = baseLookup.city || exactRule.cityLabel || exactRule.stateName;
+    const stateDisplay = baseLookup.state || exactRule.stateName;
+
+    if (!exactRule.isServiceable) {
       return {
         pincode: cleanPin,
         isServiceable: false,
         city: cityDisplay,
         state: stateDisplay,
-        locality: baseLookup.locality || winningRule.cityLabel || undefined,
+        locality: baseLookup.locality || exactRule.cityLabel || undefined,
         zoneCode,
-        zoneName: winningRule.shippingZone.name,
+        zoneName: exactRule.shippingZone.name,
         estimatedDaysMin: zoneMin,
         estimatedDaysMax: zoneMax,
         transitDaysEstimate: `${zoneMin}–${zoneMax} business days`,
-        matchedRulePrefix: winningRule.pincodePrefix,
-        matchedRuleId: winningRule.id,
-        resolutionType,
+        matchedRulePrefix: exactRule.pincodePrefix,
+        matchedRuleId: exactRule.id,
+        resolutionType: "EXACT_6_DIGIT",
         unserviceableReason:
-          winningRule.unserviceableReason ||
+          exactRule.unserviceableReason ||
           `Deliveries to PIN code ${cleanPin} (${cityDisplay}) are temporarily suspended by Studio Logistics.`,
       };
     }
@@ -327,40 +354,71 @@ export async function resolvePincodeHierarchy(pincodeRaw: string): Promise<Autho
       isServiceable: true,
       city: cityDisplay,
       state: stateDisplay,
-      locality: baseLookup.locality || winningRule.cityLabel || undefined,
+      locality: baseLookup.locality || exactRule.cityLabel || undefined,
       zoneCode,
-      zoneName: winningRule.shippingZone.name,
+      zoneName: exactRule.shippingZone.name,
       estimatedDaysMin: zoneMin,
       estimatedDaysMax: zoneMax,
       transitDaysEstimate: `${zoneMin}–${zoneMax} business days`,
-      matchedRulePrefix: winningRule.pincodePrefix,
-      matchedRuleId: winningRule.id,
-      resolutionType,
+      matchedRulePrefix: exactRule.pincodePrefix,
+      matchedRuleId: exactRule.id,
+      resolutionType: "EXACT_6_DIGIT",
     };
   }
 
-  // Fallback to urban candidate map / static directory + DB zone config
-  const fallbackZoneCode = baseLookup.zoneCode || resolveShippingZone(cleanPin);
-  const dbZone = await prisma.shippingZone.findUnique({
-    where: { code: fallbackZoneCode },
-  });
+  // 3. No exact 6-digit PIN in DB (e.g. 380053): allow ONLY if Admin explicitly opted a governing prefix into ALLOW_ALL_IN_PREFIX
+  const openPrefixRule = prefixRules.find((r) => r.coverageMode === "ALLOW_ALL_IN_PREFIX" && r.isServiceable);
+  if (openPrefixRule) {
+    const zoneCode = (openPrefixRule.shippingZone.code as ShippingZoneCode) || baseLookup.zoneCode;
+    const zoneMin = openPrefixRule.shippingZone.estimatedDaysMin;
+    const zoneMax = openPrefixRule.shippingZone.estimatedDaysMax;
+    const cityDisplay = baseLookup.city || openPrefixRule.cityLabel || openPrefixRule.stateName;
+    const stateDisplay = baseLookup.state || openPrefixRule.stateName;
+
+    return {
+      pincode: cleanPin,
+      isServiceable: true,
+      city: cityDisplay,
+      state: stateDisplay,
+      locality: baseLookup.locality || openPrefixRule.cityLabel || undefined,
+      zoneCode,
+      zoneName: openPrefixRule.shippingZone.name,
+      estimatedDaysMin: zoneMin,
+      estimatedDaysMax: zoneMax,
+      transitDaysEstimate: `${zoneMin}–${zoneMax} business days`,
+      matchedRulePrefix: openPrefixRule.pincodePrefix,
+      matchedRuleId: openPrefixRule.id,
+      resolutionType: "PREFIX_ALLOW_ALL",
+    };
+  }
+
+  // 4. Default Strict 6-Digit Whitelist: Unlisted PINs (such as 380053) are NOT serviceable
+  const fallbackZoneCode =
+    (longestPrefix?.shippingZone.code as ShippingZoneCode) ||
+    baseLookup.zoneCode ||
+    resolveShippingZone(cleanPin);
+  const dbZone =
+    longestPrefix?.shippingZone ||
+    (await prisma.shippingZone.findUnique({ where: { code: fallbackZoneCode } }));
   const zoneConfig = dbZone || SHIPPING_ZONES[fallbackZoneCode];
+  const stateDisplay = longestPrefix?.stateName || baseLookup.state || "India";
+  const cityDisplay = baseLookup.city || longestPrefix?.cityLabel || stateDisplay;
 
   return {
     pincode: cleanPin,
-    isServiceable: baseLookup.isServiceable,
-    city: baseLookup.city,
-    state: baseLookup.state,
+    isServiceable: false,
+    city: cityDisplay,
+    state: stateDisplay,
     locality: baseLookup.locality,
     zoneCode: fallbackZoneCode,
     zoneName: zoneConfig.name,
     estimatedDaysMin: zoneConfig.estimatedDaysMin,
     estimatedDaysMax: zoneConfig.estimatedDaysMax,
     transitDaysEstimate: `${zoneConfig.estimatedDaysMin}–${zoneConfig.estimatedDaysMax} business days`,
-    matchedRulePrefix: null,
-    matchedRuleId: null,
-    resolutionType: baseLookup.city ? "URBAN_CANDIDATE_DB" : "FALLBACK",
-    unserviceableReason: baseLookup.unserviceableReason,
+    matchedRulePrefix: longestPrefix?.pincodePrefix || null,
+    matchedRuleId: longestPrefix?.id || null,
+    resolutionType: "NOT_IN_WHITELIST",
+    unserviceableReason: `PIN code ${cleanPin} (${stateDisplay}) is not currently in our verified delivery directory.`,
   };
 }
 
@@ -481,3 +539,4 @@ export async function calculateAuthoritativeShipping(
     itemBreakdown,
   };
 }
+

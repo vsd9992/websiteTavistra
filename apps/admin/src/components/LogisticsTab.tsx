@@ -18,6 +18,7 @@ export interface PincodeRuleRow {
   zoneCode: string;
   zoneLabel: string;
   isServiceable: boolean;
+  coverageMode?: "STRICT_WHITELIST" | "ALLOW_ALL_IN_PREFIX";
   unserviceableReason?: string;
   source?: string;
   specificity?: "EXACT_6" | "PREFIX_4" | "PREFIX_3" | "PREFIX_2";
@@ -71,8 +72,10 @@ export function LogisticsTab({ staffName, onLogAudit, onPincodesUpdated }: Logis
   const [urbanCandidateCount, setUrbanCandidateCount] = useState(884);
   const [pinSearch, setPinSearch] = useState("");
   const [filterZone, setFilterZone] = useState<string>("ALL");
-  const [filterSpecificity, setFilterSpecificity] = useState<string>("ALL");
   const [filterStatus, setFilterStatus] = useState<string>("ALL");
+  const [selectedRegionPrefix, setSelectedRegionPrefix] = useState<string | null>(null);
+  const [regionChildSearch, setRegionChildSearch] = useState("");
+  const [regionChildStatus, setRegionChildStatus] = useState<string>("ALL");
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 25;
 
@@ -89,6 +92,7 @@ export function LogisticsTab({ staffName, onLogAudit, onPincodesUpdated }: Logis
     stateName: "",
     zoneCode: "ZONE_A",
     isServiceable: true,
+    coverageMode: "STRICT_WHITELIST" as "STRICT_WHITELIST" | "ALLOW_ALL_IN_PREFIX",
     unserviceableReason: "",
   });
 
@@ -151,32 +155,246 @@ export function LogisticsTab({ staffName, onLogAudit, onPincodesUpdated }: Logis
     loadAll();
   }, []);
 
-  // Filtered PIN list
-  const filteredPincodes = useMemo(() => {
+  const REGION_2DIGIT_LABELS: Record<string, { region: string; defaultZone: string }> = {
+    "11": { region: "Delhi NCR", defaultZone: "ZONE_A" },
+    "12": { region: "Haryana South (Gurgaon / Faridabad)", defaultZone: "ZONE_A" },
+    "13": { region: "Haryana North (Ambala / Karnal)", defaultZone: "ZONE_B" },
+    "14": { region: "Punjab (Ludhiana / Amritsar)", defaultZone: "ZONE_B" },
+    "15": { region: "Punjab West (Bathinda)", defaultZone: "ZONE_B" },
+    "16": { region: "Chandigarh / Mohali", defaultZone: "ZONE_B" },
+    "17": { region: "Himachal Pradesh (Shimla / Kullu)", defaultZone: "ZONE_B" },
+    "18": { region: "Jammu & Kashmir (Jammu)", defaultZone: "ZONE_E" },
+    "19": { region: "Kashmir & Ladakh (Srinagar / Leh)", defaultZone: "ZONE_E" },
+    "20": { region: "Western UP NCR (Noida / Ghaziabad)", defaultZone: "ZONE_A" },
+    "22": { region: "Uttar Pradesh (Lucknow / Varanasi)", defaultZone: "ZONE_B" },
+    "24": { region: "Uttarakhand / Rohilkhand (Dehradun)", defaultZone: "ZONE_B" },
+    "25": { region: "Western UP (Meerut)", defaultZone: "ZONE_B" },
+    "28": { region: "Uttar Pradesh (Agra / Mathura)", defaultZone: "ZONE_B" },
+    "30": { region: "Rajasthan (Jaipur)", defaultZone: "ZONE_B" },
+    "38": { region: "Gujarat (Ahmedabad / Gandhinagar)", defaultZone: "ZONE_C" },
+    "39": { region: "Gujarat South (Surat / Vadodara)", defaultZone: "ZONE_C" },
+    "40": { region: "Maharashtra (Mumbai / Thane)", defaultZone: "ZONE_C" },
+    "41": { region: "Maharashtra (Pune / Nashik)", defaultZone: "ZONE_C" },
+    "44": { region: "Maharashtra East (Nagpur)", defaultZone: "ZONE_D" },
+    "45": { region: "Madhya Pradesh (Indore)", defaultZone: "ZONE_D" },
+    "46": { region: "Madhya Pradesh (Bhopal)", defaultZone: "ZONE_D" },
+    "50": { region: "Telangana (Hyderabad)", defaultZone: "ZONE_C" },
+    "56": { region: "Karnataka (Bengaluru)", defaultZone: "ZONE_C" },
+    "60": { region: "Tamil Nadu (Chennai)", defaultZone: "ZONE_C" },
+    "64": { region: "Tamil Nadu (Coimbatore)", defaultZone: "ZONE_D" },
+    "68": { region: "Kerala (Kochi / Ernakulam)", defaultZone: "ZONE_D" },
+    "70": { region: "West Bengal (Kolkata)", defaultZone: "ZONE_C" },
+    "75": { region: "Odisha (Bhubaneswar)", defaultZone: "ZONE_D" },
+    "78": { region: "Assam (Guwahati)", defaultZone: "ZONE_E" },
+    "79": { region: "North-East India", defaultZone: "ZONE_E" },
+    "80": { region: "Bihar (Patna)", defaultZone: "ZONE_D" },
+  };
+
+  interface RegionGroup {
+    prefix2: string;
+    regionName: string;
+    stateName: string;
+    zoneCode: string;
+    regionRule: PincodeRuleRow | null;
+    subPrefixes: PincodeRuleRow[];
+    exactPins: PincodeRuleRow[];
+    activeCount: number;
+    disabledCount: number;
+    isRegionActive: boolean;
+    coverageMode: "STRICT_WHITELIST" | "ALLOW_ALL_IN_PREFIX";
+  }
+
+  // Group all DB PIN rules by 2-digit postal region
+  const regionGroups = useMemo<RegionGroup[]>(() => {
+    const map = new Map<string, PincodeRuleRow[]>();
+    for (const p of pincodes) {
+      const p2 = p.pincode.slice(0, 2);
+      if (!map.has(p2)) map.set(p2, []);
+      map.get(p2)!.push(p);
+    }
+
+    const groups: RegionGroup[] = [];
+    for (const [p2, rows] of map.entries()) {
+      const regionRule = rows.find((r) => r.pincode === p2) || null;
+      const subPrefixes = rows.filter((r) => r.pincode.length > 2 && r.pincode.length < 6);
+      const exactPins = rows.filter((r) => r.pincode.length === 6);
+      const activeCount = exactPins.filter((r) => r.isServiceable).length;
+      const disabledCount = exactPins.filter((r) => !r.isServiceable).length;
+      const meta = REGION_2DIGIT_LABELS[p2];
+
+      const zoneCode =
+        regionRule?.zoneCode ||
+        exactPins[0]?.zoneCode ||
+        subPrefixes[0]?.zoneCode ||
+        meta?.defaultZone ||
+        "ZONE_D";
+      const stateName =
+        regionRule?.state ||
+        exactPins[0]?.state ||
+        subPrefixes[0]?.state ||
+        meta?.region ||
+        "India";
+      const regionName =
+        meta?.region ||
+        regionRule?.city ||
+        regionRule?.state ||
+        stateName;
+
+      groups.push({
+        prefix2: p2,
+        regionName,
+        stateName,
+        zoneCode,
+        regionRule,
+        subPrefixes,
+        exactPins,
+        activeCount,
+        disabledCount,
+        isRegionActive: regionRule ? regionRule.isServiceable : true,
+        coverageMode: regionRule?.coverageMode || "STRICT_WHITELIST",
+      });
+    }
+
+    return groups.sort((a, b) => a.prefix2.localeCompare(b.prefix2));
+  }, [pincodes]);
+
+  // Filtered Regions on Level 1 Main List
+  const filteredRegions = useMemo(() => {
     const q = pinSearch.trim().toLowerCase();
-    return pincodes.filter((p) => {
-      if (filterZone !== "ALL" && p.zoneCode !== filterZone) return false;
-      if (filterStatus === "ACTIVE" && !p.isServiceable) return false;
-      if (filterStatus === "DISABLED" && p.isServiceable) return false;
-      if (filterSpecificity === "PREFIX" && p.pincode.length === 6) return false;
-      if (filterSpecificity === "EXACT" && p.pincode.length !== 6) return false;
+    return regionGroups.filter((g) => {
+      if (filterZone !== "ALL" && g.zoneCode !== filterZone) return false;
+      if (filterStatus === "ACTIVE" && !g.isRegionActive) return false;
+      if (filterStatus === "DISABLED" && g.isRegionActive) return false;
 
       if (!q) return true;
+      if (
+        g.prefix2.includes(q) ||
+        g.regionName.toLowerCase().includes(q) ||
+        g.stateName.toLowerCase().includes(q) ||
+        g.zoneCode.toLowerCase().includes(q)
+      ) {
+        return true;
+      }
       return (
-        p.pincode.toLowerCase().includes(q) ||
-        p.city.toLowerCase().includes(q) ||
-        p.state.toLowerCase().includes(q) ||
-        p.zoneCode.toLowerCase().includes(q)
+        g.subPrefixes.some((sp) => sp.pincode.includes(q) || sp.city.toLowerCase().includes(q)) ||
+        g.exactPins.some(
+          (ep) =>
+            ep.pincode.includes(q) ||
+            ep.city.toLowerCase().includes(q) ||
+            (ep.locality || "").toLowerCase().includes(q)
+        )
       );
     });
-  }, [pincodes, pinSearch, filterZone, filterSpecificity, filterStatus]);
+  }, [regionGroups, pinSearch, filterZone, filterStatus]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredPincodes.length / PAGE_SIZE));
-  const pagedPincodes = filteredPincodes.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const activeRegionGroup = useMemo(
+    () => regionGroups.find((g) => g.prefix2 === selectedRegionPrefix) || null,
+    [regionGroups, selectedRegionPrefix]
+  );
+
+  // Scoped 6-digit PINs inside active Region (Level 2)
+  const filteredRegionExactPins = useMemo(() => {
+    if (!activeRegionGroup) return [];
+    const q = regionChildSearch.trim().toLowerCase();
+    return activeRegionGroup.exactPins.filter((p) => {
+      if (regionChildStatus === "ACTIVE" && !p.isServiceable) return false;
+      if (regionChildStatus === "DISABLED" && p.isServiceable) return false;
+      if (!q) return true;
+      return (
+        p.pincode.includes(q) ||
+        p.city.toLowerCase().includes(q) ||
+        (p.locality || "").toLowerCase().includes(q)
+      );
+    });
+  }, [activeRegionGroup, regionChildSearch, regionChildStatus]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRegionExactPins.length / PAGE_SIZE));
+  const pagedRegionPins = filteredRegionExactPins.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   useEffect(() => {
     setPage(1);
-  }, [pinSearch, filterZone, filterSpecificity, filterStatus]);
+  }, [selectedRegionPrefix, regionChildSearch, regionChildStatus]);
+
+  const openRegionDetail = (prefix2: string, initialSearch = "") => {
+    setSelectedRegionPrefix(prefix2);
+    setRegionChildSearch(initialSearch);
+    setRegionChildStatus("ALL");
+    setPage(1);
+  };
+
+  // Toggle or create a 2-digit Region rule cleanly
+  const handleToggleRegionPause = async (group: RegionGroup) => {
+    const nextActive = !group.isRegionActive;
+    try {
+      if (group.regionRule) {
+        await handleTogglePin(group.regionRule);
+      } else {
+        const res = await fetch("/api/admin/pincodes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "UPSERT_RULE",
+            pincodePrefix: group.prefix2,
+            cityLabel: group.regionName,
+            stateName: group.stateName,
+            zoneCode: group.zoneCode,
+            isServiceable: nextActive,
+            coverageMode: group.coverageMode,
+            unserviceableReason: nextActive
+              ? ""
+              : `Deliveries to ${group.regionName} (${group.prefix2}xxxx) temporarily suspended by Studio Logistics.`,
+            staffName,
+          }),
+        });
+        if (!res.ok) throw new Error("Failed to update region rule");
+        notify(`Region ${group.prefix2} (${group.regionName}) marked ${nextActive ? "Active" : "Paused"}.`);
+        await loadAll();
+      }
+    } catch (err) {
+      notify((err as Error).message, true);
+    }
+  };
+
+  // Update 2-digit Region Zone or Coverage Policy
+  const handleUpdateRegionPolicy = async (
+    group: RegionGroup,
+    updates: { zoneCode?: string; coverageMode?: "STRICT_WHITELIST" | "ALLOW_ALL_IN_PREFIX" }
+  ) => {
+    try {
+      if (group.regionRule) {
+        const res = await fetch("/api/admin/pincodes", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: group.regionRule.id,
+            ...updates,
+            staffName,
+          }),
+        });
+        if (!res.ok) throw new Error("Failed to update region policy");
+      } else {
+        const res = await fetch("/api/admin/pincodes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "UPSERT_RULE",
+            pincodePrefix: group.prefix2,
+            cityLabel: group.regionName,
+            stateName: group.stateName,
+            zoneCode: updates.zoneCode || group.zoneCode,
+            isServiceable: group.isRegionActive,
+            coverageMode: updates.coverageMode || group.coverageMode,
+            staffName,
+          }),
+        });
+        if (!res.ok) throw new Error("Failed to save region policy");
+      }
+      notify(`Updated policy for Region ${group.prefix2} (${group.regionName}).`);
+      await loadAll();
+    } catch (err) {
+      notify((err as Error).message, true);
+    }
+  };
 
   // PIN Simulator
   const handleSimulatePin = async () => {
@@ -206,6 +424,7 @@ export function LogisticsTab({ staffName, onLogAudit, onPincodesUpdated }: Logis
       stateName: pinData?.stateName || "",
       zoneCode: pinData?.zoneCode || "ZONE_A",
       isServiceable: pinData?.isServiceable !== undefined ? pinData.isServiceable : true,
+      coverageMode: pinData?.coverageMode || "STRICT_WHITELIST",
       unserviceableReason: pinData?.unserviceableReason || "",
     });
     setShowRuleModal(true);
@@ -602,7 +821,7 @@ export function LogisticsTab({ staffName, onLogAudit, onPincodesUpdated }: Logis
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() =>
                       openModalForPin({
@@ -610,216 +829,546 @@ export function LogisticsTab({ staffName, onLogAudit, onPincodesUpdated }: Logis
                         cityLabel: simResult.city || "",
                         stateName: simResult.state || "",
                         zoneCode: simResult.zoneCode || "ZONE_D",
-                        isServiceable: !simResult.isServiceable,
-                        unserviceableReason: simResult.isServiceable ? "Temporarily suspended by Studio Logistics." : "",
+                        isServiceable: true,
+                        unserviceableReason: "",
                       })
                     }
-                    className="px-3.5 py-2 rounded-lg bg-[#24242a] border border-[#3e3e46] text-white hover:border-[#c59b6d] text-xs font-semibold transition-colors"
+                    className="px-3.5 py-2 rounded-lg bg-[#c59b6d] text-[#121214] hover:bg-[#d6aa7c] text-xs font-semibold transition-colors"
                   >
                     {simResult.resolutionType === "EXACT_6_DIGIT"
-                      ? `Edit Exact Override (${simResult.pincode})`
-                      : `Create Exact Nested Override for ${simResult.pincode}`}
+                      ? `Edit PIN ${simResult.pincode}`
+                      : `+ Add & Enable ${simResult.pincode}`}
                   </button>
+                  {simResult.pincode?.length === 6 && (
+                    <button
+                      onClick={() => openRegionDetail(simResult.pincode.slice(0, 2), simResult.pincode)}
+                      className="px-3 py-2 rounded-lg bg-[#24242a] border border-[#3e3e46] text-white hover:border-[#c59b6d] text-xs font-semibold transition-colors"
+                    >
+                      Open Region {simResult.pincode.slice(0, 2)} →
+                    </button>
+                  )}
                 </div>
               </div>
             )}
           </div>
 
-          {/* Action Toolbar & Filters */}
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => openModalForPin()}
-                className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors"
-              >
-                + Add PIN or Prefix Rule
-              </button>
-              <button
-                onClick={handleImportUrban884}
-                className="px-4 py-2 rounded-xl bg-[#24242a] border border-[#3e3e46] text-white font-semibold text-xs hover:border-[#c59b6d] transition-colors"
-              >
-                Sync {urbanCandidateCount} Urban Hub PINs to DB
-              </button>
-            </div>
+          {/* =============================================================== */}
+          {/* LEVEL 1: MAIN REGIONS DIRECTORY (2-DIGIT PREFIXES)              */}
+          {/* =============================================================== */}
+          {!activeRegionGroup && (
+            <div className="space-y-4">
+              {/* Action Toolbar & Region Search */}
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => openModalForPin()}
+                    className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors"
+                  >
+                    + Add PIN or Region
+                  </button>
+                  <button
+                    onClick={handleImportUrban884}
+                    className="px-4 py-2 rounded-xl bg-[#24242a] border border-[#3e3e46] text-white font-semibold text-xs hover:border-[#c59b6d] transition-colors"
+                  >
+                    Sync {urbanCandidateCount} Urban Hub PINs to DB
+                  </button>
+                </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <input
-                type="text"
-                placeholder="Search PIN, city, state..."
-                value={pinSearch}
-                onChange={(e) => setPinSearch(e.target.value)}
-                className="rounded-xl border border-[#3e3e46] bg-[#1c1c20] px-3 py-1.5 text-xs text-white placeholder-[#6e6e76] w-48 focus:border-[#c59b6d] focus:outline-none"
-              />
-              <select
-                value={filterSpecificity}
-                onChange={(e) => setFilterSpecificity(e.target.value)}
-                className="rounded-xl border border-[#3e3e46] bg-[#1c1c20] px-3 py-1.5 text-xs text-white focus:outline-none"
-              >
-                <option value="ALL">All Levels ({pincodes.length})</option>
-                <option value="PREFIX">Region Prefixes ({prefixCount})</option>
-                <option value="EXACT">Exact 6-Digit PINs ({exactPinCount})</option>
-              </select>
-              <select
-                value={filterZone}
-                onChange={(e) => setFilterZone(e.target.value)}
-                className="rounded-xl border border-[#3e3e46] bg-[#1c1c20] px-3 py-1.5 text-xs text-white focus:outline-none"
-              >
-                <option value="ALL">All Zones</option>
-                {zones.map((z) => (
-                  <option key={z.code} value={z.code}>{z.code}</option>
-                ))}
-              </select>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="rounded-xl border border-[#3e3e46] bg-[#1c1c20] px-3 py-1.5 text-xs text-white focus:outline-none"
-              >
-                <option value="ALL">All Status</option>
-                <option value="ACTIVE">Serviceable</option>
-                <option value="DISABLED">Disabled</option>
-              </select>
-            </div>
-          </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="Search 2-digit region, state, city, or 6-digit PIN..."
+                    value={pinSearch}
+                    onChange={(e) => setPinSearch(e.target.value)}
+                    className="rounded-xl border border-[#3e3e46] bg-[#1c1c20] px-3 py-1.5 text-xs text-white placeholder-[#6e6e76] w-64 focus:border-[#c59b6d] focus:outline-none"
+                  />
+                  <select
+                    value={filterZone}
+                    onChange={(e) => setFilterZone(e.target.value)}
+                    className="rounded-xl border border-[#3e3e46] bg-[#1c1c20] px-3 py-1.5 text-xs text-white focus:outline-none"
+                  >
+                    <option value="ALL">All Zones</option>
+                    {zones.map((z) => (
+                      <option key={z.code} value={z.code}>{z.code}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    className="rounded-xl border border-[#3e3e46] bg-[#1c1c20] px-3 py-1.5 text-xs text-white focus:outline-none"
+                  >
+                    <option value="ALL">All Regions</option>
+                    <option value="ACTIVE">Active Regions</option>
+                    <option value="DISABLED">Paused Regions</option>
+                  </select>
+                </div>
+              </div>
 
-          {/* PIN Table */}
-          <div className="rounded-2xl border border-[#2e2e34] bg-[#1c1c20] overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-[#18181c] border-b border-[#2e2e34] text-[11px] uppercase tracking-wider text-[#9e9ea8]">
-                <tr>
-                  <th className="py-3 px-4">PIN / Prefix</th>
-                  <th className="py-3 px-4">Hierarchy Level</th>
-                  <th className="py-3 px-4">City / Region &amp; State</th>
-                  <th className="py-3 px-4">Zone Assignment</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#2e2e34]">
-                {loading ? (
-                  <tr>
-                    <td colSpan={6} className="py-10 text-center text-[#9e9ea8]">Loading PIN hierarchy...</td>
-                  </tr>
-                ) : pagedPincodes.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-10 text-center text-[#9e9ea8]">No matching PIN rules found.</td>
-                  </tr>
-                ) : (
-                  pagedPincodes.map((pin) => (
-                    <tr key={pin.id} className="hover:bg-[#222228]/40 transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-white text-sm">{pin.pincode}</td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                            pin.pincode.length === 6
-                              ? "bg-amber-950/60 text-amber-300 border border-amber-800/60"
-                              : "bg-[#24242a] text-[#9e9ea8] border border-[#3e3e46]"
-                          }`}
-                        >
-                          {pin.pincode.length === 6
-                            ? "Exact 6-Digit Override"
-                            : pin.pincode.length === 3
-                            ? "3-Digit Hub Prefix"
-                            : "2-Digit Region Prefix"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-white">
-                        <div>{pin.city}, {pin.state}</div>
-                        {!pin.isServiceable && pin.unserviceableReason && (
-                          <div className="text-[10px] text-rose-400 truncate max-w-xs">{pin.unserviceableReason}</div>
-                        )}
-                      </td>
-                      <td className="py-3 px-4">
-                        <select
-                          value={pin.zoneCode}
-                          onChange={(e) => handleChangePinZone(pin, e.target.value)}
-                          className="rounded-lg bg-[#24242a] border border-[#3e3e46] px-2 py-1 text-[11px] text-[#c59b6d] font-semibold focus:outline-none"
-                        >
-                          {zones.map((z) => (
-                            <option key={z.code} value={z.code}>
-                              {z.code} — {z.name.replace(/^Zone [A-E] /, "")}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
-                            pin.isServiceable
-                              ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
-                              : "bg-rose-950 text-rose-300 border border-rose-800"
-                          }`}
-                        >
-                          {pin.isServiceable ? "Serviceable" : "Disabled"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+              {/* Exact 6-Digit Quick Jump Notice when searching a 6-digit PIN on Main View */}
+              {/^\d{6}$/.test(pinSearch.trim()) && (() => {
+                const q = pinSearch.trim();
+                const exactMatch = pincodes.find((p) => p.pincode === q);
+                const p2 = q.slice(0, 2);
+                const parentGroup = regionGroups.find((g) => g.prefix2 === p2);
+
+                return (
+                  <div className="p-3.5 rounded-xl bg-[#18181c] border border-[#c59b6d]/50 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    {exactMatch ? (
+                      <>
+                        <div>
+                          <span className="text-emerald-400 font-semibold">Found PIN {q}</span> in Region{" "}
+                          <strong className="text-white">{p2} ({parentGroup?.regionName || exactMatch.state})</strong> —{" "}
+                          <span className={exactMatch.isServiceable ? "text-emerald-300" : "text-rose-400"}>
+                            {exactMatch.isServiceable ? "Serviceable" : "Disabled"}
+                          </span>
+                        </div>
                         <button
-                          onClick={() => handleTogglePin(pin)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold ${
-                            pin.isServiceable
-                              ? "bg-[#2a2a30] text-rose-400 hover:bg-[#34343c]"
-                              : "bg-emerald-950 text-emerald-300 border border-emerald-800 hover:bg-emerald-900"
+                          onClick={() => openRegionDetail(p2, q)}
+                          className="px-3 py-1.5 rounded-lg bg-[#c59b6d] text-[#121214] font-semibold"
+                        >
+                          Manage {q} in Region {p2} →
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <span className="text-amber-400 font-semibold">PIN {q} is NOT in the verified system directory</span>{" "}
+                          <span className="text-[#9e9ea8]">(Storefront treats unlisted PINs as Not Serviceable).</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() =>
+                              openModalForPin({
+                                pincodePrefix: q,
+                                cityLabel: "",
+                                stateName: parentGroup?.stateName || "",
+                                zoneCode: parentGroup?.zoneCode || "ZONE_D",
+                                isServiceable: true,
+                              })
+                            }
+                            className="px-3 py-1.5 rounded-lg bg-[#c59b6d] text-[#121214] font-semibold"
+                          >
+                            + Add &amp; Enable {q}
+                          </button>
+                          {parentGroup && (
+                            <button
+                              onClick={() => openRegionDetail(p2)}
+                              className="px-3 py-1.5 rounded-lg bg-[#24242a] text-white border border-[#3e3e46]"
+                            >
+                              Open Region {p2} →
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Main Region List (2-Digit Prefixes) */}
+              <div className="rounded-2xl border border-[#2e2e34] bg-[#1c1c20] overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#18181c] border-b border-[#2e2e34] text-[11px] uppercase tracking-wider text-[#9e9ea8]">
+                    <tr>
+                      <th className="py-3 px-4">2-Digit Prefix</th>
+                      <th className="py-3 px-4">Main Region / State</th>
+                      <th className="py-3 px-4">Zone</th>
+                      <th className="py-3 px-4">Verified PINs in Region</th>
+                      <th className="py-3 px-4">Region Policy</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#2e2e34]">
+                    {loading ? (
+                      <tr>
+                        <td colSpan={6} className="py-10 text-center text-[#9e9ea8]">Loading regional PIN directory...</td>
+                      </tr>
+                    ) : filteredRegions.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-10 text-center text-[#9e9ea8]">No matching regions found.</td>
+                      </tr>
+                    ) : (
+                      filteredRegions.map((group) => (
+                        <tr
+                          key={group.prefix2}
+                          onClick={() => openRegionDetail(group.prefix2)}
+                          className="hover:bg-[#222228]/70 cursor-pointer transition-colors"
+                        >
+                          <td className="py-3.5 px-4">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-[#24242a] border border-[#3e3e46] font-mono font-bold text-[#c59b6d] text-sm">
+                              {group.prefix2}xxxx
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <div className="text-white font-semibold">{group.regionName}</div>
+                            <div className="text-[11px] text-[#9e9ea8]">{group.stateName}</div>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span className="px-2 py-0.5 rounded bg-[#24242a] text-[#c59b6d] text-[11px] font-semibold">
+                              {group.zoneCode}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono text-white font-semibold">
+                                {group.activeCount} active
+                              </span>
+                              {group.disabledCount > 0 && (
+                                <span className="px-1.5 py-0.5 rounded bg-rose-950/60 text-rose-300 text-[10px]">
+                                  {group.disabledCount} disabled
+                                </span>
+                              )}
+                              {group.subPrefixes.filter((s) => !s.isServiceable).length > 0 && (
+                                <span className="px-1.5 py-0.5 rounded bg-amber-950/60 text-amber-300 text-[10px]">
+                                  {group.subPrefixes.filter((s) => !s.isServiceable).map((s) => s.pincode).join(", ")} blocked
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            {!group.isRegionActive ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-950 text-rose-300 border border-rose-800">
+                                Paused (Region Blocked)
+                              </span>
+                            ) : group.coverageMode === "ALLOW_ALL_IN_PREFIX" ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-950 text-amber-300 border border-amber-800">
+                                Open Prefix (All {group.prefix2}xxxx)
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-950 text-emerald-300 border border-emerald-800">
+                                Strict 6-Digit Whitelist
+                              </span>
+                            )}
+                          </td>
+                          <td
+                            className="py-3.5 px-4 text-right space-x-2 whitespace-nowrap"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              onClick={() => openRegionDetail(group.prefix2)}
+                              className="px-3 py-1 rounded-lg bg-[#c59b6d] text-[#121214] font-semibold text-[11px] hover:bg-[#d6aa7c]"
+                            >
+                              View PINs ({group.exactPins.length}) →
+                            </button>
+                            <button
+                              onClick={() => handleToggleRegionPause(group)}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold ${
+                                group.isRegionActive
+                                  ? "bg-[#2a2a30] text-rose-400 hover:bg-[#34343c]"
+                                  : "bg-emerald-950 text-emerald-300 border border-emerald-800 hover:bg-emerald-900"
+                              }`}
+                            >
+                              {group.isRegionActive ? "Pause Region" : "Resume"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* =============================================================== */}
+          {/* LEVEL 2: SELECTED REGION DRILL-DOWN (PIN LIST FOR PREFIX XX)    */}
+          {/* =============================================================== */}
+          {activeRegionGroup && (
+            <div className="space-y-5">
+              {/* Region Header & Controls */}
+              <div className="p-5 rounded-2xl bg-[#1c1c20] border border-[#3e3e46] space-y-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setSelectedRegionPrefix(null)}
+                      className="px-3 py-1.5 rounded-xl bg-[#24242a] border border-[#3e3e46] text-xs font-semibold text-white hover:border-[#c59b6d]"
+                    >
+                      ← All Regions
+                    </button>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded bg-[#24242a] font-mono font-bold text-[#c59b6d] text-xs">
+                          {activeRegionGroup.prefix2}xxxx
+                        </span>
+                        <h3 className="text-sm font-semibold text-white">
+                          {activeRegionGroup.regionName} ({activeRegionGroup.stateName})
+                        </h3>
+                      </div>
+                      <p className="text-[11px] text-[#9e9ea8] mt-0.5">
+                        {activeRegionGroup.activeCount} serviceable PINs · {activeRegionGroup.disabledCount} disabled PINs
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() =>
+                        openModalForPin({
+                          pincodePrefix: activeRegionGroup.prefix2,
+                          cityLabel: "",
+                          stateName: activeRegionGroup.stateName,
+                          zoneCode: activeRegionGroup.zoneCode,
+                          isServiceable: true,
+                        })
+                      }
+                      className="px-3.5 py-1.5 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c]"
+                    >
+                      + Add PIN to Region {activeRegionGroup.prefix2}
+                    </button>
+                    <button
+                      onClick={() => handleToggleRegionPause(activeRegionGroup)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold border ${
+                        activeRegionGroup.isRegionActive
+                          ? "bg-[#24242a] border-[#3e3e46] text-rose-400 hover:border-rose-600"
+                          : "bg-emerald-950 border-emerald-700 text-emerald-300"
+                      }`}
+                    >
+                      {activeRegionGroup.isRegionActive ? "Pause Entire Region" : "Resume Region"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Region Commercial Zone & Coverage Mode Controls */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3 border-t border-[#2e2e34] text-xs">
+                  <div className="flex items-center justify-between gap-3 bg-[#16161a] px-3.5 py-2.5 rounded-xl border border-[#2e2e34]">
+                    <span className="text-[#9e9ea8]">Default Region Zone:</span>
+                    <select
+                      value={activeRegionGroup.zoneCode}
+                      onChange={(e) => handleUpdateRegionPolicy(activeRegionGroup, { zoneCode: e.target.value })}
+                      className="rounded-lg bg-[#24242a] border border-[#3e3e46] px-2.5 py-1 text-xs text-[#c59b6d] font-semibold focus:outline-none"
+                    >
+                      {zones.map((z) => (
+                        <option key={z.code} value={z.code}>{z.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 bg-[#16161a] px-3.5 py-2.5 rounded-xl border border-[#2e2e34]">
+                    <span className="text-[#9e9ea8]">Unlisted PIN Policy:</span>
+                    <select
+                      value={activeRegionGroup.coverageMode}
+                      onChange={(e) =>
+                        handleUpdateRegionPolicy(activeRegionGroup, {
+                          coverageMode: e.target.value as "STRICT_WHITELIST" | "ALLOW_ALL_IN_PREFIX",
+                        })
+                      }
+                      className="rounded-lg bg-[#24242a] border border-[#3e3e46] px-2.5 py-1 text-xs text-white font-semibold focus:outline-none"
+                    >
+                      <option value="STRICT_WHITELIST">Strict 6-Digit Whitelist Only (Recommended)</option>
+                      <option value="ALLOW_ALL_IN_PREFIX">Allow All {activeRegionGroup.prefix2}xxxx PINs</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sub-Prefix Exceptions inside this Region (3-digit / 4-digit, e.g. 194 Leh) */}
+              {activeRegionGroup.subPrefixes.length > 0 && (
+                <div className="p-4 rounded-2xl bg-[#18181c] border border-[#2e2e34] space-y-2">
+                  <h4 className="text-[11px] uppercase tracking-wider font-semibold text-[#c59b6d]">
+                    Sub-Prefix Exceptions inside {activeRegionGroup.prefix2}xxxx (3–4 Digit Hubs)
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {activeRegionGroup.subPrefixes.map((sp) => (
+                      <div
+                        key={sp.id}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#1c1c20] border border-[#3e3e46] text-xs"
+                      >
+                        <span className="font-mono font-bold text-white">{sp.pincode}*</span>
+                        <span className="text-[#9e9ea8]">{sp.city}</span>
+                        <span
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                            sp.isServiceable ? "bg-emerald-950 text-emerald-300" : "bg-rose-950 text-rose-300"
                           }`}
                         >
-                          {pin.isServiceable ? "Suspend" : "Enable"}
+                          {sp.isServiceable ? "Active" : "Blocked"}
+                        </span>
+                        <button
+                          onClick={() => handleTogglePin(sp)}
+                          className="text-[11px] text-[#c59b6d] hover:underline ml-1"
+                        >
+                          {sp.isServiceable ? "Block" : "Unblock"}
                         </button>
                         <button
-                          onClick={() =>
-                            openModalForPin({
-                              pincodePrefix: pin.pincode,
-                              cityLabel: pin.city,
-                              stateName: pin.state,
-                              zoneCode: pin.zoneCode,
-                              isServiceable: pin.isServiceable,
-                              unserviceableReason: pin.unserviceableReason || "",
-                            })
-                          }
-                          className="px-2.5 py-1 rounded-lg bg-[#24242a] text-white text-[11px] hover:bg-[#32323a]"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeleteRule(pin)}
-                          className="px-2 py-1 rounded-lg bg-[#24242a] text-[#9e9ea8] hover:text-rose-400 text-[11px]"
-                          title="Delete override"
+                          onClick={() => handleDeleteRule(sp)}
+                          className="text-[11px] text-[#9e9ea8] hover:text-rose-400"
+                          title="Delete sub-prefix rule"
                         >
                           ✕
                         </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-            {/* Pagination Footer */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-3 bg-[#18181c] border-t border-[#2e2e34] text-xs text-[#9e9ea8]">
-                <span>
-                  Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredPincodes.length)} of {filteredPincodes.length} rules
-                </span>
+              {/* Scoped Search & Status Filter */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <input
+                  type="text"
+                  placeholder={`Search 6-digit PIN or locality in ${activeRegionGroup.prefix2}xxxx...`}
+                  value={regionChildSearch}
+                  onChange={(e) => setRegionChildSearch(e.target.value)}
+                  className="rounded-xl border border-[#3e3e46] bg-[#1c1c20] px-3.5 py-2 text-xs text-white placeholder-[#6e6e76] w-full sm:w-80 focus:border-[#c59b6d] focus:outline-none"
+                />
                 <div className="flex items-center gap-2">
-                  <button
-                    disabled={page === 1}
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    className="px-3 py-1 rounded bg-[#24242a] text-white disabled:opacity-40"
+                  <select
+                    value={regionChildStatus}
+                    onChange={(e) => setRegionChildStatus(e.target.value)}
+                    className="rounded-xl border border-[#3e3e46] bg-[#1c1c20] px-3 py-2 text-xs text-white focus:outline-none"
                   >
-                    Prev
-                  </button>
-                  <span className="font-mono text-white">
-                    {page} / {totalPages}
-                  </span>
-                  <button
-                    disabled={page === totalPages}
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    className="px-3 py-1 rounded bg-[#24242a] text-white disabled:opacity-40"
-                  >
-                    Next
-                  </button>
+                    <option value="ALL">All Status ({activeRegionGroup.exactPins.length})</option>
+                    <option value="ACTIVE">Serviceable ({activeRegionGroup.activeCount})</option>
+                    <option value="DISABLED">Disabled ({activeRegionGroup.disabledCount})</option>
+                  </select>
                 </div>
               </div>
-            )}
-          </div>
+
+              {/* Scoped 6-Digit PIN Table */}
+              <div className="rounded-2xl border border-[#2e2e34] bg-[#1c1c20] overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#18181c] border-b border-[#2e2e34] text-[11px] uppercase tracking-wider text-[#9e9ea8]">
+                    <tr>
+                      <th className="py-3 px-4">6-Digit PIN</th>
+                      <th className="py-3 px-4">City / Locality</th>
+                      <th className="py-3 px-4">Zone</th>
+                      <th className="py-3 px-4">Source</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#2e2e34]">
+                    {pagedRegionPins.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-10 text-center space-y-3">
+                          <div className="text-[#9e9ea8]">
+                            No 6-digit PINs match{" "}
+                            {regionChildSearch ? `"${regionChildSearch}"` : `Region ${activeRegionGroup.prefix2}`}.
+                          </div>
+                          {/^\d{6}$/.test(regionChildSearch.trim()) && (
+                            <button
+                              onClick={() =>
+                                openModalForPin({
+                                  pincodePrefix: regionChildSearch.trim(),
+                                  cityLabel: "",
+                                  stateName: activeRegionGroup.stateName,
+                                  zoneCode: activeRegionGroup.zoneCode,
+                                  isServiceable: true,
+                                })
+                              }
+                              className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c]"
+                            >
+                              + Add &amp; Enable PIN {regionChildSearch.trim()} in Region {activeRegionGroup.prefix2}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ) : (
+                      pagedRegionPins.map((pin) => (
+                        <tr key={pin.id} className="hover:bg-[#222228]/40 transition-colors">
+                          <td className="py-3 px-4 font-mono font-bold text-white text-sm">{pin.pincode}</td>
+                          <td className="py-3 px-4 text-white">
+                            <div>{pin.city}</div>
+                            {pin.locality && <div className="text-[10px] text-[#9e9ea8]">{pin.locality}</div>}
+                            {!pin.isServiceable && pin.unserviceableReason && (
+                              <div className="text-[10px] text-rose-400 truncate max-w-xs">{pin.unserviceableReason}</div>
+                            )}
+                          </td>
+                          <td className="py-3 px-4">
+                            <select
+                              value={pin.zoneCode}
+                              onChange={(e) => handleChangePinZone(pin, e.target.value)}
+                              className="rounded-lg bg-[#24242a] border border-[#3e3e46] px-2 py-1 text-[11px] text-[#c59b6d] font-semibold focus:outline-none"
+                            >
+                              {zones.map((z) => (
+                                <option key={z.code} value={z.code}>{z.code}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="px-2 py-0.5 rounded bg-[#24242a] text-[#9e9ea8] text-[10px] font-mono">
+                              {pin.source || "URBAN_884"}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                                pin.isServiceable
+                                  ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                                  : "bg-rose-950 text-rose-300 border border-rose-800"
+                              }`}
+                            >
+                              {pin.isServiceable ? "Serviceable" : "Disabled"}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                            <button
+                              onClick={() => handleTogglePin(pin)}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold ${
+                                pin.isServiceable
+                                  ? "bg-[#2a2a30] text-rose-400 hover:bg-[#34343c]"
+                                  : "bg-emerald-950 text-emerald-300 border border-emerald-800 hover:bg-emerald-900"
+                              }`}
+                            >
+                              {pin.isServiceable ? "Disable" : "Enable"}
+                            </button>
+                            <button
+                              onClick={() =>
+                                openModalForPin({
+                                  pincodePrefix: pin.pincode,
+                                  cityLabel: pin.city,
+                                  stateName: pin.state,
+                                  zoneCode: pin.zoneCode,
+                                  isServiceable: pin.isServiceable,
+                                  unserviceableReason: pin.unserviceableReason || "",
+                                })
+                              }
+                              className="px-2.5 py-1 rounded-lg bg-[#24242a] text-white text-[11px] hover:bg-[#32323a]"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteRule(pin)}
+                              className="px-2 py-1 rounded-lg bg-[#24242a] text-[#9e9ea8] hover:text-rose-400 text-[11px]"
+                              title="Remove PIN from directory"
+                            >
+                              ✕
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+
+                {/* Pagination Footer */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between px-4 py-3 bg-[#18181c] border-t border-[#2e2e34] text-xs text-[#9e9ea8]">
+                    <span>
+                      Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredRegionExactPins.length)} of {filteredRegionExactPins.length} PINs in Region {activeRegionGroup.prefix2}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        disabled={page === 1}
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        className="px-3 py-1 rounded bg-[#24242a] text-white disabled:opacity-40"
+                      >
+                        Prev
+                      </button>
+                      <span className="font-mono text-white">
+                        {page} / {totalPages}
+                      </span>
+                      <button
+                        disabled={page === totalPages}
+                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                        className="px-3 py-1 rounded bg-[#24242a] text-white disabled:opacity-40"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1278,3 +1827,4 @@ export function LogisticsTab({ staffName, onLogAudit, onPincodesUpdated }: Logis
     </div>
   );
 }
+

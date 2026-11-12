@@ -40,6 +40,7 @@ export async function GET() {
         zoneCode: r.shippingZone.code,
         zoneLabel: r.shippingZone.name,
         isServiceable: r.isServiceable,
+        coverageMode: r.coverageMode || "STRICT_WHITELIST",
         unserviceableReason: r.unserviceableReason || undefined,
         source: r.source,
         specificity,
@@ -204,6 +205,7 @@ export async function POST(request: NextRequest) {
       stateName,
       zoneCode,
       isServiceable = true,
+      coverageMode = "STRICT_WHITELIST",
       unserviceableReason,
     } = body;
 
@@ -228,6 +230,7 @@ export async function POST(request: NextRequest) {
         stateName: String(stateName || zone.name).trim(),
         cityLabel: cityLabel ? String(cityLabel).trim() : null,
         isServiceable: Boolean(isServiceable),
+        coverageMode: coverageMode === "ALLOW_ALL_IN_PREFIX" ? "ALLOW_ALL_IN_PREFIX" : "STRICT_WHITELIST",
         unserviceableReason: unserviceableReason ? String(unserviceableReason).trim() : null,
         source: cleanPrefix.length === 6 ? "ADMIN_OVERRIDE" : "REGION_PREFIX",
       },
@@ -237,6 +240,7 @@ export async function POST(request: NextRequest) {
         cityLabel: cityLabel ? String(cityLabel).trim() : null,
         pincodePrefix: cleanPrefix,
         isServiceable: Boolean(isServiceable),
+        coverageMode: coverageMode === "ALLOW_ALL_IN_PREFIX" ? "ALLOW_ALL_IN_PREFIX" : "STRICT_WHITELIST",
         unserviceableReason: unserviceableReason ? String(unserviceableReason).trim() : null,
         source: cleanPrefix.length === 6 ? "ADMIN_OVERRIDE" : "REGION_PREFIX",
       },
@@ -268,7 +272,7 @@ export async function PATCH(request: NextRequest) {
   try {
     await ensureLogisticsSeeded();
     const body = await request.json();
-    const { id, isServiceable, zoneCode, cityLabel, stateName, unserviceableReason, staffName } = body;
+    const { id, isServiceable, coverageMode, zoneCode, cityLabel, stateName, unserviceableReason, staffName } = body;
 
     if (!id) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
@@ -276,6 +280,9 @@ export async function PATCH(request: NextRequest) {
 
     const updateData: Record<string, any> = {};
     if (typeof isServiceable === "boolean") updateData.isServiceable = isServiceable;
+    if (coverageMode === "STRICT_WHITELIST" || coverageMode === "ALLOW_ALL_IN_PREFIX") {
+      updateData.coverageMode = coverageMode;
+    }
     if (cityLabel !== undefined) updateData.cityLabel = cityLabel || null;
     if (stateName !== undefined) updateData.stateName = stateName;
     if (unserviceableReason !== undefined) updateData.unserviceableReason = unserviceableReason || null;
