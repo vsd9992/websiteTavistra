@@ -40,12 +40,41 @@ export interface AdminProposal {
   }[];
 }
 
+async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init);
+  const raw = await res.text();
+  let parsed: unknown = null;
+  if (raw) {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} (${url}): ${raw.slice(0, 140)}`);
+      }
+      throw new Error(`Invalid JSON response from ${url}`);
+    }
+  }
+  if (!res.ok) {
+    const errObj = (parsed && typeof parsed === "object" ? parsed : {}) as {
+      error?: string;
+      message?: string;
+    };
+    throw new Error(errObj.message || errObj.error || `HTTP ${res.status} from ${url}`);
+  }
+  if (parsed === null) {
+    throw new Error(`Empty response body from ${url} (HTTP ${res.status})`);
+  }
+  return parsed as T;
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<
     "OVERVIEW" | "ORDERS" | "PRODUCTION" | "DISPATCH" | "TICKETS" | "CUSTOMERS" | "PROPOSALS" | "CATALOGUE" | "PINCODES" | "SETTINGS" | "AUDIT"
   >("OVERVIEW");
 
   // State
+  const [backendStatus, setBackendStatus] = useState<"connecting" | "connected" | "error">("connecting");
+  const [backendError, setBackendError] = useState<string | null>(null);
   const [currentStaff, setCurrentStaff] = useState<StaffUser>(STAFF_USERS[0]);
   const [orders, setOrders] = useState<AdminOrder[]>(INITIAL_ORDERS);
   const [inquiries, setInquiries] = useState<BulkInquiry[]>(INITIAL_BULK_INQUIRIES);
@@ -134,94 +163,54 @@ export default function App() {
   };
 
   // Synchronize with PostgreSQL Backend via Next.js API
+  const syncBackendData = async () => {
+    setBackendStatus("connecting");
+    setBackendError(null);
+
+    const results = await Promise.allSettled([
+      fetchJson<{ orders?: AdminOrder[] }>("/api/orders").then((d) => {
+        if (Array.isArray(d.orders)) setOrders(d.orders);
+      }),
+      fetchJson<{ inquiries?: BulkInquiry[] }>("/api/inquiries").then((d) => {
+        if (Array.isArray(d.inquiries)) setInquiries(d.inquiries);
+      }),
+      fetchJson<{ tickets?: SupportTicket[] }>("/api/tickets").then((d) => {
+        if (Array.isArray(d.tickets)) setTickets(d.tickets);
+      }),
+      fetchJson<{ customers?: CustomerProfile[] }>("/api/admin/customers").then((d) => {
+        if (Array.isArray(d.customers)) setCustomers(d.customers);
+      }),
+      fetchJson<{ catalogue?: CatalogueItem[] }>("/api/admin/catalogue").then((d) => {
+        if (Array.isArray(d.catalogue)) setCatalogue(d.catalogue);
+      }),
+      fetchJson<{ pincodes?: PincodeEntry[] }>("/api/admin/pincodes").then((d) => {
+        if (Array.isArray(d.pincodes)) setPincodes(d.pincodes);
+      }),
+      fetchJson<{ maintenanceMode?: boolean; studioHiatus?: boolean; announcementBanner?: string }>("/api/admin/settings").then(
+        (d) => {
+          if (typeof d.maintenanceMode === "boolean") setMaintenanceMode(d.maintenanceMode);
+          if (typeof d.studioHiatus === "boolean") setStudioHiatus(d.studioHiatus);
+          if (d.announcementBanner) setAnnouncementBanner(d.announcementBanner);
+        }
+      ),
+      fetchJson<{ proposals?: AdminProposal[] }>("/api/quotes").then((d) => {
+        if (Array.isArray(d.proposals)) setProposals(d.proposals);
+      }),
+    ]);
+
+    const failures = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+    if (failures.length > 0) {
+      setBackendStatus("error");
+      setBackendError(
+        `${failures.length} backend sync request(s) failed: ${(failures[0].reason as Error)?.message || "Unknown API error"}`
+      );
+    } else {
+      setBackendStatus("connected");
+    }
+  };
+
   useEffect(() => {
-    // 1. Fetch Orders from Database
-    fetch("/api/orders")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.orders && data.orders.length > 0) {
-          setOrders(data.orders);
-        }
-      })
-      .catch((err) => console.warn("Live orders fetch error, using local state:", err));
-
-    // 2. Fetch Inquiries from Database
-    fetch("/api/inquiries")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.inquiries && data.inquiries.length > 0) {
-          setInquiries(data.inquiries);
-        }
-      })
-      .catch((err) => console.warn("Live inquiries fetch error, using local state:", err));
-
-    // 3. Fetch Tickets from Database
-    fetch("/api/tickets")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.tickets && data.tickets.length > 0) {
-          setTickets(data.tickets);
-        }
-      })
-      .catch((err) => console.warn("Live tickets fetch error, using local state:", err));
-
-    // 4. Fetch Customers from Database
-    fetch("/api/admin/customers")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.customers && data.customers.length > 0) {
-          setCustomers(data.customers);
-        }
-      })
-      .catch((err) => console.warn("Live customers fetch error, using local state:", err));
-
-    // 5. Fetch Catalogue from Database
-    fetch("/api/admin/catalogue")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.catalogue && data.catalogue.length > 0) {
-          setCatalogue(data.catalogue);
-        }
-      })
-      .catch((err) => console.warn("Live catalogue fetch error, using local state:", err));
-
-    // 6. Fetch PIN Codes from Database
-    fetch("/api/admin/pincodes")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.pincodes && data.pincodes.length > 0) {
-          setPincodes(data.pincodes);
-        }
-      })
-      .catch((err) => console.warn("Live pincodes fetch error, using local state:", err));
-
-    // 7. Fetch System Settings & Governance from Database
-    fetch("/api/admin/settings")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data) {
-          if (typeof data.maintenanceMode === "boolean") {
-            setMaintenanceMode(data.maintenanceMode);
-          }
-          if (typeof data.studioHiatus === "boolean") {
-            setStudioHiatus(data.studioHiatus);
-          }
-          if (data.announcementBanner) {
-            setAnnouncementBanner(data.announcementBanner);
-          }
-        }
-      })
-      .catch((err) => console.warn("Live settings fetch error, using local state:", err));
-
-    // 8. Fetch Quotes & Architectural Proposals
-    fetch("/api/quotes")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.proposals && data.proposals.length > 0) {
-          setProposals(data.proposals);
-        }
-      })
-      .catch((err) => console.warn("Live proposals fetch error:", err));
+    void syncBackendData();
   }, []);
 
   // Statistics
@@ -522,21 +511,15 @@ export default function App() {
   const handleTogglePublish = async (itemId: string) => {
     const item = catalogue.find((c) => c.id === itemId);
     if (!item) return;
-    const nextPublished = !item.isPublished;
+    const prevPublished = item.isPublished;
+    const nextPublished = !prevPublished;
 
     setCatalogue((prev) =>
       prev.map((c) => (c.id === itemId ? { ...c, isPublished: nextPublished } : c))
     );
 
-    logAuditAction(
-      "CATALOGUE_TOGGLE",
-      "CatalogueItem",
-      item.slug,
-      `Publication status toggled to ${nextPublished ? "PUBLISHED" : "UNPUBLISHED"}.`
-    );
-
     try {
-      await fetch("/api/admin/catalogue", {
+      await fetchJson("/api/admin/catalogue", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -545,8 +528,17 @@ export default function App() {
           staffName: currentStaff.name,
         }),
       });
+      logAuditAction(
+        "CATALOGUE_TOGGLE",
+        "CatalogueItem",
+        item.slug,
+        `Publication status toggled to ${nextPublished ? "PUBLISHED" : "UNPUBLISHED"}.`
+      );
     } catch (err) {
-      console.warn("Failed to persist catalogue toggle to server:", err);
+      setCatalogue((prev) =>
+        prev.map((c) => (c.id === itemId ? { ...c, isPublished: prevPublished } : c))
+      );
+      alert(`Failed to update catalogue publication: ${(err as Error).message}`);
     }
   };
 
@@ -554,21 +546,15 @@ export default function App() {
   const handleTogglePincode = async (pincodeId: string) => {
     const pin = pincodes.find((p) => p.id === pincodeId);
     if (!pin) return;
-    const nextServiceable = !pin.isServiceable;
+    const prevServiceable = pin.isServiceable;
+    const nextServiceable = !prevServiceable;
 
     setPincodes((prev) =>
       prev.map((p) => (p.id === pincodeId ? { ...p, isServiceable: nextServiceable } : p))
     );
 
-    logAuditAction(
-      "PINCODE_SERVICEABILITY_TOGGLE",
-      "Pincode",
-      pin.pincode,
-      `PIN ${pin.pincode} serviceability set to ${nextServiceable ? "ACTIVE" : "DISABLED"}.`
-    );
-
     try {
-      await fetch("/api/admin/pincodes", {
+      await fetchJson("/api/admin/pincodes", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -577,60 +563,70 @@ export default function App() {
           staffName: currentStaff.name,
         }),
       });
+      logAuditAction(
+        "PINCODE_SERVICEABILITY_TOGGLE",
+        "Pincode",
+        pin.pincode,
+        `PIN ${pin.pincode} serviceability set to ${nextServiceable ? "ACTIVE" : "DISABLED"}.`
+      );
     } catch (err) {
-      console.warn("Failed to persist pincode toggle to server:", err);
+      setPincodes((prev) =>
+        prev.map((p) => (p.id === pincodeId ? { ...p, isServiceable: prevServiceable } : p))
+      );
+      alert(`Failed to update PIN ${pin.pincode}: ${(err as Error).message}`);
     }
+  };
+
+  // Helper to persist SystemSetting keys safely
+  const updateSystemSetting = async (key: string, value: string) => {
+    await fetchJson("/api/admin/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        key,
+        value,
+        staffName: currentStaff.name,
+      }),
+    });
   };
 
   // Toggle Maintenance Mode with DB synchronization
   const handleToggleMaintenance = async () => {
-    const next = !maintenanceMode;
+    const prev = maintenanceMode;
+    const next = !prev;
     setMaintenanceMode(next);
-    logAuditAction(
-      "MAINTENANCE_TOGGLE",
-      "System",
-      "Storefront",
-      `Maintenance mode set to ${next ? "ENABLED" : "DISABLED"}.`
-    );
 
     try {
-      await fetch("/api/admin/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          key: "MAINTENANCE_MODE",
-          value: String(next),
-          staffName: currentStaff.name,
-        }),
-      });
+      await updateSystemSetting("MAINTENANCE_MODE", String(next));
+      logAuditAction(
+        "MAINTENANCE_TOGGLE",
+        "System",
+        "Storefront",
+        `Maintenance mode set to ${next ? "ENABLED" : "DISABLED"}.`
+      );
     } catch (err) {
-      console.warn("Failed to persist maintenance setting:", err);
+      setMaintenanceMode(prev);
+      alert(`Failed to update Maintenance Mode: ${(err as Error).message}`);
     }
   };
 
   // Toggle Studio Hiatus with DB synchronization
   const handleToggleHiatus = async () => {
-    const next = !studioHiatus;
+    const prev = studioHiatus;
+    const next = !prev;
     setStudioHiatus(next);
-    logAuditAction(
-      "STUDIO_HIATUS_TOGGLE",
-      "System",
-      "Workshop",
-      `Studio hiatus banner set to ${next ? "ACTIVE" : "INACTIVE"}.`
-    );
 
     try {
-      await fetch("/api/admin/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          key: "STUDIO_HIATUS",
-          value: String(next),
-          staffName: currentStaff.name,
-        }),
-      });
+      await updateSystemSetting("STUDIO_HIATUS", String(next));
+      logAuditAction(
+        "STUDIO_HIATUS_TOGGLE",
+        "System",
+        "Workshop",
+        `Studio hiatus banner set to ${next ? "ACTIVE" : "INACTIVE"}.`
+      );
     } catch (err) {
-      console.warn("Failed to persist studio hiatus setting:", err);
+      setStudioHiatus(prev);
+      alert(`Failed to update Studio Hiatus: ${(err as Error).message}`);
     }
   };
 
@@ -639,15 +635,7 @@ export default function App() {
     setIsSavingSettings(true);
     setSettingsSaveSuccess(false);
     try {
-      await fetch("/api/admin/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          key: "ANNOUNCEMENT_BANNER",
-          value: announcementBanner,
-          staffName: currentStaff.name,
-        }),
-      });
+      await updateSystemSetting("ANNOUNCEMENT_BANNER", announcementBanner);
       logAuditAction(
         "ANNOUNCEMENT_BANNER_UPDATE",
         "System",
@@ -657,7 +645,7 @@ export default function App() {
       setSettingsSaveSuccess(true);
       setTimeout(() => setSettingsSaveSuccess(false), 3000);
     } catch (err) {
-      console.warn("Failed to persist announcement banner:", err);
+      alert(`Failed to save announcement banner: ${(err as Error).message}`);
     } finally {
       setIsSavingSettings(false);
     }
@@ -668,7 +656,7 @@ export default function App() {
     e.preventDefault();
     setIsSubmittingProposal(true);
     try {
-      const res = await fetch("/api/quotes", {
+      const data = await fetchJson<{ proposal: AdminProposal }>("/api/quotes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -676,8 +664,6 @@ export default function App() {
           staffName: currentStaff.name,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create proposal");
 
       setProposals((prev) => [data.proposal, ...prev]);
       logAuditAction(
@@ -704,17 +690,14 @@ export default function App() {
     setIsImporting(true);
     setImportFeedback("Scanning docs/products/*.md and syncing with PostgreSQL...");
     try {
-      const res = await fetch("/api/admin/catalogue/import", {
+      const data = await fetchJson<{ count: number }>("/api/admin/catalogue/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ syncFromDocs: true, staffName: currentStaff.name }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Sync failed");
 
       setImportFeedback(`Successfully synced ${data.count} editions from docs/products!`);
-      const catRes = await fetch("/api/admin/catalogue");
-      const catData = await catRes.json();
+      const catData = await fetchJson<{ catalogue?: CatalogueItem[] }>("/api/admin/catalogue");
       if (catData.catalogue) setCatalogue(catData.catalogue);
 
       logAuditAction(
@@ -736,17 +719,17 @@ export default function App() {
     setIsImporting(true);
     setImportFeedback("Parsing YAML frontmatter and specifications...");
     try {
-      const res = await fetch("/api/admin/catalogue/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ markdownContent: markdownInput, staffName: currentStaff.name }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Import failed");
+      const data = await fetchJson<{ product: { title: string; sku: string; slug: string } }>(
+        "/api/admin/catalogue/import",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ markdownContent: markdownInput, staffName: currentStaff.name }),
+        }
+      );
 
       setImportFeedback(`Successfully imported '${data.product.title}' (${data.product.sku})!`);
-      const catRes = await fetch("/api/admin/catalogue");
-      const catData = await catRes.json();
+      const catData = await fetchJson<{ catalogue?: CatalogueItem[] }>("/api/admin/catalogue");
       if (catData.catalogue) setCatalogue(catData.catalogue);
 
       logAuditAction(
@@ -792,18 +775,53 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#121214] text-[#f4f4f6]">
-      {/* Top Notice: Staging / Dev Mode Notice */}
-      <div className="bg-[#1c1c20] border-b border-[#2e2e34] px-6 py-1.5 text-[11px] text-[#9e9ea8] flex items-center justify-between">
+      {/* Top Notice: Backend Connectivity & Mode Banner */}
+      <div className="bg-[#1c1c20] border-b border-[#2e2e34] px-6 py-1.5 text-[11px] text-[#9e9ea8] flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span
+            className={`h-2 w-2 rounded-full ${
+              backendStatus === "connected"
+                ? "bg-emerald-500 animate-pulse"
+                : backendStatus === "connecting"
+                ? "bg-amber-400 animate-pulse"
+                : "bg-rose-500"
+            }`}
+          ></span>
           <span>
-            <strong className="text-white">Internal Studio Console</strong> · Local development environment (Windows workstation).
+            <strong className="text-white">Internal Studio Console</strong> ·{" "}
+            {backendStatus === "connected"
+              ? "Backend API & PostgreSQL connected"
+              : backendStatus === "connecting"
+              ? "Synchronizing with backend API..."
+              : "Backend API Disconnected"}
           </span>
         </div>
-        <div className="text-[10px] text-[#c59b6d]">
-          Role switcher active for operational testing. Production uses tokenized session cookies.
+        <div className="flex items-center gap-3 text-[10px]">
+          <button
+            type="button"
+            onClick={() => void syncBackendData()}
+            className="px-2 py-0.5 rounded bg-[#2a2a32] hover:bg-[#35353f] text-white border border-[#3e3e46]"
+          >
+            Refresh Sync
+          </button>
+          <span className="text-[#c59b6d]">Role switcher active for operational testing.</span>
         </div>
       </div>
+
+      {backendStatus === "error" && backendError && (
+        <div className="bg-rose-950/80 border-b border-rose-700/60 px-6 py-2 text-xs text-rose-100 flex items-center justify-between gap-4">
+          <span>
+            <strong>Backend Synchronization Error:</strong> {backendError}. Changes below will not persist until Storefront API is reachable.
+          </span>
+          <button
+            type="button"
+            onClick={() => void syncBackendData()}
+            className="px-2.5 py-1 rounded bg-rose-800 hover:bg-rose-700 text-white font-semibold shrink-0"
+          >
+            Retry Connection
+          </button>
+        </div>
+      )}
 
       {/* Top Staff Operational Bar */}
       <header className="border-b border-[#2e2e34] bg-[#18181c] sticky top-0 z-40">
