@@ -1,23 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect, useRef, Suspense } from "react";
+import { useState, useEffect, useMemo, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { useCart } from "@/context/CartContext";
+import { useCart, getCartLineKey } from "@/context/CartContext";
 import { useOrders, OrderRecord } from "@/context/OrderContext";
 import { useAuth, SavedAddress } from "@/context/AuthContext";
 import {
-  resolveShippingZone,
-  calculateDeliveryFee,
-  calculateOrderDeliveryFee,
   checkBulkOrderCeiling,
-  lookupPincode,
   validateIndianMobile,
   validateEmail,
-  PincodeLookupResult,
-  ItemPhysicalSpec,
+  validateGstin,
   ShippingCalculationResult,
 } from "@tavistra/shared";
 
@@ -65,6 +60,7 @@ function CheckoutContent() {
 
   const [shippingResult, setShippingResult] = useState<ShippingCalculationResult | null>(null);
   const [pinError, setPinError] = useState<string | null>(null);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [maintenanceMessage, setMaintenanceMessage] = useState("");
@@ -75,6 +71,8 @@ function CheckoutContent() {
     email: string;
     phone: string;
     destinationPin: string;
+    itemsSubtotalRupees: number;
+    deliveryFeeRupees: number;
     totalAmountRupees: number;
     amountPaidRupees: number;
     balanceDueRupees: number;
@@ -138,11 +136,13 @@ function CheckoutContent() {
   // Live Contact & Address Validations
   const emailValidation = validateEmail(customer.email);
   const mobileValidation = validateIndianMobile(customer.phone);
+  const gstinValidation = validateGstin(customer.gstin);
   const isNameValid = customer.fullName.trim().length >= 2;
   const isAddressValid = customer.address1.trim().length >= 5;
   const isCityValid = customer.city.trim().length >= 2;
   const isStateValid = customer.state.trim().length >= 2;
   const isPinValid = customer.pincode.trim().length === 6 && shippingResult !== null && !pinError;
+  const isGstinValid = !customer.gstin.trim() || gstinValidation.isValid;
 
   // Check live system maintenance status
   useEffect(() => {
@@ -166,6 +166,7 @@ function CheckoutContent() {
     isCityValid &&
     isStateValid &&
     isPinValid &&
+    isGstinValid &&
     !bulkCheck.isBulkEnquiryRequired;
 
   const handleBlur = (field: "fullName" | "phone" | "email" | "address1") => {
@@ -207,7 +208,15 @@ function CheckoutContent() {
     }
   };
 
-  // Calculate delivery fee & auto-fill city/state whenever pincode is valid
+  const activeItemsKey = useMemo(
+    () =>
+      activeItems
+        .map((i) => `${getCartLineKey(i.product)}:${i.quantity}`)
+        .join("|"),
+    [activeItems]
+  );
+
+  // Calculate delivery fee & auto-fill city/state whenever pincode or cart changes
   useEffect(() => {
     let isCancelled = false;
     const cleanPin = customer.pincode.replace(/\s+/g, "");
@@ -232,18 +241,18 @@ function CheckoutContent() {
         }),
       })
         .then(async (res) => {
-          if (!res.ok) throw new Error("API error");
           const data = await res.json();
+          if (!res.ok) throw new Error(data?.error || "Unable to verify delivery availability");
           if (isCancelled) return;
           const pinInfo = data.pincodeResult;
 
-          if (!pinInfo.isServiceable) {
+          if (!pinInfo?.isServiceable) {
             setPinError(
-              pinInfo.unserviceableReason ||
+              pinInfo?.unserviceableReason ||
                 `We cannot deliver to PIN code ${cleanPin}. Deliveries to this area are currently suspended by Studio Logistics.`
             );
             setShippingResult(null);
-            if (pinInfo.city) {
+            if (pinInfo?.city) {
               setCustomer((prev) => ({
                 ...prev,
                 city: pinInfo.city,
@@ -282,43 +291,22 @@ function CheckoutContent() {
             transitDaysEstimate: pinInfo.transitDaysEstimate,
           });
         })
-        .catch(() => {
+        .catch((err) => {
           if (isCancelled) return;
-          const lookup = lookupPincode(cleanPin);
-          if (!lookup.isServiceable) {
-            setPinError(
-              lookup.unserviceableReason ||
-                `We cannot deliver to PIN code ${cleanPin}. Deliveries to this area are currently suspended.`
-            );
-            setShippingResult(null);
-            return;
-          }
-          setCustomer((prev) => ({ ...prev, city: lookup.city, state: lookup.state }));
-          setPinError(null);
-          const productCalcs = activeItems.map(({ product }) =>
-            calculateDeliveryFee(lookup.zoneCode, [
-              {
-                productId: product.id,
-                priceRupees: product.pricePaise / 100,
-                weightGrams: product.weightGrams,
-                lengthMm: product.lengthMm,
-                widthMm: product.widthMm,
-                heightMm: product.heightMm,
-                isFragile: true,
-              },
-            ])
+          setShippingResult(null);
+          setPinError(
+            (err as Error).message ||
+              `Unable to verify serviceability for PIN code ${cleanPin}. Please try again.`
           );
-          const highestFee = calculateOrderDeliveryFee(productCalcs.map((c) => c.totalDeliveryFeeRupees));
-          setShippingResult({ ...productCalcs[0], totalDeliveryFeeRupees: highestFee });
         });
-    } else if (cleanPin.length > 0 && cleanPin.length < 6) {
+    } else if (cleanPin.length < 6) {
       setShippingResult(null);
     }
 
     return () => {
       isCancelled = true;
     };
-  }, [customer.pincode, activeItems]);
+  }, [customer.pincode, activeItemsKey, activeItems]);
 
   // Pricing calculations
   const itemsSubtotalPaise = activeItems.reduce(
@@ -341,8 +329,9 @@ function CheckoutContent() {
   const balanceDueLaterPaise =
     modeParam === "READY_STOCK" ? 0 : totalOrderPaise - amountPayableNowPaise;
 
-  const handleSubmitOrder = (e: React.FormEvent) => {
+  const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+    setCheckoutError(null);
 
     if (!isFormValid) {
       setTouched({
@@ -355,7 +344,7 @@ function CheckoutContent() {
     }
 
     if (!shippingResult) {
-      setPinError("Please provide a valid 6-digit delivery PIN code to calculate delivery terms.");
+      setPinError("Please provide a valid serviceable 6-digit delivery PIN code.");
       return;
     }
 
@@ -366,81 +355,97 @@ function CheckoutContent() {
 
     setIsProcessing(true);
 
-    // Simulate secure gateway payment processing (PhonePe / UPI)
-    setTimeout(() => {
-      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-      const generatedOrderId =
-        modeParam === "READY_STOCK"
-          ? `TAV-RS-${new Date().getFullYear()}-${randomSuffix}`
-          : `TAV-MTO-${new Date().getFullYear()}-${randomSuffix}`;
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const provisionalOrderId =
+      modeParam === "READY_STOCK"
+        ? `TAV-RS-${new Date().getFullYear()}-${randomSuffix}`
+        : `TAV-MTO-${new Date().getFullYear()}-${randomSuffix}`;
 
-      const orderRecord: OrderRecord = {
-        id: generatedOrderId,
-        mode: modeParam,
-        customerName: customer.fullName.trim(),
-        email: emailValidation.normalizedEmail || customer.email.trim(),
-        phone: mobileValidation.normalizedPhone || customer.phone.trim(),
-        addressLine1: customer.address1.trim(),
-        city: customer.city.trim(),
-        state: customer.state.trim(),
-        destinationPin: customer.pincode,
-        items: activeItems.map((item) => ({
-          name: item.product.name,
-          quantity: item.quantity,
-          pricePaise: item.product.pricePaise,
-        })),
-        itemsSubtotalRupees: itemsSubtotalPaise / 100,
-        deliveryFeeRupees: deliveryFeePaise / 100,
-        totalAmountRupees: totalOrderPaise / 100,
-        amountPaidRupees: amountPayableNowPaise / 100,
-        balanceDueRupees: balanceDueLaterPaise / 100,
-        carrierName: shippingResult.carrierName,
-        transitEstimate: shippingResult.transitDaysEstimate,
-        status: modeParam === "MADE_TO_ORDER" ? "GRACE_PERIOD_ACTIVE" : "PAYMENT_CONFIRMED",
-        statusLabel:
-          modeParam === "MADE_TO_ORDER"
-            ? "7-Day Confirmation Grace Window Active"
-            : "Order Confirmed · Ready for Inspection",
-        statusDescription:
-          modeParam === "MADE_TO_ORDER"
-            ? "25% advance verified. Physical workshop machining begins on Day 8. Specification alterations or 100% refund cancellation permitted within initial 7 days."
-            : "100% payment verified. Scheduled for white-glove crating and dispatch within 24–48 hours.",
-        graceDaysRemaining: modeParam === "MADE_TO_ORDER" ? 7 : undefined,
-        createdAt: new Date().toLocaleDateString("en-IN", {
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-        }),
-      };
+    const orderRecord: OrderRecord = {
+      id: provisionalOrderId,
+      mode: modeParam,
+      customerName: customer.fullName.trim(),
+      email: emailValidation.normalizedEmail || customer.email.trim(),
+      phone: mobileValidation.normalizedPhone || customer.phone.trim(),
+      addressLine1: customer.address1.trim(),
+      city: customer.city.trim(),
+      state: customer.state.trim(),
+      destinationPin: customer.pincode,
+      gstin: gstinValidation.normalizedGstin || undefined,
+      items: activeItems.map((item) => ({
+        productId: item.product.id,
+        variantId: item.product.variantId,
+        sku: item.product.sku,
+        slug: item.product.slug,
+        name: item.product.name,
+        quantity: item.quantity,
+        pricePaise: item.product.pricePaise,
+      })),
+      itemsSubtotalRupees: itemsSubtotalPaise / 100,
+      deliveryFeeRupees: deliveryFeePaise / 100,
+      totalAmountRupees: totalOrderPaise / 100,
+      amountPaidRupees: amountPayableNowPaise / 100,
+      balanceDueRupees: balanceDueLaterPaise / 100,
+      carrierName: shippingResult.carrierName,
+      transitEstimate: shippingResult.transitDaysEstimate,
+      status: modeParam === "MADE_TO_ORDER" ? "GRACE_PERIOD_ACTIVE" : "PAYMENT_CONFIRMED",
+      statusLabel:
+        modeParam === "MADE_TO_ORDER"
+          ? "7-Day Confirmation Grace Window Active"
+          : "Order Confirmed · Ready for Inspection",
+      statusDescription:
+        modeParam === "MADE_TO_ORDER"
+          ? "25% advance verified. Physical workshop machining begins on Day 8. Specification alterations or 100% refund cancellation permitted within initial 7 days."
+          : "100% payment verified. Scheduled for white-glove crating and dispatch within 24–48 hours.",
+      graceDaysRemaining: modeParam === "MADE_TO_ORDER" ? 7 : undefined,
+      createdAt: new Date().toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }),
+    };
 
-      saveOrder(orderRecord);
-
-      setCompletedOrder({
-        orderId: generatedOrderId,
-        mode: modeParam,
-        customerName: customer.fullName.trim(),
-        email: emailValidation.normalizedEmail || customer.email.trim(),
-        phone: mobileValidation.normalizedPhone || customer.phone.trim(),
-        destinationPin: customer.pincode,
-        totalAmountRupees: totalOrderPaise / 100,
-        amountPaidRupees: amountPayableNowPaise / 100,
-        balanceDueRupees: balanceDueLaterPaise / 100,
-        items: activeItems.map((item) => ({
-          name: item.product.name,
-          quantity: item.quantity,
-          pricePaise: item.product.pricePaise,
-        })),
-        transitEstimate: shippingResult.transitDaysEstimate,
-        createdAt: new Date().toLocaleDateString("en-IN", {
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-        }),
-      });
-      clearCart(modeParam);
+    const saveRes = await saveOrder(orderRecord);
+    if (!saveRes.success) {
+      setCheckoutError(saveRes.error || "Unable to complete checkout. Please review your details.");
       setIsProcessing(false);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }, 1200);
+      return;
+    }
+
+    const serverOrder = saveRes.order;
+    const confirmedOrderId = saveRes.orderNumber || serverOrder?.orderNumber || provisionalOrderId;
+
+    setCompletedOrder({
+      orderId: confirmedOrderId,
+      mode: modeParam,
+      customerName: customer.fullName.trim(),
+      email: emailValidation.normalizedEmail || customer.email.trim(),
+      phone: mobileValidation.normalizedPhone || customer.phone.trim(),
+      destinationPin: customer.pincode,
+      itemsSubtotalRupees: serverOrder?.itemsSubtotalRupees ?? itemsSubtotalPaise / 100,
+      deliveryFeeRupees: serverOrder?.deliveryFeeRupees ?? deliveryFeePaise / 100,
+      totalAmountRupees: serverOrder?.totalAmountRupees ?? totalOrderPaise / 100,
+      amountPaidRupees: serverOrder?.amountPaidRupees ?? amountPayableNowPaise / 100,
+      balanceDueRupees: serverOrder?.balanceDueRupees ?? balanceDueLaterPaise / 100,
+      items:
+        serverOrder?.items ||
+        activeItems.map((item) => ({
+          name: item.product.variantTitle
+            ? `${item.product.name} — ${item.product.variantTitle}`
+            : item.product.name,
+          quantity: item.quantity,
+          pricePaise: item.product.pricePaise,
+        })),
+      transitEstimate: serverOrder?.transitEstimate || shippingResult.transitDaysEstimate,
+      createdAt: new Date().toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }),
+    });
+    clearCart(modeParam);
+    setIsProcessing(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   // If order is completed, show formal confirmation receipt
@@ -527,7 +532,21 @@ function CheckoutContent() {
           {/* Financial Summary */}
           <div className="rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-6 space-y-3 text-xs">
             <div className="flex justify-between text-[var(--color-muted-light)]">
-              <span>Total Objects Value (Tax Inclusive):</span>
+              <span>1. Product Subtotal (Tax Inclusive):</span>
+              <span className="font-semibold text-[var(--color-ink)]">
+                ₹{completedOrder.itemsSubtotalRupees.toLocaleString("en-IN")}
+              </span>
+            </div>
+            <div className="flex justify-between text-[var(--color-muted-light)]">
+              <span>2. Insured Crating &amp; Delivery (Tax Inclusive):</span>
+              <span className="font-semibold text-[var(--color-ink)]">
+                {completedOrder.deliveryFeeRupees === 0
+                  ? "Complimentary"
+                  : `₹${completedOrder.deliveryFeeRupees.toLocaleString("en-IN")}`}
+              </span>
+            </div>
+            <div className="flex justify-between text-[var(--color-muted-light)] pt-2 border-t border-[var(--color-decorative-border)]/40">
+              <span>Total Agreed Order Value:</span>
               <span className="font-semibold text-[var(--color-ink)]">
                 ₹{completedOrder.totalAmountRupees.toLocaleString("en-IN")}
               </span>
@@ -879,17 +898,33 @@ function CheckoutContent() {
 
             {/* Optional GSTIN for corporate architects */}
             <div className="pt-4 border-t border-[var(--color-decorative-border)]">
-              <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
-                GSTIN for B2B Invoicing (Optional)
-              </label>
+              <div className="flex justify-between items-center mb-1.5">
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)]">
+                  GSTIN for B2B Invoicing (Optional)
+                </label>
+                {customer.gstin.trim() && isGstinValid && (
+                  <span className="text-[10px] text-emerald-700 font-semibold">
+                    ✓ Valid Checksummed GSTIN
+                  </span>
+                )}
+              </div>
               <input
                 type="text"
                 maxLength={15}
                 value={customer.gstin}
                 onChange={(e) => setCustomer({ ...customer, gstin: e.target.value.toUpperCase() })}
                 placeholder="e.g. 07AAAAA0000A1Z5"
-                className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono uppercase"
+                className={`w-full rounded-xl border ${
+                  customer.gstin.trim() && !isGstinValid
+                    ? "border-red-400 bg-red-50/20"
+                    : "border-[var(--color-control-border)] bg-[var(--color-canvas)]"
+                } px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono uppercase`}
               />
+              {customer.gstin.trim() && !isGstinValid && (
+                <p className="text-[10px] text-red-600 font-medium mt-1">
+                  ⚠ {gstinValidation.error || "Invalid 15-character GSTIN format."}
+                </p>
+              )}
             </div>
           </form>
         </div>
@@ -914,9 +949,14 @@ function CheckoutContent() {
             {/* Items Mini List */}
             <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
               {activeItems.map((item) => (
-                <div key={item.product.id} className="flex justify-between items-start text-xs">
+                <div key={getCartLineKey(item.product)} className="flex justify-between items-start text-xs">
                   <div>
                     <span className="font-semibold text-[var(--color-ink)] block">{item.product.name}</span>
+                    {item.product.variantTitle && (
+                      <span className="text-[10px] text-[var(--color-muted-light)] block">
+                        {item.product.variantTitle}
+                      </span>
+                    )}
                     <span className="text-[11px] text-[var(--color-muted-light)]">Qty: {item.quantity}</span>
                   </div>
                   <span className="font-semibold text-[var(--color-ink)]">
@@ -948,7 +988,7 @@ function CheckoutContent() {
               </div>
               {shippingResult && (
                 <p className="text-[11px] text-[var(--color-muted-light)] leading-snug">
-                  ✓ {shippingResult.carrierName} · Transit: {shippingResult.transitDaysEstimate} (Universal PIN Serviceability Presumed)
+                  ✓ {shippingResult.zone.name} · Transit: {shippingResult.transitDaysEstimate}
                 </p>
               )}
             </div>
@@ -987,6 +1027,11 @@ function CheckoutContent() {
 
             {/* Submit Action Button */}
             <div className="pt-2 space-y-3">
+              {checkoutError && (
+                <div className="rounded-xl border border-red-300 bg-red-50/90 p-3.5 text-xs text-red-800 leading-relaxed">
+                  <strong>Order Rejected:</strong> {checkoutError}
+                </div>
+              )}
               {maintenanceMode && (
                 <div className="rounded-xl border border-rose-300 bg-rose-50/90 p-4 text-xs text-rose-950 space-y-1">
                   <span className="font-semibold block text-rose-950">
@@ -1050,6 +1095,9 @@ function CheckoutContent() {
                       <li>
                         {pinError ? pinError : "Enter a serviceable 6-digit Indian PIN code"}
                       </li>
+                    )}
+                    {!isGstinValid && (
+                      <li>{gstinValidation.error || "Correct the 15-character GSTIN or clear the field"}</li>
                     )}
                     {!isAddressValid && <li>Enter delivery address line 1 (building, suite, street)</li>}
                   </ul>

@@ -8,13 +8,17 @@ export interface CartItem {
   quantity: number;
 }
 
+export function getCartLineKey(product: MockProduct): string {
+  return product.variantId || product.sku || product.id;
+}
+
 interface CartContextType {
   readyStockItems: CartItem[];
   mtoItems: CartItem[];
   addToCart: (product: MockProduct) => void;
-  removeFromCart: (productId: string, mode: "READY_STOCK" | "MADE_TO_ORDER") => void;
+  removeFromCart: (lineKey: string, mode: "READY_STOCK" | "MADE_TO_ORDER") => void;
   updateQuantity: (
-    productId: string,
+    lineKey: string,
     mode: "READY_STOCK" | "MADE_TO_ORDER",
     quantity: number
   ) => void;
@@ -24,11 +28,30 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+function upsertCartItem(prev: CartItem[], product: MockProduct): CartItem[] {
+  const key = getCartLineKey(product);
+  const maxStock =
+    product.mode === "READY_STOCK" && typeof product.availableStock === "number"
+      ? product.availableStock
+      : Infinity;
+
+  if (maxStock <= 0) return prev;
+
+  const existing = prev.find((item) => getCartLineKey(item.product) === key);
+  if (existing) {
+    return prev.map((item) =>
+      getCartLineKey(item.product) === key
+        ? { ...item, product, quantity: Math.min(item.quantity + 1, maxStock) }
+        : item
+    );
+  }
+  return [...prev, { product, quantity: 1 }];
+}
+
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [readyStockItems, setReadyStockItems] = useState<CartItem[]>([]);
   const [mtoItems, setMtoItems] = useState<CartItem[]>([]);
 
-  // Load from local storage on mount
   useEffect(() => {
     try {
       const savedReady = localStorage.getItem("tavistra_cart_ready");
@@ -40,7 +63,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Save to local storage on changes
   useEffect(() => {
     try {
       localStorage.setItem("tavistra_cart_ready", JSON.stringify(readyStockItems));
@@ -51,71 +73,53 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [readyStockItems, mtoItems]);
 
   const addToCart = (product: MockProduct) => {
-    if (product.mode === "QUOTE_ONLY") return; // Handled via inquiry form
+    if (product.mode === "QUOTE_ONLY") return;
 
     if (product.mode === "READY_STOCK") {
-      setReadyStockItems((prev) => {
-        const existing = prev.find((item) => item.product.id === product.id);
-        if (existing) {
-          return prev.map((item) =>
-            item.product.id === product.id
-              ? { ...item, quantity: item.quantity + 1 }
-              : item
-          );
-        }
-        return [...prev, { product, quantity: 1 }];
-      });
+      setReadyStockItems((prev) => upsertCartItem(prev, product));
     } else if (product.mode === "MADE_TO_ORDER") {
-      setMtoItems((prev) => {
-        const existing = prev.find((item) => item.product.id === product.id);
-        if (existing) {
-          return prev.map((item) =>
-            item.product.id === product.id
-              ? { ...item, quantity: item.quantity + 1 }
-              : item
-          );
-        }
-        return [...prev, { product, quantity: 1 }];
-      });
+      setMtoItems((prev) => upsertCartItem(prev, product));
     }
   };
 
   const removeFromCart = (
-    productId: string,
+    lineKey: string,
     mode: "READY_STOCK" | "MADE_TO_ORDER"
   ) => {
+    const matches = (item: CartItem) =>
+      getCartLineKey(item.product) === lineKey || item.product.id === lineKey;
     if (mode === "READY_STOCK") {
-      setReadyStockItems((prev) =>
-        prev.filter((item) => item.product.id !== productId)
-      );
+      setReadyStockItems((prev) => prev.filter((item) => !matches(item)));
     } else {
-      setMtoItems((prev) =>
-        prev.filter((item) => item.product.id !== productId)
-      );
+      setMtoItems((prev) => prev.filter((item) => !matches(item)));
     }
   };
 
   const updateQuantity = (
-    productId: string,
+    lineKey: string,
     mode: "READY_STOCK" | "MADE_TO_ORDER",
     quantity: number
   ) => {
     if (quantity <= 0) {
-      removeFromCart(productId, mode);
+      removeFromCart(lineKey, mode);
       return;
     }
+    const updateList = (prev: CartItem[]) =>
+      prev.map((item) => {
+        if (getCartLineKey(item.product) !== lineKey && item.product.id !== lineKey) {
+          return item;
+        }
+        const maxStock =
+          mode === "READY_STOCK" && typeof item.product.availableStock === "number"
+            ? item.product.availableStock
+            : Infinity;
+        return { ...item, quantity: Math.max(1, Math.min(quantity, maxStock)) };
+      });
+
     if (mode === "READY_STOCK") {
-      setReadyStockItems((prev) =>
-        prev.map((item) =>
-          item.product.id === productId ? { ...item, quantity } : item
-        )
-      );
+      setReadyStockItems(updateList);
     } else {
-      setMtoItems((prev) =>
-        prev.map((item) =>
-          item.product.id === productId ? { ...item, quantity } : item
-        )
-      );
+      setMtoItems(updateList);
     }
   };
 
@@ -152,4 +156,3 @@ export function useCart() {
   }
   return context;
 }
-

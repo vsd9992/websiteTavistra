@@ -824,6 +824,20 @@ async function runSet3Verification() {
     try {
       const orderNumsToClean = [authOrderNumber, guestOrderNumber].filter(Boolean);
       if (orderNumsToClean.length > 0) {
+        const movements = await prisma.stockMovement.findMany({
+          where: { referenceId: { in: orderNumsToClean }, type: "ORDER_FULFILLED" },
+        });
+        for (const m of movements) {
+          if (m.quantity < 0) {
+            await prisma.inventoryLedger.update({
+              where: { id: m.inventoryLedgerId },
+              data: { availableStock: { increment: Math.abs(m.quantity) } },
+            });
+          }
+        }
+        await prisma.stockMovement.deleteMany({
+          where: { referenceId: { in: orderNumsToClean } },
+        });
         await prisma.orderItem.deleteMany({
           where: { order: { orderNumber: { in: orderNumsToClean } } },
         });

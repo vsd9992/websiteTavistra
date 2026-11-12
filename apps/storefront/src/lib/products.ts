@@ -29,6 +29,9 @@ export interface MockProduct {
   id: string;
   slug: string;
   sku?: string;
+  variantId?: string;
+  variantTitle?: string;
+  availableStock?: number;
   name: string;
   categorySlug: string;
   categoryName: string;

@@ -17,7 +17,13 @@ export function ProductPurchaseAction({
   const { addToCart } = useCart();
   const [added, setAdded] = useState(false);
 
+  const isOutOfStock =
+    product.mode === "READY_STOCK" &&
+    typeof product.availableStock === "number" &&
+    product.availableStock <= 0;
+
   const handleAdd = () => {
+    if (isOutOfStock) return;
     addToCart(product);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
@@ -29,10 +35,11 @@ export function ProductPurchaseAction({
         <>
           <button
             type="button"
+            disabled={isOutOfStock}
             onClick={handleAdd}
-            className="w-full rounded-full bg-[var(--color-ink)] py-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] transition-all hover:bg-[var(--color-charcoal)] shadow-sm"
+            className="w-full rounded-full bg-[var(--color-ink)] py-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] transition-all hover:bg-[var(--color-charcoal)] disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
           >
-            {added ? "✓ Added to Cart" : "Add to Cart"}
+            {isOutOfStock ? "Out of Stock" : added ? "✓ Added to Cart" : "Add to Cart"}
           </button>
           <p className="text-center text-[11px] text-[var(--color-muted-light)]">
             Dispatches in 24–48 hours · {product.returnPolicyText}

@@ -1,11 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import {
-  calculateDeliveryFee,
-  lookupPincode,
-  ItemPhysicalSpec,
-} from "@tavistra/shared";
 
 interface DeliveryEstimatorProps {
   product: {
@@ -66,65 +61,40 @@ export function DeliveryEstimator({ product }: DeliveryEstimatorProps) {
         }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        const pinInfo = data.pincodeResult;
-
-        if (!pinInfo.isServiceable) {
-          setError(
-            pinInfo.unserviceableReason ||
-              `We cannot deliver to PIN code ${targetPin}. This destination is currently not serviceable for insured fragile consignments.`
-          );
-          setResult(null);
-          setResolvedLocation(pinInfo.city ? `${pinInfo.city}, ${pinInfo.state}` : null);
-          return;
-        }
-
-        setError(null);
-        setResolvedLocation(`${pinInfo.city}, ${pinInfo.state}`);
-        setResult({
-          totalDeliveryFeeRupees: data.totalDeliveryFeeRupees,
-          carrierName: data.carrierName,
-          transitDaysEstimate: pinInfo.transitDaysEstimate,
-          zoneName: pinInfo.zoneName,
-        });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error || "Unable to verify delivery availability right now.");
+        setResult(null);
+        setResolvedLocation(null);
         return;
       }
+
+      const pinInfo = data.pincodeResult;
+      if (!pinInfo?.isServiceable) {
+        setError(
+          pinInfo?.unserviceableReason ||
+            `We cannot deliver to PIN code ${targetPin}. This destination is currently not serviceable for insured fragile consignments.`
+        );
+        setResult(null);
+        setResolvedLocation(pinInfo?.city ? `${pinInfo.city}, ${pinInfo.state}` : null);
+        return;
+      }
+
+      setError(null);
+      setResolvedLocation(`${pinInfo.city}, ${pinInfo.state}`);
+      setResult({
+        totalDeliveryFeeRupees: data.totalDeliveryFeeRupees,
+        carrierName: data.carrierName,
+        transitDaysEstimate: pinInfo.transitDaysEstimate,
+        zoneName: pinInfo.zoneName,
+      });
     } catch {
-      // Fall back to local static computation if network call fails
+      setError("Unable to reach the delivery serviceability server. Please try again.");
+      setResult(null);
+      setResolvedLocation(null);
     } finally {
       setLoading(false);
     }
-
-    // Fallback path
-    const lookup = lookupPincode(targetPin);
-    if (!lookup.isServiceable) {
-      setError(
-        lookup.unserviceableReason ||
-          `We cannot deliver to PIN code ${targetPin}. This destination is currently not serviceable for insured fragile consignments.`
-      );
-      setResult(null);
-      setResolvedLocation(lookup.city ? `${lookup.city}, ${lookup.state}` : null);
-      return;
-    }
-
-    const itemSpec: ItemPhysicalSpec = {
-      priceRupees: product.pricePaise / 100,
-      weightGrams: product.weightGrams,
-      lengthMm: product.lengthMm,
-      widthMm: product.widthMm,
-      heightMm: product.heightMm,
-      isFragile: true,
-    };
-    const calculation = calculateDeliveryFee(lookup.zoneCode, [itemSpec]);
-    setError(null);
-    setResolvedLocation(`${lookup.city}, ${lookup.state}`);
-    setResult({
-      totalDeliveryFeeRupees: calculation.totalDeliveryFeeRupees,
-      carrierName: calculation.carrierName,
-      transitDaysEstimate: calculation.transitDaysEstimate,
-      zoneName: calculation.zone.name,
-    });
   };
 
   return (
@@ -169,31 +139,34 @@ export function DeliveryEstimator({ product }: DeliveryEstimatorProps) {
           disabled={loading}
           className="rounded-lg bg-[var(--color-ink)] px-4 py-2 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors disabled:opacity-50"
         >
-          {loading ? "Checking..." : "Check"}
+          {loading ? "..." : "Check"}
         </button>
       </div>
 
       {error && (
-        <div className="rounded-lg bg-red-50 p-2.5 border border-red-200 text-xs text-red-700 font-medium leading-relaxed">
+        <div className="rounded-lg bg-red-50/90 border border-red-200 p-2.5 text-xs text-red-700 font-medium leading-relaxed">
           ⚠ {error}
         </div>
       )}
 
-      {/* Clean, Simple Estimation Result */}
       {result && (
-        <div className="pt-3 border-t border-[var(--color-decorative-border)]/60 flex items-center justify-between text-xs">
-          <div className="space-y-0.5">
-            <p className="font-semibold text-[var(--color-ink)]">
-              {resolvedLocation && <span className="text-[var(--color-bronze)] font-medium mr-1.5">{resolvedLocation} ·</span>}
-              Insured Delivery: {result.totalDeliveryFeeRupees === 0 ? "Complimentary" : `₹${result.totalDeliveryFeeRupees.toLocaleString("en-IN")}`}
-            </p>
-            <p className="text-[11px] text-[var(--color-muted-light)]">
-              {result.carrierName} · {result.zoneName} · {result.transitDaysEstimate}
-            </p>
+        <div className="rounded-lg bg-[var(--color-ivory)] border border-[var(--color-decorative-border)]/70 p-3 space-y-1.5 text-xs">
+          <div className="flex items-center justify-between text-[var(--color-ink)]">
+            <span className="font-semibold">
+              {resolvedLocation ? `${resolvedLocation} · ` : ""}{result.zoneName}
+            </span>
+            <span className="text-[10px] uppercase tracking-wider font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+              Serviceable
+            </span>
           </div>
-          <span className="text-[10px] uppercase tracking-wider font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-            Serviceable
-          </span>
+          <div className="flex items-center justify-between text-[var(--color-muted-light)]">
+            <span>Insured Crating &amp; Delivery Fee:</span>
+            <span className="font-semibold text-[var(--color-ink)]">
+              {result.totalDeliveryFeeRupees === 0
+                ? "Complimentary"
+                : `₹${result.totalDeliveryFeeRupees.toLocaleString("en-IN")}`}
+            </span>
+          </div>
         </div>
       )}
     </div>

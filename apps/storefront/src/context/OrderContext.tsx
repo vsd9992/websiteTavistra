@@ -28,7 +28,16 @@ export interface OrderRecord {
   city: string;
   state: string;
   destinationPin: string;
-  items: { name: string; quantity: number; pricePaise: number }[];
+  gstin?: string;
+  items: {
+    productId?: string;
+    variantId?: string;
+    sku?: string;
+    slug?: string;
+    name: string;
+    quantity: number;
+    pricePaise: number;
+  }[];
   itemsSubtotalRupees: number;
   deliveryFeeRupees: number;
   totalAmountRupees: number;
@@ -46,70 +55,32 @@ export interface OrderRecord {
   createdAt: string;
 }
 
+export interface SaveOrderResult {
+  success: boolean;
+  error?: string;
+  code?: string;
+  orderNumber?: string;
+  order?: {
+    orderNumber: string;
+    mode: "READY_STOCK" | "MADE_TO_ORDER";
+    itemsSubtotalRupees: number;
+    deliveryFeeRupees: number;
+    totalAmountRupees: number;
+    amountPaidRupees: number;
+    balanceDueRupees: number;
+    carrierName: string;
+    transitEstimate: string;
+    items: { name: string; quantity: number; pricePaise: number }[];
+  };
+}
+
 interface OrderContextType {
   orders: OrderRecord[];
-  saveOrder: (order: OrderRecord) => void;
+  saveOrder: (order: OrderRecord) => Promise<SaveOrderResult>;
   lookupOrder: (orderId: string, phoneOrEmail: string) => OrderRecord | null;
 }
 
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
-
-// Authoritative default orders to verify both Ready Stock and MTO lifecycles
-const SEED_ORDERS: OrderRecord[] = [
-  {
-    id: "TAV-RS-2026-1001",
-    mode: "READY_STOCK",
-    customerName: "Ar. Vikramaditya Sharma",
-    email: "vikramaditya@studiovishnu.in",
-    phone: "+91 98765 43210",
-    addressLine1: "Penthouse 4B, Signature Towers, Golf Course Road",
-    city: "Gurugram",
-    state: "Haryana",
-    destinationPin: "122002",
-    items: [
-      { name: "Monolith Minimalist Wall Clock", quantity: 1, pricePaise: 399900 },
-      { name: "Orbita Solid Brass Incense Burner", quantity: 2, pricePaise: 149900 },
-    ],
-    itemsSubtotalRupees: 6997,
-    deliveryFeeRupees: 500,
-    totalAmountRupees: 7497,
-    amountPaidRupees: 7497,
-    balanceDueRupees: 0,
-    carrierName: "Blue Dart Fragile Surface",
-    awbNumber: "BD-DEL-89472911",
-    transitEstimate: "1–2 business days",
-    status: "DISPATCHED",
-    statusLabel: "In Transit with Carrier",
-    statusDescription: "Consignment packed in bespoke shock-absorbing crating. Handed over to Blue Dart Express Air hub in Delhi.",
-    createdAt: "November 4, 2026",
-  },
-  {
-    id: "TAV-MTO-2026-2002",
-    mode: "MADE_TO_ORDER",
-    customerName: "Ar. Vikramaditya Sharma",
-    email: "vikramaditya@studiovishnu.in",
-    phone: "+91 98765 43210",
-    addressLine1: "14 Barakhamba Road, Connaught Place",
-    city: "New Delhi",
-    state: "Delhi",
-    destinationPin: "110001",
-    items: [
-      { name: "Arc Solid Brass Wall Mirror", quantity: 1, pricePaise: 2850000 },
-    ],
-    itemsSubtotalRupees: 28500,
-    deliveryFeeRupees: 1500,
-    totalAmountRupees: 30000,
-    amountPaidRupees: 7500, // 25% verified advance
-    balanceDueRupees: 22500, // 75% remaining
-    carrierName: "Safeexpress Caged Heavy Freight",
-    transitEstimate: "1–2 business days",
-    status: "GRACE_PERIOD_ACTIVE",
-    statusLabel: "7-Day Confirmation Grace Window Active",
-    statusDescription: "25% advance verified. Physical workshop machining begins on Day 8. You may alter specifications or request 100% refund cancellation before Day 8.",
-    graceDaysRemaining: 4,
-    createdAt: "November 5, 2026",
-  },
-];
 
 export function OrderProvider({ children }: { children: React.ReactNode }) {
   const [orders, setOrders] = useState<OrderRecord[]>([]);
@@ -118,50 +89,67 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     try {
       const saved = localStorage.getItem("tavistra_orders");
       if (saved) {
-        const parsed: OrderRecord[] = JSON.parse(saved);
-        // Merge seed orders if not present
-        const merged = [...parsed];
-        for (const seed of SEED_ORDERS) {
-          if (!merged.some((o) => o.id === seed.id)) {
-            merged.push(seed);
-          }
-        }
-        setOrders(merged);
-        localStorage.setItem("tavistra_orders", JSON.stringify(merged));
-      } else {
-        setOrders(SEED_ORDERS);
-        localStorage.setItem("tavistra_orders", JSON.stringify(SEED_ORDERS));
+        setOrders(JSON.parse(saved));
       }
     } catch {
-      setOrders(SEED_ORDERS);
+      // Ignore storage errors
     }
   }, []);
 
-  const saveOrder = (order: OrderRecord) => {
-    setOrders((prev) => {
-      const exists = prev.find((o) => o.id === order.id);
-      const updated = exists
-        ? prev.map((o) => (o.id === order.id ? order : o))
-        : [order, ...prev];
-      try {
-        localStorage.setItem("tavistra_orders", JSON.stringify(updated));
-      } catch {
-        // Ignore local storage error
-      }
-      return updated;
-    });
-
-    // Asynchronously persist to database via backend API
+  const saveOrder = async (order: OrderRecord): Promise<SaveOrderResult> => {
     try {
-      fetch("/api/orders", {
+      const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(order),
-      }).catch(() => {
-        // Silent catch for offline development
       });
-    } catch {
-      // Ignore network errors in offline dev
+      const data = await res.json();
+
+      if (!res.ok || !data?.success) {
+        return {
+          success: false,
+          error: data?.error || "Unable to complete your order right now.",
+          code: data?.code,
+        };
+      }
+
+      const persistedRecord: OrderRecord = {
+        ...order,
+        id: data.orderNumber || order.id,
+        orderNumber: data.orderNumber || order.id,
+        itemsSubtotalRupees: data.order?.itemsSubtotalRupees ?? order.itemsSubtotalRupees,
+        deliveryFeeRupees: data.order?.deliveryFeeRupees ?? order.deliveryFeeRupees,
+        totalAmountRupees: data.order?.totalAmountRupees ?? order.totalAmountRupees,
+        amountPaidRupees: data.order?.amountPaidRupees ?? order.amountPaidRupees,
+        balanceDueRupees: data.order?.balanceDueRupees ?? order.balanceDueRupees,
+        carrierName: data.order?.carrierName ?? order.carrierName,
+        transitEstimate: data.order?.transitEstimate ?? order.transitEstimate,
+      };
+
+      setOrders((prev) => {
+        const exists = prev.find((o) => o.id === persistedRecord.id);
+        const updated = exists
+          ? prev.map((o) => (o.id === persistedRecord.id ? persistedRecord : o))
+          : [persistedRecord, ...prev];
+        try {
+          localStorage.setItem("tavistra_orders", JSON.stringify(updated));
+        } catch {
+          // Ignore storage errors
+        }
+        return updated;
+      });
+
+      return {
+        success: true,
+        orderNumber: persistedRecord.orderNumber,
+        order: data.order,
+      };
+    } catch (err) {
+      return {
+        success: false,
+        error: (err as Error).message || "Network error submitting order.",
+      };
     }
   };
 
@@ -198,4 +186,3 @@ export function useOrders() {
   }
   return context;
 }
-

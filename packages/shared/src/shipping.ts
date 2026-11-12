@@ -155,7 +155,7 @@ export function calculateOrderDeliveryFee(productFees: number[]): number {
  */
 export interface BulkCeilingCheck {
   isBulkEnquiryRequired: boolean;
-  reason?: 'EXCEEDS_MAX_UNITS_PER_PRODUCT' | 'EXCEEDS_MAX_DISTINCT_LINES';
+  reason?: 'EXCEEDS_MAX_UNITS_PER_PRODUCT' | 'EXCEEDS_MAX_TOTAL_UNITS' | 'EXCEEDS_MAX_DISTINCT_LINES';
   message?: string;
 }
 
@@ -170,10 +170,13 @@ export function checkBulkOrderCeiling(
     };
   }
 
+  let cumulativeUnits = 0;
   const productQtyMap = new Map<string, number>();
   for (const item of items) {
+    const qty = Math.max(0, Math.floor(item.quantity || 0));
+    cumulativeUnits += qty;
     const current = productQtyMap.get(item.productId) || 0;
-    const total = current + item.quantity;
+    const total = current + qty;
     if (total > 10) {
       return {
         isBulkEnquiryRequired: true,
@@ -182,6 +185,14 @@ export function checkBulkOrderCeiling(
       };
     }
     productQtyMap.set(item.productId, total);
+  }
+
+  if (cumulativeUnits > 10) {
+    return {
+      isBulkEnquiryRequired: true,
+      reason: 'EXCEEDS_MAX_TOTAL_UNITS',
+      message: 'Retail orders are limited to 10 total units across all products. Larger quantities must be placed via Bulk Order Enquiry.',
+    };
   }
 
   return { isBulkEnquiryRequired: false };
