@@ -1,35 +1,32 @@
 # Decision 0005: Modular Workflow Phasing Strategy & Product Content Pipeline Architecture
 
 **Status:** APPROVED (2026-11-12)  
-**Context:** Following preliminary manual review of the pre-live acceptance runbook, full end-to-end UAT was suspended to decompose the implementation into isolated, strictly dependency-ordered functional sets (Sets 0 through 8).
+modified: 2026-11-12  
+**Context:** Following preliminary manual review of the pre-live acceptance runbook, full end-to-end UAT was split into isolated, strictly dependency-ordered functional sets (Sets 0 through 8) verified independently on `devMachine` (`192.168.1.100`).
 
 ## Decisions
 
-### 1. Phasing & Isolation Model
-- Work progresses in isolated, dependency-ordered sets:
-  - **Set 0 (Completed):** Runtime & Admin Proxy Connectivity (`stop-production.sh` / `start-production.sh` + Vite API proxy).
-  - **Set 1 (Active):** Product Content, Markdown Specification, Media Handling & Multi-Variant Engine.
-  - **Set 2:** Delivery PIN Governance, Zones, Studio Controls & Institutional Copy.
-  - **Set 3:** Customer Identity, Authentication, Addresses & Privacy Isolation.
-  - **Set 4:** Cart Governance, Delivery Engine & Ready Stock / MTO Checkout (with confirmed 10-unit overall order ceiling).
-  - **Set 5:** Order Tracking, 7-Day Grace, QC Photos & 75% Balance Gate.
-  - **Set 6:** 30-Day Architectural Quotes & Bulk Enquiry Lifecycle.
-  - **Set 7:** Support Ticket Desk & Email Threading.
-  - **Set 8:** Staff Authentication, RBAC & Final Acceptance Runbook Sweep.
-- Each set must be verified independently on `devMachine` (`192.168.1.100`) before proceeding to the dependent set.
+### 1. Phasing & Status Model
+- **Set 0 (Completed & Verified):** Runtime & Admin Proxy Connectivity (`stop-production.sh` / `start-production.sh` + Vite API proxy).
+- **Set 1 (Completed & Verified):** Product Content, Markdown Specification, Folder Media Sync, Variant Overrides & Multi-Variant Engine.
+- **Set 2 (Completed & Verified — 68/68):** Delivery PIN Governance (Strict 6-Digit Whitelist & 2-Level Region Drill-Down), 12-Slab Zones Matrix, Studio Controls & Institutional Copy.
+- **Set 3 (Completed & Verified — 54/54):** Customer Identity, Hardened Email/Phone/Password/GSTIN Validation, Email & TOTP MFA, Password Change, Addresses, Privacy Isolation & Tavistra Branding.
+- **Set 4 (Next — Pending Approval):** Cart Governance, Delivery Engine & Ready Stock / MTO Checkout (with 10-unit / 10-line bulk boundary).
+- **Set 5 (Pending):** Order Tracking, 7-Day Grace, QC Photos & 75% Balance Gate.
+- **Set 6 (Pending):** 30-Day Architectural Quotes & Bulk Enquiry Lifecycle.
+- **Set 7 (Pending):** Support Ticket Desk & Email Threading.
+- **Set 8 (Pending):** Staff Authentication, RBAC & Final Acceptance Runbook Sweep.
 
-### 2. Product Content & Folder Structure (Set 1)
-- Each product is authored as an isolated package folder:
+### 2. Product Content & Folder Structure (Set 1 Revised)
+- Each product is authored as a normal folder under `docs/products/` (`.zip` archive upload/extraction removed per owner instruction):
   ```
-  <product-slug>/
-    ├── <product-slug>.md   (Single master Markdown + YAML frontmatter)
-    └── images/             (Local media assets referenced relatively)
+  docs/products/<product-slug>/
+    ├── <product-slug>.md   (Master Markdown + YAML frontmatter)
+    └── images/             (Local media assets copied directly to storage)
   ```
-- Upload mechanism: Uploaded via Admin as a single `.zip` archive containing the folder, or synced from disk.
-- Markdown YAML frontmatter strictly defines:
-  - Product metadata & taxonomy (Category, Subcategory, Product Type).
-  - Multi-variant array (`variants: [...]`) with individual SKUs, title/finish, tax-inclusive price, initial stock, and variant image.
-  - Physical specifications (weight, dimensions, returnability, mode).
-  - Delivery slab logic is decoupled from `.md` files and managed centrally in the database.
-- Media storage: Uploaded images are extracted into persistent host storage on `devMachine` and served via `/uploads/products/<slug>/...` ensuring persistence across redeploys.
-
+- Ingestion & storage: Admin Catalogue `/api/admin/catalogue/import` syncs product folders directly from disk (`syncAllMarkdownEditionsFromDisk`) or imports single `.md` specifications into PostgreSQL and persistent host storage (`/uploads/products/<slug>/...`).
+- Variant override & inheritance model:
+  - Variants define individual `sku`, `title`, tax-inclusive price, stock, and per-variant `images[]`.
+  - Variant attributes (`description`, dimensions, `weightGrams`, `returnWindowDays`, craft/care notes) override master values when provided and cleanly inherit omitted attributes from the master specification.
+  - Storefront PDP displays capsule variant selectors with per-variant pricing, switches variant gallery images, binds live `.md` specs (`returnWindowDays`, `weightGrams`), and places the Delivery & Transit Estimator directly below Add to Cart.
+- Delivery slab logic remains decoupled from `.md` files and is governed centrally in PostgreSQL.

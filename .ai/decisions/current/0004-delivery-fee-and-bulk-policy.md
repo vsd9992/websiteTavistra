@@ -1,9 +1,9 @@
 # Decision 0004: Delivery Fee Architecture, PIN Serviceability, and Bulk Order Governance
 
-modified: 2026-11-06
+modified: 2026-11-12
 
 ## Context & Authority
-Approved by repository owner on 2026-11-06 in `docs/website/delivery-fee-pricing-approved.md` and `docs/decisions/current-production-payment-lifecycle.md`. Supersedes earlier automatic per-product PIN restrictions, live carrier-rate dependency, and weight/distance calculation formulas as the customer-facing checkout engine.
+Approved by repository owner on 2026-11-06 in `docs/website/delivery-fee-pricing-approved.md`, `docs/website/delivery-pincode-launch-policy.md`, and `docs/decisions/current-production-payment-lifecycle.md` (with strict 6-digit whitelist enforcement confirmed in Set 2 on 2026-11-12). Supersedes earlier automatic per-product PIN restrictions, live carrier-rate dependency, and weight/distance calculation formulas as the customer-facing checkout engine.
 
 ## Core Decisions & Rules
 
@@ -31,8 +31,9 @@ Approved by repository owner on 2026-11-06 in `docs/website/delivery-fee-pricing
 - Exceeding **either** ceiling blocks ordinary checkout and directs the customer to the **Bulk Order Enquiry** workflow.
 - Bulk enquiries capture product, quantity, destination, and contact details for staff quotation; ordinary fee ladders do not automatically apply to bulk orders.
 
-### 6. Universal Enabled-PIN Serviceability
-- Any owner-enabled six-digit PIN is **presumed serviceable for all normal products by default**.
+### 6. Universal Enabled-PIN Serviceability (Strict Whitelist Governance)
+- Delivery eligibility is governed by a 2-level hierarchy (**2-digit/3-digit Region Prefixes -> Nested 6-Digit Whitelist**, `coverageMode: "STRICT_WHITELIST"` by default).
+- Any **owner-enabled** six-digit PIN is presumed serviceable for all standard catalogue items; unlisted PINs remain unserviceable (`NOT_IN_WHITELIST`) until enabled in Admin Logistics.
 - For Made to Order and Quote Only pieces, staff use the **7-day post-confirmation grace period** to verify physical courier feasibility.
 - Unresolved delivery infeasibility blocks physical production start and mandates a 100% full refund with zero customer penalty.
 

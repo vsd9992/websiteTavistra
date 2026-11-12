@@ -10,10 +10,10 @@ modified: 2026-11-12
 
 ## Phase 2: Execution (Modular Refinement Sets 0–8)
 - Set 0: Runtime & Admin Proxy Connectivity (`stop-production.sh` / `start-production.sh` + Vite API proxy) [Completed & Verified on devMachine]
-- Set 1: Product Content, Markdown Specification, Media Handling & Multi-Variant Engine [Completed & Verified on devMachine]
-- Set 2: Delivery PIN Governance, Zones, Studio Operating Controls & Institutional Copy [Active]
-- Set 3: Customer Identity, Authentication, Addresses & Privacy Isolation [Pending]
-- Set 4: Cart Governance, Delivery Engine & Ready Stock / MTO Checkout [Pending]
+- Set 1: Product Content, Markdown Folder Pipeline, Variant Inheritance & PDP Hardening [Completed & Verified on devMachine]
+- Set 2: Delivery PIN Governance, 2-Level Zones, 12-Slab Matrix, Studio Controls & Institutional Copy [Completed & Verified on devMachine — 68/68]
+- Set 3: Customer Identity, Hardened Validation, Email/TOTP MFA, Addresses & Privacy Isolation [Completed & Verified on devMachine — 54/54]
+- Set 4: Cart Governance, Delivery Engine & Ready Stock / MTO Checkout [Next — Pending Approval]
 - Set 5: Order Tracking, 7-Day Grace, QC Photos & 75% Balance Gate [Pending]
 - Set 6: 30-Day Architectural Quotes & Bulk Enquiry Lifecycle [Pending]
 - Set 7: Support Ticket Desk & Email Threading [Pending]

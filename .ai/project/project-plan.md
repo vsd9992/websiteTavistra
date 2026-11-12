@@ -1,9 +1,9 @@
 # Project Plan
 
-modified: 2026-11-06
+modified: 2026-11-12
 
 ## Objective
-Deliver Tavistra (`websiteTavistra`) — a premium design-led lifestyle and décor website and commerce platform (VDesign sub-brand). Phases 1–4 concept/planning specification is completed and locked as the authoritative blueprint. The current focus is technical implementation readiness and execution according to the Phase 4 Developer Handoff roadmap.
+Deliver **Tavistra** (`websiteTavistra`) — a premium design-led lifestyle and décor website and commerce platform (primary customer-facing brand **Tavistra** across UI and communications; **VDesign** strictly reserved for subtle footer, policy, and lineage parent attribution). Phases 1–4 concept/planning specification is completed as the authoritative blueprint, currently executed via isolated Sets 0–8 toward production readiness.
 
 ## Authority & Master Blueprint
 - **Canonical Concept Specification**: Imported into `docs/` from the concept repository (`vsd9992/Tavistra`).

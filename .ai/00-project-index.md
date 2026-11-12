@@ -1,36 +1,36 @@
 # Project Index
 
 Project: Tavistra (`websiteTavistra`)
-Phase: Phase 2 — Execution (Modular Refinement: Sets 0–3 Completed; Set 4 Next)
-Milestone: Baseline Adoption & Modular Hardening
-Status: Sets 0, 1, 2 (68/68), and 3 (54/54) verified live on devMachine; ready for Set 4 (Cart Governance, Delivery Engine & Checkout).
+Phase: Phase 2 — Execution (Sets 0–3 Completed; Set 4 Next)
+Milestone: Modular Hardening & Verification
+Status: Sets 0, 1, 2 (68/68), and 3 (54/54, incl. MFA & sign-out fix) verified live on `devMachine`; ready for Set 4 on approval.
 
 ## Active Tasks
-- [.ai/tasks/active/set-4-cart-checkout.md](tasks/active/set-4-cart-checkout.md) — Set 4: Cart Governance, Delivery Engine & Ready Stock / MTO Checkout (Pending start approval)
+- [.ai/tasks/active/set-4-cart-checkout.md](tasks/active/set-4-cart-checkout.md) — Set 4: Cart Governance, Delivery Engine & Ready Stock / MTO Checkout (Pending approval)
 
 ## Document Map
-- [AGENTS.md](../AGENTS.md) — Permanent repository operating rules & memory contract
-- [.ai/00-project-index.md](00-project-index.md) — Live orientation and navigation (this file)
-- [.ai/project/project-plan.md](project/project-plan.md) — High-level project baseline and work packages (H0–H7)
-- [.ai/project/roadmap.md](project/roadmap.md) — Project milestones and phase tracking
-- [docs/roadmap/current-effective-handoff-baseline.md](../docs/roadmap/current-effective-handoff-baseline.md) — Canonical 2026-11-04 Effective Cross-Phase Specification
-- [docs/decisions/current-production-payment-lifecycle.md](../docs/decisions/current-production-payment-lifecycle.md) — Reconciled production & payment lifecycle
-- [docs/roadmap/phase-4-developer-handoff.md](../docs/roadmap/phase-4-developer-handoff.md) — Developer handoff and integration gates
-- [docs/website/delivery-fee-pricing-approved.md](../docs/website/delivery-fee-pricing-approved.md) — Approved 12-slab delivery fee & bulk order policy (2026-11-06)
-- [docs/website/delivery-pincode-launch-policy.md](../docs/website/delivery-pincode-launch-policy.md) — Approved PIN code launch governance (2026-11-06)
-- [docs/testing/pre-live-acceptance-runbook.md](../docs/testing/pre-live-acceptance-runbook.md) — Pre-Live Acceptance & Quality Assurance Runbook (Phase 3 UAT Checklist)
+- [AGENTS.md](../AGENTS.md) — Operating rules & memory policy
+- [.ai/00-project-index.md](00-project-index.md) — Live orientation map
+- [.ai/project/project-plan.md](project/project-plan.md) — High-level baseline (H0–H7)
+- [.ai/project/roadmap.md](project/roadmap.md) — Phase & Set milestones
+- [docs/roadmap/current-effective-handoff-baseline.md](../docs/roadmap/current-effective-handoff-baseline.md) — Canonical 2026-11-04 spec
+- [docs/decisions/current-production-payment-lifecycle.md](../docs/decisions/current-production-payment-lifecycle.md) — Production & payment lifecycle
+- [docs/roadmap/phase-4-developer-handoff.md](../docs/roadmap/phase-4-developer-handoff.md) — Developer handoff gates
+- [docs/website/delivery-fee-pricing-approved.md](../docs/website/delivery-fee-pricing-approved.md) — 12-slab fee & bulk policy
+- [docs/website/delivery-pincode-launch-policy.md](../docs/website/delivery-pincode-launch-policy.md) — PIN launch governance
+- [docs/testing/pre-live-acceptance-runbook.md](../docs/testing/pre-live-acceptance-runbook.md) — Phase 3 UAT runbook
 
 ## Current Decisions
-- [.ai/decisions/current/0001-dev-deployment-environment.md](decisions/current/0001-dev-deployment-environment.md) — Local Windows development with remote Debian dev/deployment server (`192.168.1.100`)
-- [.ai/decisions/current/0002-pnpm-monorepo-structure.md](decisions/current/0002-pnpm-monorepo-structure.md) — pnpm monorepo modular monolith (`apps/storefront`, `apps/admin`, `packages/db`, `packages/shared`)
-- [.ai/decisions/current/0003-dev-server-ports-and-runtime.md](decisions/current/0003-dev-server-ports-and-runtime.md) — Dev server runtime & port allocation (`http://192.168.1.100:3001` for storefront, `3002` for admin)
-- [.ai/decisions/current/0004-delivery-fee-and-bulk-policy.md](decisions/current/0004-delivery-fee-and-bulk-policy.md) — 12-slab delivery fee ladder, highest-product-fee rule, universal PIN serviceability, and 10-unit/10-line bulk boundary
-- [.ai/decisions/current/0005-modular-workflow-and-product-pipeline.md](decisions/current/0005-modular-workflow-and-product-pipeline.md) — Modular workflow phasing strategy (Sets 0–8) and isolated product folder/zip pipeline architecture
+- [0001-dev-deployment-environment.md](decisions/current/0001-dev-deployment-environment.md) — Windows local + Debian `devMachine` (`192.168.1.100`)
+- [0002-pnpm-monorepo-structure.md](decisions/current/0002-pnpm-monorepo-structure.md) — pnpm monorepo (`storefront`, `admin`, `db`, `shared`)
+- [0003-dev-server-ports-and-runtime.md](decisions/current/0003-dev-server-ports-and-runtime.md) — Ports `3001` (storefront), `3002` (admin)
+- [0004-delivery-fee-and-bulk-policy.md](decisions/current/0004-delivery-fee-and-bulk-policy.md) — 12-slab ladder, strict enabled PINs, 10-unit/10-line bulk boundary
+- [0005-modular-workflow-and-product-pipeline.md](decisions/current/0005-modular-workflow-and-product-pipeline.md) — Sets 0–8 phasing & folder-based product pipeline
 
 ## Active Risks
-- PhonePe merchant review requirement requires a live, review-ready public site before gateway API access and production keys are granted.
-- Physical production and fulfilment operations must strictly enforce the 25% advance / 100% dispatch payment gates.
+- PhonePe merchant review requires a live review-ready public site before gateway keys are issued.
+- Physical production & dispatch must enforce 25% advance / 100% dispatch payment gates.
 
 ## Historical Pointers
 - Archived Tasks: [.ai/tasks/archive/](tasks/archive/) (`set-3-customer-identity.md`, `set-2-delivery-governance.md`, `set-1-product-markdown-pipeline.md`, `h4-commerce-foundations-db.md`, `h6-staff-admin-portal.md`)
-- Concept repository: `https://github.com/vsd9992/Tavistra.git` (downloaded to `docs/` and `CONCEPT_README.md`)
+- Concept docs imported into `docs/` and `CONCEPT_README.md`.

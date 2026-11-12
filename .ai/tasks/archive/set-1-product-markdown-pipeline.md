@@ -1,37 +1,19 @@
-# Task: Set 1 — Product Markdown, Media Assets, Multi-Variant & Pricing Handlers
+# Task: Set 1 — Product Markdown, Folder Media Sync, Variant Overrides & PDP
 
-**Status:** COMPLETED & VERIFIED  
+**Status:** COMPLETED & VERIFIED (Archived 2026-11-12)  
 **Created:** 2026-11-12  
 **Completed:** 2026-11-12  
 **Owner:** Antigravity / User  
 **Package:** Isolated Set 1 (Product Content Foundation)  
 **Dependencies:** Set 0 (Runtime & Admin Proxy — Completed)
 
-## Context & Objectives
-Implement an isolated, production-grade product content pipeline supporting a master folder structure (`<slug>/<slug>.md` + `<slug>/images/`), multi-variant pricing, persistent media extraction & serving, and comprehensive Storefront/Admin catalog presentation.
-
 ## Deliverables Completed & Verified
-1. **Product Markdown Schema & Parser (`parseProductMarkdown`)**:
-   - YAML frontmatter parser using `js-yaml` supporting:
-     - Taxonomy: Category, Subcategory, Product Type.
-     - Mode: `READY_STOCK`, `MADE_TO_ORDER`, `QUOTE_ONLY`.
-     - Physical attributes: dimensions, weight, mm sizes, materials.
-     - Multi-variant array: `variants` (SKU, title/finish, taxInclusivePrice, initialStock, image).
-     - Gallery images: `images` list with alt text and display ordering.
-     - Markdown body: editorial description, craftsmanship highlights, care instructions.
-2. **Product Package (.zip / Folder) Upload & Storage API**:
-   - Upgraded `/api/admin/catalogue/import` to accept multipart form-data `.zip` archive packages containing `<product-slug>/<product-slug>.md` and `<product-slug>/images/*`.
-   - Media extractor (`importProductZipPackage`) extracts media directly into persistent host storage at `/storage/uploads/products/<slug>/`.
-   - Dedicated media streaming endpoint (`/uploads/[...path]`) with MIME resolution, caching headers, and path traversal protection.
-   - Upsert engine safely creates/updates `Product`, `Category`, `ProductVariant`, `ProductImage`, and `InventoryLedger` in PostgreSQL.
-3. **Admin Catalogue Workspace**:
-   - Integrated `.zip` package upload form with drag & drop support.
-   - Catalogue table displays primary thumbnail, taxonomy tag (`Category · Subcategory`), variant counts, and `From ₹X` price labels.
-   - "Review Specs" modal displays full multi-variant breakdown with individual variant prices, SKUs, and stock.
-4. **Storefront Browsing & PDP Hardening**:
-   - `/shop` and `/category/[slug]` render actual uploaded product primary image and `From ₹X` pricing when variants differ.
-   - Interactive PDP (`/product/[slug]`) client component with dynamic variant selector updating price, SKU, stock status, hero image, and gallery thumbnail switcher.
-5. **Sample Product Package & Verification**:
-   - Authored master folder and archive: `docs/products/monolith-minimalist-wall-clock/` with 2 variants (Matte Obsidian ₹14,500 and Raw Aluminium ₹16,200) and SVG media assets.
-   - Verified end-to-end import, database records, and storefront PDP switching live on `devMachine` (`192.168.1.100`).
-
+1. **Markdown Schema, Parser & Variant Inheritance (`parseProductMarkdown`)**:
+   - YAML frontmatter + editorial body supporting taxonomy (`Category`, `Subcategory`, `Product Type`), mode (`READY_STOCK`, `MADE_TO_ORDER`, `QUOTE_ONLY`), physical attributes (`dimensions`, `weightGrams`, `returnWindowDays`, materials, GST rate), and multi-variant `variants[]`.
+   - Each variant specifies `sku`, `title`, `taxInclusivePrice`, `initialStock`, optional per-variant `images[]`, and optional attribute overrides (`description`, `dimensions`, `weightGrams`, `returnWindowDays`, craft/care instructions); omitted variant attributes automatically inherit from the master specification.
+2. **Direct Folder Media Sync & Persistent Storage (`/api/admin/catalogue/import`)**:
+   - Removed `.zip` upload/extraction overhead per owner direction; Admin Catalogue supports direct disk folder sync (`syncAllMarkdownEditionsFromDisk` scanning `docs/products/<slug>/<slug>.md` + `images/`) and single `.md` multipart/JSON import.
+   - Copies media directly into persistent `/storage/uploads/products/<slug>/...` served via `/uploads/[...path]`; safely upserts `Product`, `Category`, `ProductVariant`, `ProductImage`, and `InventoryLedger`.
+3. **Storefront PDP & Live `.md` Binding**:
+   - Interactive PDP (`/product/[slug]`) displays capsule variant buttons with per-variant prices, switches per-variant image galleries, reflects live `.md` values (`returnWindowDays`, `weightGrams`, variant overrides), and places the **Delivery & Transit Estimate** card beneath Add to Cart.
+   - Verified end-to-end with `docs/products/monolith-minimalist-wall-clock/` on `devMachine` (`192.168.1.100`).
