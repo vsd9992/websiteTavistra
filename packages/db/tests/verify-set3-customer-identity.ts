@@ -271,7 +271,7 @@ async function runSet3Verification() {
     });
     assert(reqOtpRes.ok, "Request Email Login OTP", "OTP Login", `status=${reqOtpRes.status}`);
 
-    const loginOtpCode = await fetchLatestOtpFromMailpit(userAEmail, "Sign-In Code", loginOtpStart);
+    const loginOtpCode = await fetchLatestOtpFromMailpit(userAEmail, "Sign-In Verification Code", loginOtpStart);
     assert(Boolean(loginOtpCode), "Mailpit Delivery of Login OTP", "Mailpit", `OTP=${loginOtpCode || "missing"}`);
 
     if (loginOtpCode) {
@@ -455,13 +455,14 @@ async function runSet3Verification() {
     authOrderNumber = `TAV-QA-A-${ts}`;
     guestOrderNumber = `TAV-QA-G-${ts}`;
 
+    // Place Authenticated order using exact same saved address fields to verify address reuse + FK detach
     const authOrderRes = await fetch(`${STOREFRONT_URL}/api/orders`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: cookieA },
       body: JSON.stringify({
         id: authOrderNumber,
         mode: "READY_STOCK",
-        customerName: "QA Architect A Updated",
+        customerName: "QA Architect A",
         email: userAEmail,
         phone: "9810101010",
         addressLine1: "14 Ashram Road",
@@ -529,7 +530,13 @@ async function runSet3Verification() {
     const wrongTrackRes = await fetch(
       `${STOREFRONT_URL}/api/orders?orderId=${encodeURIComponent(guestOrderNumber)}&contact=wrong@email.com`
     );
-    assert(!wrongTrackRes.ok || wrongTrackRes.status === 401, "Guest Track Rejects Wrong Contact", "Guest Tracking", `status=${wrongTrackRes.status}`);
+    const wrongTrackData = await wrongTrackRes.json();
+    assert(
+      wrongTrackRes.status === 403 && wrongTrackData.found === false,
+      "Guest Track Rejects Wrong Contact (403)",
+      "Guest Tracking",
+      `status=${wrongTrackRes.status} found=${wrongTrackData.found}`
+    );
 
     const validTrackRes = await fetch(
       `${STOREFRONT_URL}/api/orders?orderId=${encodeURIComponent(guestOrderNumber)}&contact=9899999999`
@@ -579,7 +586,7 @@ async function runSet3Verification() {
         await prisma.orderItem.deleteMany({
           where: { order: { orderNumber: { in: orderNumsToClean } } },
         });
-        await prisma.paymentTransaction.deleteMany({
+        await prisma.payment.deleteMany({
           where: { order: { orderNumber: { in: orderNumsToClean } } },
         });
         await prisma.order.deleteMany({

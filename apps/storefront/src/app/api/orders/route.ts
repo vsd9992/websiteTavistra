@@ -66,11 +66,14 @@ export async function GET(req: NextRequest) {
           (cleanPhone.includes(cleanContact) || cleanContact.includes(cleanPhone));
 
         if (!emailMatches && !phoneMatches) {
-          return NextResponse.json({
-            found: false,
-            order: null,
-            message: "Order located, but contact details did not match.",
-          });
+          return NextResponse.json(
+            {
+              found: false,
+              order: null,
+              message: "Order reference or contact details did not match.",
+            },
+            { status: 403 }
+          );
         }
       }
 
@@ -297,19 +300,33 @@ export async function POST(req: NextRequest) {
 
     const sessionUser = await getAuthenticatedUser(req);
 
-    // Link ONLY if customer is signed in; guest orders remain isolated with userId=null
-    const address = await prisma.customerAddress.create({
-      data: {
-        userId: sessionUser ? sessionUser.id : null,
-        guestEmail: sessionUser ? null : email.toLowerCase().trim(),
-        fullName: customerName,
-        phone,
-        addressLine1,
-        city,
-        state,
-        pincode: destinationPin,
-      },
-    });
+    // Link ONLY if customer is signed in; reuse identical saved address to avoid duplicates
+    const existingSavedAddress = sessionUser
+      ? await prisma.customerAddress.findFirst({
+          where: {
+            userId: sessionUser.id,
+            pincode: String(destinationPin).trim(),
+            addressLine1: String(addressLine1).trim(),
+            fullName: String(customerName).trim(),
+            phone: String(phone).trim(),
+          },
+        })
+      : null;
+
+    const address =
+      existingSavedAddress ||
+      (await prisma.customerAddress.create({
+        data: {
+          userId: sessionUser ? sessionUser.id : null,
+          guestEmail: sessionUser ? null : email.toLowerCase().trim(),
+          fullName: String(customerName).trim(),
+          phone: String(phone).trim(),
+          addressLine1: String(addressLine1).trim(),
+          city: String(city).trim(),
+          state: String(state).trim(),
+          pincode: String(destinationPin).trim(),
+        },
+      }));
 
     const purchaseModeEnum =
       mode === "MADE_TO_ORDER" ? PurchaseMode.MADE_TO_ORDER : PurchaseMode.READY_STOCK;
