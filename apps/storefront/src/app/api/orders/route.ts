@@ -308,7 +308,6 @@ export async function POST(req: NextRequest) {
             pincode: String(destinationPin).trim(),
             addressLine1: String(addressLine1).trim(),
             fullName: String(customerName).trim(),
-            phone: String(phone).trim(),
           },
         })
       : null;
