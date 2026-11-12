@@ -7,7 +7,39 @@
  * Targets live devMachine: http://192.168.1.100:3001, :3002, and Mailpit :8025
  */
 
+import crypto from "crypto";
 import { prisma } from "../src";
+import { computeGstinCheckDigit } from "@tavistra/shared";
+
+function generateTestTotpCode(secretBase32: string): string {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let bits = 0;
+  let value = 0;
+  const out: number[] = [];
+  for (const ch of secretBase32.toUpperCase().replace(/[^A-Z2-7]/g, "")) {
+    const idx = alphabet.indexOf(ch);
+    if (idx < 0) continue;
+    value = (value << 5) | idx;
+    bits += 5;
+    if (bits >= 8) {
+      out.push((value >>> (bits - 8)) & 0xff);
+      bits -= 8;
+    }
+  }
+  const key = Buffer.from(out);
+  const counter = Math.floor(Date.now() / 1000 / 30);
+  const buf = Buffer.alloc(8);
+  buf.writeUInt32BE(Math.floor(counter / 0x100000000), 0);
+  buf.writeUInt32BE(counter >>> 0, 4);
+  const hmac = crypto.createHmac("sha1", key).update(buf).digest();
+  const offset = hmac[hmac.length - 1] & 0x0f;
+  const codeInt =
+    ((hmac[offset] & 0x7f) << 24) |
+    ((hmac[offset + 1] & 0xff) << 16) |
+    ((hmac[offset + 2] & 0xff) << 8) |
+    (hmac[offset + 3] & 0xff);
+  return String(codeInt % 1000000).padStart(6, "0");
+}
 
 const STOREFRONT_URL = process.env.STOREFRONT_URL || "http://192.168.1.100:3001";
 const ADMIN_URL = process.env.ADMIN_URL || "http://192.168.1.100:3002";
@@ -49,11 +81,11 @@ function extractSessionCookie(res: Response): string | null {
   return null;
 }
 
-async function fetchLatestOtpFromMailpit(
+async function fetchLatestEmailFromMailpit(
   recipientEmail: string,
   subjectMatch: string,
   sinceMs: number
-): Promise<string | null> {
+): Promise<{ subject: string; body: string; otp: string | null } | null> {
   const deadline = Date.now() + 8000;
   const target = recipientEmail.toLowerCase();
 
@@ -79,10 +111,14 @@ async function fetchLatestOtpFromMailpit(
         if (candidate) {
           const msgRes = await fetch(`${MAILPIT_URL}/api/v1/message/${candidate.ID}`);
           if (msgRes.ok) {
-            const msgData = (await msgRes.json()) as { Text?: string; HTML?: string };
-            const body = msgData.Text || msgData.HTML || "";
-            const otpMatch = body.match(/\b(\d{6})\b/);
-            if (otpMatch) return otpMatch[1];
+            const msgData = (await msgRes.json()) as { Subject?: string; Text?: string; HTML?: string };
+            const body = `${msgData.HTML || ""}\n${msgData.Text || ""}`;
+            const otpMatch = (msgData.Text || msgData.HTML || "").match(/\b(\d{6})\b/);
+            return {
+              subject: msgData.Subject || candidate.Subject,
+              body,
+              otp: otpMatch ? otpMatch[1] : null,
+            };
           }
         }
       }
@@ -94,13 +130,25 @@ async function fetchLatestOtpFromMailpit(
   return null;
 }
 
+async function fetchLatestOtpFromMailpit(
+  recipientEmail: string,
+  subjectMatch: string,
+  sinceMs: number
+): Promise<string | null> {
+  const email = await fetchLatestEmailFromMailpit(recipientEmail, subjectMatch, sinceMs);
+  return email ? email.otp : null;
+}
+
 async function runSet3Verification() {
   const ts = Date.now();
-  const userAEmail = `qa-set3-a-${ts}@vdesign-qa.in`;
-  const userBEmail = `qa-set3-b-${ts}@vdesign-qa.in`;
-  const guestEmail = `qa-set3-guest-${ts}@vdesign-qa.in`;
-  const userAPassInitial = "AtelierPass#2026";
-  const userAPassReset = "NewAtelierPass#2026";
+  const userAEmail = `qa-set3-a-${ts}@tavistra-qa.in`;
+  const userBEmail = `qa-set3-b-${ts}@tavistra-qa.in`;
+  const guestEmail = `qa-set3-guest-${ts}@tavistra-qa.in`;
+  const userAPassInitial = "Atelier#2026";
+  const userAPassReset = "NewAtel#2026";
+  const userAPassChanged = "ChgAtel#2026";
+  const validGstinA = `24AAACC1206D1Z${computeGstinCheckDigit("24AAACC1206D1Z")}`;
+  const validGstinAUpdated = `27AAACT2727Q1Z${computeGstinCheckDigit("27AAACT2727Q1Z")}`;
 
   let userAId = "";
   let userBId = "";
@@ -161,6 +209,56 @@ async function runSet3Verification() {
     // ------------------------------------------------------------------------
     console.log("\n--- Section 2: Registration & Mailpit OTP Verification ---");
 
+    // Validation gates on Create Account (relay email, weak phone, weak/overlong password, nonsense GSTIN)
+    const relayRegRes = await fetch(`${STOREFRONT_URL}/api/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "QA Bad Email",
+        email: `bad-${ts}@mailinator.com`,
+        phone: "9810101010",
+        password: userAPassInitial,
+      }),
+    });
+    assert(relayRegRes.status === 400, "Reject Disposable Relay Email on Register", "Validation", `status=${relayRegRes.status}`);
+
+    const badPhoneRegRes = await fetch(`${STOREFRONT_URL}/api/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "QA Bad Phone",
+        email: userAEmail,
+        phone: "9999999999",
+        password: userAPassInitial,
+      }),
+    });
+    assert(badPhoneRegRes.status === 400, "Reject Repeated/Fake Phone on Register", "Validation", `status=${badPhoneRegRes.status}`);
+
+    const weakPwRegRes = await fetch(`${STOREFRONT_URL}/api/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "QA Weak Pw",
+        email: userAEmail,
+        phone: "9810101010",
+        password: "TooLongPassword#2026",
+      }),
+    });
+    assert(weakPwRegRes.status === 400, "Reject Over-15-Char Password on Register", "Validation", `status=${weakPwRegRes.status}`);
+
+    const nonsenseGstinRegRes = await fetch(`${STOREFRONT_URL}/api/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "QA Bad GSTIN",
+        email: userAEmail,
+        phone: "9810101010",
+        password: userAPassInitial,
+        gstin: "24ABCDE1234F1Z5",
+      }),
+    });
+    assert(nonsenseGstinRegRes.status === 400, "Reject Nonsense GSTIN Checksum on Register", "Validation", `status=${nonsenseGstinRegRes.status}`);
+
     const regStartMs = Date.now();
     const regARes = await fetch(`${STOREFRONT_URL}/api/auth/register`, {
       method: "POST",
@@ -171,7 +269,7 @@ async function runSet3Verification() {
         phone: "9810101010",
         password: userAPassInitial,
         practiceOrStudio: "QA Studio A",
-        gstin: "24ABCDE1234F1Z5",
+        gstin: validGstinA,
       }),
     });
     const regAData = await regARes.json();
@@ -200,9 +298,17 @@ async function runSet3Verification() {
       `Expected 403 requiresVerification=true, got ${unverifiedLoginRes.status}`
     );
 
-    // Fetch real verification OTP from Mailpit
-    const verifyOtp = await fetchLatestOtpFromMailpit(userAEmail, "verify", regStartMs);
-    assert(Boolean(verifyOtp && /^\d{6}$/.test(verifyOtp)), "Mailpit Delivery of Verify OTP", "Mailpit", `OTP=${verifyOtp || "missing"}`);
+    // Fetch real verification OTP & assert Tavistra email branding (no VDesign)
+    const verifyEmailObj = await fetchLatestEmailFromMailpit(userAEmail, "Verify Your Email Address", regStartMs);
+    const verifyOtp = verifyEmailObj?.otp || null;
+    assert(
+      Boolean(verifyOtp && /^\d{6}$/.test(verifyOtp)) &&
+        Boolean(verifyEmailObj?.subject.startsWith("[Tavistra]")) &&
+        !verifyEmailObj?.body.includes("VDesign"),
+      "Mailpit Delivery & Tavistra Branding (No VDesign)",
+      "Mailpit",
+      `OTP=${verifyOtp || "missing"} subj=${verifyEmailObj?.subject}`
+    );
 
     if (verifyOtp) {
       const verifyRes = await fetch(`${STOREFRONT_URL}/api/auth/verify-email`, {
@@ -343,16 +449,151 @@ async function runSet3Verification() {
       body: JSON.stringify({
         name: "QA Architect A Updated",
         practiceOrStudio: "QA Atelier Renovated",
-        gstin: "27ABCDE1234F1Z2",
+        gstin: validGstinAUpdated,
       }),
     });
     const patchProfileData = await patchProfileRes.json();
     assert(
-      patchProfileRes.ok && patchProfileData.user?.gstin === "27ABCDE1234F1Z2",
-      "PATCH /api/account Updates Profile & GSTIN",
+      patchProfileRes.ok && patchProfileData.user?.gstin === validGstinAUpdated,
+      "PATCH /api/account Updates Profile & Checksummed GSTIN",
       "Profile",
       `ok=${patchProfileRes.ok} gstin=${patchProfileData.user?.gstin}`
     );
+
+    // Change Password while logged in
+    const badCurrPwRes = await fetch(`${STOREFRONT_URL}/api/account/password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookieA },
+      body: JSON.stringify({ currentPassword: "Wrong#2026", newPassword: userAPassChanged }),
+    });
+    assert(badCurrPwRes.status === 401, "Change Password Rejects Wrong Current Password", "Password Change", `status=${badCurrPwRes.status}`);
+
+    const chgPwRes = await fetch(`${STOREFRONT_URL}/api/account/password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookieA },
+      body: JSON.stringify({ currentPassword: userAPassReset, newPassword: userAPassChanged }),
+    });
+    assert(chgPwRes.ok, "POST /api/account/password Updates Password", "Password Change", `status=${chgPwRes.status}`);
+
+    // Email MFA Setup & Login Challenge
+    const emailMfaReqStart = Date.now();
+    const emailMfaReqRes = await fetch(`${STOREFRONT_URL}/api/account/mfa`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookieA },
+      body: JSON.stringify({ action: "enable_email_request" }),
+    });
+    assert(emailMfaReqRes.ok, "Request Email MFA Setup OTP", "MFA Email", `status=${emailMfaReqRes.status}`);
+
+    const emailMfaSetupOtp = await fetchLatestOtpFromMailpit(userAEmail, "Confirm Email MFA Setup", emailMfaReqStart);
+    assert(Boolean(emailMfaSetupOtp), "Mailpit Delivery of Email MFA Setup OTP", "MFA Email", `otp=${emailMfaSetupOtp || "missing"}`);
+
+    if (emailMfaSetupOtp) {
+      const emailMfaEnableRes = await fetch(`${STOREFRONT_URL}/api/account/mfa`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: cookieA },
+        body: JSON.stringify({ action: "enable_email_verify", code: emailMfaSetupOtp }),
+      });
+      const emailMfaData = await emailMfaEnableRes.json();
+      assert(
+        emailMfaEnableRes.ok && emailMfaData.user?.mfaEnabled === true && emailMfaData.user?.mfaMethod === "EMAIL",
+        "Enable Email MFA on Account",
+        "MFA Email",
+        `mfaMethod=${emailMfaData.user?.mfaMethod}`
+      );
+
+      const mfaLoginStart = Date.now();
+      const loginChallengeRes = await fetch(`${STOREFRONT_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "password", email: userAEmail, password: userAPassChanged }),
+      });
+      const loginChallengeData = await loginChallengeRes.json();
+      const noCookieYet = !extractSessionCookie(loginChallengeRes);
+      assert(
+        loginChallengeRes.ok && loginChallengeData.requiresMfa === true && loginChallengeData.mfaMethod === "EMAIL" && noCookieYet,
+        "Password Login Triggers Email MFA Challenge Without Issuing Cookie",
+        "MFA Email",
+        `requiresMfa=${loginChallengeData.requiresMfa} noCookieYet=${noCookieYet}`
+      );
+
+      const mfaLoginOtp = await fetchLatestOtpFromMailpit(userAEmail, "Multi-Factor Sign-In Code", mfaLoginStart);
+      if (mfaLoginOtp && loginChallengeData.mfaToken) {
+        const mfaFinishRes = await fetch(`${STOREFRONT_URL}/api/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "mfa_verify", mfaToken: loginChallengeData.mfaToken, code: mfaLoginOtp }),
+        });
+        const mfaCookie = extractSessionCookie(mfaFinishRes);
+        if (mfaCookie) cookieA = mfaCookie;
+        assert(mfaFinishRes.ok && Boolean(mfaCookie), "Complete Email MFA Sign-In", "MFA Email", `ok=${mfaFinishRes.ok}`);
+      }
+    }
+
+    // Authenticator App (TOTP) MFA Setup, Login Challenge & Disable
+    const totpSetupRes = await fetch(`${STOREFRONT_URL}/api/account/mfa`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookieA },
+      body: JSON.stringify({ action: "setup_totp" }),
+    });
+    const totpSetupData = await totpSetupRes.json();
+    assert(
+      totpSetupRes.ok && Boolean(totpSetupData.secret) && Boolean(totpSetupData.qrDataUrl?.startsWith("data:image/png")),
+      "Setup TOTP Generates Secret & QR PNG",
+      "MFA TOTP",
+      `hasSecret=${Boolean(totpSetupData.secret)}`
+    );
+
+    if (totpSetupData.secret) {
+      const liveTotp = generateTestTotpCode(totpSetupData.secret);
+      const totpVerifyRes = await fetch(`${STOREFRONT_URL}/api/account/mfa`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: cookieA },
+        body: JSON.stringify({ action: "verify_totp", code: liveTotp }),
+      });
+      const totpVerifyData = await totpVerifyRes.json();
+      assert(
+        totpVerifyRes.ok && totpVerifyData.user?.mfaMethod === "TOTP",
+        "Verify TOTP Activates Authenticator MFA",
+        "MFA TOTP",
+        `mfaMethod=${totpVerifyData.user?.mfaMethod}`
+      );
+
+      const totpChallengeRes = await fetch(`${STOREFRONT_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "password", email: userAEmail, password: userAPassChanged }),
+      });
+      const totpChallengeData = await totpChallengeRes.json();
+      assert(
+        totpChallengeRes.ok && totpChallengeData.requiresMfa === true && totpChallengeData.mfaMethod === "TOTP",
+        "Password Login Triggers TOTP MFA Challenge",
+        "MFA TOTP",
+        `mfaMethod=${totpChallengeData.mfaMethod}`
+      );
+
+      const liveTotp2 = generateTestTotpCode(totpSetupData.secret);
+      const totpFinishRes = await fetch(`${STOREFRONT_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "mfa_verify", mfaToken: totpChallengeData.mfaToken, code: liveTotp2 }),
+      });
+      const totpCookie = extractSessionCookie(totpFinishRes);
+      if (totpCookie) cookieA = totpCookie;
+      assert(totpFinishRes.ok && Boolean(totpCookie), "Complete TOTP MFA Sign-In", "MFA TOTP", `ok=${totpFinishRes.ok}`);
+
+      const disableMfaRes = await fetch(`${STOREFRONT_URL}/api/account/mfa`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: cookieA },
+        body: JSON.stringify({ action: "disable", currentPassword: userAPassChanged }),
+      });
+      const disableMfaData = await disableMfaRes.json();
+      assert(
+        disableMfaRes.ok && disableMfaData.user?.mfaEnabled === false,
+        "Disable MFA with Current Password",
+        "MFA TOTP",
+        `mfaEnabled=${disableMfaData.user?.mfaEnabled}`
+      );
+    }
 
     // Reject unlisted 6-digit PIN 380053
     const badPinAddrRes = await fetch(`${STOREFRONT_URL}/api/account/addresses`, {
@@ -561,7 +802,7 @@ async function runSet3Verification() {
       adminCustRes.ok &&
         Boolean(foundUserA) &&
         foundUserA.lifetimeSpendRupees === 25000 &&
-        foundUserA.gstin === "27ABCDE1234F1Z2" &&
+        foundUserA.gstin === validGstinAUpdated &&
         foundUserA.emailVerified === true &&
         Array.isArray(foundUserA.addresses) &&
         foundUserA.addresses.length === 1 &&

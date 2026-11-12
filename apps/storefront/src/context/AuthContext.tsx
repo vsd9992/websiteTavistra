@@ -23,6 +23,8 @@ export interface UserProfile {
   gstin?: string;
   practiceOrStudio?: string;
   emailVerified: boolean;
+  mfaEnabled: boolean;
+  mfaMethod: "EMAIL" | "TOTP" | null;
   addresses: SavedAddress[];
   createdAt: string;
 }
@@ -31,7 +33,18 @@ export interface AuthActionResult {
   success: boolean;
   error?: string;
   requiresVerification?: boolean;
+  requiresMfa?: boolean;
+  mfaMethod?: "EMAIL" | "TOTP";
+  mfaToken?: string;
   message?: string;
+}
+
+export interface TotpSetupResult {
+  success: boolean;
+  error?: string;
+  secret?: string;
+  otpAuthUri?: string;
+  qrDataUrl?: string;
 }
 
 interface AuthContextType {
@@ -64,6 +77,13 @@ interface AuthContextType {
   updateAddress: (id: string, address: Partial<Omit<SavedAddress, "id">>) => Promise<AuthActionResult>;
   deleteAddress: (id: string) => Promise<AuthActionResult>;
   setDefaultAddress: (id: string) => Promise<AuthActionResult>;
+  verifyMfaChallenge: (mfaToken: string, code: string) => Promise<AuthActionResult>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<AuthActionResult>;
+  setupTotpMfa: () => Promise<TotpSetupResult>;
+  verifyTotpMfa: (code: string) => Promise<AuthActionResult>;
+  requestEmailMfaSetup: () => Promise<AuthActionResult>;
+  verifyEmailMfaSetup: (code: string) => Promise<AuthActionResult>;
+  disableMfa: (currentPassword: string) => Promise<AuthActionResult>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -116,6 +136,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           requiresVerification: Boolean(data.requiresVerification),
         };
       }
+      if (data.requiresMfa) {
+        return {
+          success: false,
+          requiresMfa: true,
+          mfaMethod: data.mfaMethod,
+          mfaToken: data.mfaToken,
+          message: data.message,
+        };
+      }
       setUser(data.user);
       return { success: true };
     } catch (err) {
@@ -149,6 +178,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       const data = await res.json();
       if (!res.ok) return { success: false, error: data.error || "Invalid verification code." };
+      if (data.requiresMfa) {
+        return {
+          success: false,
+          requiresMfa: true,
+          mfaMethod: data.mfaMethod,
+          mfaToken: data.mfaToken,
+          message: data.message,
+        };
+      }
       setUser(data.user);
       return { success: true };
     } catch (err) {
@@ -323,6 +361,130 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return updateAddress(id, { isDefault: true });
   };
 
+  const verifyMfaChallenge = async (mfaToken: string, code: string): Promise<AuthActionResult> => {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ mode: "mfa_verify", mfaToken, code }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || "Invalid verification code." };
+      setUser(data.user);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  };
+
+  const changePassword = async (
+    currentPassword: string,
+    newPassword: string
+  ): Promise<AuthActionResult> => {
+    try {
+      const res = await fetch("/api/account/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || "Unable to update password." };
+      return { success: true, message: data.message };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  };
+
+  const setupTotpMfa = async (): Promise<TotpSetupResult> => {
+    try {
+      const res = await fetch("/api/account/mfa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ action: "setup_totp" }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || "Unable to start MFA setup." };
+      return {
+        success: true,
+        secret: data.secret,
+        otpAuthUri: data.otpAuthUri,
+        qrDataUrl: data.qrDataUrl,
+      };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  };
+
+  const verifyTotpMfa = async (code: string): Promise<AuthActionResult> => {
+    try {
+      const res = await fetch("/api/account/mfa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ action: "verify_totp", code }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || "Invalid authenticator code." };
+      setUser(data.user);
+      return { success: true, message: data.message };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  };
+
+  const requestEmailMfaSetup = async (): Promise<AuthActionResult> => {
+    try {
+      const res = await fetch("/api/account/mfa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ action: "enable_email_request" }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || "Could not send code." };
+      return { success: true, message: data.message };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  };
+
+  const verifyEmailMfaSetup = async (code: string): Promise<AuthActionResult> => {
+    try {
+      const res = await fetch("/api/account/mfa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ action: "enable_email_verify", code }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || "Invalid verification code." };
+      setUser(data.user);
+      return { success: true, message: data.message };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  };
+
+  const disableMfa = async (currentPassword: string): Promise<AuthActionResult> => {
+    try {
+      const res = await fetch("/api/account/mfa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ action: "disable", currentPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || "Unable to disable MFA." };
+      setUser(data.user);
+      return { success: true, message: data.message };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -343,6 +505,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         updateAddress,
         deleteAddress,
         setDefaultAddress,
+        verifyMfaChallenge,
+        changePassword,
+        setupTotpMfa,
+        verifyTotpMfa,
+        requestEmailMfaSetup,
+        verifyEmailMfaSetup,
+        disableMfa,
       }}
     >
       {children}

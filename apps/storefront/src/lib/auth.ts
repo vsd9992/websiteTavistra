@@ -2,13 +2,20 @@ import crypto from "crypto";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@tavistra/db";
+import { validateGstin, validateStrongPassword } from "@tavistra/shared";
 
 export const SESSION_COOKIE_NAME = "tavistra_session";
 const SESSION_TTL_DAYS = 30;
 const OTP_TTL_MINUTES = 15;
+const MFA_CHALLENGE_TTL_MINUTES = 10;
 const MAX_OTP_ATTEMPTS = 5;
 
-export type OtpPurpose = "VERIFY_EMAIL" | "LOGIN_OTP" | "PASSWORD_RESET";
+export type OtpPurpose =
+  | "VERIFY_EMAIL"
+  | "LOGIN_OTP"
+  | "PASSWORD_RESET"
+  | "MFA_EMAIL"
+  | "MFA_EMAIL_SETUP";
 
 export function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString("hex");
@@ -43,12 +50,16 @@ export function generateSixDigitOtp(): string {
 }
 
 export function validateGstinFormat(gstin: string): { isValid: boolean; normalized?: string; error?: string } {
-  const clean = gstin.trim().toUpperCase();
-  if (!clean) return { isValid: true, normalized: undefined };
-  if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(clean)) {
-    return { isValid: false, error: "Please enter a valid 15-character Indian GSTIN (e.g. 07AAAAA0000A1Z5)." };
-  }
-  return { isValid: true, normalized: clean };
+  const res = validateGstin(gstin);
+  return {
+    isValid: res.isValid,
+    normalized: res.normalizedGstin ?? undefined,
+    error: res.error,
+  };
+}
+
+export function validatePasswordPolicy(password: string) {
+  return validateStrongPassword(password);
 }
 
 /**
@@ -102,11 +113,7 @@ export async function revokeSessionFromRequest(req: NextRequest, response: NextR
   });
 }
 
-/**
- * Resolves the currently authenticated customer User from the HTTP-only `tavistra_session` cookie.
- * Returns null if missing, invalid, or expired. Never trusts query parameters or client headers.
- */
-export async function getAuthenticatedUser(req?: NextRequest) {
+export async function getAuthenticatedSession(req?: NextRequest) {
   let rawToken: string | undefined;
   if (req) {
     rawToken = req.cookies.get(SESSION_COOKIE_NAME)?.value;
@@ -133,6 +140,8 @@ export async function getAuthenticatedUser(req?: NextRequest) {
           gstin: true,
           practiceOrStudio: true,
           emailVerifiedAt: true,
+          mfaEnabled: true,
+          mfaMethod: true,
           role: true,
           createdAt: true,
         },
@@ -147,7 +156,16 @@ export async function getAuthenticatedUser(req?: NextRequest) {
     return null;
   }
 
-  return session.user;
+  return session;
+}
+
+/**
+ * Resolves the currently authenticated customer User from the HTTP-only `tavistra_session` cookie.
+ * Returns null if missing, invalid, or expired. Never trusts query parameters or client headers.
+ */
+export async function getAuthenticatedUser(req?: NextRequest) {
+  const session = await getAuthenticatedSession(req);
+  return session ? session.user : null;
 }
 
 /**
@@ -248,6 +266,63 @@ export async function verifyEmailOtp(params: {
   return { valid: true, userId: token.userId };
 }
 
+export async function issueMfaChallengeToken(params: {
+  userId: string;
+  email: string;
+}): Promise<string> {
+  const rawToken = generateRawToken();
+  const cleanEmail = params.email.trim().toLowerCase();
+  const expiresAt = new Date(Date.now() + MFA_CHALLENGE_TTL_MINUTES * 60 * 1000);
+
+  await prisma.emailVerificationToken.updateMany({
+    where: {
+      email: cleanEmail,
+      purpose: "MFA_CHALLENGE",
+      consumedAt: null,
+    },
+    data: { consumedAt: new Date() },
+  });
+
+  await prisma.emailVerificationToken.create({
+    data: {
+      userId: params.userId,
+      email: cleanEmail,
+      purpose: "MFA_CHALLENGE",
+      codeHash: hashToken(rawToken),
+      expiresAt,
+    },
+  });
+
+  return rawToken;
+}
+
+export async function getActiveMfaChallenge(rawToken: string) {
+  if (!rawToken || rawToken.length < 32) return null;
+  const token = await prisma.emailVerificationToken.findFirst({
+    where: {
+      purpose: "MFA_CHALLENGE",
+      codeHash: hashToken(rawToken),
+      consumedAt: null,
+    },
+  });
+  if (!token) return null;
+  if (new Date(token.expiresAt) <= new Date()) {
+    await prisma.emailVerificationToken.update({
+      where: { id: token.id },
+      data: { consumedAt: new Date() },
+    });
+    return null;
+  }
+  if (token.attempts >= MAX_OTP_ATTEMPTS) {
+    await prisma.emailVerificationToken.update({
+      where: { id: token.id },
+      data: { consumedAt: new Date() },
+    });
+    return null;
+  }
+  return token;
+}
+
 export function serializeCustomerProfile(
   user: {
     id: string;
@@ -257,6 +332,8 @@ export function serializeCustomerProfile(
     gstin: string | null;
     practiceOrStudio: string | null;
     emailVerifiedAt: Date | null;
+    mfaEnabled?: boolean;
+    mfaMethod?: string | null;
     createdAt: Date;
   },
   addresses: {
@@ -280,6 +357,8 @@ export function serializeCustomerProfile(
     gstin: user.gstin || "",
     practiceOrStudio: user.practiceOrStudio || "",
     emailVerified: Boolean(user.emailVerifiedAt),
+    mfaEnabled: Boolean(user.mfaEnabled),
+    mfaMethod: user.mfaMethod || null,
     createdAt: user.createdAt.toLocaleDateString("en-IN", {
       month: "long",
       year: "numeric",

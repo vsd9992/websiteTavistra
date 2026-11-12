@@ -13,10 +13,12 @@
     "@tavistra/shared": "workspace:*",
     "@types/adm-zip": "^0.6.0",
     "@types/js-yaml": "^4.0.9",
+    "@types/qrcode": "^1.5.6",
     "adm-zip": "^0.6.1",
     "js-yaml": "^5.5.0",
     "next": "16.4.4",
     "nodemailer": "^10.4.0",
+    "qrcode": "^1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },

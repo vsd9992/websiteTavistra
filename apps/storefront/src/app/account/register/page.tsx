@@ -6,6 +6,14 @@ import { useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { useAuth } from "@/context/AuthContext";
+import {
+  PASSWORD_ALLOWED_SYMBOLS,
+  PASSWORD_MAX_LENGTH,
+  validateEmail,
+  validateGstin,
+  validateIndianMobile,
+  validateStrongPassword,
+} from "@tavistra/shared";
 
 export default function RegisterPage() {
   const { isAuthenticated, authLoading, registerAccount, verifyRegistrationEmail } = useAuth();
@@ -20,6 +28,12 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [otpCode, setOtpCode] = useState("");
+  const [touched, setTouched] = useState<{
+    email?: boolean;
+    phone?: boolean;
+    gstin?: boolean;
+    password?: boolean;
+  }>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
@@ -30,17 +44,35 @@ export default function RegisterPage() {
     }
   }, [authLoading, isAuthenticated, router]);
 
+  const emailVal = validateEmail(email);
+  const mobileVal = validateIndianMobile(phone);
+  const gstinVal = validateGstin(gstin);
+  const pwVal = validateStrongPassword(password);
+
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setInfoMessage("");
+    setTouched({ email: true, phone: true, gstin: true, password: true });
 
-    if (!name.trim() || !email.trim() || !phone.trim()) {
-      setError("Full name, email address, and phone number are required.");
+    if (name.trim().length < 2) {
+      setError("Full name must be at least 2 characters.");
       return;
     }
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters long.");
+    if (!emailVal.isValid) {
+      setError(emailVal.error || "Please enter a valid email address.");
+      return;
+    }
+    if (!mobileVal.isValid) {
+      setError(mobileVal.error || "Please enter a valid 10-digit Indian mobile number.");
+      return;
+    }
+    if (gstin.trim() && !gstinVal.isValid) {
+      setError(gstinVal.error || "Please enter a valid 15-character GSTIN.");
+      return;
+    }
+    if (!pwVal.isValid) {
+      setError(pwVal.error || "Password does not meet security requirements.");
       return;
     }
     if (password !== confirmPassword) {
@@ -51,10 +83,10 @@ export default function RegisterPage() {
     setBusy(true);
     const result = await registerAccount({
       name: name.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
+      email: emailVal.normalizedEmail || email.trim(),
+      phone: mobileVal.normalizedPhone || phone.trim(),
       password,
-      gstin: gstin.trim() || undefined,
+      gstin: gstinVal.normalizedGstin || undefined,
       practiceOrStudio: practiceOrStudio.trim() || undefined,
     });
     setBusy(false);
@@ -80,7 +112,10 @@ export default function RegisterPage() {
     }
 
     setBusy(true);
-    const result = await verifyRegistrationEmail(email.trim(), otpCode.trim());
+    const result = await verifyRegistrationEmail(
+      emailVal.normalizedEmail || email.trim(),
+      otpCode.trim()
+    );
     setBusy(false);
 
     if (!result.success) {
@@ -95,18 +130,23 @@ export default function RegisterPage() {
     <div className="min-h-screen flex flex-col bg-[var(--color-canvas)]">
       <Header />
 
-      <main className="flex-1 flex items-center justify-center px-6 py-16 lg:py-24">
+      <main className="flex-1 flex items-center justify-center px-6 py-16 lg:py-20">
         <div className="w-full max-w-lg space-y-7 bg-[var(--color-ivory)]/80 border border-[var(--color-decorative-border)] rounded-2xl p-8 md:p-10 shadow-sm">
           <div className="text-center space-y-2">
-            <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--color-muted-light)]">
-              {step === "details" ? "VDesign Client Registration" : "Verify Email Address"}
+            <img
+              src="/logo-name.png"
+              alt="Tavistra"
+              className="h-6 w-auto mx-auto object-contain mb-2"
+            />
+            <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--color-muted-light)] block">
+              {step === "details" ? "Tavistra Client Registration" : "Verify Email Address"}
             </span>
             <h1 className="text-3xl font-serif font-light tracking-tight text-[var(--color-ink)]">
               {step === "details" ? "Create a Client Account" : "Enter Verification Code"}
             </h1>
             <p className="text-xs text-[var(--color-muted-light)]">
               {step === "details"
-                ? "Save verified architectural delivery locations, GST credentials, and order milestones."
+                ? "Save verified architectural delivery locations, validated GST credentials, and order milestones."
                 : `We dispatched a 6-digit verification OTP to ${email}.`}
             </p>
           </div>
@@ -140,32 +180,54 @@ export default function RegisterPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-1">
-                    Mobile / WhatsApp *
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
+                      Mobile Number *
+                    </label>
+                    {phone && mobileVal.isValid && (
+                      <span className="text-[10px] font-semibold text-emerald-700">✓ Valid</span>
+                    )}
+                  </div>
                   <input
                     type="tel"
                     required
                     value={phone}
+                    onBlur={() => setTouched((prev) => ({ ...prev, phone: true }))}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="10-digit mobile number"
-                    className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-sm text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                    placeholder="+91 98765 43210"
+                    className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-sm font-mono text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
                   />
+                  {(phone || touched.phone) && !mobileVal.isValid && (
+                    <p className="text-[11px] text-red-600 mt-1 font-medium leading-snug">
+                      ⚠ {mobileVal.error}
+                    </p>
+                  )}
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-1">
-                  Email Address *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
+                    Email Address *
+                  </label>
+                  {email && emailVal.isValid && (
+                    <span className="text-[10px] font-semibold text-emerald-700">✓ Verified Domain</span>
+                  )}
+                </div>
                 <input
                   type="email"
                   required
                   value={email}
+                  onBlur={() => setTouched((prev) => ({ ...prev, email: true }))}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="client@architecturalstudio.in"
                   className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-sm text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
                 />
+                {(email || touched.email) && !emailVal.isValid && (
+                  <p className="text-[11px] text-red-600 mt-1 font-medium leading-snug">
+                    ⚠ {emailVal.error}
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -182,32 +244,45 @@ export default function RegisterPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-1">
-                    GSTIN (Optional)
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
+                      GSTIN (B2B Invoices)
+                    </label>
+                    {gstin.trim() && gstinVal.isValid && (
+                      <span className="text-[10px] font-semibold text-emerald-700">✓ Valid</span>
+                    )}
+                  </div>
                   <input
                     type="text"
                     maxLength={15}
                     value={gstin}
-                    onChange={(e) => setGstin(e.target.value.toUpperCase())}
-                    placeholder="e.g. 24ABCDE1234F1Z5"
+                    onBlur={() => setTouched((prev) => ({ ...prev, gstin: true }))}
+                    onChange={(e) => setGstin(e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, ""))}
+                    placeholder="e.g. 27AAACT2727Q1ZW"
                     className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-sm font-mono text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
                   />
+                  {gstin.trim() && !gstinVal.isValid && (
+                    <p className="text-[11px] text-red-600 mt-1 font-medium leading-snug">
+                      ⚠ {gstinVal.error}
+                    </p>
+                  )}
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-1">
-                    Password *
+                    Password (8–15 Chars) *
                   </label>
                   <input
                     type="password"
                     required
                     minLength={8}
+                    maxLength={PASSWORD_MAX_LENGTH}
                     value={password}
+                    onBlur={() => setTouched((prev) => ({ ...prev, password: true }))}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Min. 8 characters"
+                    placeholder="8–15 chars with symbol"
                     className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-sm text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
                   />
                 </div>
@@ -219,12 +294,44 @@ export default function RegisterPage() {
                     type="password"
                     required
                     minLength={8}
+                    maxLength={PASSWORD_MAX_LENGTH}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Repeat password"
                     className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-sm text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
                   />
+                  {confirmPassword && confirmPassword !== password && (
+                    <p className="text-[11px] text-red-600 mt-1 font-medium">
+                      ⚠ Passwords do not match.
+                    </p>
+                  )}
                 </div>
+              </div>
+
+              <div className="rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-3.5 space-y-2 text-[11px]">
+                <p className="font-semibold text-[var(--color-ink)] uppercase tracking-wider text-[10px]">
+                  Password Security Requirements
+                </p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <span className={pwVal.checks.length ? "text-emerald-700 font-medium" : "text-[var(--color-muted-light)]"}>
+                    {pwVal.checks.length ? "✓" : "•"} 8–15 characters
+                  </span>
+                  <span className={pwVal.checks.uppercase ? "text-emerald-700 font-medium" : "text-[var(--color-muted-light)]"}>
+                    {pwVal.checks.uppercase ? "✓" : "•"} Uppercase (A–Z)
+                  </span>
+                  <span className={pwVal.checks.lowercase ? "text-emerald-700 font-medium" : "text-[var(--color-muted-light)]"}>
+                    {pwVal.checks.lowercase ? "✓" : "•"} Lowercase (a–z)
+                  </span>
+                  <span className={pwVal.checks.number ? "text-emerald-700 font-medium" : "text-[var(--color-muted-light)]"}>
+                    {pwVal.checks.number ? "✓" : "•"} Number (0–9)
+                  </span>
+                  <span className={`col-span-2 ${pwVal.checks.symbol && pwVal.checks.allowedCharsOnly ? "text-emerald-700 font-medium" : "text-[var(--color-muted-light)]"}`}>
+                    {pwVal.checks.symbol && pwVal.checks.allowedCharsOnly ? "✓" : "•"} Symbol ({PASSWORD_ALLOWED_SYMBOLS}) — no spaces
+                  </span>
+                </div>
+                {touched.password && password && !pwVal.isValid && (
+                  <p className="text-red-600 font-medium pt-1">⚠ {pwVal.error}</p>
+                )}
               </div>
 
               <button

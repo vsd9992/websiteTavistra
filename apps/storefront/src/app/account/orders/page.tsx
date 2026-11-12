@@ -99,7 +99,7 @@ export default function AccountOrdersPage() {
               Sign in to view your orders
             </h1>
             <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
-              Your authenticated order history and production milestones are protected behind your VDesign account.
+              Your authenticated order history and production milestones are protected behind your Tavistra account.
             </p>
             <div className="flex justify-center gap-4">
               <Link

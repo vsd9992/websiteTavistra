@@ -83,9 +83,13 @@ model User {
   phone            String?
   passwordHash     String?
   emailVerifiedAt  DateTime?
-  gstin            String?
-  practiceOrStudio String?
-  role             StaffRole?               // Null for regular customers, populated for staff
+  gstin             String?
+  practiceOrStudio  String?
+  mfaEnabled        Boolean                  @default(false)
+  mfaMethod         String?                  // "EMAIL" | "TOTP"
+  totpSecret        String?
+  totpPendingSecret String?
+  role              StaffRole?               // Null for regular customers, populated for staff
   createdAt        DateTime                 @default(now())
   updatedAt        DateTime                 @updatedAt
 
@@ -115,7 +119,7 @@ model EmailVerificationToken {
   id         String    @id @default(cuid())
   userId     String?
   email      String
-  purpose    String    // "VERIFY_EMAIL", "LOGIN_OTP", "PASSWORD_RESET"
+  purpose    String    // "VERIFY_EMAIL", "LOGIN_OTP", "PASSWORD_RESET", "MFA_EMAIL", "MFA_EMAIL_SETUP", "MFA_CHALLENGE"
   codeHash   String
   expiresAt  DateTime
   consumedAt DateTime?

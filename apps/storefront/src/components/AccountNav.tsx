@@ -26,7 +26,7 @@ export default function AccountNav() {
     <aside className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/80 p-6 space-y-6 shadow-sm">
       <div className="space-y-1 pb-4 border-b border-[var(--color-decorative-border)]">
         <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--color-muted-light)]">
-          VDesign Client Portal
+          Tavistra Client Portal
         </p>
         <p className="text-base font-serif text-[var(--color-ink)] truncate">
           {user?.name || "Verified Client"}

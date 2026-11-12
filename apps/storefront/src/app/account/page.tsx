@@ -74,7 +74,7 @@ export default function AccountOverviewPage() {
         ) : !isAuthenticated ? (
           <div className="mx-auto max-w-md text-center space-y-6 py-16">
             <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--color-muted-light)]">
-              VDesign Client Account
+              Tavistra Client Account
             </span>
             <h1 className="text-3xl font-serif font-light text-[var(--color-ink)]">
               Sign in to view your account

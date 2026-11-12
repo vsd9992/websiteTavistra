@@ -79,7 +79,7 @@ export default function AccountAddressesPage() {
   const verifyLivePincode = async (cleanPin: string) => {
     setPinChecking(true);
     setPinVerified(false);
-    setPinMessage({ text: "Checking VDesign regional delivery whitelist...", isError: false });
+    setPinMessage({ text: "Checking Tavistra regional delivery whitelist...", isError: false });
 
     try {
       const res = await fetch(`/api/pincodes/check?pincode=${cleanPin}`);
@@ -102,7 +102,7 @@ export default function AccountAddressesPage() {
         setPinMessage({
           text:
             data.message ||
-            "PIN code is not currently in VDesign's verified delivery whitelist.",
+            "PIN code is not currently in Tavistra&apos;s verified delivery whitelist.",
           isError: true,
         });
       }
@@ -208,7 +208,7 @@ export default function AccountAddressesPage() {
               Sign in to manage addresses
             </h1>
             <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
-              Save verified delivery addresses linked to your VDesign client account for faster checkout.
+              Save verified delivery addresses linked to your Tavistra client account for faster checkout.
             </p>
             <div className="flex justify-center gap-4">
               <Link

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@tavistra/db";
-import { validateEmail, validateIndianMobile } from "@tavistra/shared";
+import { validateEmail, validateIndianMobile, validateStrongPassword } from "@tavistra/shared";
 import { hashPassword, issueEmailOtp, validateGstinFormat } from "@/lib/auth";
 import { sendCustomerOtpEmail } from "@/lib/email";
 
@@ -37,8 +37,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: phoneRes.error || "Invalid 10-digit Indian mobile number." }, { status: 400 });
     }
 
-    if (!password || password.length < 8) {
-      return NextResponse.json({ error: "Password must be at least 8 characters long." }, { status: 400 });
+    const passwordCheck = validateStrongPassword(password || "");
+    if (!passwordCheck.isValid) {
+      return NextResponse.json(
+        { error: passwordCheck.error || "Password does not meet security requirements." },
+        { status: 400 }
+      );
     }
 
     const gstinRes = validateGstinFormat(gstin || "");
@@ -56,7 +60,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const passwordHash = hashPassword(password);
+    const passwordHash = hashPassword(password as string);
     const user = existing
       ? await prisma.user.update({
           where: { id: existing.id },

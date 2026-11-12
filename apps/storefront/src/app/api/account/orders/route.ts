@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
             : order.status === "PRODUCTION_COMPLETED"
             ? "Workshop Crafting Completed — QC Verified"
             : order.status === "IN_PRODUCTION"
-            ? "Machining in Progress in VDesign Workshop"
+            ? "Machining in Progress in Tavistra Workshop"
             : order.purchaseMode === "MADE_TO_ORDER"
             ? "7-Day Confirmation Grace Window Active"
             : "Order Confirmed",

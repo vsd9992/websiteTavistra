@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@tavistra/db";
-import { validateEmail } from "@tavistra/shared";
+import { validateEmail, validateStrongPassword } from "@tavistra/shared";
 import { hashPassword, verifyEmailOtp } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
@@ -17,8 +17,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: emailRes.error || "Valid email is required." }, { status: 400 });
     }
 
-    if (!newPassword || newPassword.length < 8) {
-      return NextResponse.json({ error: "New password must be at least 8 characters long." }, { status: 400 });
+    const passwordCheck = validateStrongPassword(newPassword || "");
+    if (!passwordCheck.isValid) {
+      return NextResponse.json(
+        { error: passwordCheck.error || "New password does not meet security requirements." },
+        { status: 400 }
+      );
     }
 
     const cleanEmail = emailRes.normalizedEmail;
@@ -35,7 +39,7 @@ export async function POST(req: NextRequest) {
     const user = await prisma.user.update({
       where: { email: cleanEmail },
       data: {
-        passwordHash: hashPassword(newPassword),
+        passwordHash: hashPassword(newPassword as string),
         emailVerifiedAt: new Date(),
       },
     });

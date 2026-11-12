@@ -1167,7 +1167,7 @@ export default function App() {
                         ) : (
                           <div className="w-full space-y-2">
                             <div className="w-full text-center py-2 text-xs text-[#10b981] font-semibold bg-emerald-950/20 border border-emerald-800/40 rounded-xl">
-                              ✓ {order.status === "PRODUCTION_COMPLETED" ? "QC Passed & Completed" : "Machining in Progress in VDesign Workshop"}
+                              ✓ {order.status === "PRODUCTION_COMPLETED" ? "QC Passed & Completed" : "Machining in Progress in Tavistra Workshop"}
                             </div>
                             <button
                               onClick={() => {

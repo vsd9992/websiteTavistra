@@ -1,9 +1,22 @@
 import nodemailer from "nodemailer";
+import fs from "fs";
+import path from "path";
 
 const smtpHost = process.env.SMTP_HOST || "192.168.1.100";
 const smtpPort = parseInt(process.env.SMTP_PORT || "1025", 10);
-const smtpFrom = process.env.SMTP_FROM || "VDesign <concierge@tavistra.in>";
+const smtpFrom = process.env.SMTP_FROM || "Tavistra <concierge@tavistra.in>";
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
+function resolveTavistraLogoPath(): string | null {
+  const candidates = [
+    path.join(process.cwd(), "public", "logo-name.png"),
+    path.join(process.cwd(), "apps", "storefront", "public", "logo-name.png"),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return null;
+}
 
 // Create reusable Nodemailer transporter pointing to devMachine or production SMTP
 const transporter = nodemailer.createTransport({
@@ -18,8 +31,32 @@ const transporter = nodemailer.createTransport({
     : undefined,
 });
 
+async function sendTavistraMail(opts: { to: string; subject: string; html: string }) {
+  const logoPath = resolveTavistraLogoPath();
+  return transporter.sendMail({
+    from: smtpFrom,
+    to: opts.to,
+    subject: opts.subject,
+    html: opts.html,
+    attachments: logoPath
+      ? [
+          {
+            filename: "logo-name.png",
+            path: logoPath,
+            cid: "tavistra-logo",
+          },
+        ]
+      : undefined,
+  });
+}
+
 // Minimalist Luxury Email Shell
 function wrapLuxuryEmailTemplate(title: string, subtitle: string, bodyContent: string): string {
+  const hasLogo = Boolean(resolveTavistraLogoPath());
+  const brandHeaderHtml = hasLogo
+    ? `<div style="margin-bottom: 14px;"><img src="cid:tavistra-logo" alt="TAVISTRA" style="height: 26px; width: auto; display: inline-block;" /></div>`
+    : `<div class="brand-mark">TAVISTRA</div>`;
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -48,7 +85,7 @@ function wrapLuxuryEmailTemplate(title: string, subtitle: string, bodyContent: s
 <body>
   <div class="container">
     <div class="header">
-      <div class="brand-mark">VDesign</div>
+      ${brandHeaderHtml}
       <h1 class="title">${title}</h1>
       <p class="subtitle">${subtitle}</p>
     </div>
@@ -56,9 +93,9 @@ function wrapLuxuryEmailTemplate(title: string, subtitle: string, bodyContent: s
       ${bodyContent}
     </div>
     <div class="footer">
-      <p style="margin: 0 0 6px 0;"><strong>VDesign</strong> · New Delhi, India</p>
-      <p style="margin: 0;">Bespoke Architectural Editions & Timeless Lifestyle Objects</p>
-      <p style="margin: 8px 0 0 0; font-size: 10px; color: #a39f94;">This is an authoritative communication concerning your acquisition.</p>
+      <p style="margin: 0 0 6px 0;"><strong>TAVISTRA</strong> · New Delhi, India</p>
+      <p style="margin: 0;">Design-Led Lifestyle &amp; Architectural Décor</p>
+      <p style="margin: 8px 0 0 0; font-size: 10px; color: #a39f94;">This is an authoritative communication concerning your Tavistra client account or acquisition.</p>
     </div>
   </div>
 </body>
@@ -184,10 +221,9 @@ export async function sendOrderConfirmationEmail(params: {
     bodyContent
   );
 
-  return transporter.sendMail({
-    from: smtpFrom,
+  return sendTavistraMail({
     to: customerEmail,
-    subject: `[VDesign] Order Confirmation — ${orderNumber}`,
+    subject: `[Tavistra] Order Confirmation — ${orderNumber}`,
     html,
   });
 }
@@ -245,10 +281,9 @@ export async function sendQcPhotosReadyEmail(params: {
     bodyContent
   );
 
-  return transporter.sendMail({
-    from: smtpFrom,
+  return sendTavistraMail({
     to: customerEmail,
-    subject: `[VDesign] Finished Piece QC Photos Ready — ${orderNumber}`,
+    subject: `[Tavistra] Finished Piece QC Photos Ready — ${orderNumber}`,
     html,
   });
 }
@@ -304,10 +339,9 @@ export async function sendBalancePaymentClearedEmail(params: {
     bodyContent
   );
 
-  return transporter.sendMail({
-    from: smtpFrom,
+  return sendTavistraMail({
     to: customerEmail,
-    subject: `[VDesign] 100% Payment Cleared — ${orderNumber}`,
+    subject: `[Tavistra] 100% Payment Cleared — ${orderNumber}`,
     html,
   });
 }
@@ -334,7 +368,7 @@ export async function sendTicketEmail(params: {
              <p style="margin: 0; white-space: pre-line;">${messageText}</p>
            </div>
            <p style="font-size: 12px; color: #726e64;">You may reply directly to this thread or reach us at <a href="mailto:concierge@tavistra.in" style="color: #8e6c46;">concierge@tavistra.in</a>.</p>`
-        : `<p>Thank you for contacting the VDesign client desk. We have registered your inquiry under reference <strong style="font-family: monospace;">${ticketNumber}</strong>.</p>
+        : `<p>Thank you for contacting the Tavistra client desk. We have registered your inquiry under reference <strong style="font-family: monospace;">${ticketNumber}</strong>.</p>
            <div class="card">
              <strong>Subject:</strong> ${subject}<br><br>
              <strong>Your Note:</strong>
@@ -350,10 +384,9 @@ export async function sendTicketEmail(params: {
     bodyContent
   );
 
-  return transporter.sendMail({
-    from: smtpFrom,
+  return sendTavistraMail({
     to: customerEmail,
-    subject: `[VDesign] ${isStaffReply ? "Update regarding" : "Inquiry Registered"} — ${ticketNumber}: ${subject}`,
+    subject: `[Tavistra] ${isStaffReply ? "Update regarding" : "Inquiry Registered"} — ${ticketNumber}: ${subject}`,
     html,
   });
 }
@@ -449,10 +482,9 @@ export async function sendQuoteProposalEmail(params: {
     bodyContent
   );
 
-  return transporter.sendMail({
-    from: smtpFrom,
+  return sendTavistraMail({
     to: customerEmail,
-    subject: `[VDesign] Formal 30-Day Architectural Proposal — ${quoteNumber}`,
+    subject: `[Tavistra] Formal 30-Day Architectural Proposal — ${quoteNumber}`,
     html,
   });
 }
@@ -462,27 +494,41 @@ export async function sendCustomerOtpEmail(params: {
   email: string;
   name?: string;
   code: string;
-  purpose: "VERIFY_EMAIL" | "LOGIN_OTP" | "PASSWORD_RESET";
+  purpose: "VERIFY_EMAIL" | "LOGIN_OTP" | "PASSWORD_RESET" | "MFA_EMAIL" | "MFA_EMAIL_SETUP";
 }) {
   const { email, name = "Client", code, purpose } = params;
 
   const meta =
     purpose === "VERIFY_EMAIL"
       ? {
-          subject: `[VDesign] Verify Your Email Address — ${code}`,
+          subject: `[Tavistra] Verify Your Email Address — ${code}`,
           title: "Verify Your Email Address",
           subtitle: "Complete your Tavistra Client Account registration",
           intro: "Please enter the 6-digit verification code below to confirm your email address and activate your account.",
         }
       : purpose === "PASSWORD_RESET"
       ? {
-          subject: `[VDesign] Reset Your Password — ${code}`,
+          subject: `[Tavistra] Reset Your Password — ${code}`,
           title: "Password Reset Code",
           subtitle: "Secure credential recovery for your Tavistra Client Account",
           intro: "We received a request to reset your account password. Use the 6-digit verification code below to set a new password.",
         }
+      : purpose === "MFA_EMAIL"
+      ? {
+          subject: `[Tavistra] Multi-Factor Sign-In Code — ${code}`,
+          title: "Two-Factor Verification",
+          subtitle: "Security challenge for your Tavistra Client Account",
+          intro: "Complete your sign-in by entering the 6-digit multi-factor authentication code below.",
+        }
+      : purpose === "MFA_EMAIL_SETUP"
+      ? {
+          subject: `[Tavistra] Confirm Email MFA Setup — ${code}`,
+          title: "Confirm Email MFA Protection",
+          subtitle: "Enable two-factor security on your Tavistra Client Account",
+          intro: "Enter the 6-digit confirmation code below in your Account Security settings to activate Email Multi-Factor Authentication.",
+        }
       : {
-          subject: `[VDesign] Your Sign-In Verification Code — ${code}`,
+          subject: `[Tavistra] Your Sign-In Verification Code — ${code}`,
           title: "One-Time Sign-In Code",
           subtitle: "Direct authentication for your Tavistra Client Account",
           intro: "Enter this 6-digit verification code on the sign-in screen to access your account.",
@@ -508,8 +554,7 @@ export async function sendCustomerOtpEmail(params: {
 
   const html = wrapLuxuryEmailTemplate(meta.title, meta.subtitle, bodyContent);
 
-  return transporter.sendMail({
-    from: smtpFrom,
+  return sendTavistraMail({
     to: email,
     subject: meta.subject,
     html,
