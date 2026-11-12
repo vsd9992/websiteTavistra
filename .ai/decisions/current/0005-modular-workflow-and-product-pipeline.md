@@ -11,8 +11,8 @@ modified: 2026-11-12
 - **Set 1 (Completed & Verified):** Product Content, Markdown Specification, Folder Media Sync, Variant Overrides & Multi-Variant Engine.
 - **Set 2 (Completed & Verified — 68/68):** Delivery PIN Governance (Strict 6-Digit Whitelist & 2-Level Region Drill-Down), 12-Slab Zones Matrix, Studio Controls & Institutional Copy.
 - **Set 3 (Completed & Verified — 54/54):** Customer Identity, Hardened Email/Phone/Password/GSTIN Validation, Email & TOTP MFA, Password Change, Addresses, Privacy Isolation & Tavistra Branding.
-- **Set 4 (Next — Pending Approval):** Cart Governance, Delivery Engine & Ready Stock / MTO Checkout (with 10-unit / 10-line bulk boundary).
-- **Set 5 (Pending):** Order Tracking, 7-Day Grace, QC Photos & 75% Balance Gate.
+- **Set 4 (Completed & Verified — 20/20):** Cart Governance (Cumulative 10-Unit/10-Line Bulk Boundary), Variant-Isolated Cart (`variantId || sku || id`), Zero-Fallback DB Shipping, Maintenance Gate, Server Pricing/Stock Atomic Checkout & Ready Stock (`100%`) / MTO (`25%/75%`).
+- **Set 5 (Next — Pending Approval):** Order Tracking, 7-Day Grace, QC Photos & 75% Balance Gate.
 - **Set 6 (Pending):** 30-Day Architectural Quotes & Bulk Enquiry Lifecycle.
 - **Set 7 (Pending):** Support Ticket Desk & Email Threading.
 - **Set 8 (Pending):** Staff Authentication, RBAC & Final Acceptance Runbook Sweep.

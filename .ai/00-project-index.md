@@ -1,12 +1,12 @@
 # Project Index
 
 Project: Tavistra (`websiteTavistra`)
-Phase: Phase 2 — Execution (Sets 0–3 Completed; Set 4 Next)
+Phase: Phase 2 — Execution (Sets 0–4 Completed; Set 5 Next)
 Milestone: Modular Hardening & Verification
-Status: Sets 0, 1, 2 (68/68), and 3 (54/54, incl. MFA & sign-out fix) verified live on `devMachine`; ready for Set 4 on approval.
+Status: Sets 0, 1, 2 (68/68), 3 (54/54), and 4 (20/20) verified live on `devMachine`; ready for Set 5 on approval.
 
 ## Active Tasks
-- [.ai/tasks/active/set-4-cart-checkout.md](tasks/active/set-4-cart-checkout.md) — Set 4: Cart Governance, Delivery Engine & Ready Stock / MTO Checkout (Pending approval)
+- [.ai/tasks/active/set-5-order-tracking.md](tasks/active/set-5-order-tracking.md) — Set 5: Order Tracking, 7-Day Grace, QC Photos & 75% Balance Gate (Pending approval)
 
 ## Document Map
 - [AGENTS.md](../AGENTS.md) — Operating rules & memory policy
@@ -32,5 +32,5 @@ Status: Sets 0, 1, 2 (68/68), and 3 (54/54, incl. MFA & sign-out fix) verified l
 - Physical production & dispatch must enforce 25% advance / 100% dispatch payment gates.
 
 ## Historical Pointers
-- Archived Tasks: [.ai/tasks/archive/](tasks/archive/) (`set-3-customer-identity.md`, `set-2-delivery-governance.md`, `set-1-product-markdown-pipeline.md`, `h4-commerce-foundations-db.md`, `h6-staff-admin-portal.md`)
+- Archived Tasks: [.ai/tasks/archive/](tasks/archive/) (`set-4-cart-checkout.md`, `set-3-customer-identity.md`, `set-2-delivery-governance.md`, `set-1-product-markdown-pipeline.md`, `h4-commerce-foundations-db.md`, `h6-staff-admin-portal.md`)
 - Concept docs imported into `docs/` and `CONCEPT_README.md`.
