@@ -172,65 +172,103 @@ function CheckoutContent() {
     const cleanPin = customer.pincode.replace(/\s+/g, "");
 
     if (/^\d{6}$/.test(cleanPin) && activeItems.length > 0) {
-      // Query real-time API with static lookup fallback
-      fetch(`/api/pincodes/check?pincode=${cleanPin}`)
-        .then((res) => (res.ok ? res.json() : lookupPincode(cleanPin)))
-        .catch(() => lookupPincode(cleanPin))
-        .then((lookup) => {
+      fetch("/api/shipping/calculate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pincode: cleanPin,
+          items: activeItems.map(({ product, quantity }) => ({
+            productId: product.id,
+            slug: product.slug,
+            title: product.name,
+            quantity,
+            priceRupees: product.pricePaise / 100,
+            weightGrams: product.weightGrams,
+            lengthMm: product.lengthMm,
+            widthMm: product.widthMm,
+            heightMm: product.heightMm,
+          })),
+        }),
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error("API error");
+          const data = await res.json();
           if (isCancelled) return;
+          const pinInfo = data.pincodeResult;
 
-          if (!lookup.isServiceable) {
+          if (!pinInfo.isServiceable) {
             setPinError(
-              lookup.unserviceableReason ||
+              pinInfo.unserviceableReason ||
                 `We cannot deliver to PIN code ${cleanPin}. Deliveries to this area are currently suspended by Studio Logistics.`
             );
             setShippingResult(null);
-            if (lookup.city) {
+            if (pinInfo.city) {
               setCustomer((prev) => ({
                 ...prev,
-                city: lookup.city,
-                state: lookup.state,
+                city: pinInfo.city,
+                state: pinInfo.state,
               }));
             }
             return;
           }
 
-          // Automatically fill City and State from postal directory
           setCustomer((prev) => ({
             ...prev,
-            city: lookup.city,
-            state: lookup.state,
+            city: pinInfo.city,
+            state: pinInfo.state,
           }));
           setPinError(null);
 
-          const zone = lookup.zoneCode;
-
-          // Decision 0004: Highest product delivery fee applies across multi-item order
-          const productCalcs = activeItems.map(({ product }) => {
-            const spec: ItemPhysicalSpec = {
-              productId: product.id,
-              priceRupees: product.pricePaise / 100,
-              weightGrams: product.weightGrams,
-              lengthMm: product.lengthMm,
-              widthMm: product.widthMm,
-              heightMm: product.heightMm,
-              isFragile: true,
-            };
-            return calculateDeliveryFee(zone, [spec]);
-          });
-
-          const highestFee = calculateOrderDeliveryFee(
-            productCalcs.map((c) => c.totalDeliveryFeeRupees)
-          );
-          const primaryCalc = productCalcs.reduce(
-            (max, curr) => (curr.totalDeliveryFeeRupees > max.totalDeliveryFeeRupees ? curr : max),
-            productCalcs[0]
-          );
-
           setShippingResult({
-            ...primaryCalc,
-            totalDeliveryFeeRupees: highestFee,
+            zone: {
+              code: pinInfo.zoneCode,
+              name: pinInfo.zoneName,
+              regionDescription: pinInfo.zoneName,
+              estimatedDaysMin: pinInfo.estimatedDaysMin,
+              estimatedDaysMax: pinInfo.estimatedDaysMax,
+            },
+            carrierTier: data.carrierTier,
+            carrierName: data.carrierName,
+            actualWeightKg: data.actualWeightKg,
+            volumetricWeightKg: data.volumetricWeightKg,
+            billableWeightKg: data.billableWeightKg,
+            packagingTier: "MEDIUM",
+            packagingCostRupees: 0,
+            insuranceFovRupees: 0,
+            baseFreightRupees: 0,
+            gstAmountRupees: data.gstIncludedRupees,
+            totalDeliveryFeeRupees: data.totalDeliveryFeeRupees,
+            transitDaysEstimate: pinInfo.transitDaysEstimate,
           });
+        })
+        .catch(() => {
+          if (isCancelled) return;
+          const lookup = lookupPincode(cleanPin);
+          if (!lookup.isServiceable) {
+            setPinError(
+              lookup.unserviceableReason ||
+                `We cannot deliver to PIN code ${cleanPin}. Deliveries to this area are currently suspended.`
+            );
+            setShippingResult(null);
+            return;
+          }
+          setCustomer((prev) => ({ ...prev, city: lookup.city, state: lookup.state }));
+          setPinError(null);
+          const productCalcs = activeItems.map(({ product }) =>
+            calculateDeliveryFee(lookup.zoneCode, [
+              {
+                productId: product.id,
+                priceRupees: product.pricePaise / 100,
+                weightGrams: product.weightGrams,
+                lengthMm: product.lengthMm,
+                widthMm: product.widthMm,
+                heightMm: product.heightMm,
+                isFragile: true,
+              },
+            ])
+          );
+          const highestFee = calculateOrderDeliveryFee(productCalcs.map((c) => c.totalDeliveryFeeRupees));
+          setShippingResult({ ...productCalcs[0], totalDeliveryFeeRupees: highestFee });
         });
     } else if (cleanPin.length > 0 && cleanPin.length < 6) {
       setShippingResult(null);

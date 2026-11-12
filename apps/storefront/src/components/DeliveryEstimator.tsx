@@ -2,16 +2,16 @@
 
 import { useState } from "react";
 import {
-  resolveShippingZone,
   calculateDeliveryFee,
   lookupPincode,
-  PincodeLookupResult,
   ItemPhysicalSpec,
-  ShippingCalculationResult,
 } from "@tavistra/shared";
 
 interface DeliveryEstimatorProps {
   product: {
+    id?: string;
+    slug?: string;
+    name?: string;
     pricePaise: number;
     weightGrams: number;
     lengthMm: number;
@@ -20,21 +20,18 @@ interface DeliveryEstimatorProps {
   };
 }
 
+interface EstimatorDisplayResult {
+  totalDeliveryFeeRupees: number;
+  carrierName: string;
+  transitDaysEstimate: string;
+  zoneName: string;
+}
+
 export function DeliveryEstimator({ product }: DeliveryEstimatorProps) {
   const [pincode, setPincode] = useState("");
-  const [result, setResult] = useState<ShippingCalculationResult | null>(null);
+  const [result, setResult] = useState<EstimatorDisplayResult | null>(null);
   const [resolvedLocation, setResolvedLocation] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const itemSpec: ItemPhysicalSpec = {
-    priceRupees: product.pricePaise / 100,
-    weightGrams: product.weightGrams,
-    lengthMm: product.lengthMm,
-    widthMm: product.widthMm,
-    heightMm: product.heightMm,
-    isFragile: true,
-  };
-
   const [loading, setLoading] = useState(false);
 
   const handleEstimate = async () => {
@@ -47,20 +44,60 @@ export function DeliveryEstimator({ product }: DeliveryEstimatorProps) {
     }
 
     setLoading(true);
-    let lookup: PincodeLookupResult;
     try {
-      const res = await fetch(`/api/pincodes/check?pincode=${targetPin}`);
+      const res = await fetch("/api/shipping/calculate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pincode: targetPin,
+          items: [
+            {
+              productId: product.id,
+              slug: product.slug,
+              title: product.name,
+              quantity: 1,
+              priceRupees: product.pricePaise / 100,
+              weightGrams: product.weightGrams,
+              lengthMm: product.lengthMm,
+              widthMm: product.widthMm,
+              heightMm: product.heightMm,
+            },
+          ],
+        }),
+      });
+
       if (res.ok) {
-        lookup = await res.json();
-      } else {
-        lookup = lookupPincode(targetPin);
+        const data = await res.json();
+        const pinInfo = data.pincodeResult;
+
+        if (!pinInfo.isServiceable) {
+          setError(
+            pinInfo.unserviceableReason ||
+              `We cannot deliver to PIN code ${targetPin}. This destination is currently not serviceable for insured fragile consignments.`
+          );
+          setResult(null);
+          setResolvedLocation(pinInfo.city ? `${pinInfo.city}, ${pinInfo.state}` : null);
+          return;
+        }
+
+        setError(null);
+        setResolvedLocation(`${pinInfo.city}, ${pinInfo.state}`);
+        setResult({
+          totalDeliveryFeeRupees: data.totalDeliveryFeeRupees,
+          carrierName: data.carrierName,
+          transitDaysEstimate: pinInfo.transitDaysEstimate,
+          zoneName: pinInfo.zoneName,
+        });
+        return;
       }
     } catch {
-      lookup = lookupPincode(targetPin);
+      // Fall back to local static computation if network call fails
     } finally {
       setLoading(false);
     }
 
+    // Fallback path
+    const lookup = lookupPincode(targetPin);
     if (!lookup.isServiceable) {
       setError(
         lookup.unserviceableReason ||
@@ -71,11 +108,23 @@ export function DeliveryEstimator({ product }: DeliveryEstimatorProps) {
       return;
     }
 
+    const itemSpec: ItemPhysicalSpec = {
+      priceRupees: product.pricePaise / 100,
+      weightGrams: product.weightGrams,
+      lengthMm: product.lengthMm,
+      widthMm: product.widthMm,
+      heightMm: product.heightMm,
+      isFragile: true,
+    };
+    const calculation = calculateDeliveryFee(lookup.zoneCode, [itemSpec]);
     setError(null);
     setResolvedLocation(`${lookup.city}, ${lookup.state}`);
-    const zone = lookup.zoneCode;
-    const calculation = calculateDeliveryFee(zone, [itemSpec]);
-    setResult(calculation);
+    setResult({
+      totalDeliveryFeeRupees: calculation.totalDeliveryFeeRupees,
+      carrierName: calculation.carrierName,
+      transitDaysEstimate: calculation.transitDaysEstimate,
+      zoneName: calculation.zone.name,
+    });
   };
 
   return (
@@ -86,7 +135,7 @@ export function DeliveryEstimator({ product }: DeliveryEstimatorProps) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
-          <span>Delivery & Transit Estimate</span>
+          <span>Delivery &amp; Transit Estimate</span>
         </h4>
         {result && (
           <span className="text-xs font-semibold text-[var(--color-bronze)]">
@@ -139,7 +188,7 @@ export function DeliveryEstimator({ product }: DeliveryEstimatorProps) {
               Insured Delivery: {result.totalDeliveryFeeRupees === 0 ? "Complimentary" : `₹${result.totalDeliveryFeeRupees.toLocaleString("en-IN")}`}
             </p>
             <p className="text-[11px] text-[var(--color-muted-light)]">
-              {result.carrierName} · Transit: {result.transitDaysEstimate}
+              {result.carrierName} · {result.zoneName} · {result.transitDaysEstimate}
             </p>
           </div>
           <span className="text-[10px] uppercase tracking-wider font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">

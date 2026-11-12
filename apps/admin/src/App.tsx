@@ -17,6 +17,7 @@ import {
   StaffUser,
   AuditEntry,
 } from "./data";
+import { LogisticsTab } from "./components/LogisticsTab";
 
 export interface AdminProposal {
   id: string;
@@ -135,9 +136,6 @@ export default function App() {
   const [qcNotesInput, setQcNotesInput] = useState("");
   const [qcImageInput, setQcImageInput] = useState("");
 
-  // PIN Code search
-  const [pinSearch, setPinSearch] = useState("");
-
   // AWB Edit State
   const [editingAwbId, setEditingAwbId] = useState<string | null>(null);
   const [carrierInput, setCarrierInput] = useState("");
@@ -249,19 +247,6 @@ export default function App() {
       return matchesMode && matchesSearch;
     });
   }, [orders, modeFilter, orderSearch]);
-
-  // Filtered PIN codes
-  const filteredPincodes = useMemo(() => {
-    const query = pinSearch.toLowerCase().trim();
-    if (!query) return pincodes;
-    return pincodes.filter(
-      (p) =>
-        p.pincode.includes(query) ||
-        p.city.toLowerCase().includes(query) ||
-        p.state.toLowerCase().includes(query) ||
-        p.zoneCode.toLowerCase().includes(query)
-    );
-  }, [pincodes, pinSearch]);
 
   // Release MTO order to workshop
   const handleReleaseToProduction = async (orderId: string) => {
@@ -540,41 +525,6 @@ export default function App() {
         prev.map((c) => (c.id === itemId ? { ...c, isPublished: prevPublished } : c))
       );
       alert(`Failed to update catalogue publication: ${(err as Error).message}`);
-    }
-  };
-
-  // Toggle Pincode Serviceability with DB synchronization
-  const handleTogglePincode = async (pincodeId: string) => {
-    const pin = pincodes.find((p) => p.id === pincodeId);
-    if (!pin) return;
-    const prevServiceable = pin.isServiceable;
-    const nextServiceable = !prevServiceable;
-
-    setPincodes((prev) =>
-      prev.map((p) => (p.id === pincodeId ? { ...p, isServiceable: nextServiceable } : p))
-    );
-
-    try {
-      await fetchJson("/api/admin/pincodes", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: pincodeId,
-          isServiceable: nextServiceable,
-          staffName: currentStaff.name,
-        }),
-      });
-      logAuditAction(
-        "PINCODE_SERVICEABILITY_TOGGLE",
-        "Pincode",
-        pin.pincode,
-        `PIN ${pin.pincode} serviceability set to ${nextServiceable ? "ACTIVE" : "DISABLED"}.`
-      );
-    } catch (err) {
-      setPincodes((prev) =>
-        prev.map((p) => (p.id === pincodeId ? { ...p, isServiceable: prevServiceable } : p))
-      );
-      alert(`Failed to update PIN ${pin.pincode}: ${(err as Error).message}`);
     }
   };
 
@@ -1839,100 +1789,11 @@ export default function App() {
 
         {/* TAB 8: DELIVERY PIN CODES & SLABS */}
         {activeTab === "PINCODES" && (
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-[#2e2e34] pb-4">
-              <div>
-                <h2 className="text-base font-semibold text-white">Delivery PIN Code Governance & 12-Slab Ladder</h2>
-                <p className="text-xs text-[#9e9ea8]">
-                  Universal enabled-PIN serviceability. Approved 12 customer-payable slabs: ₹0, ₹250, ₹500, ₹750, ₹1000, ₹1500, ₹2000, ₹2500, ₹3000, ₹4000, ₹5000, ₹7500.
-                </p>
-              </div>
-
-              <input
-                type="text"
-                placeholder="Search PIN code, city, or zone..."
-                value={pinSearch}
-                onChange={(e) => setPinSearch(e.target.value)}
-                className="rounded-xl border border-[#3e3e46] bg-[#1c1c20] px-4 py-2 text-xs text-white placeholder-[#6e6e76] w-full sm:w-64 focus:outline-none focus:border-[#c59b6d]"
-              />
-            </div>
-
-            {/* Approved Delhi Origins Callout */}
-            <div className="p-4 rounded-xl bg-[#1c1c20] border border-[#2e2e34] flex flex-wrap items-center justify-between gap-3 text-xs">
-              <div>
-                <span className="text-[#c59b6d] font-semibold uppercase text-[10px] tracking-wider block">
-                  Approved Delhi Fulfilment Origins (2026-11-06 Policy)
-                </span>
-                <p className="text-[#9e9ea8]">
-                  Consignments originate from Delhi PINs: <strong className="text-white font-mono">110062, 110019, 110074</strong>. One common customer fee applies regardless of origin.
-                </p>
-              </div>
-              <div className="text-[11px] text-[#10b981] font-semibold bg-emerald-950/40 px-3 py-1.5 rounded-lg border border-emerald-800">
-                Universal Enabled-PIN Presumption Active
-              </div>
-            </div>
-
-            {/* PIN Table */}
-            <div className="rounded-2xl border border-[#2e2e34] bg-[#1c1c20] overflow-hidden">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-[#18181c] border-b border-[#2e2e34] text-[11px] uppercase tracking-wider text-[#9e9ea8]">
-                  <tr>
-                    <th className="py-3 px-4">PIN Code</th>
-                    <th className="py-3 px-4">Destination City & State</th>
-                    <th className="py-3 px-4">Assigned Commercial Zone</th>
-                    <th className="py-3 px-4">Carrier Pre-Check</th>
-                    <th className="py-3 px-4">Serviceability</th>
-                    <th className="py-3 px-4 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#2e2e34]">
-                  {filteredPincodes.map((pin) => (
-                    <tr key={pin.id} className="hover:bg-[#222228]/40 transition-colors">
-                      <td className="py-3.5 px-4 font-mono font-bold text-white text-sm">{pin.pincode}</td>
-                      <td className="py-3.5 px-4 text-white">
-                        {pin.city}, {pin.state}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#24242a] text-[#c59b6d]">
-                          {pin.zoneLabel}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4">
-                        {pin.carrierAccepted ? (
-                          <span className="text-[#10b981] font-medium text-[11px]">✓ Surface Freight Feasible</span>
-                        ) : (
-                          <span className="text-[#f43f5e] font-medium text-[11px]">✕ Remote Air Only</span>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
-                            pin.isServiceable
-                              ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
-                              : "bg-rose-950 text-rose-300 border border-rose-800"
-                          }`}
-                        >
-                          {pin.isServiceable ? "Serviceable" : "Disabled"}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-right">
-                        <button
-                          onClick={() => handleTogglePincode(pin.id)}
-                          className={`px-3 py-1 rounded-lg text-xs font-semibold ${
-                            pin.isServiceable
-                              ? "bg-[#2a2a30] text-[#f43f5e] hover:bg-[#34343c]"
-                              : "bg-emerald-950 text-emerald-300 border border-emerald-800 hover:bg-emerald-900"
-                          }`}
-                        >
-                          {pin.isServiceable ? "Disable PIN" : "Enable PIN"}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <LogisticsTab
+            staffName={currentStaff.name}
+            onLogAudit={logAuditAction}
+            onPincodesUpdated={(rows) => setPincodes(rows as any)}
+          />
         )}
 
         {/* TAB 9: SYSTEM & SETTINGS */}

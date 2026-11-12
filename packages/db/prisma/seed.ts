@@ -85,24 +85,54 @@ async function main() {
     update: {},
     create: {
       code: 'ZONE_D',
-      name: 'Zone D (Special Terrain / Long Distance)',
-      description: 'J&K, Assam, North-East, and Island territories.',
+      name: 'Zone D (Rest of India / Tier 2 & 3)',
+      description: 'Rest of India towns and regional districts (MH/MP/CG/OR/BR/JH/KL/AP).',
       baseWeightGrams: 2000,
       baseRate: 1500.0,
       perAdditionalKgRate: 180.0,
       estimatedDaysMin: 5,
-      estimatedDaysMax: 9,
+      estimatedDaysMax: 8,
       pincodeRanges: {
         create: [
-          { stateName: 'Jammu & Kashmir', pincodePrefix: '18', isServiceable: true },
-          { stateName: 'Jammu & Kashmir', pincodePrefix: '19', isServiceable: true },
-          { stateName: 'Assam', pincodePrefix: '78', isServiceable: true },
+          { stateName: 'Madhya Pradesh', cityLabel: 'Bhopal / Indore', pincodePrefix: '46', isServiceable: true },
+          { stateName: 'Kerala', cityLabel: 'Kochi / Thiruvananthapuram', pincodePrefix: '68', isServiceable: true },
+          { stateName: 'Odisha', cityLabel: 'Bhubaneswar', pincodePrefix: '75', isServiceable: true },
         ],
       },
     },
   });
 
-  console.log(`Zones seeded: ${zoneA.code}, ${zoneB.code}, ${zoneC.code}, ${zoneD.code}`);
+  const zoneE = await prisma.shippingZone.upsert({
+    where: { code: 'ZONE_E' },
+    update: {},
+    create: {
+      code: 'ZONE_E',
+      name: 'Zone E (Special & Remote Terrain)',
+      description: 'J&K, Ladakh, Assam, North-East, and Island territories.',
+      baseWeightGrams: 2000,
+      baseRate: 2000.0,
+      perAdditionalKgRate: 250.0,
+      estimatedDaysMin: 7,
+      estimatedDaysMax: 12,
+      pincodeRanges: {
+        create: [
+          { stateName: 'Jammu & Kashmir', cityLabel: 'Jammu Region', pincodePrefix: '18', isServiceable: true },
+          { stateName: 'Jammu & Kashmir', cityLabel: 'Kashmir Valley', pincodePrefix: '19', isServiceable: true },
+          {
+            stateName: 'Ladakh',
+            cityLabel: 'Leh',
+            pincodePrefix: '194',
+            isServiceable: false,
+            unserviceableReason: 'High-altitude remote terrain restricted for fragile gallery consignments.',
+          },
+          { stateName: 'Assam', cityLabel: 'Guwahati / Upper Assam', pincodePrefix: '78', isServiceable: true },
+          { stateName: 'North-East Frontier', cityLabel: 'Arunachal / Manipur / Meghalaya', pincodePrefix: '79', isServiceable: true },
+        ],
+      },
+    },
+  });
+
+  console.log(`Zones seeded: ${zoneA.code}, ${zoneB.code}, ${zoneC.code}, ${zoneD.code}, ${zoneE.code}`);
 
   // 2. Seed the 6 Approved Categories (TAV-01)
   console.log('Seeding Approved Product Categories...');

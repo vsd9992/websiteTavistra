@@ -79,17 +79,69 @@ export default function CartPage() {
       return;
     }
 
-    let lookup: PincodeLookupResult;
     try {
-      const res = await fetch(`/api/pincodes/check?pincode=${targetPin}`);
-      if (res.ok) {
-        lookup = await res.json();
-      } else {
-        lookup = lookupPincode(targetPin);
+      const calcRes = await fetch("/api/shipping/calculate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pincode: targetPin,
+          items: activeItems.map(({ product, quantity }) => ({
+            productId: product.id,
+            slug: product.slug,
+            title: product.name,
+            quantity,
+            priceRupees: product.pricePaise / 100,
+            weightGrams: product.weightGrams,
+            lengthMm: product.lengthMm,
+            widthMm: product.widthMm,
+            heightMm: product.heightMm,
+          })),
+        }),
+      });
+
+      if (calcRes.ok) {
+        const data = await calcRes.json();
+        const pinInfo = data.pincodeResult;
+        if (!pinInfo.isServiceable) {
+          setPinError(
+            pinInfo.unserviceableReason ||
+              `We cannot deliver to PIN code ${targetPin}. This destination is currently not serviceable for insured fragile consignments.`
+          );
+          setShippingResult(null);
+          setResolvedLocation(pinInfo.city ? `${pinInfo.city}, ${pinInfo.state}` : null);
+          return;
+        }
+
+        setPinError(null);
+        setResolvedLocation(`${pinInfo.city}, ${pinInfo.state}`);
+        setShippingResult({
+          zone: {
+            code: pinInfo.zoneCode,
+            name: pinInfo.zoneName,
+            regionDescription: pinInfo.zoneName,
+            estimatedDaysMin: pinInfo.estimatedDaysMin,
+            estimatedDaysMax: pinInfo.estimatedDaysMax,
+          },
+          carrierTier: data.carrierTier,
+          carrierName: data.carrierName,
+          actualWeightKg: data.actualWeightKg,
+          volumetricWeightKg: data.volumetricWeightKg,
+          billableWeightKg: data.billableWeightKg,
+          packagingTier: "MEDIUM",
+          packagingCostRupees: 0,
+          insuranceFovRupees: 0,
+          baseFreightRupees: 0,
+          gstAmountRupees: data.gstIncludedRupees,
+          totalDeliveryFeeRupees: data.totalDeliveryFeeRupees,
+          transitDaysEstimate: pinInfo.transitDaysEstimate,
+        });
+        return;
       }
     } catch {
-      lookup = lookupPincode(targetPin);
+      // Fallback below
     }
+
+    const lookup = lookupPincode(targetPin);
     if (!lookup.isServiceable) {
       setPinError(
         lookup.unserviceableReason ||

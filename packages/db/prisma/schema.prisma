@@ -183,6 +183,7 @@ model Product {
   images                ProductImage[]
   collections           ProductCollection[]
   orderItems            OrderItem[]
+  deliveryOverrides     ProductDeliveryOverride[]
 
   @@index([slug])
   @@index([categoryId])
@@ -281,8 +282,8 @@ model StockMovement {
 
 model ShippingZone {
   id                  String              @id @default(cuid())
-  code                String              @unique // "ZONE_A", "ZONE_B", "ZONE_C", "ZONE_D"
-  name                String              // e.g. "Zone A (Karnataka / Local)"
+  code                String              @unique // "ZONE_A", "ZONE_B", "ZONE_C", "ZONE_D", "ZONE_E"
+  name                String              // e.g. "Zone A (Delhi NCR / Local)"
   description         String
   baseWeightGrams     Int                 @default(2000) // First 2 kg
   baseRate            Decimal             @db.Decimal(10, 2)
@@ -297,13 +298,45 @@ model PincodeRange {
   id                  String              @id @default(cuid())
   shippingZoneId      String
   stateName           String
-  pincodePrefix       String              // e.g. "56" for Bangalore or exact 6 digits
+  cityLabel           String?             // Human-readable city/locality label
+  pincodePrefix       String              @unique // e.g. "11", "110", or exact 6 digits "110062"
   isServiceable       Boolean             @default(true)
+  unserviceableReason String?             // Customer-facing notice if suspended
+  source              String              @default("REGION_PREFIX") // "REGION_PREFIX", "URBAN_884", "ADMIN_OVERRIDE"
+  updatedAt           DateTime            @updatedAt @default(now())
 
   shippingZone        ShippingZone        @relation(fields: [shippingZoneId], references: [id], onDelete: Cascade)
 
   @@index([pincodePrefix])
   @@index([shippingZoneId])
+}
+
+model DeliveryRateRule {
+  id                  String              @id @default(cuid())
+  tierCode            String              // "MINI", "SMALL", "MEDIUM", "LARGE", "HEAVY_CRATED"
+  tierLabel           String              // e.g. "Medium Fragile (<= 6 kg)"
+  maxWeightGrams      Int                 // 500, 2000, 6000, 22000, 55000
+  carrierTier         String              // "DELHIVERY_AIR", "BLUEDART_SURFACE", "SAFEEXPRESS_PALLET"
+  carrierName         String              // "Blue Dart Surfaceline", etc.
+  shippingZoneCode    String              // "ZONE_A".."ZONE_E"
+  feeSlabRupees       Int                 // One of the 12 approved slabs: 0..7500
+  updatedAt           DateTime            @updatedAt
+
+  @@unique([tierCode, shippingZoneCode])
+  @@index([shippingZoneCode])
+}
+
+model ProductDeliveryOverride {
+  id                  String              @id @default(cuid())
+  productId           String
+  shippingZoneCode    String              // "ZONE_A".."ZONE_E"
+  feeSlabRupees       Int                 // One of the 12 approved slabs: 0..7500
+  updatedAt           DateTime            @updatedAt
+
+  product             Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, shippingZoneCode])
+  @@index([productId])
 }
 
 // -------------------------------------------------------------

@@ -22,3 +22,4 @@ Finalize and harden Set 3 as an isolated functional unit, ensuring customer regi
    - Admin customer management (`GET /api/admin/customers`): Staff visibility into customer profiles, order aggregates, and delivery addresses without exposing sensitive authentication tokens.
 4. **Verification & Testing**:
    - Automated integration tests and browser verification on `devMachine` (`http://192.168.1.100:3001/account`).
+

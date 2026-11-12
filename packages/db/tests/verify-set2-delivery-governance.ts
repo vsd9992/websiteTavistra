@@ -282,6 +282,178 @@ async function runSet2Verification() {
   }
 
   // --------------------------------------------------------------------------
+  // SECTION 6: Hierarchical Nested PIN Governance, 884 Sync & Live DB Logistics
+  // --------------------------------------------------------------------------
+  console.log("\n--- Section 6: Hierarchical Nested PINs, Admin 12-Slab Matrix & Overrides ---");
+
+  // Test 6.1: Nested 6-digit Override vs 2-digit Parent Inheritance
+  const nestedTestPin = "110043";
+  const createOverrideRes = await fetch(`${STOREFRONT_URL}/api/admin/pincodes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "UPSERT_RULE",
+      pincodePrefix: nestedTestPin,
+      cityLabel: "Najafgarh Outer Test",
+      stateName: "Delhi",
+      zoneCode: "ZONE_B",
+      isServiceable: false,
+      unserviceableReason: "QA nested 6-digit temporary hold",
+      staffName: "QA Suite",
+    }),
+  });
+  const createOverrideJson = await createOverrideRes.json();
+  const createdRuleId = createOverrideJson.rule?.id;
+  assert(
+    createOverrideRes.ok && createOverrideJson.rule?.pincodePrefix === nestedTestPin && Boolean(createdRuleId),
+    "Nested 6-Digit Override Creation",
+    "Hierarchy PIN",
+    `Created disabled override for ${nestedTestPin} (id=${createdRuleId})`
+  );
+
+  const checkNestedBlocked = await (await fetch(`${STOREFRONT_URL}/api/pincodes/check?pincode=${nestedTestPin}`)).json();
+  assert(
+    checkNestedBlocked.isServiceable === false && checkNestedBlocked.resolutionType === "EXACT_6_DIGIT",
+    "Exact 6-Digit Match Precedence",
+    "Hierarchy PIN",
+    `${nestedTestPin} resolved to resolutionType=${checkNestedBlocked.resolutionType}, serviceable=${checkNestedBlocked.isServiceable}`
+  );
+
+  const checkSiblingDelhi = await (await fetch(`${STOREFRONT_URL}/api/pincodes/check?pincode=110001`)).json();
+  assert(
+    checkSiblingDelhi.isServiceable === true,
+    "Sibling Delhi PIN Unaffected",
+    "Hierarchy PIN",
+    `110001 remains serviceable=${checkSiblingDelhi.isServiceable} (tier=${checkSiblingDelhi.resolutionType})`
+  );
+
+  const deleteOverrideRes = await fetch(`${STOREFRONT_URL}/api/admin/pincodes?id=${encodeURIComponent(createdRuleId)}`, {
+    method: "DELETE",
+  });
+  assert(deleteOverrideRes.ok, "Delete Nested 6-Digit Override", "Hierarchy PIN", `Deleted override ${nestedTestPin}`);
+
+  const checkInheritedAgain = await (await fetch(`${STOREFRONT_URL}/api/pincodes/check?pincode=${nestedTestPin}`)).json();
+  assert(
+    checkInheritedAgain.isServiceable === true && checkInheritedAgain.resolutionType !== "EXACT_6_DIGIT",
+    "Fallback Inheritance Restored",
+    "Hierarchy PIN",
+    `After deletion, ${nestedTestPin} fell back to tier=${checkInheritedAgain.resolutionType}, serviceable=${checkInheritedAgain.isServiceable}`
+  );
+
+  // Test 6.2: Admin Logistics Endpoint (Direct & Via Admin Vite Proxy)
+  const logisticsRes = await fetch(`${STOREFRONT_URL}/api/admin/logistics`);
+  const logisticsData = await logisticsRes.json();
+  assert(
+    logisticsRes.ok &&
+      Array.isArray(logisticsData.feeSlabs) &&
+      logisticsData.feeSlabs.length === 12 &&
+      Array.isArray(logisticsData.zones) &&
+      logisticsData.zones.length >= 5 &&
+      Array.isArray(logisticsData.rateMatrix) &&
+      logisticsData.rateMatrix.length >= 25,
+    "Admin Logistics DB Payload (12 Slabs + 5 Zones + 5x5 Matrix)",
+    "Admin Logistics",
+    `slabs=${logisticsData.feeSlabs?.length}, zones=${logisticsData.zones?.length}, rules=${logisticsData.rateMatrix?.length}`
+  );
+
+  const adminProxyRes = await fetch(`${ADMIN_URL}/api/admin/logistics`).catch(() => null);
+  assert(
+    Boolean(adminProxyRes && adminProxyRes.ok),
+    "Admin Vite Proxy /api/admin/logistics Reachable",
+    "Admin Logistics",
+    adminProxyRes ? `Status ${adminProxyRes.status} from ${ADMIN_URL}/api/admin/logistics` : "Admin proxy unreachable"
+  );
+
+  // Test 6.3: Live DB 12-Slab Rate & Product Override Propagation to Storefront Shipping API
+  if (Array.isArray(logisticsData.products) && logisticsData.products.length > 0) {
+    const sampleProduct = logisticsData.products[0];
+    const testPin = "400001"; // Mumbai -> ZONE_C
+
+    // Set temporary product override to slab 4000 for ZONE_C
+    const setOverrideRes = await fetch(`${STOREFRONT_URL}/api/admin/logistics`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "SET_PRODUCT_OVERRIDE",
+        productId: sampleProduct.id,
+        shippingZoneCode: "ZONE_C",
+        feeSlabRupees: 4000,
+        staffName: "QA Suite",
+      }),
+    });
+    assert(setOverrideRes.ok, "Set Product Delivery Override", "Live Shipping DB", `Set ${sampleProduct.slug} ZONE_C override to ₹4000`);
+
+    const calcOverrideRes = await fetch(`${STOREFRONT_URL}/api/shipping/calculate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pincode: testPin,
+        items: [
+          {
+            productId: sampleProduct.id,
+            slug: sampleProduct.slug,
+            title: sampleProduct.title,
+            quantity: 1,
+            priceRupees: 5000,
+            weightGrams: sampleProduct.weightGrams || 1000,
+            lengthMm: sampleProduct.lengthMm || 200,
+            widthMm: sampleProduct.widthMm || 200,
+            heightMm: sampleProduct.heightMm || 200,
+          },
+        ],
+      }),
+    });
+    const calcOverrideData = await calcOverrideRes.json();
+    assert(
+      calcOverrideRes.ok &&
+        calcOverrideData.totalDeliveryFeeRupees === 4000 &&
+        calcOverrideData.ruleSource === "PRODUCT_ZONE_OVERRIDE",
+      "Storefront Shipping API Respects Live DB Override",
+      "Live Shipping DB",
+      `Calculated fee=₹${calcOverrideData.totalDeliveryFeeRupees}, source=${calcOverrideData.ruleSource}`
+    );
+
+    // Clear temporary override
+    const clearOverrideRes = await fetch(`${STOREFRONT_URL}/api/admin/logistics`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "SET_PRODUCT_OVERRIDE",
+        productId: sampleProduct.id,
+        shippingZoneCode: "ZONE_C",
+        feeSlabRupees: null,
+        staffName: "QA Suite",
+      }),
+    });
+    assert(clearOverrideRes.ok, "Clear Temporary Product Override", "Live Shipping DB", `Cleared QA override for ${sampleProduct.slug}`);
+  }
+
+  // Test 6.4: Sync 884 Urban Hub PINs & Verify Leh (194) Blocked Rule
+  const sync884Res = await fetch(`${STOREFRONT_URL}/api/admin/pincodes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "IMPORT_URBAN_884",
+      staffName: "QA Suite",
+    }),
+  });
+  const sync884Json = await sync884Res.json();
+  assert(
+    sync884Res.ok && sync884Json.success === true,
+    "Sync 884 Urban Hub PINs",
+    "Admin Logistics",
+    `884 urban hub sync executed: insertedCount=${sync884Json.insertedCount}, msg=${sync884Json.message}`
+  );
+
+  const lehCheck = await (await fetch(`${STOREFRONT_URL}/api/pincodes/check?pincode=194101`)).json();
+  assert(
+    lehCheck.isServiceable === false && lehCheck.zoneCode === "ZONE_E",
+    "Remote Prefix 194 (Leh) Blocked",
+    "Hierarchy PIN",
+    `194101 resolved to zone=${lehCheck.zoneCode}, serviceable=${lehCheck.isServiceable}`
+  );
+
+  // --------------------------------------------------------------------------
   // SUMMARY REPORT
   // --------------------------------------------------------------------------
   console.log("\n=======================================================");

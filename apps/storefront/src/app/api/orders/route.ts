@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, PurchaseMode, OrderStatus } from "@tavistra/db";
 import { sendOrderConfirmationEmail } from "@/lib/email";
+import { resolvePincodeHierarchy } from "@/lib/logisticsEngine";
 
 // Helper to compute grace days remaining from confirmedAt
 function computeGraceDaysRemaining(confirmedAt: Date | null): number {
@@ -259,6 +260,16 @@ export async function POST(req: NextRequest) {
       balanceDueRupees,
       carrierName,
     } = body;
+
+    if (destinationPin) {
+      const pinCheck = await resolvePincodeHierarchy(String(destinationPin));
+      if (!pinCheck.isServiceable) {
+        return NextResponse.json(
+          { error: pinCheck.unserviceableReason || `PIN code ${destinationPin} is currently unserviceable.` },
+          { status: 400 }
+        );
+      }
+    }
 
     // Check or create customer user
     let user = await prisma.user.findUnique({

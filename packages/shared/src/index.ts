@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export * from './shipping';
 export * from './pincodes';
+export * from './pincodeData';
 export * from './validation';
 
 /**
