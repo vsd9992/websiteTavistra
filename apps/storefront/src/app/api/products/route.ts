@@ -58,16 +58,39 @@ export async function GET() {
           altText: img.altText,
           isPrimary: img.isPrimary,
         })),
-        variants: p.variants.map((v) => ({
-          id: v.id,
-          sku: v.sku,
-          title: v.title,
-          materialFinish: v.materialFinish,
-          color: v.color,
-          imageUrl: v.imageUrl,
-          pricePaise: Math.round(Number(v.taxInclusivePrice) * 100),
-          stock: v.inventoryLedger?.availableStock ?? 0,
-        })),
+        variants: p.variants.map((v) => {
+          let variantImages: { url: string; altText?: string; isPrimary?: boolean }[] | undefined;
+          if (v.imageUrls) {
+            try {
+              const arr = JSON.parse(v.imageUrls);
+              if (Array.isArray(arr) && arr.length > 0) {
+                variantImages = arr.map((u: string, idx: number) => ({
+                  url: u,
+                  altText: `${v.title} view ${idx + 1}`,
+                  isPrimary: idx === 0,
+                }));
+              }
+            } catch {}
+          }
+          if (!variantImages && v.imageUrl) {
+            variantImages = [{ url: v.imageUrl, altText: v.title, isPrimary: true }];
+          }
+
+          return {
+            id: v.id,
+            sku: v.sku,
+            title: v.title,
+            materialFinish: v.materialFinish,
+            color: v.color,
+            imageUrl: v.imageUrl,
+            images: variantImages,
+            pricePaise: Math.round(Number(v.taxInclusivePrice) * 100),
+            stock: v.inventoryLedger?.availableStock ?? 0,
+            description: v.description,
+            dimensions: v.dimensions,
+            weightGrams: v.weightGrams,
+          };
+        }),
         shortDescription: p.shortDescription,
         fullDescription: p.fullDescription,
         materials: p.materialDescription.split(",").map((m) => m.trim()),
