@@ -69,10 +69,20 @@ function TrackOrderContent() {
     return false;
   };
 
-  // Auto-lookup if query params provided
+  // Auto-lookup if query params provided; reset cleanly if navigating to /track without params
   useEffect(() => {
     if (initialOrderId) {
+      setOrderId(initialOrderId);
+      setContact(initialContact);
       fetchOrderFromServer(initialOrderId, initialContact);
+    } else {
+      setOrderId("");
+      setContact("");
+      setMatchedOrder(null);
+      setSearched(false);
+      setSearchError(null);
+      setPaymentSuccessMessage(null);
+      setPaymentErrorMessage(null);
     }
   }, [initialOrderId, initialContact]);
 
