@@ -1,13 +1,12 @@
 # Project Index
 
 Project: Tavistra (`websiteTavistra`)
-Phase: Phase 2 — Execution (Modular Refinement: Set 0 Completed, Set 1 Active)
-Milestone: Baseline Adoption & H1/H2 Execution Readiness
-Status: Set 0 verified live on devMachine; Set 1 (Product Markdown, Media, Multi-Variant Engine) active.
+Phase: Phase 2 — Execution (Modular Refinement: Set 0 & Set 1 Completed, Set 2 Active)
+Milestone: Baseline Adoption & Modular Hardening
+Status: Set 0 & Set 1 verified live on devMachine; Set 2 (Delivery PIN Governance, Zones, Studio Controls) active.
 
 ## Active Tasks
-- [.ai/tasks/active/set-1-product-markdown-pipeline.md](tasks/active/set-1-product-markdown-pipeline.md) — Set 1: Master Folder (.zip + .md + images), Multi-Variant Engine, Media Storage & PDP Presentation
-- [.ai/tasks/active/h6-staff-admin-portal.md](tasks/active/h6-staff-admin-portal.md) — Centralized Commerce & Staff Admin Synchronization (Database, 75% Balance Flow, QC Transparency, Hard Dispatch Gate)
+- [.ai/tasks/active/set-2-delivery-governance.md](tasks/active/set-2-delivery-governance.md) — Set 2: Delivery PIN Governance, Zones, Studio Operating Controls & Institutional Copy
 
 ## Document Map
 - [AGENTS.md](../AGENTS.md) — Permanent repository operating rules & memory contract
@@ -24,7 +23,7 @@ Status: Set 0 verified live on devMachine; Set 1 (Product Markdown, Media, Multi
 ## Current Decisions
 - [.ai/decisions/current/0001-dev-deployment-environment.md](decisions/current/0001-dev-deployment-environment.md) — Local Windows development with remote Debian dev/deployment server (`192.168.1.100`)
 - [.ai/decisions/current/0002-pnpm-monorepo-structure.md](decisions/current/0002-pnpm-monorepo-structure.md) — pnpm monorepo modular monolith (`apps/storefront`, `apps/admin`, `packages/db`, `packages/shared`)
-- [.ai/decisions/current/0003-dev-server-ports-and-runtime.md](decisions/current/0003-dev-server-ports-and-runtime.md) — Dev server runtime & port allocation (`http://192.168.1.100:3001` for storefront)
+- [.ai/decisions/current/0003-dev-server-ports-and-runtime.md](decisions/current/0003-dev-server-ports-and-runtime.md) — Dev server runtime & port allocation (`http://192.168.1.100:3001` for storefront, `3002` for admin)
 - [.ai/decisions/current/0004-delivery-fee-and-bulk-policy.md](decisions/current/0004-delivery-fee-and-bulk-policy.md) — 12-slab delivery fee ladder, highest-product-fee rule, universal PIN serviceability, and 10-unit/10-line bulk boundary
 - [.ai/decisions/current/0005-modular-workflow-and-product-pipeline.md](decisions/current/0005-modular-workflow-and-product-pipeline.md) — Modular workflow phasing strategy (Sets 0–8) and isolated product folder/zip pipeline architecture
 
@@ -33,4 +32,5 @@ Status: Set 0 verified live on devMachine; Set 1 (Product Markdown, Media, Multi
 - Physical production and fulfilment operations must strictly enforce the 25% advance / 100% dispatch payment gates.
 
 ## Historical Pointers
+- Archived Tasks: [.ai/tasks/archive/](tasks/archive/) (`set-1-product-markdown-pipeline.md`, `h4-commerce-foundations-db.md`, `h6-staff-admin-portal.md`)
 - Concept repository: `https://github.com/vsd9992/Tavistra.git` (downloaded to `docs/` and `CONCEPT_README.md`)
