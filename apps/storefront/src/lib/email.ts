@@ -457,3 +457,62 @@ export async function sendQuoteProposalEmail(params: {
   });
 }
 
+// 5. Send Customer OTP Verification / Sign-In / Password Reset Email
+export async function sendCustomerOtpEmail(params: {
+  email: string;
+  name?: string;
+  code: string;
+  purpose: "VERIFY_EMAIL" | "LOGIN_OTP" | "PASSWORD_RESET";
+}) {
+  const { email, name = "Client", code, purpose } = params;
+
+  const meta =
+    purpose === "VERIFY_EMAIL"
+      ? {
+          subject: `[VDesign] Verify Your Email Address — ${code}`,
+          title: "Verify Your Email Address",
+          subtitle: "Complete your Tavistra Client Account registration",
+          intro: "Please enter the 6-digit verification code below to confirm your email address and activate your account.",
+        }
+      : purpose === "PASSWORD_RESET"
+      ? {
+          subject: `[VDesign] Reset Your Password — ${code}`,
+          title: "Password Reset Code",
+          subtitle: "Secure credential recovery for your Tavistra Client Account",
+          intro: "We received a request to reset your account password. Use the 6-digit verification code below to set a new password.",
+        }
+      : {
+          subject: `[VDesign] Your Sign-In Verification Code — ${code}`,
+          title: "One-Time Sign-In Code",
+          subtitle: "Direct authentication for your Tavistra Client Account",
+          intro: "Enter this 6-digit verification code on the sign-in screen to access your account.",
+        };
+
+  const bodyContent = `
+    <p>Dear ${name},</p>
+    <p>${meta.intro}</p>
+
+    <div class="card" style="text-align: center; padding: 28px 20px;">
+      <span style="display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: #726e64; margin-bottom: 10px;">
+        Verification Code (Valid for 15 Minutes)
+      </span>
+      <div style="font-family: monospace; font-size: 34px; font-weight: 700; letter-spacing: 0.25em; color: #141412;">
+        ${code}
+      </div>
+    </div>
+
+    <p style="font-size: 12px; color: #726e64;">
+      If you did not request this code, you may safely ignore this email. Never share verification codes with anyone.
+    </p>
+  `;
+
+  const html = wrapLuxuryEmailTemplate(meta.title, meta.subtitle, bodyContent);
+
+  return transporter.sendMail({
+    from: smtpFrom,
+    to: email,
+    subject: meta.subject,
+    html,
+  });
+}
+

@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { useCart } from "@/context/CartContext";
 import { useOrders, OrderRecord } from "@/context/OrderContext";
+import { useAuth, SavedAddress } from "@/context/AuthContext";
 import {
   resolveShippingZone,
   calculateDeliveryFee,
@@ -30,7 +31,10 @@ function CheckoutContent() {
 
   const { readyStockItems, mtoItems, clearCart } = useCart();
   const { saveOrder } = useOrders();
+  const { user, isAuthenticated } = useAuth();
   const activeItems = modeParam === "READY_STOCK" ? readyStockItems : mtoItems;
+  const didAutofillRef = useRef(false);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
 
   // Form State
   const [customer, setCustomer] = useState({
@@ -93,6 +97,43 @@ function CheckoutContent() {
       quantity: item.quantity,
     }))
   );
+
+  // Auto-populate authenticated customer profile & default address once loaded
+  useEffect(() => {
+    if (!isAuthenticated || !user || didAutofillRef.current) return;
+    didAutofillRef.current = true;
+    const defaultAddr =
+      user.addresses.find((a) => a.isDefault) || user.addresses[0] || null;
+    if (defaultAddr) {
+      setSelectedAddressId(defaultAddr.id);
+    }
+    setCustomer((prev) => ({
+      ...prev,
+      fullName: prev.fullName || defaultAddr?.fullName || user.name || "",
+      email: prev.email || user.email || "",
+      phone: prev.phone || defaultAddr?.phone || user.phone || "",
+      gstin: prev.gstin || user.gstin || "",
+      address1: prev.address1 || defaultAddr?.addressLine1 || "",
+      address2: prev.address2 || defaultAddr?.addressLine2 || "",
+      city: prev.city || defaultAddr?.city || "",
+      state: defaultAddr?.state || prev.state,
+      pincode: prev.pincode || defaultAddr?.pincode || "",
+    }));
+  }, [isAuthenticated, user]);
+
+  const applySavedAddress = (addr: SavedAddress) => {
+    setSelectedAddressId(addr.id);
+    setCustomer((prev) => ({
+      ...prev,
+      fullName: addr.fullName || prev.fullName,
+      phone: addr.phone || prev.phone,
+      address1: addr.addressLine1,
+      address2: addr.addressLine2 || "",
+      city: addr.city,
+      state: addr.state,
+      pincode: addr.pincode,
+    }));
+  };
 
   // Live Contact & Address Validations
   const emailValidation = validateEmail(customer.email);
@@ -583,6 +624,50 @@ function CheckoutContent() {
           </div>
 
           <form id="checkout-form" onSubmit={handleSubmitOrder} className="space-y-6">
+            {isAuthenticated && user && user.addresses.length > 0 && (
+              <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/80 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-ink)]">
+                    Saved Delivery Locations ({user.name})
+                  </span>
+                  <Link
+                    href="/account/addresses"
+                    className="text-[11px] font-semibold text-[var(--color-bronze)] hover:underline"
+                  >
+                    Manage Addresses
+                  </Link>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {user.addresses.map((addr) => {
+                    const active = selectedAddressId === addr.id;
+                    return (
+                      <button
+                        key={addr.id}
+                        type="button"
+                        onClick={() => applySavedAddress(addr)}
+                        className={`rounded-xl border px-3.5 py-2 text-left text-xs transition-colors ${
+                          active
+                            ? "border-[var(--color-ink)] bg-[var(--color-ink)] text-[var(--color-canvas)]"
+                            : "border-[var(--color-control-border)] bg-[var(--color-canvas)] text-[var(--color-ink)] hover:bg-[var(--color-stone)]"
+                        }`}
+                      >
+                        <div className="font-semibold">
+                          {addr.label} · {addr.pincode}
+                        </div>
+                        <div
+                          className={`text-[10px] ${
+                            active ? "text-[var(--color-canvas)]/80" : "text-[var(--color-muted-light)]"
+                          }`}
+                        >
+                          {addr.city}, {addr.state}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Contact Details */}
             <div className="space-y-4">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">

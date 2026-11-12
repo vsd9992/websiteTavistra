@@ -1,224 +1,246 @@
 "use client";
 
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { AccountNav } from "@/components/AccountNav";
+import AccountNav from "@/components/AccountNav";
 import { useAuth } from "@/context/AuthContext";
-import { useOrders } from "@/context/OrderContext";
+
+interface AccountOrderItem {
+  name: string;
+  quantity: number;
+  pricePaise: number;
+}
+
+interface AccountOrder {
+  id: string;
+  orderNumber: string;
+  mode: string;
+  city: string;
+  state: string;
+  items: AccountOrderItem[];
+  totalAmountRupees: number;
+  amountPaidRupees: number;
+  balanceDueRupees: number;
+  status: string;
+  statusLabel: string;
+  createdAt: string;
+}
 
 export default function AccountOverviewPage() {
-  const { user, isAuthenticated } = useAuth();
-  const { orders } = useOrders();
+  const { user, isAuthenticated, authLoading } = useAuth();
+  const [orders, setOrders] = useState<AccountOrder[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
 
-  const defaultAddress = user?.addresses.find((a) => a.isDefault) || user?.addresses[0];
-  const recentOrders = orders.slice(0, 2);
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setOrders([]);
+      return;
+    }
+
+    let cancelled = false;
+    setOrdersLoading(true);
+    fetch("/api/account/orders", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : { orders: [] }))
+      .then((data) => {
+        if (!cancelled && Array.isArray(data.orders)) {
+          setOrders(data.orders);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setOrdersLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
+
+  const activeCount = orders.filter((o) => o.status !== "DISPATCHED").length;
+  const totalBalanceDue = orders.reduce((acc, o) => acc + (o.balanceDueRupees || 0), 0);
+  const defaultAddress = user?.addresses.find((a) => a.isDefault) || user?.addresses[0] || null;
 
   return (
-    <div className="flex min-h-screen flex-col bg-[var(--color-canvas)]">
+    <div className="min-h-screen flex flex-col bg-[var(--color-canvas)]">
       <Header />
-      <main className="flex-1">
-        {!isAuthenticated ? (
-          <div className="mx-auto max-w-lg py-24 px-6 text-center space-y-6">
-            <span className="text-xs uppercase tracking-widest text-[var(--color-bronze)] font-semibold">
-              Tavistra Client Desk
+
+      <main className="flex-1 mx-auto w-full max-w-7xl px-6 py-12 lg:py-16">
+        {authLoading ? (
+          <div className="py-24 text-center text-xs text-[var(--color-muted-light)]">
+            Verifying your client session...
+          </div>
+        ) : !isAuthenticated ? (
+          <div className="mx-auto max-w-md text-center space-y-6 py-16">
+            <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--color-muted-light)]">
+              VDesign Client Account
             </span>
-            <h1 className="font-editorial text-4xl text-[var(--color-ink)]">
-              Client Portal
+            <h1 className="text-3xl font-serif font-light text-[var(--color-ink)]">
+              Sign in to view your account
             </h1>
             <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
-              Sign in to manage your addresses, view live production milestones, and access your purchase invoices.
+              Access your authenticated order history, production milestones, GSTIN profile, and saved delivery addresses.
             </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+            <div className="flex justify-center gap-4">
               <Link
-                href="/account/login"
-                className="w-full sm:w-auto rounded-full bg-[var(--color-ink)] px-8 py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
+                href="/account/login?next=/account"
+                className="rounded-full bg-[var(--color-ink)] px-8 py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)]"
               >
                 Sign In
               </Link>
               <Link
                 href="/account/register"
-                className="w-full sm:w-auto rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-8 py-3 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors"
+                className="rounded-full border border-[var(--color-control-border)] px-8 py-3 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)]"
               >
                 Create Account
               </Link>
             </div>
-            <div className="pt-6 border-t border-[var(--color-decorative-border)]">
-              <Link
-                href="/track"
-                className="text-xs text-[var(--color-muted-light)] hover:text-[var(--color-ink)] underline"
-              >
-                Or track an individual guest order without signing in →
+            <p className="text-[11px] text-[var(--color-muted-light)]">
+              Checked out as a guest?{" "}
+              <Link href="/track" className="text-[var(--color-bronze)] font-semibold hover:underline">
+                Track Guest Order
               </Link>
-            </div>
+            </p>
           </div>
         ) : (
-          <div>
-            <AccountNav />
-            <div className="mx-auto max-w-6xl px-6 pb-16 space-y-10">
-              {/* Welcome Header */}
-              <div className="space-y-1">
-                <span className="text-xs uppercase tracking-widest text-[var(--color-bronze)] font-semibold">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-10">
+            <div className="lg:col-span-1">
+              <AccountNav />
+            </div>
+
+            <div className="lg:col-span-3 space-y-8">
+              <div className="space-y-1 border-b border-[var(--color-decorative-border)] pb-5">
+                <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--color-muted-light)]">
                   Client Dashboard
                 </span>
-                <h1 className="font-editorial text-3xl sm:text-4xl text-[var(--color-ink)]">
-                  Welcome, {user?.name}
+                <h1 className="text-3xl font-serif font-light text-[var(--color-ink)]">
+                  Welcome back, {user?.name}
                 </h1>
-                <p className="text-xs text-[var(--color-muted-light)]">
-                  Member since {user?.createdAt} · {user?.email}
-                </p>
               </div>
 
-              {/* Status Highlights Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Orders Card */}
-                <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-6 flex flex-col justify-between space-y-4">
-                  <div className="space-y-2">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)]">
-                      Consignments & Orders
-                    </span>
-                    <h3 className="text-2xl font-editorial text-[var(--color-ink)]">
-                      {orders.length} Active {orders.length === 1 ? "Record" : "Records"}
-                    </h3>
-                    <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
-                      Tracking Ready Stock dispatched consignments and Made to Order grace periods.
-                    </p>
-                  </div>
-                  <Link
-                    href="/account/orders"
-                    className="text-xs font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)] underline flex items-center gap-1"
-                  >
-                    <span>View all orders</span>
-                    <span>→</span>
-                  </Link>
+              {/* KPI Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/80 p-5 space-y-1">
+                  <p className="text-[11px] uppercase tracking-wider text-[var(--color-muted-light)] font-semibold">
+                    Account Orders
+                  </p>
+                  <p className="text-2xl font-serif text-[var(--color-ink)]">
+                    {ordersLoading ? "…" : orders.length}
+                  </p>
+                  <p className="text-[11px] text-[var(--color-muted-light)]">
+                    {activeCount} currently active
+                  </p>
                 </div>
 
-                {/* Address Card */}
-                <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-6 flex flex-col justify-between space-y-4">
-                  <div className="space-y-2">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)]">
-                      Default Delivery Location
-                    </span>
-                    {defaultAddress ? (
-                      <div className="space-y-1">
-                        <span className="inline-block rounded-md bg-[var(--color-canvas)] border border-[var(--color-decorative-border)] px-2 py-0.5 text-[10px] font-semibold text-[var(--color-bronze)]">
-                          {defaultAddress.label}
-                        </span>
-                        <p className="text-xs font-semibold text-[var(--color-ink)] pt-1">
-                          {defaultAddress.fullName}
-                        </p>
-                        <p className="text-xs text-[var(--color-muted-light)] line-clamp-1">
-                          {defaultAddress.addressLine1}, {defaultAddress.city} — {defaultAddress.pincode}
-                        </p>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-[var(--color-muted-light)]">
-                        No delivery address registered yet.
-                      </p>
-                    )}
-                  </div>
-                  <Link
-                    href="/account/addresses"
-                    className="text-xs font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)] underline flex items-center gap-1"
-                  >
-                    <span>Manage address book</span>
-                    <span>→</span>
-                  </Link>
+                <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/80 p-5 space-y-1">
+                  <p className="text-[11px] uppercase tracking-wider text-[var(--color-muted-light)] font-semibold">
+                    Pending Balance Due
+                  </p>
+                  <p className="text-2xl font-serif text-[var(--color-bronze)]">
+                    {ordersLoading ? "…" : `₹${totalBalanceDue.toLocaleString("en-IN")}`}
+                  </p>
+                  <p className="text-[11px] text-[var(--color-muted-light)]">
+                    Due upon QC completion before dispatch
+                  </p>
                 </div>
 
-                {/* GSTIN & Tax Compliance */}
-                <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-6 flex flex-col justify-between space-y-4">
-                  <div className="space-y-2">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)]">
-                      Corporate Tax ID
-                    </span>
-                    {user?.gstin ? (
-                      <div className="space-y-1">
-                        <span className="inline-block rounded-md bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
-                          GSTIN Verified
-                        </span>
-                        <p className="text-xs font-mono font-semibold text-[var(--color-ink)] pt-1">
-                          {user.gstin}
-                        </p>
-                        <p className="text-[11px] text-[var(--color-muted-light)]">
-                          Invoices automatically generate with input tax credit for this identity.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-1">
-                        <span className="inline-block rounded-md bg-[var(--color-stone)] px-2 py-0.5 text-[10px] font-semibold text-[var(--color-muted-light)]">
-                          Personal / Retail Profile
-                        </span>
-                        <p className="text-xs text-[var(--color-muted-light)] pt-1">
-                          Add your studio GSTIN to receive B2B tax-compliant invoices.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                  <Link
-                    href="/account/profile"
-                    className="text-xs font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)] underline flex items-center gap-1"
-                  >
-                    <span>Edit profile & GSTIN</span>
-                    <span>→</span>
-                  </Link>
+                <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/80 p-5 space-y-1">
+                  <p className="text-[11px] uppercase tracking-wider text-[var(--color-muted-light)] font-semibold">
+                    Primary Delivery PIN
+                  </p>
+                  <p className="text-2xl font-serif text-[var(--color-ink)] font-mono">
+                    {defaultAddress?.pincode || "Not Set"}
+                  </p>
+                  <p className="text-[11px] text-[var(--color-muted-light)] truncate">
+                    {defaultAddress
+                      ? `${defaultAddress.city}, ${defaultAddress.state}`
+                      : "Add a verified address"}
+                  </p>
                 </div>
               </div>
 
-              {/* Recent Orders Spotlight */}
+              {/* Recent Orders */}
               <div className="space-y-4">
-                <div className="flex items-center justify-between border-b border-[var(--color-decorative-border)] pb-3">
-                  <h2 className="font-editorial text-2xl text-[var(--color-ink)]">
-                    Recent Consignments
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-serif font-light text-[var(--color-ink)]">
+                    Recent Account Orders
                   </h2>
                   <Link
                     href="/account/orders"
-                    className="text-xs font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)] underline"
+                    className="text-xs font-semibold text-[var(--color-bronze)] hover:underline"
                   >
                     View All Orders →
                   </Link>
                 </div>
 
-                <div className="space-y-4">
-                  {recentOrders.map((order) => (
-                    <div
-                      key={order.id}
-                      className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-sm hover:border-[var(--color-control-border)] transition-colors"
-                    >
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-bold text-[var(--color-ink)]">
-                            {order.id}
-                          </span>
-                          <span className="rounded-md bg-[var(--color-ivory)] px-2 py-0.5 text-[10px] font-semibold text-[var(--color-ink)] border border-[var(--color-decorative-border)]">
-                            {order.mode === "READY_STOCK" ? "Ready Stock" : "Made to Order"}
-                          </span>
-                          <span className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
-                            {order.statusLabel}
-                          </span>
-                        </div>
-                        <p className="text-xs text-[var(--color-ink)] font-medium">
-                          {order.items.map((i) => `${i.name} (×${i.quantity})`).join(", ")}
-                        </p>
-                        <p className="text-[11px] text-[var(--color-muted-light)]">
-                          Placed {order.createdAt} · Destination: {order.city}, {order.state} · Total: ₹{order.totalAmountRupees.toLocaleString("en-IN")}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-3 shrink-0">
-                        <Link
-                          href={`/track?orderId=${order.id}`}
-                          className="rounded-full bg-[var(--color-ink)] px-5 py-2 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
-                        >
-                          Track Milestones
-                        </Link>
-                      </div>
+                {ordersLoading ? (
+                  <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/40 p-8 text-center text-xs text-[var(--color-muted-light)]">
+                    Loading your account orders...
+                  </div>
+                ) : orders.length === 0 ? (
+                  <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/40 p-8 text-center space-y-3">
+                    <p className="text-sm font-serif text-[var(--color-ink)]">
+                      No orders placed under this account yet
+                    </p>
+                    <p className="text-xs text-[var(--color-muted-light)]">
+                      Explore our architectural editions or track an earlier guest consignment with its Order ID & Contact.
+                    </p>
+                    <div className="flex justify-center gap-3 pt-1">
+                      <Link
+                        href="/catalog"
+                        className="rounded-full bg-[var(--color-ink)] px-6 py-2.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)]"
+                      >
+                        Browse Editions
+                      </Link>
+                      <Link
+                        href="/track"
+                        className="rounded-full border border-[var(--color-control-border)] px-6 py-2.5 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)]"
+                      >
+                        Track Guest Order
+                      </Link>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {orders.slice(0, 3).map((order) => (
+                      <div
+                        key={order.id}
+                        className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/60 p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm"
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex flex-wrap items-center gap-2.5">
+                            <span className="font-mono text-xs font-bold text-[var(--color-ink)]">
+                              {order.orderNumber}
+                            </span>
+                            <span className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              {order.statusLabel}
+                            </span>
+                          </div>
+                          <p className="text-xs text-[var(--color-ink)] font-medium">
+                            {order.items.map((i) => `${i.name} (×${i.quantity})`).join(", ")}
+                          </p>
+                          <p className="text-[11px] text-[var(--color-muted-light)]">
+                            Placed {order.createdAt} · Destination: {order.city}, {order.state} · Total: ₹
+                            {order.totalAmountRupees.toLocaleString("en-IN")}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-3 shrink-0">
+                          <Link
+                            href={`/track?orderId=${order.id}`}
+                            className="rounded-full bg-[var(--color-ink)] px-5 py-2 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
+                          >
+                            Track Milestones
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {/* Quick Luxury Client Services */}
+              {/* Quick Client Services */}
               <div className="pt-4 border-t border-[var(--color-decorative-border)] grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
                 <div className="p-5 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/60 space-y-2">
                   <h4 className="font-semibold text-[var(--color-ink)]">
@@ -264,4 +286,3 @@ export default function AccountOverviewPage() {
     </div>
   );
 }
-

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma, PurchaseMode, OrderStatus } from "@tavistra/db";
 import { sendOrderConfirmationEmail } from "@/lib/email";
 import { resolvePincodeHierarchy } from "@/lib/logisticsEngine";
+import { getAuthenticatedUser } from "@/lib/auth";
 
 // Helper to compute grace days remaining from confirmedAt
 function computeGraceDaysRemaining(confirmedAt: Date | null): number {
@@ -18,6 +19,8 @@ export async function GET(req: NextRequest) {
   const email = searchParams.get("email");
 
   try {
+    const sessionUser = await getAuthenticatedUser(req);
+
     // 1. Single order lookup (e.g. Guest Tracking /track)
     if (orderId) {
       const cleanId = orderId.trim().toUpperCase();
@@ -40,13 +43,27 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ found: false, order: null });
       }
 
-      // Verify contact if supplied
-      if (contact) {
+      const isAuthenticatedOwner = Boolean(sessionUser && order.userId === sessionUser.id);
+
+      // Verify contact if supplied; require contact unless authenticated owner
+      if (!isAuthenticatedOwner) {
+        if (!contact || !contact.trim()) {
+          return NextResponse.json(
+            {
+              found: false,
+              order: null,
+              message: "Please enter the email or mobile number associated with this order.",
+            },
+            { status: 401 }
+          );
+        }
+
         const cleanContact = contact.trim().toLowerCase().replace(/[\s\-()]/g, "");
         const emailMatches = order.customerEmail.toLowerCase() === cleanContact;
         const cleanPhone = order.customerPhone.replace(/[\s\-()]/g, "");
         const phoneMatches =
-          cleanPhone.includes(cleanContact) || cleanContact.includes(cleanPhone);
+          cleanContact.length >= 6 &&
+          (cleanPhone.includes(cleanContact) || cleanContact.includes(cleanPhone));
 
         if (!emailMatches && !phoneMatches) {
           return NextResponse.json({
@@ -124,11 +141,18 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 2. Lookup by customer email (e.g. /account/orders)
+    // 2. Lookup by customer email -> strictly require authenticated matching session
     if (email) {
+      if (!sessionUser || sessionUser.email.toLowerCase() !== email.toLowerCase().trim()) {
+        return NextResponse.json(
+          { error: "Authentication required to query account orders." },
+          { status: 401 }
+        );
+      }
+
       const orders = await prisma.order.findMany({
         where: {
-          customerEmail: email.toLowerCase().trim(),
+          userId: sessionUser.id,
         },
         include: {
           items: {
@@ -271,25 +295,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Check or create customer user
-    let user = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
-    });
+    const sessionUser = await getAuthenticatedUser(req);
 
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          email: email.toLowerCase(),
-          name: customerName,
-          phone,
-        },
-      });
-    }
-
-    // Create shipping address
+    // Link ONLY if customer is signed in; guest orders remain isolated with userId=null
     const address = await prisma.customerAddress.create({
       data: {
-        userId: user.id,
+        userId: sessionUser ? sessionUser.id : null,
+        guestEmail: sessionUser ? null : email.toLowerCase().trim(),
         fullName: customerName,
         phone,
         addressLine1,
@@ -341,8 +353,8 @@ export async function POST(req: NextRequest) {
     const order = await prisma.order.create({
       data: {
         orderNumber: id,
-        userId: user.id,
-        customerEmail: email.toLowerCase(),
+        userId: sessionUser ? sessionUser.id : null,
+        customerEmail: email.toLowerCase().trim(),
         customerPhone: phone,
         shippingAddressId: address.id,
         purchaseMode: purchaseModeEnum,

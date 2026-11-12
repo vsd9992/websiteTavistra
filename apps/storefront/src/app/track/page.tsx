@@ -37,26 +37,29 @@ function TrackOrderContent() {
       const url = `/api/orders?orderId=${encodeURIComponent(ref.trim())}${
         contactInfo ? `&contact=${encodeURIComponent(contactInfo.trim())}` : ""
       }`;
-      const res = await fetch(url);
+      const res = await fetch(url, { credentials: "include" });
       const data = await res.json();
 
-      if (data.found && data.order) {
+      if (res.ok && data.found && data.order) {
         setMatchedOrder(data.order);
         setSearched(true);
         setLoading(false);
         return true;
       }
-    } catch (err) {
-      console.warn("Backend lookup error, falling back to local storage:", err);
-    }
 
-    // Local fallback
-    const local = lookupOrder(ref, contactInfo || "");
-    if (local) {
-      setMatchedOrder(local);
-      setSearched(true);
-      setLoading(false);
-      return true;
+      if (res.status === 401 || res.status === 403 || res.status === 404) {
+        setMatchedOrder(null);
+        setSearched(true);
+        setSearchError(
+          data.error ||
+            "Provide the Billing Email or Mobile registered on this order, or sign in to view your account orders."
+        );
+        setLoading(false);
+        return false;
+      }
+    } catch (err) {
+      console.warn("Backend lookup error:", err);
+      setSearchError("Unable to reach the order tracking service. Please try again.");
     }
 
     setMatchedOrder(null);

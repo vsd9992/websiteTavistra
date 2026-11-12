@@ -9,6 +9,7 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "test:set2": "tsx tests/verify-set2-delivery-governance.ts",
+    "test:set3": "tsx tests/verify-set3-customer-identity.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

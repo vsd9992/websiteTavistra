@@ -5,13 +5,18 @@ export async function GET() {
   try {
     const users = await prisma.user.findMany({
       include: {
-        addresses: true,
+        addresses: {
+          orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
+        },
         orders: {
           select: {
             id: true,
+            orderNumber: true,
             totalAmount: true,
             status: true,
+            createdAt: true,
           },
+          orderBy: { createdAt: "desc" },
         },
       },
       orderBy: { createdAt: "desc" },
@@ -20,7 +25,7 @@ export async function GET() {
     return NextResponse.json({
       customers: users.map((u) => {
         const defaultAddr = u.addresses.find((a) => a.isDefault) || u.addresses[0];
-        const totalSpent = u.orders.reduce(
+        const lifetimeSpendRupees = u.orders.reduce(
           (sum, o) => sum + Number(o.totalAmount),
           0
         );
@@ -30,11 +35,28 @@ export async function GET() {
           name: u.name || "Client",
           email: u.email,
           phone: u.phone || (defaultAddr?.phone ?? "N/A"),
-          city: defaultAddr?.city || "New Delhi",
-          state: defaultAddr?.state || "Delhi",
+          gstin: u.gstin || undefined,
+          practiceOrStudio: u.practiceOrStudio || undefined,
+          emailVerified: Boolean(u.emailVerifiedAt),
+          city: defaultAddr?.city || "—",
+          state: defaultAddr?.state || "—",
+          pincode: defaultAddr?.pincode || "—",
           totalOrders: u.orders.length,
-          totalSpentRupees: totalSpent,
-          isRegistered: true,
+          lifetimeSpendRupees,
+          totalSpentRupees: lifetimeSpendRupees,
+          addresses: u.addresses.map((a) => ({
+            id: a.id,
+            label: a.label,
+            fullName: a.fullName,
+            phone: a.phone,
+            addressLine1: a.addressLine1,
+            addressLine2: a.addressLine2 || undefined,
+            city: a.city,
+            state: a.state,
+            pincode: a.pincode,
+            isDefault: a.isDefault,
+          })),
+          isRegistered: Boolean(u.passwordHash || u.emailVerifiedAt),
           joinedAt: u.createdAt.toLocaleDateString("en-IN", {
             day: "numeric",
             month: "short",
@@ -48,4 +70,3 @@ export async function GET() {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
-

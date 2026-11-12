@@ -77,6 +77,19 @@ export interface SupportTicket {
   }[];
 }
 
+export interface CustomerProfileAddress {
+  id: string;
+  label: string;
+  fullName: string;
+  phone: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  pincode: string;
+  isDefault: boolean;
+}
+
 export interface CustomerProfile {
   id: string;
   name: string;
@@ -84,12 +97,14 @@ export interface CustomerProfile {
   phone: string;
   practiceOrStudio?: string;
   gstin?: string;
+  emailVerified?: boolean;
   isRegistered: boolean;
   totalOrders: number;
   lifetimeSpendRupees: number;
   city: string;
   state: string;
   pincode: string;
+  addresses?: CustomerProfileAddress[];
   createdAt: string;
   notes?: string;
 }

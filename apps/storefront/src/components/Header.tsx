@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useState, useRef, useEffect } from "react";
 import { APPROVED_CATEGORIES } from "@/lib/taxonomy";
 import { useCart } from "@/context/CartContext";
+import { useAuth } from "@/context/AuthContext";
 
 export function Header() {
   const [isShopOpen, setIsShopOpen] = useState(false);
@@ -16,6 +17,7 @@ export function Header() {
   } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { totalItemCount } = useCart();
+  const { user, isAuthenticated } = useAuth();
 
   // Load system notices & hiatus announcements
   useEffect(() => {
@@ -218,10 +220,10 @@ export function Header() {
 
           {/* Account Icon */}
           <Link
-            href="/account"
-            className="p-1.5 text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
-            aria-label="Client account"
-            title="Account"
+            href={isAuthenticated ? "/account" : "/account/login"}
+            className="relative flex items-center gap-1.5 p-1.5 text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
+            aria-label={isAuthenticated && user ? `Signed in as ${user.name}` : "Sign in to client account"}
+            title={isAuthenticated && user ? `Account: ${user.name}` : "Sign In"}
           >
             <svg
               className="h-5 w-5"
@@ -236,6 +238,17 @@ export function Header() {
                 d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
               />
             </svg>
+            {isAuthenticated && user && (
+              <span
+                className="hidden sm:inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--color-ink)] px-1.5 text-[10px] font-semibold uppercase text-[var(--color-canvas)]"
+              >
+                {user.name
+                  .split(/\s+/)
+                  .slice(0, 2)
+                  .map((p) => p[0] || "")
+                  .join("") || "U"}
+              </span>
+            )}
           </Link>
 
           {/* Cart Icon */}

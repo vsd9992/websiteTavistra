@@ -1,202 +1,298 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { AccountNav } from "@/components/AccountNav";
-import { useAuth, SavedAddress } from "@/context/AuthContext";
-import { lookupPincode, validateIndianMobile } from "@tavistra/shared";
+import AccountNav from "@/components/AccountNav";
+import { SavedAddress, useAuth } from "@/context/AuthContext";
+
+const EMPTY_FORM = {
+  label: "Studio / Office",
+  fullName: "",
+  phone: "",
+  addressLine1: "",
+  addressLine2: "",
+  pincode: "",
+  city: "",
+  state: "",
+  isDefault: false,
+};
 
 export default function AccountAddressesPage() {
-  const { user, isAuthenticated, addAddress, deleteAddress, setDefaultAddress } = useAuth();
+  const {
+    user,
+    isAuthenticated,
+    authLoading,
+    addAddress,
+    updateAddress,
+    deleteAddress,
+    setDefaultAddress,
+  } = useAuth();
 
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [formData, setFormData] = useState({
-    label: "Studio Office",
-    fullName: user?.name || "",
-    phone: user?.phone || "",
-    addressLine1: "",
-    addressLine2: "",
-    pincode: "",
-    city: "",
-    state: "",
-    isDefault: false,
-  });
-
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [pinChecking, setPinChecking] = useState(false);
+  const [pinVerified, setPinVerified] = useState(false);
   const [pinMessage, setPinMessage] = useState<{ text: string; isError: boolean } | null>(null);
-  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState("");
+
+  const openAddForm = () => {
+    setEditingId(null);
+    setActionError("");
+    setFormData({
+      ...EMPTY_FORM,
+      fullName: user?.name || "",
+      phone: user?.phone || "",
+      isDefault: (user?.addresses.length ?? 0) === 0,
+    });
+    setPinVerified(false);
+    setPinMessage(null);
+    setShowForm(true);
+  };
+
+  const openEditForm = (address: SavedAddress) => {
+    setEditingId(address.id);
+    setActionError("");
+    setFormData({
+      label: address.label || "Home / Residence",
+      fullName: address.fullName,
+      phone: address.phone,
+      addressLine1: address.addressLine1,
+      addressLine2: address.addressLine2 || "",
+      pincode: address.pincode,
+      city: address.city,
+      state: address.state,
+      isDefault: address.isDefault,
+    });
+    setPinVerified(true);
+    setPinMessage({
+      text: `Verified delivery zone: ${address.city}, ${address.state}.`,
+      isError: false,
+    });
+    setShowForm(true);
+  };
+
+  const verifyLivePincode = async (cleanPin: string) => {
+    setPinChecking(true);
+    setPinVerified(false);
+    setPinMessage({ text: "Checking VDesign regional delivery whitelist...", isError: false });
+
+    try {
+      const res = await fetch(`/api/pincodes/check?pincode=${cleanPin}`);
+      const data = await res.json();
+      if (data.serviceable) {
+        setFormData((prev) => ({
+          ...prev,
+          pincode: cleanPin,
+          city: data.city || "",
+          state: data.state || "",
+        }));
+        setPinVerified(true);
+        setPinMessage({
+          text: `Serviceable in ${data.city}, ${data.state}${data.zoneName ? ` (${data.zoneName})` : ""}.`,
+          isError: false,
+        });
+      } else {
+        setFormData((prev) => ({ ...prev, pincode: cleanPin, city: "", state: "" }));
+        setPinVerified(false);
+        setPinMessage({
+          text:
+            data.message ||
+            "PIN code is not currently in VDesign's verified delivery whitelist.",
+          isError: true,
+        });
+      }
+    } catch {
+      setFormData((prev) => ({ ...prev, pincode: cleanPin, city: "", state: "" }));
+      setPinVerified(false);
+      setPinMessage({
+        text: "Unable to verify PIN code right now. Please try again.",
+        isError: true,
+      });
+    } finally {
+      setPinChecking(false);
+    }
+  };
 
   const handlePincodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value.replace(/\D/g, "").slice(0, 6);
-    setFormData((prev) => ({ ...prev, pincode: raw }));
+    const cleanPin = e.target.value.replace(/\D/g, "").slice(0, 6);
+    setFormData((prev) => ({
+      ...prev,
+      pincode: cleanPin,
+      ...(cleanPin.length < 6 ? { city: "", state: "" } : {}),
+    }));
 
-    if (raw.length === 6) {
-      fetch(`/api/pincodes/check?pincode=${raw}`)
-        .then((res) => (res.ok ? res.json() : lookupPincode(raw)))
-        .then((info) => {
-          if (info && info.isServiceable) {
-            setFormData((prev) => ({
-              ...prev,
-              city: info.city,
-              state: info.state,
-            }));
-            setPinMessage({
-              text: `Serviceable destination located: ${info.city}, ${info.state} (Zone ${info.zoneCode})`,
-              isError: false,
-            });
-          } else {
-            setFormData((prev) => ({
-              ...prev,
-              city: "",
-              state: "",
-            }));
-            setPinMessage({
-              text: info?.unserviceableReason || "We currently do not service this PIN code. Tavistra delivers exclusively across verified Tier-1 & Tier-2 hubs.",
-              isError: true,
-            });
-          }
-        })
-        .catch(() => {
-          const info = lookupPincode(raw);
-          if (info && info.isServiceable) {
-            setFormData((prev) => ({ ...prev, city: info.city, state: info.state }));
-            setPinMessage({
-              text: `Serviceable destination located: ${info.city}, ${info.state} (Zone ${info.zoneCode})`,
-              isError: false,
-            });
-          } else {
-            setPinMessage({
-              text: "We currently do not service this PIN code. Tavistra delivers exclusively across verified Tier-1 & Tier-2 hubs.",
-              isError: true,
-            });
-          }
-        });
+    if (cleanPin.length === 6) {
+      void verifyLivePincode(cleanPin);
     } else {
+      setPinVerified(false);
       setPinMessage(null);
     }
   };
 
-  const handleSaveAddress = (e: React.FormEvent) => {
+  const handleSaveSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setActionError("");
 
-    const phoneValidation = validateIndianMobile(formData.phone);
-    if (!phoneValidation.isValid) {
-      setPhoneError(phoneValidation.error || "Valid 10-digit Indian mobile required.");
-      return;
-    }
-    setPhoneError(null);
-
-    const pinCheck = lookupPincode(formData.pincode);
-    if (!pinCheck || !pinCheck.isServiceable) {
-      setPinMessage({
-        text: "Please provide a serviceable 6-digit Indian PIN code.",
-        isError: true,
-      });
+    if (!pinVerified || !formData.city || !formData.state) {
+      setActionError("Please enter a verified 6-digit serviceable PIN code.");
       return;
     }
 
-    addAddress({
-      label: formData.label || "Delivery Location",
-      fullName: formData.fullName,
-      phone: phoneValidation.normalizedPhone || formData.phone,
-      addressLine1: formData.addressLine1,
-      addressLine2: formData.addressLine2,
-      city: formData.city || pinCheck.city,
-      state: formData.state || pinCheck.state,
-      pincode: formData.pincode,
-      isDefault: formData.isDefault || (user?.addresses.length === 0),
-    });
+    setSaving(true);
+    const payload = {
+      label: formData.label.trim() || "Home / Residence",
+      fullName: formData.fullName.trim(),
+      phone: formData.phone.trim(),
+      addressLine1: formData.addressLine1.trim(),
+      addressLine2: formData.addressLine2.trim() || undefined,
+      pincode: formData.pincode.trim(),
+      city: formData.city.trim(),
+      state: formData.state.trim(),
+      isDefault: formData.isDefault,
+    };
 
-    setShowAddForm(false);
-    setFormData({
-      label: "Studio Office",
-      fullName: user?.name || "",
-      phone: user?.phone || "",
-      addressLine1: "",
-      addressLine2: "",
-      pincode: "",
-      city: "",
-      state: "",
-      isDefault: false,
-    });
+    const result = editingId
+      ? await updateAddress(editingId, payload)
+      : await addAddress(payload);
+    setSaving(false);
+
+    if (!result.success) {
+      setActionError(result.error || "Unable to save address.");
+      return;
+    }
+
+    setShowForm(false);
+    setEditingId(null);
+    setFormData(EMPTY_FORM);
     setPinMessage(null);
+    setPinVerified(false);
+  };
+
+  const handleDelete = async (id: string) => {
+    setActionError("");
+    setBusyId(id);
+    const result = await deleteAddress(id);
+    setBusyId(null);
+    if (!result.success) {
+      setActionError(result.error || "Unable to remove address.");
+    }
+  };
+
+  const handleSetDefault = async (id: string) => {
+    setActionError("");
+    setBusyId(id);
+    const result = await setDefaultAddress(id);
+    setBusyId(null);
+    if (!result.success) {
+      setActionError(result.error || "Unable to update default address.");
+    }
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-[var(--color-canvas)]">
+    <div className="min-h-screen flex flex-col bg-[var(--color-canvas)]">
       <Header />
-      <main className="flex-1">
-        {!isAuthenticated ? (
-          <div className="mx-auto max-w-lg py-24 px-6 text-center space-y-6">
-            <h1 className="font-editorial text-4xl text-[var(--color-ink)]">
-              Sign In to Manage Addresses
+
+      <main className="flex-1 mx-auto w-full max-w-7xl px-6 py-12 lg:py-16">
+        {authLoading ? (
+          <div className="py-24 text-center text-xs text-[var(--color-muted-light)]">
+            Verifying your client session...
+          </div>
+        ) : !isAuthenticated ? (
+          <div className="mx-auto max-w-md text-center space-y-6 py-16">
+            <h1 className="text-3xl font-serif font-light text-[var(--color-ink)]">
+              Sign in to manage addresses
             </h1>
-            <p className="text-xs text-[var(--color-muted-light)]">
-              Manage your delivery locations and ensure white-glove courier dispatch to your design site.
+            <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
+              Save verified delivery addresses linked to your VDesign client account for faster checkout.
             </p>
-            <Link
-              href="/account/login"
-              className="inline-block rounded-full bg-[var(--color-ink)] px-8 py-3 text-xs font-semibold text-[var(--color-canvas)]"
-            >
-              Sign In
-            </Link>
+            <div className="flex justify-center gap-4">
+              <Link
+                href="/account/login?next=/account/addresses"
+                className="rounded-full bg-[var(--color-ink)] px-8 py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)]"
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/account/register"
+                className="rounded-full border border-[var(--color-control-border)] px-8 py-3 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)]"
+              >
+                Create Account
+              </Link>
+            </div>
           </div>
         ) : (
-          <div>
-            <AccountNav />
-            <div className="mx-auto max-w-6xl px-6 pb-16 space-y-8">
-              {/* Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--color-decorative-border)] pb-4">
-                <div>
-                  <h1 className="font-editorial text-3xl sm:text-4xl text-[var(--color-ink)]">
-                    Saved Addresses
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-10">
+            <div className="lg:col-span-1">
+              <AccountNav />
+            </div>
+
+            <div className="lg:col-span-3 space-y-8">
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--color-decorative-border)] pb-5">
+                <div className="space-y-1">
+                  <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--color-muted-light)]">
+                    Verified Dispatch Destinations
+                  </span>
+                  <h1 className="text-3xl font-serif font-light text-[var(--color-ink)]">
+                    Saved Delivery Addresses
                   </h1>
-                  <p className="text-xs text-[var(--color-muted-light)] mt-1">
-                    Manage studio, project site, and residence delivery destinations.
-                  </p>
                 </div>
-                {!showAddForm && (
+
+                {!showForm && (
                   <button
                     type="button"
-                    onClick={() => setShowAddForm(true)}
+                    onClick={openAddForm}
                     className="rounded-full bg-[var(--color-ink)] px-6 py-2.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
                   >
-                    + Add New Address
+                    + Add Delivery Address
                   </button>
                 )}
               </div>
 
-              {/* Add Address Form Modal / Inline */}
-              {showAddForm && (
-                <div className="rounded-2xl border-2 border-[var(--color-bronze)]/50 bg-[var(--color-ivory)] p-6 sm:p-8 space-y-6 shadow-md">
+              {actionError && !showForm && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-700 font-medium">
+                  {actionError}
+                </div>
+              )}
+
+              {showForm && (
+                <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/80 p-7 shadow-sm space-y-6">
                   <div className="flex items-center justify-between border-b border-[var(--color-decorative-border)] pb-3">
-                    <h3 className="font-editorial text-2xl text-[var(--color-ink)]">
-                      New Delivery Destination
-                    </h3>
+                    <h2 className="text-lg font-serif text-[var(--color-ink)]">
+                      {editingId ? "Edit Delivery Location" : "New Delivery Location"}
+                    </h2>
                     <button
                       type="button"
-                      onClick={() => setShowAddForm(false)}
+                      onClick={() => {
+                        setShowForm(false);
+                        setEditingId(null);
+                        setActionError("");
+                      }}
                       className="text-xs text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
                     >
-                      Cancel
+                      Close
                     </button>
                   </div>
 
-                  <form onSubmit={handleSaveAddress} className="space-y-4">
+                  <form onSubmit={handleSaveSubmit} className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-1">
-                          Address Tag / Label *
+                          Address Label *
                         </label>
-                        <input
-                          type="text"
-                          required
+                        <select
                           value={formData.label}
                           onChange={(e) => setFormData({ ...formData, label: e.target.value })}
-                          placeholder="e.g. Design Studio, Site Office"
-                          className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-3.5 py-2 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
-                        />
+                          className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-3.5 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                        >
+                          <option value="Studio / Office">Studio / Office</option>
+                          <option value="Home / Residence">Home / Residence</option>
+                          <option value="Client Project Site">Client Project Site</option>
+                        </select>
                       </div>
                       <div>
                         <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-1">
@@ -207,43 +303,49 @@ export default function AccountAddressesPage() {
                           required
                           value={formData.fullName}
                           onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                          placeholder="Full Name"
-                          className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-3.5 py-2 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                          className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-3.5 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
                         />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-1">
-                          Delivery Contact Mobile *
+                          Delivery Contact Phone *
                         </label>
                         <input
                           type="tel"
                           required
                           value={formData.phone}
-                          onChange={(e) => {
-                            setFormData({ ...formData, phone: e.target.value });
-                            if (phoneError) setPhoneError(null);
-                          }}
-                          placeholder="9876543210"
-                          className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-3.5 py-2 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                          className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-3.5 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
                         />
-                        {phoneError && (
-                          <p className="text-[11px] text-red-600 mt-0.5">{phoneError}</p>
-                        )}
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-1">
-                        Street Address / Premises *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={formData.addressLine1}
-                        onChange={(e) => setFormData({ ...formData, addressLine1: e.target.value })}
-                        placeholder="Suite, building number, street name"
-                        className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-3.5 py-2 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-1">
+                          Street Address / Building *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={formData.addressLine1}
+                          onChange={(e) => setFormData({ ...formData, addressLine1: e.target.value })}
+                          placeholder="Suite, Building, Street"
+                          className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-3.5 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-1">
+                          Landmark / Floor (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.addressLine2}
+                          onChange={(e) => setFormData({ ...formData, addressLine2: e.target.value })}
+                          placeholder="Near landmark or wing"
+                          className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-3.5 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                        />
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -257,8 +359,8 @@ export default function AccountAddressesPage() {
                           maxLength={6}
                           value={formData.pincode}
                           onChange={handlePincodeChange}
-                          placeholder="e.g. 110001"
-                          className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-3.5 py-2 text-xs text-[var(--color-ink)] font-mono focus:outline-none focus:border-[var(--color-ink)]"
+                          placeholder="e.g. 380001"
+                          className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-3.5 py-2.5 text-xs text-[var(--color-ink)] font-mono focus:outline-none focus:border-[var(--color-ink)]"
                         />
                       </div>
                       <div>
@@ -269,8 +371,8 @@ export default function AccountAddressesPage() {
                           type="text"
                           readOnly
                           value={formData.city}
-                          placeholder="City will auto-populate"
-                          className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-stone)]/40 px-3.5 py-2 text-xs text-[var(--color-ink)] focus:outline-none cursor-not-allowed"
+                          placeholder="Verified city"
+                          className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-stone)]/40 px-3.5 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none cursor-not-allowed"
                         />
                       </div>
                       <div>
@@ -281,8 +383,8 @@ export default function AccountAddressesPage() {
                           type="text"
                           readOnly
                           value={formData.state}
-                          placeholder="State will auto-populate"
-                          className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-stone)]/40 px-3.5 py-2 text-xs text-[var(--color-ink)] focus:outline-none cursor-not-allowed"
+                          placeholder="Verified state"
+                          className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-stone)]/40 px-3.5 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none cursor-not-allowed"
                         />
                       </div>
                     </div>
@@ -299,7 +401,13 @@ export default function AccountAddressesPage() {
                       </div>
                     )}
 
-                    <div className="flex items-center gap-2 pt-2">
+                    {actionError && (
+                      <div className="p-3 rounded-xl border border-red-200 bg-red-50 text-xs text-red-700 font-medium">
+                        {actionError}
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2 pt-1">
                       <input
                         type="checkbox"
                         id="isDefault"
@@ -312,17 +420,21 @@ export default function AccountAddressesPage() {
                       </label>
                     </div>
 
-                    <div className="flex items-center gap-3 pt-3">
+                    <div className="flex items-center gap-3 pt-2">
                       <button
                         type="submit"
-                        disabled={!formData.city || pinMessage?.isError}
+                        disabled={saving || pinChecking || !pinVerified || !formData.city}
                         className="rounded-full bg-[var(--color-ink)] px-6 py-2.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] disabled:opacity-50 transition-colors shadow-sm"
                       >
-                        Save Address
+                        {saving ? "Saving..." : editingId ? "Save Address Changes" : "Save Address"}
                       </button>
                       <button
                         type="button"
-                        onClick={() => setShowAddForm(false)}
+                        onClick={() => {
+                          setShowForm(false);
+                          setEditingId(null);
+                          setActionError("");
+                        }}
                         className="rounded-full border border-[var(--color-control-border)] px-6 py-2.5 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)]"
                       >
                         Cancel
@@ -332,63 +444,89 @@ export default function AccountAddressesPage() {
                 </div>
               )}
 
-              {/* Saved Addresses Cards Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {user?.addresses.map((address) => (
-                  <div
-                    key={address.id}
-                    className={`rounded-2xl border p-6 flex flex-col justify-between space-y-4 shadow-sm transition-all ${
-                      address.isDefault
-                        ? "border-[var(--color-bronze)] bg-[var(--color-ivory)]"
-                        : "border-[var(--color-decorative-border)] bg-[var(--color-canvas)]"
-                    }`}
+              {(user?.addresses.length ?? 0) === 0 && !showForm ? (
+                <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/40 p-10 text-center space-y-4">
+                  <p className="text-base font-serif text-[var(--color-ink)]">
+                    No saved delivery addresses yet
+                  </p>
+                  <p className="text-xs text-[var(--color-muted-light)] max-w-md mx-auto">
+                    Add your architectural studio, residence, or client project location verified against our white-glove courier PIN whitelist.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={openAddForm}
+                    className="rounded-full bg-[var(--color-ink)] px-6 py-2.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)]"
                   >
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-xs text-[var(--color-ink)] uppercase tracking-wider">
-                          {address.label}
-                        </span>
-                        {address.isDefault && (
-                          <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-800 uppercase tracking-wider">
-                            Default Address
+                    + Add First Address
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {user?.addresses.map((address) => (
+                    <div
+                      key={address.id}
+                      className={`rounded-2xl border p-6 flex flex-col justify-between space-y-4 shadow-sm transition-all ${
+                        address.isDefault
+                          ? "border-[var(--color-bronze)] bg-[var(--color-ivory)]"
+                          : "border-[var(--color-decorative-border)] bg-[var(--color-canvas)]"
+                      }`}
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-xs text-[var(--color-ink)] uppercase tracking-wider">
+                            {address.label}
                           </span>
-                        )}
+                          {address.isDefault && (
+                            <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-800 uppercase tracking-wider">
+                              Default Address
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="space-y-1 text-xs">
+                          <p className="font-semibold text-[var(--color-ink)]">{address.fullName}</p>
+                          <p className="text-[var(--color-muted-light)]">{address.phone}</p>
+                          <p className="text-[var(--color-ink)]">{address.addressLine1}</p>
+                          {address.addressLine2 && (
+                            <p className="text-[var(--color-ink)]">{address.addressLine2}</p>
+                          )}
+                          <p className="text-[var(--color-ink)] font-medium">
+                            {address.city}, {address.state} — {address.pincode}
+                          </p>
+                        </div>
                       </div>
 
-                      <div className="space-y-1 text-xs">
-                        <p className="font-semibold text-[var(--color-ink)]">{address.fullName}</p>
-                        <p className="text-[var(--color-muted-light)]">{address.phone}</p>
-                        <p className="text-[var(--color-ink)]">{address.addressLine1}</p>
-                        {address.addressLine2 && (
-                          <p className="text-[var(--color-ink)]">{address.addressLine2}</p>
+                      <div className="flex items-center gap-3 pt-3 border-t border-[var(--color-decorative-border)]/60 text-xs">
+                        {!address.isDefault && (
+                          <button
+                            type="button"
+                            disabled={busyId === address.id}
+                            onClick={() => handleSetDefault(address.id)}
+                            className="font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)] underline disabled:opacity-50"
+                          >
+                            Set as Default
+                          </button>
                         )}
-                        <p className="text-[var(--color-ink)] font-medium">
-                          {address.city}, {address.state} — {address.pincode}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 pt-3 border-t border-[var(--color-decorative-border)]/60 text-xs">
-                      {!address.isDefault && (
                         <button
                           type="button"
-                          onClick={() => setDefaultAddress(address.id)}
+                          onClick={() => openEditForm(address)}
                           className="font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)] underline"
                         >
-                          Set as Default
+                          Edit
                         </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => deleteAddress(address.id)}
-                        className="text-red-600 hover:text-red-700 underline ml-auto text-xs"
-                      >
-                        Delete
-                      </button>
+                        <button
+                          type="button"
+                          disabled={busyId === address.id}
+                          onClick={() => handleDelete(address.id)}
+                          className="text-red-600 hover:text-red-700 underline ml-auto text-xs disabled:opacity-50"
+                        >
+                          {busyId === address.id ? "Removing..." : "Delete"}
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

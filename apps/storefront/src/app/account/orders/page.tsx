@@ -1,23 +1,81 @@
 "use client";
 
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { useState } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { AccountNav } from "@/components/AccountNav";
+import AccountNav from "@/components/AccountNav";
 import { useAuth } from "@/context/AuthContext";
-import { useOrders, OrderRecord } from "@/context/OrderContext";
+
+interface AccountOrderItem {
+  name: string;
+  quantity: number;
+  pricePaise: number;
+}
+
+interface AccountOrder {
+  id: string;
+  orderNumber: string;
+  mode: string;
+  addressLine1: string;
+  city: string;
+  state: string;
+  destinationPin: string;
+  items: AccountOrderItem[];
+  itemsSubtotalRupees: number;
+  deliveryFeeRupees: number;
+  totalAmountRupees: number;
+  amountPaidRupees: number;
+  balanceDueRupees: number;
+  carrierName: string;
+  awbNumber?: string;
+  status: string;
+  statusLabel: string;
+  statusDescription: string;
+  createdAt: string;
+}
 
 export default function AccountOrdersPage() {
-  const { isAuthenticated } = useAuth();
-  const { orders } = useOrders();
+  const { isAuthenticated, authLoading } = useAuth();
+  const [orders, setOrders] = useState<AccountOrder[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [ordersError, setOrdersError] = useState("");
 
-  const [activeTab, setActiveTab] = useState<"ALL" | "READY_STOCK" | "MADE_TO_ORDER">("ALL");
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setOrders([]);
+      return;
+    }
 
-  const filteredOrders = orders.filter((order) => {
-    if (activeTab === "ALL") return true;
-    return order.mode === activeTab;
-  });
+    let cancelled = false;
+    setLoadingOrders(true);
+    setOrdersError("");
+    fetch("/api/account/orders", { credentials: "include" })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to fetch orders.");
+        }
+        return data;
+      })
+      .then((data) => {
+        if (!cancelled) {
+          setOrders(Array.isArray(data.orders) ? data.orders : []);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setOrdersError(err instanceof Error ? err.message : "Failed to load orders.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingOrders(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
 
   const formatPrice = (amountRupees: number) =>
     new Intl.NumberFormat("en-IN", {
@@ -27,169 +85,147 @@ export default function AccountOrdersPage() {
     }).format(amountRupees);
 
   return (
-    <div className="flex min-h-screen flex-col bg-[var(--color-canvas)]">
+    <div className="min-h-screen flex flex-col bg-[var(--color-canvas)]">
       <Header />
-      <main className="flex-1">
-        {!isAuthenticated ? (
-          <div className="mx-auto max-w-lg py-24 px-6 text-center space-y-6">
-            <h1 className="font-editorial text-4xl text-[var(--color-ink)]">
-              Sign In to View Orders
+
+      <main className="flex-1 mx-auto w-full max-w-7xl px-6 py-12 lg:py-16">
+        {authLoading ? (
+          <div className="py-24 text-center text-xs text-[var(--color-muted-light)]">
+            Verifying your client session...
+          </div>
+        ) : !isAuthenticated ? (
+          <div className="mx-auto max-w-md text-center space-y-6 py-16">
+            <h1 className="text-3xl font-serif font-light text-[var(--color-ink)]">
+              Sign in to view your orders
             </h1>
-            <p className="text-xs text-[var(--color-muted-light)]">
-              Sign in to view your complete order history, or track a single order using your reference number.
+            <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
+              Your authenticated order history and production milestones are protected behind your VDesign account.
             </p>
-            <div className="flex items-center justify-center gap-3">
+            <div className="flex justify-center gap-4">
               <Link
-                href="/account/login"
-                className="rounded-full bg-[var(--color-ink)] px-8 py-3 text-xs font-semibold text-[var(--color-canvas)]"
+                href="/account/login?next=/account/orders"
+                className="rounded-full bg-[var(--color-ink)] px-8 py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)]"
               >
                 Sign In
               </Link>
               <Link
                 href="/track"
-                className="rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-8 py-3 text-xs font-semibold text-[var(--color-ink)]"
+                className="rounded-full border border-[var(--color-control-border)] px-8 py-3 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)]"
               >
-                Guest Order Track
+                Track Guest Order
               </Link>
             </div>
           </div>
         ) : (
-          <div>
-            <AccountNav />
-            <div className="mx-auto max-w-6xl px-6 pb-16 space-y-8">
-              {/* Page Title & Filter Tabs */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--color-decorative-border)] pb-4">
-                <div>
-                  <h1 className="font-editorial text-3xl sm:text-4xl text-[var(--color-ink)]">
-                    Orders & Milestones
-                  </h1>
-                  <p className="text-xs text-[var(--color-muted-light)] mt-1">
-                    Complete history of your studio acquisitions, live carriage updates, and workshop progress.
-                  </p>
-                </div>
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-10">
+            <div className="lg:col-span-1">
+              <AccountNav />
+            </div>
 
-                {/* Filter Pills */}
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("ALL")}
-                    className={`rounded-full px-4 py-1.5 text-xs font-medium transition-colors ${
-                      activeTab === "ALL"
-                        ? "bg-[var(--color-ink)] text-[var(--color-canvas)]"
-                        : "border border-[var(--color-control-border)] bg-[var(--color-canvas)] text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
-                    }`}
-                  >
-                    All ({orders.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("READY_STOCK")}
-                    className={`rounded-full px-4 py-1.5 text-xs font-medium transition-colors ${
-                      activeTab === "READY_STOCK"
-                        ? "bg-[var(--color-ink)] text-[var(--color-canvas)]"
-                        : "border border-[var(--color-control-border)] bg-[var(--color-canvas)] text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
-                    }`}
-                  >
-                    Ready Stock
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("MADE_TO_ORDER")}
-                    className={`rounded-full px-4 py-1.5 text-xs font-medium transition-colors ${
-                      activeTab === "MADE_TO_ORDER"
-                        ? "bg-[var(--color-ink)] text-[var(--color-canvas)]"
-                        : "border border-[var(--color-control-border)] bg-[var(--color-canvas)] text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
-                    }`}
-                  >
-                    Made to Order
-                  </button>
-                </div>
+            <div className="lg:col-span-3 space-y-8">
+              <div className="space-y-1 border-b border-[var(--color-decorative-border)] pb-5">
+                <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--color-muted-light)]">
+                  Fulfilment & Fabrication
+                </span>
+                <h1 className="text-3xl font-serif font-light text-[var(--color-ink)]">
+                  My Orders & Production Milestones
+                </h1>
               </div>
 
-              {/* Order Cards List */}
-              {filteredOrders.length === 0 ? (
-                <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-12 text-center space-y-4">
-                  <p className="font-editorial text-2xl text-[var(--color-ink)]">
-                    No orders found in this view
+              {ordersError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-700">
+                  {ordersError}
+                </div>
+              )}
+
+              {loadingOrders ? (
+                <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/40 p-10 text-center text-xs text-[var(--color-muted-light)]">
+                  Loading authenticated orders...
+                </div>
+              ) : orders.length === 0 ? (
+                <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/40 p-10 text-center space-y-4">
+                  <p className="text-base font-serif text-[var(--color-ink)]">
+                    No account orders recorded yet
                   </p>
-                  <p className="text-xs text-[var(--color-muted-light)]">
-                    Explore our catalogue to discover signature brass and timber pieces.
+                  <p className="text-xs text-[var(--color-muted-light)] max-w-md mx-auto">
+                    Guest checkouts remain isolated under guest records and can be tracked using your Order Reference and Billing Email or Mobile on the Track page.
                   </p>
-                  <Link
-                    href="/shop"
-                    className="inline-block rounded-full bg-[var(--color-ink)] px-6 py-2.5 text-xs font-semibold text-[var(--color-canvas)]"
-                  >
-                    Explore Catalogue
-                  </Link>
+                  <div className="flex justify-center gap-3">
+                    <Link
+                      href="/catalog"
+                      className="rounded-full bg-[var(--color-ink)] px-6 py-2.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)]"
+                    >
+                      Explore Catalog
+                    </Link>
+                    <Link
+                      href="/track"
+                      className="rounded-full border border-[var(--color-control-border)] px-6 py-2.5 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)]"
+                    >
+                      Track Guest Order
+                    </Link>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {filteredOrders.map((order) => (
+                  {orders.map((order) => (
                     <div
                       key={order.id}
-                      className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] overflow-hidden shadow-sm"
+                      className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/60 p-6 space-y-5 shadow-sm"
                     >
-                      {/* Order Banner */}
-                      <div className="bg-[var(--color-ivory)] px-6 py-4 border-b border-[var(--color-decorative-border)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                        <div className="flex flex-wrap items-center gap-3">
-                          <span className="font-mono font-bold text-[var(--color-ink)]">
-                            {order.id}
-                          </span>
-                          <span className="rounded-md bg-[var(--color-canvas)] px-2.5 py-0.5 text-[10px] font-semibold text-[var(--color-ink)] border border-[var(--color-decorative-border)]">
-                            {order.mode === "READY_STOCK" ? "Ready Stock" : "Made to Order"}
-                          </span>
-                          <span className="rounded-full px-3 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
-                            {order.statusLabel}
-                          </span>
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-decorative-border)] pb-4">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2.5">
+                            <span className="font-mono text-sm font-bold text-[var(--color-ink)]">
+                              {order.orderNumber}
+                            </span>
+                            <span className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-[var(--color-stone)] text-[var(--color-ink)]">
+                              {order.mode === "MADE_TO_ORDER" ? "Made To Order" : "Ready Stock"}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-[var(--color-muted-light)]">
+                            Placed on {order.createdAt} · Destination: {order.addressLine1}, {order.city}, {order.state} ({order.destinationPin})
+                          </p>
                         </div>
-                        <div className="text-[var(--color-muted-light)]">
-                          Ordered on <strong className="text-[var(--color-ink)]">{order.createdAt}</strong>
-                        </div>
+
+                        <span className="rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          {order.statusLabel}
+                        </span>
                       </div>
 
-                      {/* Order Details Body */}
-                      <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                        {/* Items Column (Span 7) */}
-                        <div className="lg:col-span-7 space-y-3">
-                          <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] block">
-                            Acquired Pieces
-                          </span>
-                          <div className="divide-y divide-[var(--color-decorative-border)]/60 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/40 overflow-hidden">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                        <div className="space-y-2 text-xs">
+                          <p className="font-semibold uppercase tracking-wider text-[var(--color-ink)] text-[11px]">
+                            Architectural Editions
+                          </p>
+                          <ul className="space-y-1.5">
                             {order.items.map((item, idx) => (
-                              <div key={idx} className="flex items-center justify-between p-3.5 text-xs">
-                                <div>
-                                  <p className="font-semibold text-[var(--color-ink)]">{item.name}</p>
-                                  <p className="text-[11px] text-[var(--color-muted-light)]">Quantity: {item.quantity}</p>
-                                </div>
-                                <span className="font-semibold text-[var(--color-ink)]">
-                                  ₹{((item.pricePaise * item.quantity) / 100).toLocaleString("en-IN")}
+                              <li key={idx} className="flex justify-between text-[var(--color-ink)]">
+                                <span>
+                                  {item.name} × {item.quantity}
                                 </span>
-                              </div>
+                                <span className="font-mono">
+                                  {formatPrice(Math.round((item.pricePaise * item.quantity) / 100))}
+                                </span>
+                              </li>
                             ))}
-                          </div>
-
-                          <div className="text-xs text-[var(--color-muted-light)] pt-1">
-                            Destination: <strong>{order.city}, {order.state} ({order.destinationPin})</strong>
-                          </div>
+                          </ul>
+                          <p className="text-[11px] text-[var(--color-muted-light)] pt-2 leading-relaxed">
+                            {order.statusDescription}
+                          </p>
                         </div>
 
-                        {/* Financial Ledger & Actions (Span 5) */}
-                        <div className="lg:col-span-5 space-y-4">
-                          <div className="rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-4 space-y-2 text-xs">
+                        <div className="space-y-4">
+                          <div className="rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-4 space-y-1.5 text-xs">
                             <div className="flex justify-between text-[var(--color-muted-light)]">
-                              <span>1. Items (Tax Inclusive):</span>
-                              <span className="font-semibold text-[var(--color-ink)]">
-                                {formatPrice(order.itemsSubtotalRupees)}
-                              </span>
+                              <span>Pieces Subtotal:</span>
+                              <span>{formatPrice(order.itemsSubtotalRupees)}</span>
                             </div>
                             <div className="flex justify-between text-[var(--color-muted-light)]">
-                              <span>2. Insured Freight:</span>
-                              <span className="font-semibold text-[var(--color-ink)]">
-                                {order.deliveryFeeRupees === 0 ? "Complimentary" : formatPrice(order.deliveryFeeRupees)}
-                              </span>
+                              <span>Delivery & Crating:</span>
+                              <span>{formatPrice(order.deliveryFeeRupees)}</span>
                             </div>
-                            <div className="flex justify-between pt-1 border-t border-[var(--color-decorative-border)]/60 font-semibold text-[var(--color-ink)]">
-                              <span>Total Value:</span>
+                            <div className="flex justify-between font-semibold text-[var(--color-ink)] pt-1 border-t border-[var(--color-decorative-border)]">
+                              <span>Order Total:</span>
                               <span>{formatPrice(order.totalAmountRupees)}</span>
                             </div>
                             <div className="flex justify-between text-emerald-800 font-semibold">
@@ -204,7 +240,6 @@ export default function AccountOrdersPage() {
                             )}
                           </div>
 
-                          {/* Action Buttons */}
                           <div className="flex items-center gap-3">
                             <Link
                               href={`/track?orderId=${order.id}`}
@@ -233,4 +268,3 @@ export default function AccountOrdersPage() {
     </div>
   );
 }
-

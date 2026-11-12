@@ -1,128 +1,121 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@tavistra/db";
+import { validateIndianMobile } from "@tavistra/shared";
+import {
+  getAuthenticatedUser,
+  serializeCustomerProfile,
+  validateGstinFormat,
+} from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const email = searchParams.get("email");
-
-  if (!email) {
-    return NextResponse.json({ error: "Email is required." }, { status: 400 });
-  }
-
   try {
-    const user = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
-      include: {
-        addresses: true,
-        orders: {
-          include: {
-            items: {
-              include: {
-                product: true,
-              },
-            },
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-        },
-      },
-    });
-
-    if (!user) {
-      return NextResponse.json({ found: false, user: null });
+    const authUser = await getAuthenticatedUser(req);
+    if (!authUser) {
+      return NextResponse.json(
+        { authenticated: false, user: null, error: "Authentication required." },
+        { status: 401 }
+      );
     }
 
+    const addresses = await prisma.customerAddress.findMany({
+      where: { userId: authUser.id },
+      orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
+    });
+
     return NextResponse.json({
-      found: true,
-      user: {
-        id: user.id,
-        name: user.name || "",
-        email: user.email,
-        phone: user.phone || "",
-        createdAt: user.createdAt.toLocaleDateString("en-IN", {
-          month: "long",
-          year: "numeric",
-        }),
-        addresses: user.addresses.map((a) => ({
-          id: a.id,
-          label: "Studio Location",
-          fullName: a.fullName,
-          phone: a.phone,
-          addressLine1: a.addressLine1,
-          addressLine2: a.addressLine2 || undefined,
-          city: a.city,
-          state: a.state,
-          pincode: a.pincode,
-          isDefault: a.isDefault,
-        })),
-        orders: user.orders.map((o) => ({
-          id: o.orderNumber,
-          mode: o.purchaseMode,
-          totalAmountRupees: Number(o.totalAmount),
-          statusLabel: o.status,
-          createdAt: o.createdAt.toLocaleDateString("en-IN", {
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-          }),
-        })),
-      },
+      authenticated: true,
+      user: serializeCustomerProfile(authUser, addresses),
     });
   } catch (error) {
-    console.warn("Database account lookup unavailable:", error);
-    return NextResponse.json(
-      { found: false, user: null, databaseConnected: false },
-      { status: 200 }
-    );
+    console.error("GET /api/account error:", error);
+    return NextResponse.json({ error: "Unable to load account." }, { status: 500 });
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function PATCH(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { name, email, phone, gstin, address } = body;
+    const authUser = await getAuthenticatedUser(req);
+    if (!authUser) {
+      return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    }
 
-    const user = await prisma.user.upsert({
-      where: { email: email.toLowerCase() },
-      update: {
-        name,
-        phone,
-      },
-      create: {
-        email: email.toLowerCase(),
-        name,
-        phone,
+    const body = await req.json();
+    const { name, phone, gstin, practiceOrStudio } = body as {
+      name?: string;
+      phone?: string;
+      gstin?: string;
+      practiceOrStudio?: string;
+    };
+
+    const updateData: {
+      name?: string;
+      phone?: string;
+      gstin?: string | null;
+      practiceOrStudio?: string | null;
+    } = {};
+
+    if (name !== undefined) {
+      if (name.trim().length < 2) {
+        return NextResponse.json({ error: "Full name must be at least 2 characters." }, { status: 400 });
+      }
+      updateData.name = name.trim();
+    }
+
+    if (phone !== undefined) {
+      const phoneRes = validateIndianMobile(phone);
+      if (!phoneRes.isValid || !phoneRes.normalizedPhone) {
+        return NextResponse.json({ error: phoneRes.error || "Valid 10-digit Indian mobile number required." }, { status: 400 });
+      }
+      updateData.phone = phoneRes.normalizedPhone;
+    }
+
+    if (gstin !== undefined) {
+      const gstinRes = validateGstinFormat(gstin);
+      if (!gstinRes.isValid) {
+        return NextResponse.json({ error: gstinRes.error }, { status: 400 });
+      }
+      updateData.gstin = gstinRes.normalized || null;
+    }
+
+    if (practiceOrStudio !== undefined) {
+      updateData.practiceOrStudio = practiceOrStudio.trim() || null;
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: authUser.id },
+      data: updateData,
+      include: {
+        addresses: {
+          orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
+        },
       },
     });
 
-    if (address) {
-      await prisma.customerAddress.create({
-        data: {
-          userId: user.id,
-          fullName: address.fullName || name,
-          phone: address.phone || phone,
-          addressLine1: address.addressLine1,
-          addressLine2: address.addressLine2,
-          city: address.city,
-          state: address.state,
-          pincode: address.pincode,
-          isDefault: address.isDefault || false,
-        },
-      });
-    }
+    await prisma.auditLog.create({
+      data: {
+        userId: authUser.id,
+        action: "CUSTOMER_PROFILE_UPDATE",
+        entityType: "User",
+        entityId: authUser.id,
+        payloadJson: JSON.stringify({
+          updatedFields: Object.keys(updateData),
+        }),
+      },
+    });
 
     return NextResponse.json({
       success: true,
-      userId: user.id,
-      persistedToDatabase: true,
+      user: serializeCustomerProfile(updated, updated.addresses),
     });
   } catch (error) {
-    console.warn("Database account sync bypass:", error);
-    return NextResponse.json(
-      { success: true, persistedToDatabase: false },
-      { status: 200 }
-    );
+    console.error("PATCH /api/account error:", error);
+    return NextResponse.json({ error: "Unable to update profile." }, { status: 500 });
   }
 }
 
+export async function POST() {
+  return NextResponse.json(
+    { error: "Use /api/auth/register or PATCH /api/account with an authenticated session." },
+    { status: 405 }
+  );
+}

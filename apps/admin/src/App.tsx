@@ -2256,11 +2256,22 @@ export default function App() {
               <div className="p-4 rounded-xl bg-[#24242a] space-y-2">
                 <div className="flex justify-between">
                   <span className="text-[#9e9ea8]">Email:</span>
-                  <span className="text-white font-semibold">{selectedCustomer.email}</span>
+                  <span className="text-white font-semibold">
+                    {selectedCustomer.email}{" "}
+                    {selectedCustomer.emailVerified && (
+                      <span className="ml-1.5 text-[10px] text-emerald-400">(Verified)</span>
+                    )}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[#9e9ea8]">Mobile Phone:</span>
                   <span className="text-white font-semibold">{selectedCustomer.phone}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#9e9ea8]">Practice / Studio:</span>
+                  <span className="text-white">
+                    {selectedCustomer.practiceOrStudio || "Private Client"}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[#9e9ea8]">GSTIN Identifier:</span>
@@ -2269,12 +2280,37 @@ export default function App() {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-[#9e9ea8]">Location:</span>
+                  <span className="text-[#9e9ea8]">Primary Location:</span>
                   <span className="text-white">
                     {selectedCustomer.city}, {selectedCustomer.state} ({selectedCustomer.pincode})
                   </span>
                 </div>
               </div>
+
+              {selectedCustomer.addresses && selectedCustomer.addresses.length > 0 && (
+                <div className="p-3 rounded-xl bg-[#18181c] border border-[#2e2e34] space-y-2 max-h-40 overflow-y-auto">
+                  <span className="text-[10px] text-[#9e9ea8] uppercase font-semibold block">
+                    Saved Delivery Addresses ({selectedCustomer.addresses.length})
+                  </span>
+                  {selectedCustomer.addresses.map((addr) => (
+                    <div
+                      key={addr.id}
+                      className="text-[11px] text-[#d0d0d8] border-t border-[#2e2e34] pt-1.5 first:border-t-0 first:pt-0"
+                    >
+                      <div className="flex justify-between font-semibold text-white">
+                        <span>{addr.label} · {addr.fullName}</span>
+                        {addr.isDefault && (
+                          <span className="text-[9px] text-emerald-400 uppercase">Default</span>
+                        )}
+                      </div>
+                      <p className="text-[#9e9ea8]">
+                        {addr.addressLine1}
+                        {addr.addressLine2 ? `, ${addr.addressLine2}` : ""} — {addr.city}, {addr.state} ({addr.pincode})
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 rounded-xl bg-[#18181c] border border-[#2e2e34] text-center">

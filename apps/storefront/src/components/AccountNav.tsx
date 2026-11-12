@@ -1,66 +1,74 @@
 "use client";
 
+import React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
-export function AccountNav() {
-  const pathname = usePathname();
-  const { logout, user } = useAuth();
+const NAV_ITEMS = [
+  { href: "/account", label: "Account Overview" },
+  { href: "/account/orders", label: "Orders & Production" },
+  { href: "/account/addresses", label: "Delivery Addresses" },
+  { href: "/account/profile", label: "Profile & GSTIN" },
+];
 
-  const navItems = [
-    { label: "Overview", href: "/account" },
-    { label: "Orders & Milestones", href: "/account/orders" },
-    { label: "Address Book", href: "/account/addresses" },
-    { label: "Profile & GSTIN", href: "/account/profile" },
-  ];
+export default function AccountNav() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useAuth();
+
+  const handleLogout = async () => {
+    await logout();
+    router.push("/account/login");
+  };
 
   return (
-    <div className="border-b border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/40 mb-8">
-      <div className="mx-auto max-w-6xl px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        {/* User Info Capsule */}
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-full bg-[var(--color-ink)] text-[var(--color-canvas)] flex items-center justify-center font-editorial font-bold text-sm">
-            {user?.name ? user.name.charAt(0).toUpperCase() : "V"}
-          </div>
-          <div>
-            <h2 className="text-xs font-semibold text-[var(--color-ink)]">
-              {user?.name || "Client Account"}
-            </h2>
-            <p className="text-[11px] text-[var(--color-muted-light)]">
-              {user?.email || "Guest Session"}
-            </p>
-          </div>
-        </div>
-
-        {/* Tab Links */}
-        <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto pb-1 sm:pb-0">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`rounded-full px-4 py-1.5 text-xs font-medium whitespace-nowrap transition-colors ${
-                  isActive
-                    ? "bg-[var(--color-ink)] text-[var(--color-canvas)] shadow-sm"
-                    : "text-[var(--color-muted-light)] hover:text-[var(--color-ink)] hover:bg-[var(--color-ivory)]"
-                }`}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-          <button
-            type="button"
-            onClick={logout}
-            className="rounded-full px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors whitespace-nowrap ml-2"
-          >
-            Sign Out
-          </button>
-        </div>
+    <aside className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/80 p-6 space-y-6 shadow-sm">
+      <div className="space-y-1 pb-4 border-b border-[var(--color-decorative-border)]">
+        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--color-muted-light)]">
+          VDesign Client Portal
+        </p>
+        <p className="text-base font-serif text-[var(--color-ink)] truncate">
+          {user?.name || "Verified Client"}
+        </p>
+        <p className="text-xs text-[var(--color-muted-light)] truncate">
+          {user?.email}
+        </p>
+        {user?.practiceOrStudio && (
+          <p className="text-[11px] font-medium text-[var(--color-bronze)] truncate">
+            {user.practiceOrStudio}
+          </p>
+        )}
       </div>
-    </div>
+
+      <nav className="space-y-1.5">
+        {NAV_ITEMS.map((item) => {
+          const active = pathname === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`block rounded-xl px-4 py-2.5 text-xs font-semibold transition-colors ${
+                active
+                  ? "bg-[var(--color-ink)] text-[var(--color-canvas)]"
+                  : "text-[var(--color-ink)] hover:bg-[var(--color-stone)]"
+              }`}
+            >
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="pt-4 border-t border-[var(--color-decorative-border)]">
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="w-full rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] py-2.5 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors"
+        >
+          Sign Out
+        </button>
+      </div>
+    </aside>
   );
 }
-

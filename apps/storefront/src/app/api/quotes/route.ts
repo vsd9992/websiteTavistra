@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, QuoteStatus } from "@tavistra/db";
 import { sendQuoteProposalEmail } from "@/lib/email";
+import { getAuthenticatedUser } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,7 +9,14 @@ export async function GET(request: NextRequest) {
 
     const whereClause: { customerEmail?: string } = {};
     if (email) {
-      whereClause.customerEmail = email.toLowerCase().trim();
+      const sessionUser = await getAuthenticatedUser(request);
+      if (!sessionUser || sessionUser.email.toLowerCase() !== email.toLowerCase().trim()) {
+        return NextResponse.json(
+          { error: "Authentication required to view customer proposals." },
+          { status: 401 }
+        );
+      }
+      whereClause.customerEmail = sessionUser.email.toLowerCase();
     }
 
     const proposals = await prisma.quoteProposal.findMany({

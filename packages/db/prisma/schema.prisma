@@ -77,25 +77,62 @@ enum StockMovementType {
 // -------------------------------------------------------------
 
 model User {
-  id            String          @id @default(cuid())
-  email         String          @unique
-  name          String?
-  phone         String?
-  role          StaffRole?      // Null for regular customers, populated for staff
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  id               String                   @id @default(cuid())
+  email            String                   @unique
+  name             String?
+  phone            String?
+  passwordHash     String?
+  emailVerifiedAt  DateTime?
+  gstin            String?
+  practiceOrStudio String?
+  role             StaffRole?               // Null for regular customers, populated for staff
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
 
-  addresses     CustomerAddress[]
-  orders        Order[]
-  auditLogs     AuditLog[]
+  addresses        CustomerAddress[]
+  orders           Order[]
+  auditLogs        AuditLog[]
+  sessions         CustomerSession[]
+  emailTokens      EmailVerificationToken[]
 
   @@index([email])
+}
+
+model CustomerSession {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model EmailVerificationToken {
+  id         String    @id @default(cuid())
+  userId     String?
+  email      String
+  purpose    String    // "VERIFY_EMAIL", "LOGIN_OTP", "PASSWORD_RESET"
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  user       User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([email, purpose])
+  @@index([expiresAt])
 }
 
 model CustomerAddress {
   id            String          @id @default(cuid())
   userId        String?
   guestEmail    String?
+  label         String          @default("Delivery Location")
   fullName      String
   phone         String
   addressLine1  String
@@ -105,6 +142,7 @@ model CustomerAddress {
   pincode       String          // 6-digit Indian PIN code
   isDefault     Boolean         @default(false)
   createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt @default(now())
 
   user          User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
   orders        Order[]

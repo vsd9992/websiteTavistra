@@ -1,11 +1,10 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
-import { validateEmail, validateIndianMobile } from "@tavistra/shared";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 
 export interface SavedAddress {
   id: string;
-  label: string; // e.g. "Design Studio", "Residence", "Site Office"
+  label: string;
   fullName: string;
   phone: string;
   addressLine1: string;
@@ -22,216 +21,326 @@ export interface UserProfile {
   email: string;
   phone: string;
   gstin?: string;
+  practiceOrStudio?: string;
+  emailVerified: boolean;
   addresses: SavedAddress[];
   createdAt: string;
 }
 
+export interface AuthActionResult {
+  success: boolean;
+  error?: string;
+  requiresVerification?: boolean;
+  message?: string;
+}
+
 interface AuthContextType {
   user: UserProfile | null;
+  authLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, phoneOrPassword?: string) => { success: boolean; error?: string };
-  register: (data: {
+  refreshAccount: () => Promise<void>;
+  loginWithPassword: (email: string, password: string) => Promise<AuthActionResult>;
+  requestLoginOtp: (email: string) => Promise<AuthActionResult>;
+  verifyLoginOtp: (email: string, code: string) => Promise<AuthActionResult>;
+  registerAccount: (data: {
     name: string;
     email: string;
     phone: string;
+    password: string;
     gstin?: string;
-  }) => { success: boolean; error?: string };
-  logout: () => void;
-  updateProfile: (data: Partial<UserProfile>) => void;
-  addAddress: (address: Omit<SavedAddress, "id">) => void;
-  deleteAddress: (id: string) => void;
-  setDefaultAddress: (id: string) => void;
+    practiceOrStudio?: string;
+  }) => Promise<AuthActionResult>;
+  verifyRegistrationEmail: (email: string, code: string) => Promise<AuthActionResult>;
+  requestPasswordReset: (email: string) => Promise<AuthActionResult>;
+  resetPasswordWithOtp: (email: string, code: string, newPassword: string) => Promise<AuthActionResult>;
+  logout: () => Promise<void>;
+  updateProfile: (data: {
+    name?: string;
+    phone?: string;
+    gstin?: string;
+    practiceOrStudio?: string;
+  }) => Promise<AuthActionResult>;
+  addAddress: (address: Omit<SavedAddress, "id">) => Promise<AuthActionResult>;
+  updateAddress: (id: string, address: Partial<Omit<SavedAddress, "id">>) => Promise<AuthActionResult>;
+  deleteAddress: (id: string) => Promise<AuthActionResult>;
+  setDefaultAddress: (id: string) => Promise<AuthActionResult>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Initial demo user for convenient preview
-const DEFAULT_DEMO_USER: UserProfile = {
-  id: "usr_vdesign_001",
-  name: "Ar. Vikramaditya Sharma",
-  email: "vikramaditya@studiovishnu.in",
-  phone: "+91 98765 43210",
-  gstin: "07AAAAA0000A1Z5",
-  createdAt: "October 2026",
-  addresses: [
-    {
-      id: "addr_01",
-      label: "Architectural Studio",
-      fullName: "Ar. Vikramaditya Sharma",
-      phone: "+91 98765 43210",
-      addressLine1: "Penthouse 4B, Signature Towers",
-      addressLine2: "Golf Course Road, Sector 42",
-      city: "Gurugram",
-      state: "Haryana",
-      pincode: "122002",
-      isDefault: true,
-    },
-    {
-      id: "addr_02",
-      label: "Delhi Residence",
-      fullName: "Ar. Vikramaditya Sharma",
-      phone: "+91 98765 43210",
-      addressLine1: "14 Barakhamba Road",
-      city: "New Delhi",
-      state: "Delhi",
-      pincode: "110001",
-      isDefault: false,
-    },
-  ],
-};
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [authLoading, setAuthLoading] = useState<boolean>(true);
 
-  // Load from local storage or initialize demo account on mount
-  useEffect(() => {
+  const refreshAccount = useCallback(async () => {
     try {
-      const saved = localStorage.getItem("tavistra_user");
-      if (saved) {
-        setUser(JSON.parse(saved));
+      const res = await fetch("/api/account", {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUser(data.authenticated && data.user ? data.user : null);
       } else {
-        // Provide demo user by default so user can immediately view portal
-        setUser(DEFAULT_DEMO_USER);
-        localStorage.setItem("tavistra_user", JSON.stringify(DEFAULT_DEMO_USER));
+        setUser(null);
       }
     } catch {
-      // Ignore local storage error
+      setUser(null);
+    } finally {
+      setAuthLoading(false);
     }
   }, []);
 
-  // Save changes to local storage
-  const persistUser = (updatedUser: UserProfile | null) => {
-    setUser(updatedUser);
+  useEffect(() => {
+    // Clean up legacy insecure localStorage mock state if present
     try {
-      if (updatedUser) {
-        localStorage.setItem("tavistra_user", JSON.stringify(updatedUser));
-        // Asynchronously sync profile to backend database
-        fetch("/api/account", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: updatedUser.name,
-            email: updatedUser.email,
-            phone: updatedUser.phone,
-            gstin: updatedUser.gstin,
-          }),
-        }).catch(() => {
-          // Silent catch for offline development
-        });
-      } else {
-        localStorage.removeItem("tavistra_user");
+      localStorage.removeItem("tavistra_user");
+    } catch {}
+    void refreshAccount();
+  }, [refreshAccount]);
+
+  const loginWithPassword = async (email: string, password: string): Promise<AuthActionResult> => {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ mode: "password", email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return {
+          success: false,
+          error: data.error || "Unable to sign in.",
+          requiresVerification: Boolean(data.requiresVerification),
+        };
       }
-    } catch {
-      // Ignore local storage error
+      setUser(data.user);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
     }
   };
 
-  const login = (email: string): { success: boolean; error?: string } => {
-    const emailRes = validateEmail(email);
-    if (!emailRes.isValid) {
-      return { success: false, error: emailRes.error };
+  const requestLoginOtp = async (email: string): Promise<AuthActionResult> => {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ mode: "otp_request", email }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || "Could not send code." };
+      return { success: true, message: data.message };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
     }
-
-    // If matches demo or existing, restore; otherwise create profile
-    const existing = user?.email.toLowerCase() === email.trim().toLowerCase() ? user : {
-      id: `usr_${Date.now()}`,
-      name: email.split("@")[0],
-      email: email.trim().toLowerCase(),
-      phone: "+91 98765 43210",
-      addresses: [],
-      createdAt: new Date().toLocaleDateString("en-IN", { month: "long", year: "numeric" }),
-    };
-
-    persistUser(existing);
-    return { success: true };
   };
 
-  const register = (data: {
+  const verifyLoginOtp = async (email: string, code: string): Promise<AuthActionResult> => {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ mode: "otp_verify", email, code }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || "Invalid verification code." };
+      setUser(data.user);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  };
+
+  const registerAccount = async (payload: {
     name: string;
     email: string;
     phone: string;
+    password: string;
     gstin?: string;
-  }): { success: boolean; error?: string } => {
-    const emailRes = validateEmail(data.email);
-    if (!emailRes.isValid) {
-      return { success: false, error: emailRes.error };
+    practiceOrStudio?: string;
+  }): Promise<AuthActionResult> => {
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || "Registration failed." };
+      return {
+        success: true,
+        requiresVerification: true,
+        message: data.message,
+      };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
     }
+  };
 
-    const phoneRes = validateIndianMobile(data.phone);
-    if (!phoneRes.isValid) {
-      return { success: false, error: phoneRes.error };
+  const verifyRegistrationEmail = async (email: string, code: string): Promise<AuthActionResult> => {
+    try {
+      const res = await fetch("/api/auth/verify-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, code }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || "Verification failed." };
+      setUser(data.user);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
     }
-
-    const newUser: UserProfile = {
-      id: `usr_${Date.now()}`,
-      name: data.name.trim(),
-      email: emailRes.normalizedEmail || data.email.trim().toLowerCase(),
-      phone: phoneRes.normalizedPhone || data.phone.trim(),
-      gstin: data.gstin?.trim().toUpperCase(),
-      addresses: [],
-      createdAt: new Date().toLocaleDateString("en-IN", { month: "long", year: "numeric" }),
-    };
-
-    persistUser(newUser);
-    return { success: true };
   };
 
-  const logout = () => {
-    persistUser(null);
-  };
-
-  const updateProfile = (data: Partial<UserProfile>) => {
-    if (!user) return;
-    const updated = { ...user, ...data };
-    persistUser(updated);
-  };
-
-  const addAddress = (address: Omit<SavedAddress, "id">) => {
-    if (!user) return;
-    const newAddress: SavedAddress = {
-      ...address,
-      id: `addr_${Date.now()}`,
-    };
-
-    let updatedAddresses = [...user.addresses];
-    if (newAddress.isDefault) {
-      updatedAddresses = updatedAddresses.map((a) => ({ ...a, isDefault: false }));
-    } else if (updatedAddresses.length === 0) {
-      newAddress.isDefault = true;
+  const requestPasswordReset = async (email: string): Promise<AuthActionResult> => {
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || "Unable to send reset code." };
+      return { success: true, message: data.message };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
     }
-
-    updatedAddresses.push(newAddress);
-    persistUser({ ...user, addresses: updatedAddresses });
   };
 
-  const deleteAddress = (id: string) => {
-    if (!user) return;
-    const remaining = user.addresses.filter((a) => a.id !== id);
-    if (remaining.length > 0 && !remaining.some((a) => a.isDefault)) {
-      remaining[0].isDefault = true;
+  const resetPasswordWithOtp = async (
+    email: string,
+    code: string,
+    newPassword: string
+  ): Promise<AuthActionResult> => {
+    try {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || "Unable to reset password." };
+      return { success: true, message: data.message };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
     }
-    persistUser({ ...user, addresses: remaining });
   };
 
-  const setDefaultAddress = (id: string) => {
-    if (!user) return;
-    const updated = user.addresses.map((a) => ({
-      ...a,
-      isDefault: a.id === id,
-    }));
-    persistUser({ ...user, addresses: updated });
+  const logout = async () => {
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+    } finally {
+      setUser(null);
+    }
+  };
+
+  const updateProfile = async (payload: {
+    name?: string;
+    phone?: string;
+    gstin?: string;
+    practiceOrStudio?: string;
+  }): Promise<AuthActionResult> => {
+    try {
+      const res = await fetch("/api/account", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || "Failed to update profile." };
+      setUser(data.user);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  };
+
+  const addAddress = async (address: Omit<SavedAddress, "id">): Promise<AuthActionResult> => {
+    try {
+      const res = await fetch("/api/account/addresses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(address),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || "Could not save address." };
+      await refreshAccount();
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  };
+
+  const updateAddress = async (
+    id: string,
+    address: Partial<Omit<SavedAddress, "id">>
+  ): Promise<AuthActionResult> => {
+    try {
+      const res = await fetch(`/api/account/addresses/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(address),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || "Could not update address." };
+      await refreshAccount();
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  };
+
+  const deleteAddress = async (id: string): Promise<AuthActionResult> => {
+    try {
+      const res = await fetch(`/api/account/addresses/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || "Could not delete address." };
+      await refreshAccount();
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  };
+
+  const setDefaultAddress = async (id: string): Promise<AuthActionResult> => {
+    return updateAddress(id, { isDefault: true });
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        isAuthenticated: !!user,
-        login,
-        register,
+        authLoading,
+        isAuthenticated: Boolean(user),
+        refreshAccount,
+        loginWithPassword,
+        requestLoginOtp,
+        verifyLoginOtp,
+        registerAccount,
+        verifyRegistrationEmail,
+        requestPasswordReset,
+        resetPasswordWithOtp,
         logout,
         updateProfile,
         addAddress,
+        updateAddress,
         deleteAddress,
         setDefaultAddress,
       }}
@@ -248,4 +357,3 @@ export function useAuth() {
   }
   return context;
 }
-

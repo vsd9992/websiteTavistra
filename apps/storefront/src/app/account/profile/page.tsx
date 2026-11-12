@@ -1,196 +1,192 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { AccountNav } from "@/components/AccountNav";
+import AccountNav from "@/components/AccountNav";
 import { useAuth } from "@/context/AuthContext";
-import { validateEmail, validateIndianMobile } from "@tavistra/shared";
 
 export default function AccountProfilePage() {
-  const { user, isAuthenticated, updateProfile } = useAuth();
+  const { user, isAuthenticated, authLoading, updateProfile } = useAuth();
 
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    gstin: "",
-  });
-
-  const [errors, setErrors] = useState<{
-    name?: string;
-    email?: string;
-    phone?: string;
-  }>({});
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [practiceOrStudio, setPracticeOrStudio] = useState("");
+  const [gstin, setGstin] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     if (user) {
-      setFormData({
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        gstin: user.gstin || "",
-      });
+      setName(user.name || "");
+      setPhone(user.phone || "");
+      setPracticeOrStudio(user.practiceOrStudio || "");
+      setGstin(user.gstin || "");
     }
   }, [user]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errors[name as keyof typeof errors]) {
-      setErrors((prev) => ({ ...prev, [name]: undefined }));
-    }
-    if (successMessage) setSuccessMessage(null);
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newErrors: typeof errors = {};
+    setSuccessMessage("");
+    setErrorMessage("");
 
-    if (!formData.name.trim()) {
-      newErrors.name = "Full name is required.";
-    }
-
-    const emailRes = validateEmail(formData.email);
-    if (!emailRes.isValid) {
-      newErrors.email = emailRes.error;
-    }
-
-    const phoneRes = validateIndianMobile(formData.phone);
-    if (!phoneRes.isValid) {
-      newErrors.phone = phoneRes.error;
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
+    if (!name.trim() || !phone.trim()) {
+      setErrorMessage("Name and mobile number are required.");
       return;
     }
 
-    updateProfile({
-      name: formData.name.trim(),
-      email: emailRes.normalizedEmail || formData.email.trim().toLowerCase(),
-      phone: phoneRes.normalizedPhone || formData.phone.trim(),
-      gstin: formData.gstin.trim().toUpperCase() || undefined,
+    setSaving(true);
+    const result = await updateProfile({
+      name: name.trim(),
+      phone: phone.trim(),
+      practiceOrStudio: practiceOrStudio.trim(),
+      gstin: gstin.trim(),
     });
+    setSaving(false);
 
-    setSuccessMessage("Your profile information and corporate GSTIN have been updated successfully.");
+    if (!result.success) {
+      setErrorMessage(result.error || "Unable to save profile changes.");
+      return;
+    }
+
+    setSuccessMessage("Profile details and GST credentials saved.");
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-[var(--color-canvas)]">
+    <div className="min-h-screen flex flex-col bg-[var(--color-canvas)]">
       <Header />
-      <main className="flex-1">
-        {!isAuthenticated ? (
-          <div className="mx-auto max-w-lg py-24 px-6 text-center space-y-6">
-            <h1 className="font-editorial text-4xl text-[var(--color-ink)]">
-              Sign In to View Profile
+
+      <main className="flex-1 mx-auto w-full max-w-7xl px-6 py-12 lg:py-16">
+        {authLoading ? (
+          <div className="py-24 text-center text-xs text-[var(--color-muted-light)]">
+            Loading your VDesign client profile...
+          </div>
+        ) : !isAuthenticated ? (
+          <div className="mx-auto max-w-md text-center space-y-6 py-16">
+            <h1 className="text-3xl font-serif font-light text-[var(--color-ink)]">
+              Sign in to manage your profile
             </h1>
-            <p className="text-xs text-[var(--color-muted-light)]">
-              Access your studio identity and manage your corporate tax preferences.
+            <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
+              Sign in to inspect your verified email credentials, practice details, and B2B GSTIN information.
             </p>
-            <Link
-              href="/account/login"
-              className="inline-block rounded-full bg-[var(--color-ink)] px-8 py-3 text-xs font-semibold text-[var(--color-canvas)]"
-            >
-              Sign In
-            </Link>
+            <div className="flex justify-center gap-4">
+              <Link
+                href="/account/login?next=/account/profile"
+                className="rounded-full bg-[var(--color-ink)] px-8 py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)]"
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/account/register"
+                className="rounded-full border border-[var(--color-control-border)] px-8 py-3 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)]"
+              >
+                Create Account
+              </Link>
+            </div>
           </div>
         ) : (
-          <div>
-            <AccountNav />
-            <div className="mx-auto max-w-3xl px-6 pb-16 space-y-8">
-              {/* Header */}
-              <div className="border-b border-[var(--color-decorative-border)] pb-4 space-y-1">
-                <h1 className="font-editorial text-3xl sm:text-4xl text-[var(--color-ink)]">
-                  Profile & Corporate GSTIN
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-10">
+            <div className="lg:col-span-1">
+              <AccountNav />
+            </div>
+
+            <div className="lg:col-span-3 space-y-8">
+              <div className="space-y-1 border-b border-[var(--color-decorative-border)] pb-5">
+                <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--color-muted-light)]">
+                  Identity & Invoicing
+                </span>
+                <h1 className="text-3xl font-serif font-light text-[var(--color-ink)]">
+                  Profile & GSTIN Settings
                 </h1>
-                <p className="text-xs text-[var(--color-muted-light)]">
-                  Manage your personal client identity and business invoicing tax identifiers.
-                </p>
               </div>
 
-              {/* Form Card */}
-              <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-8 shadow-sm space-y-6">
-                <form onSubmit={handleSubmit} className="space-y-5">
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-1.5">
-                      Full Name / Architectural Practice *
-                    </label>
-                    <input
-                      type="text"
-                      name="name"
-                      required
-                      value={formData.name}
-                      onChange={handleChange}
-                      className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] transition-colors"
-                    />
-                    {errors.name && (
-                      <p className="text-[11px] text-red-600 mt-1">{errors.name}</p>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/60 p-8 shadow-sm">
+                <form onSubmit={handleSubmit} className="space-y-5 max-w-2xl">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-1.5">
-                        Email Address *
+                        Full Name *
                       </label>
                       <input
-                        type="email"
-                        name="email"
+                        type="text"
                         required
-                        value={formData.email}
-                        onChange={handleChange}
-                        className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] transition-colors"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-sm text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
                       />
-                      {errors.email ? (
-                        <p className="text-[11px] text-red-600 mt-1">{errors.email}</p>
-                      ) : (
-                        <p className="text-[11px] text-[var(--color-muted-light)] mt-1">
-                          Direct corporate or personal email. Relays banned.
-                        </p>
-                      )}
                     </div>
-
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-1.5">
-                        Indian Mobile Number *
+                        Mobile / WhatsApp *
                       </label>
                       <input
                         type="tel"
-                        name="phone"
                         required
-                        value={formData.phone}
-                        onChange={handleChange}
-                        className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] transition-colors"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-sm text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
                       />
-                      {errors.phone ? (
-                        <p className="text-[11px] text-red-600 mt-1">{errors.phone}</p>
-                      ) : (
-                        <p className="text-[11px] text-[var(--color-muted-light)] mt-1">
-                          Used for shipment milestone dispatch updates.
-                        </p>
-                      )}
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-1.5">
-                      GSTIN (Goods and Services Tax Identification Number)
-                    </label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
+                        Registered Email
+                      </label>
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                          user?.emailVerified
+                            ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                            : "bg-amber-50 text-amber-800 border border-amber-200"
+                        }`}
+                      >
+                        {user?.emailVerified ? "Verified" : "Pending Verification"}
+                      </span>
+                    </div>
                     <input
-                      type="text"
-                      name="gstin"
-                      value={formData.gstin}
-                      onChange={handleChange}
-                      placeholder="e.g. 07AAAAA0000A1Z5"
-                      className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono uppercase transition-colors"
+                      type="email"
+                      readOnly
+                      value={user?.email || ""}
+                      className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-stone)]/40 px-4 py-2.5 text-sm text-[var(--color-muted-light)] cursor-not-allowed"
                     />
-                    <p className="text-[11px] text-[var(--color-muted-light)] mt-1">
-                      When present, B2B tax invoices are issued with this GSTIN to enable input tax credit under Indian tax rules.
-                    </p>
                   </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-1.5">
+                        Architectural Practice / Studio
+                      </label>
+                      <input
+                        type="text"
+                        value={practiceOrStudio}
+                        onChange={(e) => setPracticeOrStudio(e.target.value)}
+                        placeholder="Optional studio or company name"
+                        className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-sm text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-1.5">
+                        GSTIN (B2B Tax Invoices)
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={15}
+                        value={gstin}
+                        onChange={(e) => setGstin(e.target.value.toUpperCase())}
+                        placeholder="15-character GSTIN"
+                        className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-sm font-mono text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                      />
+                    </div>
+                  </div>
+
+                  {errorMessage && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-700 font-medium">
+                      {errorMessage}
+                    </div>
+                  )}
 
                   {successMessage && (
                     <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 text-xs text-emerald-800 font-medium">
@@ -198,12 +194,13 @@ export default function AccountProfilePage() {
                     </div>
                   )}
 
-                  <div className="pt-2 flex items-center justify-between">
+                  <div className="pt-2 flex flex-wrap items-center justify-between gap-4">
                     <button
                       type="submit"
-                      className="rounded-full bg-[var(--color-ink)] px-8 py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
+                      disabled={saving}
+                      className="rounded-full bg-[var(--color-ink)] px-8 py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] disabled:opacity-60 transition-colors shadow-sm"
                     >
-                      Save Profile Changes
+                      {saving ? "Saving Changes..." : "Save Profile Changes"}
                     </button>
                     <span className="text-[11px] text-[var(--color-muted-light)]">
                       Client since {user?.createdAt}
@@ -219,4 +216,3 @@ export default function AccountProfilePage() {
     </div>
   );
 }
-
