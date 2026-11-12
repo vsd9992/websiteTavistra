@@ -97,18 +97,19 @@ async function run() {
     });
     qaUserId = qaUser.id;
 
-    const rawSession = crypto.randomBytes(24).toString("hex");
-    await prisma.session.create({
+    const rawSession = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(rawSession).digest("hex");
+    await prisma.customerSession.create({
       data: {
         userId: qaUser.id,
-        token: rawSession,
+        tokenHash,
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       },
     });
     qaSessionCookie = `tavistra_session=${rawSession}`;
 
     const mtoProduct = await prisma.product.findFirst({
-      where: { purchaseMode: "MADE_TO_ORDER", isPublished: true },
+      where: { primaryMode: "MADE_TO_ORDER", isPublished: true },
       include: { variants: { where: { isPublished: true }, take: 1 } },
     });
     assert(
@@ -492,7 +493,7 @@ async function run() {
       }
     }
     if (qaUserId) {
-      await prisma.session.deleteMany({ where: { userId: qaUserId } });
+      await prisma.customerSession.deleteMany({ where: { userId: qaUserId } });
       await prisma.user.deleteMany({ where: { id: qaUserId } });
     }
     console.log("  Cleaned QA Set 5 orders, QC disk files, payments, audit logs, and test user.");
