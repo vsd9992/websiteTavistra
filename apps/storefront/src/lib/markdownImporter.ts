@@ -414,6 +414,28 @@ export async function importProductToDatabase(parsed: ParsedMarkdownProduct, sta
     upsertedVariants.push(variant);
   }
 
+  // 4B. Deactivate or delete obsolete variants no longer in the markdown frontmatter
+  const incomingSkus = parsed.variants.map((v) => v.sku);
+  const obsoleteVariants = await prisma.productVariant.findMany({
+    where: {
+      productId: product.id,
+      sku: { notIn: incomingSkus },
+    },
+    include: { orderItems: true },
+  });
+
+  for (const obs of obsoleteVariants) {
+    if (obs.orderItems.length === 0) {
+      await prisma.inventoryLedger.deleteMany({ where: { variantId: obs.id } });
+      await prisma.productVariant.delete({ where: { id: obs.id } });
+    } else {
+      await prisma.productVariant.update({
+        where: { id: obs.id },
+        data: { isPublished: false },
+      });
+    }
+  }
+
   // 5. Audit Log
   await prisma.auditLog.create({
     data: {
