@@ -1,11 +1,12 @@
 # Project Index
 
 Project: Tavistra (`websiteTavistra`)
-Phase: Phase 2 — Execution (H0 Baseline completed; transitioning to H1/H2)
+Phase: Phase 2 — Execution (Modular Refinement: Set 0 Completed, Set 1 Active)
 Milestone: Baseline Adoption & H1/H2 Execution Readiness
-Status: Studio Governance, Quote Proposal Lifecycle, Markdown Catalogue Importer, and 35-test Integration Suite completed & verified; Live deployed on devMachine (Storefront :3001, Admin :3002).
+Status: Set 0 verified live on devMachine; Set 1 (Product Markdown, Media, Multi-Variant Engine) active.
 
 ## Active Tasks
+- [.ai/tasks/active/set-1-product-markdown-pipeline.md](tasks/active/set-1-product-markdown-pipeline.md) — Set 1: Master Folder (.zip + .md + images), Multi-Variant Engine, Media Storage & PDP Presentation
 - [.ai/tasks/active/h6-staff-admin-portal.md](tasks/active/h6-staff-admin-portal.md) — Centralized Commerce & Staff Admin Synchronization (Database, 75% Balance Flow, QC Transparency, Hard Dispatch Gate)
 
 ## Document Map
@@ -25,6 +26,7 @@ Status: Studio Governance, Quote Proposal Lifecycle, Markdown Catalogue Importer
 - [.ai/decisions/current/0002-pnpm-monorepo-structure.md](decisions/current/0002-pnpm-monorepo-structure.md) — pnpm monorepo modular monolith (`apps/storefront`, `apps/admin`, `packages/db`, `packages/shared`)
 - [.ai/decisions/current/0003-dev-server-ports-and-runtime.md](decisions/current/0003-dev-server-ports-and-runtime.md) — Dev server runtime & port allocation (`http://192.168.1.100:3001` for storefront)
 - [.ai/decisions/current/0004-delivery-fee-and-bulk-policy.md](decisions/current/0004-delivery-fee-and-bulk-policy.md) — 12-slab delivery fee ladder, highest-product-fee rule, universal PIN serviceability, and 10-unit/10-line bulk boundary
+- [.ai/decisions/current/0005-modular-workflow-and-product-pipeline.md](decisions/current/0005-modular-workflow-and-product-pipeline.md) — Modular workflow phasing strategy (Sets 0–8) and isolated product folder/zip pipeline architecture
 
 ## Active Risks
 - PhonePe merchant review requirement requires a live, review-ready public site before gateway API access and production keys are granted.
