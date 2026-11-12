@@ -149,7 +149,21 @@ async function run() {
         pincode: "560001",
         productName: "Aurelia Wall Sculpture & Monolith Console Bulk",
         quantity: 15,
-        message: "Boutique hotel lobby & suites architectural fit-out.",
+        message: "Boutique hotel lobby & suites architectural fit-out.\n\nSelected Products & Quantities:\n- Aurelia Sculptural Brass Wall Mirror (Aged Antique Brass Patina) × 10 @ ₹8,500 each\n- Monolith Teakwood & Cast Brass Console (Hand-rubbed Dark Walnut) × 5 @ ₹22,000 each",
+        lineItems: [
+          {
+            name: "Aurelia Sculptural Brass Wall Mirror",
+            finish: "Aged Antique Brass Patina",
+            quantity: 10,
+            unitPriceRupees: 8500,
+          },
+          {
+            name: "Monolith Teakwood & Cast Brass Console",
+            finish: "Hand-rubbed Dark Walnut",
+            quantity: 5,
+            unitPriceRupees: 22000,
+          },
+        ],
       }),
     });
     const inqCreateJson = await inqCreateRes.json();
@@ -164,10 +178,25 @@ async function run() {
       JSON.stringify(inqCreateJson)
     );
 
-    // Confirm inquiry appears in Admin API (/api/inquiries via :3002)
+    // Confirm inquiry appears in Admin API (/api/inquiries via :3002) with line items preserved
     const adminInqListRes = await fetch(`${ADMIN_URL}/api/inquiries`);
     const adminInqListJson = await adminInqListRes.json();
     const foundInq = (adminInqListJson.inquiries || []).find(
+      (i: { inquiryNumber?: string; destinationCity?: string; lineItems?: any[] }) => i.inquiryNumber === inqNumber
+    );
+    assert(
+      adminInqListRes.ok &&
+        foundInq &&
+        foundInq.status === "NEW" &&
+        foundInq.destinationCity.toLowerCase().includes("bengaluru") &&
+        Array.isArray(foundInq.lineItems) &&
+        foundInq.lineItems.length === 2 &&
+        foundInq.lineItems[0].name.includes("Aurelia Sculptural Brass Wall Mirror") &&
+        foundInq.lineItems[1].name.includes("Monolith Teakwood & Cast Brass Console"),
+      "Inquiry appears in Admin worklist with Bengaluru destination and cart line items preserved",
+      "QOT-01",
+      JSON.stringify(foundInq || {})
+    );
       (i: { inquiryNumber?: string; destinationCity?: string }) => i.inquiryNumber === inqNumber
     );
     assert(

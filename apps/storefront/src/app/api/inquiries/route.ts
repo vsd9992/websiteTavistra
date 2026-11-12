@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@tavistra/db";
-import { validateEmail, validateIndianMobile, lookupPincode } from "@tavistra/shared";
+import { validateEmail, validateIndianMobile, lookupPincode, parseInquiryLineItems, type QuoteLineItem } from "@tavistra/shared";
 import { sendBulkInquiryAckEmail } from "@/lib/email";
 
 export async function GET() {
@@ -22,6 +22,8 @@ export async function GET() {
         requestedEditions: inq.requestedEditions,
         quantityUnits: inq.quantityUnits,
         specifications: inq.specifications,
+        lineItemsJson: inq.lineItemsJson,
+        lineItems: parseInquiryLineItems(inq.lineItemsJson, inq.specifications),
         status: inq.status,
         submittedAt: inq.createdAt.toLocaleDateString("en-IN", {
           day: "numeric",
@@ -49,6 +51,8 @@ export async function POST(req: NextRequest) {
       productName,
       quantity,
       message,
+      lineItems,
+      lineItemsJson: rawLineItemsJson,
     } = body;
 
     if (!name || typeof name !== "string" || !name.trim()) {
@@ -78,6 +82,22 @@ export async function POST(req: NextRequest) {
     const resolvedEditions = (productName || "Architectural Bulk Proposal").trim();
     const resolvedSpecs = (message || "Direct bulk inquiry submission.").trim();
 
+    // Resolve structured line items from either payload array, lineItemsJson, or specifications text
+    let resolvedLineItems: QuoteLineItem[] = [];
+    if (Array.isArray(lineItems) && lineItems.length > 0) {
+      resolvedLineItems = lineItems
+        .filter((item: any) => item && typeof item.name === "string" && item.name.trim())
+        .map((item: any) => ({
+          name: String(item.name).trim(),
+          finish: item.finish ? String(item.finish).trim() : "Studio Standard Finish",
+          quantity: Math.max(1, Number(item.quantity) || 1),
+          unitPriceRupees: Math.max(0, Number(item.unitPriceRupees) || 0),
+        }));
+    } else {
+      resolvedLineItems = parseInquiryLineItems(rawLineItemsJson, resolvedSpecs);
+    }
+    const finalLineItemsJson = resolvedLineItems.length > 0 ? JSON.stringify(resolvedLineItems) : null;
+
     const normalizedEmail = emailVal.normalizedEmail || email.toLowerCase().trim();
     const normalizedPhone = phoneVal.normalizedPhone || phone.trim();
 
@@ -93,6 +113,7 @@ export async function POST(req: NextRequest) {
         requestedEditions: resolvedEditions,
         quantityUnits: parsedQty,
         specifications: resolvedSpecs,
+        lineItemsJson: finalLineItemsJson,
         status: "NEW",
       },
     });
@@ -147,6 +168,8 @@ export async function POST(req: NextRequest) {
         requestedEditions: inquiry.requestedEditions,
         quantityUnits: inquiry.quantityUnits,
         specifications: inquiry.specifications,
+        lineItemsJson: inquiry.lineItemsJson,
+        lineItems: parseInquiryLineItems(inquiry.lineItemsJson, inquiry.specifications),
         status: inquiry.status,
       },
       message: "Your inquiry has been registered with our studio commercial desk.",

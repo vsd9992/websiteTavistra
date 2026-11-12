@@ -1,4 +1,4 @@
-import { CANDIDATE_PINCODE_MAP, PincodeRecord } from './pincodeData';
+import { CANDIDATE_PINCODE_MAP } from './pincodeData';
 import { resolveShippingZone, ShippingZoneCode } from './shipping';
 
 export interface PincodeLookupResult {

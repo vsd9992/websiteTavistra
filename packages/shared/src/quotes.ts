@@ -77,7 +77,7 @@ export function formatQuoteSpecificationsText(params: {
 }
 
 /**
- * Safely parses stored lineItemsJson from QuoteVersion.
+ * Safely parses stored lineItemsJson from QuoteVersion or BulkInquiry.
  */
 export function parseQuoteLineItems(lineItemsJson?: string | null): QuoteLineItem[] {
   if (!lineItemsJson) return [];
@@ -95,6 +95,48 @@ export function parseQuoteLineItems(lineItemsJson?: string | null): QuoteLineIte
   } catch {
     return [];
   }
+}
+
+/**
+ * Parses line items from either structured lineItemsJson or from cart message lines:
+ * e.g. "- Monolith Minimalist Wall Clock (Aged Brass) × 6 @ ₹8,500 each"
+ */
+export function parseInquiryLineItems(
+  lineItemsJson?: string | null,
+  specificationsText?: string | null
+): QuoteLineItem[] {
+  if (lineItemsJson) {
+    const fromJson = parseQuoteLineItems(lineItemsJson);
+    if (fromJson.length > 0) return fromJson;
+  }
+
+  if (!specificationsText) return [];
+
+  const items: QuoteLineItem[] = [];
+  const lines = specificationsText.split("\n");
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line.startsWith("- ")) continue;
+    // Format: - Name (Finish/Variant) × Qty @ ₹Rate each
+    // or: - Name × Qty @ ₹Rate each
+    const match = line.match(/^-\s+(.+?)(?:\s+\(([^)]+)\))?\s+[×x]\s+(\d+)\s+@\s+₹?([\d,]+)/i);
+    if (match) {
+      const name = match[1].trim();
+      const finish = match[2]?.trim() || "Studio Standard Finish";
+      const quantity = parseInt(match[3], 10) || 1;
+      const unitPriceRupees = parseInt(match[4].replace(/,/g, ""), 10) || 0;
+      if (name && quantity > 0 && unitPriceRupees > 0) {
+        items.push({
+          name,
+          finish,
+          quantity,
+          unitPriceRupees,
+        });
+      }
+    }
+  }
+
+  return items;
 }
 
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;

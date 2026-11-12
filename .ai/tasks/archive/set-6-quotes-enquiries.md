@@ -7,11 +7,12 @@
 
 ## Scope Delivered
 1. **Bulk Enquiry Intake & Validation (QOT-01)**:
-   - Hardened `/contact` form with practice/studio name, requested units, and destination PIN validation.
-   - Server route `/api/inquiries` enforces `validateEmail`, `validateIndianMobile`, and `lookupPincode` (mapping PIN to city e.g. 560001 -> Bengaluru).
+   - Hardened `/contact` form with practice/studio name, requested units, destination PIN validation, and structured `items` param deserialization.
+   - Server route `/api/inquiries` enforces `validateEmail`, `validateIndianMobile`, and `lookupPincode` (mapping PIN to city e.g. 560001 -> Bengaluru), and persists `lineItemsJson` (supporting both structured payload and formatted cart message regex fallback via `parseInquiryLineItems`).
    - Generates authoritative `INQ-YYYY-NNNN` sequence, logs `AuditLog`, and sends acknowledgement email via Mailpit.
 2. **Staff Proposal Generation with Line Items (QOT-02, QOT-03)**:
    - Admin Proposals tab upgraded to support dynamic bespoke line items (name, finish, quantity, rate), custom crating & freight, lead time in weeks, and notes.
+   - Opening proposal modal from an inquiry automatically populates actual cart line items (with variant finishes, quantities, and rates) instead of a single generic summary string.
    - Computes authoritative totals: items subtotal + delivery = totalQuoted; 25% advance; 75% balance.
    - Locks offer validity for exactly 30 calendar days (`computeIstQuoteExpiry` through 23:59:59.999 IST on Day 30 per TAV-07).
    - Dispatches formal proposal email via Mailpit with Tavistra branding and direct quote review URL.
@@ -38,3 +39,4 @@
   - `test:set4`: 20/20 PASSED (0 FAILED)
   - `test:set3`: 54/54 PASSED (0 FAILED)
   - `test:set2`: 68/68 PASSED (0 FAILED)
+

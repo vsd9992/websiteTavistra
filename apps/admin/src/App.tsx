@@ -18,6 +18,7 @@ import {
   AuditEntry,
 } from "./data";
 import { LogisticsTab } from "./components/LogisticsTab";
+import { parseInquiryLineItems } from "@tavistra/shared";
 
 export interface ProposalLineItemInput {
   name: string;
@@ -2082,21 +2083,36 @@ export default function App() {
                         <td className="py-4 px-4 text-right">
                           <button
                             onClick={() => {
+                              const parsedItems =
+                                inq.lineItems && inq.lineItems.length > 0
+                                  ? inq.lineItems
+                                  : parseInquiryLineItems(inq.lineItemsJson, inq.specifications);
+
                               const units = Math.max(1, inq.quantityUnits || 10);
+                              const resolvedLineItems =
+                                parsedItems.length > 0
+                                  ? parsedItems.map((item) => ({
+                                      name: item.name,
+                                      finish: item.finish || "Studio Hand-Crafted Patina Finish",
+                                      quantity: Math.max(1, Number(item.quantity) || 1),
+                                      unitPriceRupees: Math.max(1, Number(item.unitPriceRupees) || 1000),
+                                    }))
+                                  : [
+                                      {
+                                        name: inq.requestedEditions || "Bespoke Architectural Editions",
+                                        finish: "Studio Hand-Crafted Patina Finish",
+                                        quantity: units,
+                                        unitPriceRupees: Math.round(125000 / units),
+                                      },
+                                    ];
+
                               setProposalForm({
                                 inquiryId: inq.id,
                                 customerName: inq.clientName,
                                 customerEmail: inq.email,
                                 customerPhone: inq.phone,
                                 deliveryPincode: inq.destinationPincode || "110001",
-                                lineItems: [
-                                  {
-                                    name: inq.requestedEditions || "Bespoke Architectural Editions",
-                                    finish: "Studio Hand-Crafted Patina Finish",
-                                    quantity: units,
-                                    unitPriceRupees: Math.round(125000 / units),
-                                  },
-                                ],
+                                lineItems: resolvedLineItems,
                                 deliveryChargeRupees: 4500,
                                 estimatedLeadWeeks: 6,
                                 notes: `Client Inquiry Brief (${inq.inquiryNumber || inq.id}):\n${inq.specifications || "Trade / hospitality consignment"}`,

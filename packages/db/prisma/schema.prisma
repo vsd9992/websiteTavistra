@@ -598,6 +598,7 @@ model BulkInquiry {
   requestedEditions   String
   quantityUnits       Int             @default(10)
   specifications      String
+  lineItemsJson       String?         // Structured QuoteLineItem[] transferred from cart
   status              String          @default("NEW") // NEW, IN_REVIEW, QUOTE_ISSUED, CLOSED
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt

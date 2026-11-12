@@ -52,6 +52,13 @@ export interface BulkInquiry {
   requestedEditions: string;
   quantityUnits: number;
   specifications: string;
+  lineItemsJson?: string | null;
+  lineItems?: Array<{
+    name: string;
+    finish?: string;
+    quantity: number;
+    unitPriceRupees: number;
+  }>;
   status: "NEW" | "IN_REVIEW" | "QUOTE_ISSUED" | "CLOSED";
   submittedAt: string;
 }

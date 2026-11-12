@@ -23,6 +23,7 @@ function ContactFormContent() {
       : "Architectural & Bespoke Order (Quote Only)");
   const pincodeParam = searchParams.get("pincode") || "";
   const messageParam = searchParams.get("message") || "";
+  const itemsParam = searchParams.get("items") || "";
 
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -105,6 +106,25 @@ function ContactFormContent() {
         formData.pincode.trim().length === 6 ? lookupPincode(formData.pincode.trim()) : null;
 
       if (isBulkOrQuote) {
+        let structuredLineItems: Array<{ name: string; finish?: string; quantity: number; unitPriceRupees: number }> | undefined = undefined;
+        if (itemsParam) {
+          try {
+            const raw = JSON.parse(itemsParam);
+            if (Array.isArray(raw) && raw.length > 0) {
+              structuredLineItems = raw
+                .filter((it: any) => it && typeof it.name === "string" && it.name.trim())
+                .map((it: any) => ({
+                  name: String(it.name).trim(),
+                  finish: it.finish ? String(it.finish).trim() : "Standard Studio Finish",
+                  quantity: Math.max(1, Number(it.quantity) || 1),
+                  unitPriceRupees: Math.max(0, Number(it.unitPriceRupees) || 0),
+                }));
+            }
+          } catch {
+            // Non-JSON items param fallback
+          }
+        }
+
         const res = await fetch("/api/inquiries", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -118,6 +138,7 @@ function ContactFormContent() {
             productName: formData.productName || formData.subject,
             quantity: Math.max(1, parseInt(formData.quantity || "10", 10) || 10),
             message: formData.message,
+            lineItems: structuredLineItems && structuredLineItems.length > 0 ? structuredLineItems : undefined,
           }),
         });
         const data = await res.json();
