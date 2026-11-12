@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgG" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#141312"/>
+      <stop offset="100%" stop-color="#090807"/>
+    </linearGradient>
+    <linearGradient id="brassGrand" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F7E2BC"/>
+      <stop offset="50%" stop-color="#C59B56"/>
+      <stop offset="100%" stop-color="#7A561E"/>
+    </linearGradient>
+    <linearGradient id="mirrorGlassG" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#33302C" stop-opacity="0.8"/>
+      <stop offset="40%" stop-color="#544F48" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#211F1C" stop-opacity="0.9"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#bgG)"/>
+
+  <!-- Grand Mirror Frame (Wide Arch Proportion) -->
+  <g transform="translate(200, 40)">
+    <rect x="20" y="20" width="400" height="490" rx="200" fill="#000000" opacity="0.45" filter="blur(14px)"/>
+    <rect x="0" y="0" width="400" height="490" rx="200" fill="none" stroke="url(#brassGrand)" stroke-width="24"/>
+    <rect x="14" y="14" width="372" height="462" rx="186" fill="url(#mirrorGlassG)"/>
+    <path d="M 40,140 L 320,440" stroke="#FFF5E6" stroke-width="2.5" opacity="0.2" stroke-linecap="round"/>
+  </g>
+
+  <text x="400" y="565" text-anchor="middle" font-family="'Cinzel', serif" font-size="14" fill="#C59B56" letter-spacing="4">TAVISTRA · ARC MIRROR (GRAND VANITY 800×1200MM)</text>
+</svg>
+

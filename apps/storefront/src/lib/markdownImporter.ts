@@ -11,6 +11,7 @@ export interface MarkdownVariantInput {
   taxInclusivePrice: number;
   initialStock?: number;
   image?: string; // relative filename e.g. "images/smoked-oak.jpg" or "smoked-oak.jpg"
+  images?: (string | MarkdownImageInput)[]; // gallery images specific to this variant
   description?: string;
   dimensions?: string;
   weightGrams?: number;
@@ -191,6 +192,18 @@ export function parseProductMarkdown(content: string): ParsedMarkdownProduct {
         ? Number(v.taxInclusivePrice)
         : basePrice;
 
+    const vRawImages = Array.isArray(v.images)
+      ? v.images
+      : v.image
+      ? [v.image]
+      : [];
+    const normalizedVariantImages = vRawImages
+      .map((img: any) => {
+        if (typeof img === "string") return img.trim();
+        return String(img.src || img.url || "").trim();
+      })
+      .filter((s: string) => s.length > 0);
+
     return {
       sku: String(v.sku || `${sku}-${String(idx + 1).padStart(2, "0")}`).trim(),
       title: String(v.title || v.name || doc.variantTitle || "Standard Edition").trim(),
@@ -198,7 +211,8 @@ export function parseProductMarkdown(content: string): ParsedMarkdownProduct {
       color: v.color ? String(v.color).trim() : undefined,
       taxInclusivePrice: vPrice,
       initialStock: Number(v.initialStock ?? v.stock ?? doc.initialStock ?? 0),
-      image: v.image ? String(v.image).trim() : undefined,
+      image: normalizedVariantImages[0] || (v.image ? String(v.image).trim() : undefined),
+      images: normalizedVariantImages.length > 0 ? normalizedVariantImages : undefined,
       description: v.description ? String(v.description).trim() : undefined,
       dimensions: v.dimensions ? String(v.dimensions).trim() : undefined,
       weightGrams:
@@ -369,12 +383,19 @@ export async function importProductToDatabase(parsed: ParsedMarkdownProduct, sta
   // 4. Upsert Variants & Stock Ledgers
   const upsertedVariants = [];
   for (const v of parsed.variants) {
-    const variantImageUrl = v.image ? resolveImageUrl(v.image, product.slug) : undefined;
+    const rawVariantImgList = v.images && v.images.length > 0 ? v.images : v.image ? [v.image] : [];
+    const resolvedVariantImages = rawVariantImgList.map((img) =>
+      resolveImageUrl(typeof img === "string" ? img : img.src, product.slug)
+    );
+    const variantImageUrl = resolvedVariantImages[0] || (v.image ? resolveImageUrl(v.image, product.slug) : undefined);
+    const variantImageUrlsJson = resolvedVariantImages.length > 0 ? JSON.stringify(resolvedVariantImages) : null;
+
     const variantData = {
       title: v.title,
       materialFinish: v.materialFinish || parsed.materialDescription,
       color: v.color,
       imageUrl: variantImageUrl,
+      imageUrls: variantImageUrlsJson,
       taxInclusivePrice: new Prisma.Decimal(v.taxInclusivePrice),
       description: v.description || null,
       dimensions: v.dimensions || null,

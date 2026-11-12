@@ -19,10 +19,10 @@ materialDescription: Milled Solid Aluminium, Brushed Brass, German Silent Quartz
 isPublished: true
 
 images:
-  - src: images/monolith-clock-hero.svg
+  - src: images/monolith-obsidian-hero.svg
     altText: Monolith Minimalist Wall Clock in Matte Obsidian and Brushed Brass
     isPrimary: true
-  - src: images/monolith-clock-detail.svg
+  - src: images/monolith-obsidian-detail.svg
     altText: Precision-milled dial and brushed brass hands detail
 
 variants:
@@ -31,9 +31,13 @@ variants:
     materialFinish: Anodised Matte Obsidian Body with Unlacquered Brushed Brass Hands
     taxInclusivePrice: 14500.00
     initialStock: 8
-    image: images/monolith-clock-hero.svg
+    images:
+      - src: images/monolith-obsidian-hero.svg
+        altText: Monolith Clock in Matte Obsidian and Brushed Brass
+        isPrimary: true
+      - src: images/monolith-obsidian-detail.svg
+        altText: Matte Obsidian dial and brass pinion detail
     description: Precision-milled aerospace aluminium chassis in deep non-reflective matte obsidian, contrasted with living satin brushed brass hands.
-    # dimensions and weight omitted: inherits master (320mm Dia × 38mm D, 2400g)
     isPublished: true
 
   - sku: TAV-CLK-001-RAW
@@ -41,9 +45,13 @@ variants:
     materialFinish: Raw Monolithic Aluminium with Satin Directional Brush
     taxInclusivePrice: 16200.00
     initialStock: 4
-    image: images/monolith-clock-detail.svg
+    images:
+      - src: images/monolith-raw-hero.svg
+        altText: Monolith Clock in Raw Brushed Aluminium and Natural Brass
+        isPrimary: true
+      - src: images/monolith-raw-detail.svg
+        altText: Raw Brushed Aluminium directional toolpath and luster detail
     description: Machine-finished monolithic aerospace aluminium displaying continuous radial grain toolpaths and natural metallic luster.
-    # dimensions and weight omitted: inherits master (320mm Dia × 38mm D, 2400g)
     isPublished: true
 ---
 

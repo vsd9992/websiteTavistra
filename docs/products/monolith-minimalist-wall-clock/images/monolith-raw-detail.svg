@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <defs>
+    <radialGradient id="rawDetailGrad" cx="35%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="60%" stop-color="#d0d0d8" />
+      <stop offset="100%" stop-color="#9e9ea8" />
+    </radialGradient>
+    <linearGradient id="brassRawD" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f2d09e" />
+      <stop offset="50%" stop-color="#c59b6d" />
+      <stop offset="100%" stop-color="#7a5423" />
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="600" fill="#f8f7f4" />
+  <rect x="40" y="40" width="720" height="520" rx="16" fill="#f1eee7" stroke="#e3ded4" stroke-width="1" />
+
+  <text x="400" y="90" text-anchor="middle" font-family="'Cormorant Garamond', serif" font-size="14" letter-spacing="4" fill="#8c827a">RAW BRUSHED ALUMINIUM TOOLPATH DETAIL</text>
+
+  <!-- Macro View of Raw Machining Lines -->
+  <g transform="translate(180, 130)">
+    <circle cx="220" cy="180" r="160" fill="url(#rawDetailGrad)" stroke="#c4c4ce" stroke-width="6" />
+    <!-- Radial toolpath scratches/lines -->
+    <circle cx="220" cy="180" r="130" fill="none" stroke="#ffffff" stroke-width="1" opacity="0.6" stroke-dasharray="8 4" />
+    <circle cx="220" cy="180" r="100" fill="none" stroke="#ffffff" stroke-width="1" opacity="0.5" stroke-dasharray="6 3" />
+    <circle cx="220" cy="180" r="70" fill="none" stroke="#ffffff" stroke-width="1" opacity="0.4" stroke-dasharray="4 2" />
+
+    <!-- Hand Segment -->
+    <rect x="212" y="50" width="16" height="150" rx="8" fill="url(#brassRawD)" />
+    <!-- Pinion Cap -->
+    <circle cx="220" cy="180" r="28" fill="url(#brassRawD)" stroke="#fff" stroke-width="1" stroke-opacity="0.5" />
+    <circle cx="220" cy="180" r="8" fill="#383842" />
+  </g>
+
+  <text x="400" y="535" text-anchor="middle" font-family="'Inter', sans-serif" font-size="11" font-weight="600" letter-spacing="2" fill="#2d2a26">DIRECTIONAL TOOLPATH GRAIN &amp; NATURAL SATIN LUSTER</text>
+</svg>
+

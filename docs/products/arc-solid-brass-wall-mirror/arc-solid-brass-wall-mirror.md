@@ -31,7 +31,12 @@ variants:
     materialFinish: Hand-Rolled Architectural Brass with Natural Satin Patina
     taxInclusivePrice: 38000.00
     initialStock: 0
-    image: images/arc-mirror-hero.svg
+    images:
+      - src: images/arc-mirror-hero.svg
+        altText: Arc Mirror in Standard Edition 600x900mm
+        isPrimary: true
+      - src: images/arc-mirror-detail.svg
+        altText: Standard Edition corner joinery detail
     description: Proportioned for entryway consoles, dressing nooks, and refined powder rooms with flush Z-bar cleat mounting.
     # dimensions and weight omitted: inherits master (600mm W × 900mm H × 30mm D, 8500g)
     isPublished: true
@@ -41,7 +46,12 @@ variants:
     materialFinish: Deep Architectural Brass Channel with Concealed Structural Cleat
     taxInclusivePrice: 48000.00
     initialStock: 0
-    image: images/arc-mirror-detail.svg
+    images:
+      - src: images/arc-mirror-grand-hero.svg
+        altText: Arc Mirror in Grand Vanity Edition 800x1200mm
+        isPrimary: true
+      - src: images/arc-mirror-grand-detail.svg
+        altText: Grand Edition heavy-duty Z-bar cleat detail
     description: Expanded grand scale edition engineered for double vanities, formal dining backdrops, and focal gallery spaces.
     dimensions: 800mm W × 1200mm H × 35mm D
     weightGrams: 12500

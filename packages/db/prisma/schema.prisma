@@ -207,6 +207,7 @@ model ProductVariant {
   materialFinish        String?
   color                 String?
   imageUrl              String?             // Variant-specific hero/thumbnail image
+  imageUrls             String?             // JSON array of variant gallery URLs (e.g. ["/uploads/..."])
   taxInclusivePrice     Decimal             @db.Decimal(10, 2)
 
   // Variant-specific overrides (nullable, falls back to Product master)

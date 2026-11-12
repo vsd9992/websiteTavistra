@@ -31,7 +31,12 @@ variants:
     materialFinish: Cast Mineral Aggregate in Warm Charcoal with Brushed Bronze Accents
     taxInclusivePrice: 8200.00
     initialStock: 14
-    image: images/strata-hero.svg
+    images:
+      - src: images/strata-hero.svg
+        altText: Strata Organiser in Warm Charcoal
+        isPrimary: true
+      - src: images/strata-detail.svg
+        altText: Warm Charcoal felt inlay and pen trough detail
     description: Deep basalt grey composite stone paired with unlacquered anodised bronze pen channels and black merino wool felt.
     # dimensions and weight omitted: inherits master (280mm L × 140mm W × 45mm H, 1800g)
     isPublished: true
@@ -41,7 +46,12 @@ variants:
     materialFinish: Fine Earthen Sand Cast Mineral with Satin Aluminium Inlays
     taxInclusivePrice: 8600.00
     initialStock: 9
-    image: images/strata-detail.svg
+    images:
+      - src: images/strata-detail.svg
+        altText: Strata Organiser in Natural Sand Edition
+        isPrimary: true
+      - src: images/strata-sand-macro.svg
+        altText: Natural Sand aggregate mineral texture detail
     description: Warm dune-coloured mineral composite with raw satin aluminium pen channels and grey heather felt.
     # dimensions and weight omitted: inherits master (280mm L × 140mm W × 45mm H, 1800g)
     isPublished: true

@@ -7,6 +7,7 @@ export interface ProductVariantView {
   materialFinish?: string | null;
   color?: string | null;
   imageUrl?: string | null;
+  images?: ProductImageView[];
   pricePaise: number;
   stock: number;
   // Overrides (optional, falls back to master product)

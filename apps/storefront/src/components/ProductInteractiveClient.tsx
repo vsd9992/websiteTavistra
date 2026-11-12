@@ -16,31 +16,43 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
     variants[0] || null
   );
 
-  // Gallery images list
-  const galleryImages: string[] = [];
-  if (product.images && product.images.length > 0) {
-    for (const img of product.images) {
-      if (img.url && !galleryImages.includes(img.url)) {
-        galleryImages.push(img.url);
+  // Helper to resolve gallery images for a given variant (with fallback to master product gallery)
+  const getGalleryForVariant = (v: ProductVariantView | null): string[] => {
+    if (v?.images && v.images.length > 0) {
+      const urls = v.images.map((img) => img.url).filter(Boolean);
+      if (urls.length > 0) return urls;
+    }
+    if (v?.imageUrl) {
+      return [v.imageUrl];
+    }
+    const masterGallery: string[] = [];
+    if (product.images && product.images.length > 0) {
+      for (const img of product.images) {
+        if (img.url && !masterGallery.includes(img.url)) {
+          masterGallery.push(img.url);
+        }
       }
+    } else if (product.primaryImageUrl) {
+      masterGallery.push(product.primaryImageUrl);
     }
-  } else if (product.primaryImageUrl) {
-    galleryImages.push(product.primaryImageUrl);
-  }
-
-  // Active image state
-  const initialImage = selectedVariant?.imageUrl || galleryImages[0] || null;
-  const [activeImage, setActiveImage] = useState<string | null>(initialImage);
-
-  // When variant changes, update price, image, and specs
-  const handleVariantChange = (v: ProductVariantView) => {
-    setSelectedVariant(v);
-    if (v.imageUrl) {
-      setActiveImage(v.imageUrl);
-    }
+    return masterGallery;
   };
 
-  // Dynamic values with fallback to master product (Point 4)
+  const currentGallery = getGalleryForVariant(selectedVariant);
+
+  // Active hero image state
+  const [activeImage, setActiveImage] = useState<string | null>(
+    currentGallery[0] || selectedVariant?.imageUrl || product.primaryImageUrl || null
+  );
+
+  // When variant changes, update variant and switch gallery & hero image to the variant's images
+  const handleVariantChange = (v: ProductVariantView) => {
+    setSelectedVariant(v);
+    const newGallery = getGalleryForVariant(v);
+    setActiveImage(newGallery[0] || v.imageUrl || null);
+  };
+
+  // Dynamic values with fallback to master product
   const currentPricePaise = selectedVariant ? selectedVariant.pricePaise : product.pricePaise;
   const currentSku = selectedVariant ? selectedVariant.sku : product.sku || product.id;
   const currentStock = selectedVariant ? selectedVariant.stock : undefined;
@@ -72,7 +84,7 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
     dimensions: currentDimensions,
     weightGrams: currentWeightGrams,
     shortDescription: currentDescription,
-    primaryImageUrl: activeImage || product.primaryImageUrl,
+    primaryImageUrl: activeImage || selectedVariant?.imageUrl || product.primaryImageUrl,
   };
 
   return (
@@ -113,10 +125,10 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
           </span>
         </div>
 
-        {/* Gallery Thumbnails */}
-        {galleryImages.length > 1 && (
+        {/* Gallery Thumbnails for Selected Variant */}
+        {currentGallery.length > 1 && (
           <div className="flex flex-wrap items-center gap-3">
-            {galleryImages.map((imgUrl, idx) => (
+            {currentGallery.map((imgUrl, idx) => (
               <button
                 key={idx}
                 type="button"
@@ -190,7 +202,7 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
             {product.name}
           </h1>
 
-          {/* Authoritative Tax-Inclusive Pricing */}
+          {/* Authoritative Tax-Inclusive Pricing (Updates live on variant selection) */}
           <div className="pt-2 flex items-baseline gap-2">
             <span className="font-editorial text-3xl sm:text-4xl text-[var(--color-ink)] font-semibold transition-all">
               {product.mode === "QUOTE_ONLY" ? "Price On Proposal" : formattedPrice}
@@ -202,7 +214,7 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
             )}
           </div>
 
-          {/* Multi-Variant Capsule Button Selector (Point 3) */}
+          {/* Multi-Variant Capsule Button Selector (Clean title-only pills, no price repetition) */}
           {variants.length > 1 && (
             <div className="pt-5 border-t border-[var(--color-decorative-border)] space-y-3">
               <div className="flex items-center justify-between">
@@ -220,27 +232,19 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
               <div className="flex flex-wrap gap-2.5">
                 {variants.map((v) => {
                   const isSelected = selectedVariant?.id === v.id;
-                  const vPrice = new Intl.NumberFormat("en-IN", {
-                    style: "currency",
-                    currency: "INR",
-                    maximumFractionDigits: 0,
-                  }).format(v.pricePaise / 100);
 
                   return (
                     <button
                       key={v.id}
                       type="button"
                       onClick={() => handleVariantChange(v)}
-                      className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-xs font-medium transition-all ${
+                      className={`inline-flex items-center rounded-full px-5 py-2.5 text-xs font-medium transition-all ${
                         isSelected
                           ? "bg-[var(--color-ink)] text-[var(--color-canvas)] ring-2 ring-[var(--color-bronze)] ring-offset-2 ring-offset-[var(--color-canvas)] shadow-sm font-semibold"
                           : "bg-[var(--color-canvas)] text-[var(--color-ink)] border border-[var(--color-control-border)] hover:border-[var(--color-ink)] hover:bg-[var(--color-ivory)]/40"
                       }`}
                     >
                       <span>{v.title}</span>
-                      <span className={`text-[11px] ${isSelected ? "text-[var(--color-bronze)]" : "text-[var(--color-muted-light)]"}`}>
-                        · {vPrice}
-                      </span>
                     </button>
                   );
                 })}
@@ -303,12 +307,12 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
           </div>
         </div>
 
-        {/* Dynamic Distance-Band Delivery Estimator */}
-        <DeliveryEstimator product={effectiveProductForCart} />
-
         {/* Purchase Action (Add to Cart / Request Quote) */}
-        <div className="pt-4 border-t border-[var(--color-decorative-border)]">
+        <div className="pt-4 border-t border-[var(--color-decorative-border)] space-y-4">
           <ProductPurchaseAction product={effectiveProductForCart} formattedAdvance={formattedAdvance} />
+
+          {/* Dynamic Distance-Band Delivery Estimator (Under Add to Cart per User Request 3) */}
+          <DeliveryEstimator product={effectiveProductForCart} />
         </div>
 
         {/* Full Editorial Description */}

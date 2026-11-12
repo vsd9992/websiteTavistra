@@ -31,7 +31,12 @@ variants:
     materialFinish: Matte Gunmetal PVD Stainless Steel with Solid Brushed Brass Counterweight
     taxInclusivePrice: 42500.00
     initialStock: 0
-    image: images/aether-hero.svg
+    images:
+      - src: images/aether-hero.svg
+        altText: Aether Lamp in Gunmetal and Brushed Brass
+        isPrimary: true
+      - src: images/aether-detail.svg
+        altText: Gunmetal arm and rotational dimmer switch detail
     description: Industrial gunmetal structural arms with contrasting satin brass counterweight and warm 2700K beam.
     # dimensions and weight omitted: inherits master (450mm Reach, 4200g)
     isPublished: true
@@ -41,7 +46,12 @@ variants:
     materialFinish: Solid Hand-Turned Architectural Brass with Living Patina
     taxInclusivePrice: 49000.00
     initialStock: 0
-    image: images/aether-detail.svg
+    images:
+      - src: images/aether-brass-hero.svg
+        altText: Aether Lamp in Monolithic Patinated Brass
+        isPrimary: true
+      - src: images/aether-detail.svg
+        altText: Monolithic brass counterweight and knurled dimmer detail
     description: Full monolithic unlacquered brass edition that develops a rich, organic amber patina over years of studio use.
     weightGrams: 5100
     isPublished: true

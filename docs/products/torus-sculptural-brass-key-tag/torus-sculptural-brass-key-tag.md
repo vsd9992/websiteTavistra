@@ -31,7 +31,12 @@ variants:
     materialFinish: Cast Marine Brass with Directional Satin Finish
     taxInclusivePrice: 3400.00
     initialStock: 25
-    image: images/torus-hero.svg
+    images:
+      - src: images/torus-hero.svg
+        altText: Torus Key Tag in Natural Raw Brass
+        isPrimary: true
+      - src: images/torus-natural-detail.svg
+        altText: Natural Raw Brass threaded closure detail
     description: Warm golden brass that burnishes naturally with pocket friction and daily touch.
     # dimensions and weight omitted: inherits master (42mm Dia × 8mm Thickness, 140g)
     isPublished: true
@@ -41,8 +46,15 @@ variants:
     materialFinish: Hand-Applied Sulphur Smoked Patina with Satin Burnished Edges
     taxInclusivePrice: 3900.00
     initialStock: 15
-    image: images/torus-detail.svg
+    images:
+      - src: images/torus-detail.svg
+        altText: Torus Key Tag in Studio Smoked Patina Brass
+        isPrimary: true
+      - src: images/torus-hero.svg
+        altText: Smoked Patina edition side view
     description: Deep blackened bronze tone achieved through studio patination, sealed with organic micro-crystalline wax.
+    # dimensions and weight omitted: inherits master (42mm Dia × 8mm Thickness, 140g)
+    isPublished: true
     # dimensions and weight omitted: inherits master (42mm Dia × 8mm Thickness, 140g)
     isPublished: true
 ---
