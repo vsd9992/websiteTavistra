@@ -3,11 +3,22 @@ set -euo pipefail
 
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/vishnu/.nvm/versions/node/v22.23.1/bin"
 SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
-ROOT_DIR="$(cd "$(dirname "$SCRIPT_PATH")/.." && pwd)"
+DIR="$(dirname "$SCRIPT_PATH")"
+if [ -f "$DIR/package.json" ]; then
+  ROOT_DIR="$DIR"
+else
+  ROOT_DIR="$(cd "$DIR/.." && pwd)"
+fi
 cd "$ROOT_DIR"
 
 # Stop any running instances first and verify clean ports
-"$ROOT_DIR/scripts/stop-production.sh"
+if [ -x "$ROOT_DIR/scripts/stop-production.sh" ]; then
+  "$ROOT_DIR/scripts/stop-production.sh"
+elif [ -x "$ROOT_DIR/stop-production.sh" ]; then
+  "$ROOT_DIR/stop-production.sh"
+else
+  bash "$ROOT_DIR/scripts/stop-production.sh"
+fi
 
 STOREFRONT_BIN="$ROOT_DIR/apps/storefront/node_modules/.bin/next"
 ADMIN_BIN="$ROOT_DIR/apps/admin/node_modules/.bin/vite"

@@ -2,7 +2,12 @@
 set -euo pipefail
 
 SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
-ROOT_DIR="$(cd "$(dirname "$SCRIPT_PATH")/.." && pwd)"
+DIR="$(dirname "$SCRIPT_PATH")"
+if [ -f "$DIR/package.json" ]; then
+  ROOT_DIR="$DIR"
+else
+  ROOT_DIR="$(cd "$DIR/.." && pwd)"
+fi
 
 get_port_pids() {
   local port="$1"
