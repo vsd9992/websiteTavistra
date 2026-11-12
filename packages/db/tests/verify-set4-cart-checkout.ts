@@ -7,6 +7,7 @@
 
 import { PrismaClient } from "@prisma/client";
 import { checkBulkOrderCeiling } from "../../shared/src/shipping";
+import { computeGstinCheckDigit } from "../../shared/src/validation";
 
 const prisma = new PrismaClient();
 const STOREFRONT_URL = process.env.STOREFRONT_URL || "http://192.168.1.100:3001";
@@ -73,6 +74,9 @@ async function runSet4Verification() {
   const runId = Date.now().toString().slice(-6);
   const qaEmail = `qa.set4.${runId}@gmail.com`;
   const qaPhone = "9820202020";
+  const gstinPrefix = "27AAPFU0939F1Z";
+  const validGstin = `${gstinPrefix}${computeGstinCheckDigit(gstinPrefix)}`;
+  const invalidGstin = `${gstinPrefix}${validGstin[14] === "0" ? "1" : "0"}`;
   const createdOrderNumbers: string[] = [];
   let initialMaintenanceVal = "false";
   let didToggleMaintenance = false;
@@ -286,7 +290,7 @@ async function runSet4Verification() {
         city: "Ahmedabad",
         state: "Gujarat",
         destinationPin: "380001",
-        gstin: "27AAPFU0939F1Z0",
+        gstin: invalidGstin,
         items: [{ variantId: keyTagNat.id, quantity: 1 }],
       }),
     });
@@ -402,7 +406,7 @@ async function runSet4Verification() {
         city: "Ahmedabad",
         state: "Gujarat",
         destinationPin: "380001",
-        gstin: "27AAPFU0939F1Z5",
+        gstin: validGstin,
         items: [
           { variantId: clockOb.id, quantity: 1, pricePaise: 100 }, // Tampered ₹1 client price!
           { variantId: keyTagNat.id, quantity: 2, pricePaise: 100 }, // Tampered ₹1 client price!
