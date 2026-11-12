@@ -99,10 +99,10 @@ export default function App() {
   });
   const [isSubmittingProposal, setIsSubmittingProposal] = useState(false);
 
-  // Markdown / ZIP Importer State
+  // Markdown Product Importer State
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [markdownInput, setMarkdownInput] = useState("");
-  const [selectedZipFile, setSelectedZipFile] = useState<File | null>(null);
+  const [selectedMdFile, setSelectedMdFile] = useState<File | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [importFeedback, setImportFeedback] = useState<string | null>(null);
 
@@ -747,15 +747,15 @@ export default function App() {
     }
   };
 
-  // Upload and unpack .zip product package (<product-slug>.zip with .md + images/)
-  const handleUploadZipPackage = async () => {
-    if (!selectedZipFile) return;
+  // Upload single .md specification
+  const handleUploadSingleMdFile = async () => {
+    if (!selectedMdFile) return;
     setIsImporting(true);
-    setImportFeedback(`Unpacking '${selectedZipFile.name}' and extracting images...`);
+    setImportFeedback(`Parsing and importing '${selectedMdFile.name}'...`);
 
     try {
       const formData = new FormData();
-      formData.append("file", selectedZipFile);
+      formData.append("file", selectedMdFile);
       formData.append("staffName", currentStaff.name);
 
       const res = await fetch("/api/admin/catalogue/import", {
@@ -771,23 +771,23 @@ export default function App() {
         throw new Error(`Server returned HTTP ${res.status}: ${raw.slice(0, 120)}`);
       }
 
-      if (!res.ok) throw new Error(data.error || "Failed to unpack and import package");
+      if (!res.ok) throw new Error(data.error || "Failed to import markdown file");
 
       setImportFeedback(
-        `Successfully imported '${data.product.title}' (${data.product.sku}) with ${data.extractedImages?.length || 0} media file(s)!`
+        `Successfully imported '${data.product.title}' (${data.product.sku}) with ${data.variants?.length || 0} variant edition(s)!`
       );
 
       const catData = await fetchJson<{ catalogue?: CatalogueItem[] }>("/api/admin/catalogue");
       if (catData.catalogue) setCatalogue(catData.catalogue);
 
       logAuditAction(
-        "PRODUCT_ZIP_PACKAGE_IMPORTED",
+        "MARKDOWN_FILE_IMPORTED",
         "Product",
         data.product.slug,
-        `Imported product package ${selectedZipFile.name} with ${data.extractedImages?.length || 0} images.`
+        `Imported single markdown file ${selectedMdFile.name}.`
       );
 
-      setSelectedZipFile(null);
+      setSelectedMdFile(null);
     } catch (err: unknown) {
       setImportFeedback(`Error: ${(err as Error).message}`);
     } finally {
@@ -2279,20 +2279,30 @@ export default function App() {
                   <strong className="text-[#9e9ea8] block">Configured Editions / Variants ({reviewedProduct.variants.length}):</strong>
                   <div className="divide-y divide-[#2e2e34] border border-[#2e2e34] rounded-xl overflow-hidden bg-[#16161a]">
                     {reviewedProduct.variants.map((v) => (
-                      <div key={v.id} className="p-3 flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2.5">
-                          {v.imageUrl && (
-                            <img src={v.imageUrl} alt={v.title} className="h-8 w-8 rounded object-cover border border-[#3e3e46]" />
-                          )}
-                          <div>
-                            <span className="text-white font-medium block">{v.title}</span>
-                            <span className="text-[10px] text-[#9e9ea8] font-mono">{v.sku}</span>
+                      <div key={v.id} className="p-3 text-xs space-y-1">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            {v.imageUrl && (
+                              <img src={v.imageUrl} alt={v.title} className="h-8 w-8 rounded object-cover border border-[#3e3e46]" />
+                            )}
+                            <div>
+                              <span className="text-white font-medium block">{v.title}</span>
+                              <span className="text-[10px] text-[#9e9ea8] font-mono">{v.sku}</span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[#c59b6d] font-semibold block">{formatPrice(v.priceRupees)}</span>
+                            <span className="text-[10px] text-emerald-400">{v.stock} in stock</span>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <span className="text-[#c59b6d] font-semibold block">{formatPrice(v.priceRupees)}</span>
-                          <span className="text-[10px] text-emerald-400">{v.stock} in stock</span>
-                        </div>
+                        {(v.dimensions || v.weightGrams || v.description || v.materialFinish) && (
+                          <div className="pl-10 text-[10px] text-[#9e9ea8] space-y-0.5">
+                            {v.materialFinish && <div>Finish: <span className="text-white">{v.materialFinish}</span></div>}
+                            {v.dimensions && <div>Dimensions: <span className="text-white">{v.dimensions}</span></div>}
+                            {v.weightGrams && <div>Weight: <span className="text-white">{(v.weightGrams / 1000).toFixed(2)} kg</span></div>}
+                            {v.description && <div className="italic text-[#c59b6d]">{v.description}</div>}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -2685,48 +2695,48 @@ export default function App() {
               </button>
             </div>
 
-            {/* Option 1: Master Product Package (.ZIP with .md + images/) */}
+            {/* Option 1: Synchronize all product folders from docs/products/* */}
+            <div className="p-4 rounded-xl bg-[#24242a] border border-[#2e2e34] flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <strong className="text-white text-xs block">Sync Authoritative Product Folders</strong>
+                <p className="text-[11px] text-[#9e9ea8]">
+                  Automatically parse and upsert all product folder packages from <code className="font-mono text-[#c59b6d]">docs/products/*</code> and sync their <code className="font-mono text-[#c59b6d]">images/</code>.
+                </p>
+              </div>
+              <button
+                onClick={handleSyncMarkdownDocs}
+                disabled={isImporting}
+                className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors disabled:opacity-50"
+              >
+                {isImporting ? "Syncing Folders..." : "Sync docs/products/*"}
+              </button>
+            </div>
+
+            {/* Option 2: Upload single .md specification */}
             <div className="p-4 rounded-xl bg-[#24242a] border border-[#2e2e34] space-y-3">
               <div>
-                <strong className="text-white text-xs block">Upload Master Product Package (.zip)</strong>
+                <strong className="text-white text-xs block">Upload Single Markdown File (.md)</strong>
                 <p className="text-[11px] text-[#9e9ea8]">
-                  Upload an isolated product archive containing <code className="font-mono text-[#c59b6d]">&lt;slug&gt;.md</code> and its <code className="font-mono text-[#c59b6d]">images/</code> folder. Media is extracted into persistent host storage automatically.
+                  Import an individual product markdown specification containing YAML frontmatter headers.
                 </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
                 <input
                   type="file"
-                  accept=".zip"
-                  onChange={(e) => setSelectedZipFile(e.target.files?.[0] || null)}
+                  accept=".md"
+                  onChange={(e) => setSelectedMdFile(e.target.files?.[0] || null)}
                   className="text-xs text-[#9e9ea8] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#2e2e34] file:text-white hover:file:bg-[#3e3e46] cursor-pointer"
                 />
                 <button
                   type="button"
-                  onClick={handleUploadZipPackage}
-                  disabled={isImporting || !selectedZipFile}
-                  className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors disabled:opacity-50"
+                  onClick={handleUploadSingleMdFile}
+                  disabled={isImporting || !selectedMdFile}
+                  className="px-4 py-2 rounded-xl bg-[#2e2e34] border border-[#3e3e46] text-white font-semibold text-xs hover:bg-[#3e3e46] transition-colors disabled:opacity-50"
                 >
-                  {isImporting ? "Processing Package..." : "Unpack & Import .zip"}
+                  {isImporting ? "Importing File..." : "Import .md"}
                 </button>
               </div>
-            </div>
-
-            {/* Option 2: Bulk Disk Sync Option */}
-            <div className="p-4 rounded-xl bg-[#24242a] border border-[#2e2e34] flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <strong className="text-white text-xs block">Sync Authoritative Directory</strong>
-                <p className="text-[11px] text-[#9e9ea8]">
-                  Automatically parse and upsert all edition markdown and folder packages from <code className="font-mono text-[#c59b6d]">docs/products/*</code>.
-                </p>
-              </div>
-              <button
-                onClick={handleSyncMarkdownDocs}
-                disabled={isImporting}
-                className="px-4 py-2 rounded-xl bg-[#2e2e34] border border-[#3e3e46] text-white font-semibold text-xs hover:bg-[#3e3e46] transition-colors disabled:opacity-50"
-              >
-                {isImporting ? "Syncing..." : "Sync docs/products/*"}
-              </button>
             </div>
 
             {/* Option 3: Custom Paste / Upload Option */}

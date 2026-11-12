@@ -32,6 +32,8 @@ variants:
     taxInclusivePrice: 14500.00
     initialStock: 8
     image: images/monolith-clock-hero.svg
+    description: Precision-milled aerospace aluminium chassis in deep non-reflective matte obsidian, contrasted with living satin brushed brass hands.
+    # dimensions and weight omitted: inherits master (320mm Dia × 38mm D, 2400g)
     isPublished: true
 
   - sku: TAV-CLK-001-RAW
@@ -40,6 +42,8 @@ variants:
     taxInclusivePrice: 16200.00
     initialStock: 4
     image: images/monolith-clock-detail.svg
+    description: Machine-finished monolithic aerospace aluminium displaying continuous radial grain toolpaths and natural metallic luster.
+    # dimensions and weight omitted: inherits master (320mm Dia × 38mm D, 2400g)
     isPublished: true
 ---
 
@@ -48,17 +52,16 @@ variants:
 Precision-milled aerospace aluminium body with an unlacquered brushed brass dial and silent German quartz movement.
 
 ## Full Description
-Machined from a single block of aerospace aluminium with brushed brass hands and silent German quartz movement. Concealed flush wall mounting system included with calibrated brass anchors.
+Machined from a single solid block of aerospace-grade 6061 aluminium with unlacquered living brass hands and an ultra-quiet German sweep quartz mechanism. The dial eliminates numerical indexing, embracing subtle shadow depth and radial light refraction to indicate the gentle progression of the day.
 
-Each piece is individually deburred, hand-finished in our studio, and numbered on the concealed rear chassis. The dial features zero numerical markings, allowing the play of natural shadow across the radial brushed brass face to mark the passage of hours.
+Each clock is deburred by hand, individually numbered at the reverse chassis, and supplied with a calibrated heavy-duty brass wall anchor for rigid flush-to-wall mounting.
 
 ## Highlights
-- Machined from a single block of aerospace aluminium
-- Brushed brass hands with anti-glare finish
-- Concealed flush wall mounting system included
-- Precision silent German sweep quartz movement (AA battery included)
-- Hand-finished radial dial face with living patina characteristic
+- Machined from a single solid billet of aerospace-grade 6061 aluminium
+- Unlacquered living brass hands that gently age and deepen in tone
+- Completely silent precision German sweep quartz movement (AA battery included)
+- Engineered flush wall mounting bracket with solid brass hardware
+- Individually numbered and studio-inspected edition
 
 ## Care & Maintenance
-Wipe gently with a dry, lint-free microfiber cloth. The unlacquered brass hands will naturally deepen in tone over time; to maintain the bright satin luster, apply a micro-crystalline wax once annually. Avoid abrasive industrial detergents.
-
+Dust gently with a clean, dry microfiber cloth. The unlacquered brass hands will gradually develop a rich natural patina; apply micro-crystalline wax once per year if you wish to preserve the bright satin luster. Avoid abrasive chemical solvents.

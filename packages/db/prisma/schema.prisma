@@ -204,10 +204,19 @@ model ProductVariant {
   productId             String
   sku                   String              @unique
   title                 String              // e.g. "Smoked Oak / Brushed Brass"
-  materialFinish        String
+  materialFinish        String?
   color                 String?
   imageUrl              String?             // Variant-specific hero/thumbnail image
   taxInclusivePrice     Decimal             @db.Decimal(10, 2)
+
+  // Variant-specific overrides (nullable, falls back to Product master)
+  description           String?             // Variant-specific description override
+  dimensions            String?             // Variant-specific dimensions override (e.g. "400mm Dia x 45mm D")
+  weightGrams           Int?                // Variant-specific weight override in grams
+  lengthMm              Int?
+  widthMm               Int?
+  heightMm              Int?
+
   isPublished           Boolean             @default(true)
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt

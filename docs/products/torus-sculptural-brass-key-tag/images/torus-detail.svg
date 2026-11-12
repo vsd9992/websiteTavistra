@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgT2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#141211"/>
+      <stop offset="100%" stop-color="#080706"/>
+    </linearGradient>
+    <linearGradient id="smokedPatina" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6B5B45"/>
+      <stop offset="50%" stop-color="#3D3325"/>
+      <stop offset="100%" stop-color="#241E16"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#bgT2)"/>
+  
+  <!-- Smoked Patina Variant Detail -->
+  <g transform="translate(260, 140)">
+    <circle cx="140" cy="140" r="110" fill="none" stroke="url(#smokedPatina)" stroke-width="40"/>
+    <rect x="120" y="20" width="40" height="25" rx="4" fill="#1C1814" stroke="#8E7859" stroke-width="2"/>
+    <!-- Satin Edge Wear Highlight -->
+    <circle cx="140" cy="140" r="130" fill="none" stroke="#C59B56" stroke-width="2" opacity="0.5"/>
+  </g>
+  
+  <text x="400" y="475" text-anchor="middle" font-family="'Cinzel', serif" font-size="14" fill="#C59B56" letter-spacing="4">TORUS · SMOKED PATINA EDITION</text>
+  <text x="400" y="497" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#7D756D" letter-spacing="2">HAND-APPLIED SULPHUR PATINA &amp; MICRO-WAX SEAL</text>
+</svg>
+

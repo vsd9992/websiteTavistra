@@ -28,23 +28,28 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
     galleryImages.push(product.primaryImageUrl);
   }
 
-  // Active active image state
+  // Active image state
   const initialImage = selectedVariant?.imageUrl || galleryImages[0] || null;
   const [activeImage, setActiveImage] = useState<string | null>(initialImage);
 
-  // When variant changes, update price and optionally hero image
+  // When variant changes, update price, image, and specs
   const handleVariantChange = (v: ProductVariantView) => {
     setSelectedVariant(v);
-    if (v.imageUrl && galleryImages.includes(v.imageUrl)) {
-      setActiveImage(v.imageUrl);
-    } else if (v.imageUrl) {
+    if (v.imageUrl) {
       setActiveImage(v.imageUrl);
     }
   };
 
+  // Dynamic values with fallback to master product (Point 4)
   const currentPricePaise = selectedVariant ? selectedVariant.pricePaise : product.pricePaise;
   const currentSku = selectedVariant ? selectedVariant.sku : product.sku || product.id;
   const currentStock = selectedVariant ? selectedVariant.stock : undefined;
+  const currentDimensions = selectedVariant?.dimensions || product.dimensions;
+  const currentWeightGrams = selectedVariant?.weightGrams ?? product.weightGrams;
+  const currentDescription = selectedVariant?.description || product.shortDescription;
+  const currentMaterialFinish =
+    selectedVariant?.materialFinish ||
+    (product.materials && product.materials.length > 0 ? product.materials.join(" · ") : "");
 
   const formattedPrice = new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -59,11 +64,14 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
     maximumFractionDigits: 0,
   }).format(mtoAdvancePaise / 100);
 
-  // Construct effective product payload for cart with selected variant
+  // Construct effective product payload for cart with selected variant overrides
   const effectiveProductForCart: MockProduct = {
     ...product,
     pricePaise: currentPricePaise,
     sku: currentSku,
+    dimensions: currentDimensions,
+    weightGrams: currentWeightGrams,
+    shortDescription: currentDescription,
     primaryImageUrl: activeImage || product.primaryImageUrl,
   };
 
@@ -129,22 +137,22 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
           </div>
         )}
 
-        {/* Dimension & Weight Specs Grid */}
+        {/* Dimension & Weight Specs Grid — Dynamically updates with Variant Selection */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl bg-[var(--color-ivory)] border border-[var(--color-decorative-border)] text-center text-xs">
           <div>
             <span className="text-[10px] uppercase tracking-wider text-[var(--color-muted-light)] block mb-1">
               Dimensions
             </span>
-            <span className="font-semibold text-[var(--color-ink)]">
-              {product.dimensions}
+            <span className="font-semibold text-[var(--color-ink)] transition-all">
+              {currentDimensions}
             </span>
           </div>
           <div>
             <span className="text-[10px] uppercase tracking-wider text-[var(--color-muted-light)] block mb-1">
               Net Weight
             </span>
-            <span className="font-semibold text-[var(--color-ink)]">
-              {(product.weightGrams / 1000).toFixed(2)} kg
+            <span className="font-semibold text-[var(--color-ink)] transition-all">
+              {(currentWeightGrams / 1000).toFixed(2)} kg
             </span>
           </div>
           <div>
@@ -184,7 +192,7 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
 
           {/* Authoritative Tax-Inclusive Pricing */}
           <div className="pt-2 flex items-baseline gap-2">
-            <span className="font-editorial text-3xl sm:text-4xl text-[var(--color-ink)] font-semibold">
+            <span className="font-editorial text-3xl sm:text-4xl text-[var(--color-ink)] font-semibold transition-all">
               {product.mode === "QUOTE_ONLY" ? "Price On Proposal" : formattedPrice}
             </span>
             {product.mode !== "QUOTE_ONLY" && (
@@ -194,13 +202,22 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
             )}
           </div>
 
-          {/* Multi-Variant Selector (if variants exist) */}
+          {/* Multi-Variant Capsule Button Selector (Point 3) */}
           {variants.length > 1 && (
-            <div className="pt-4 border-t border-[var(--color-decorative-border)] space-y-2">
-              <label className="text-xs font-semibold text-[var(--color-ink)] block">
-                Select Edition / Finish:
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="pt-5 border-t border-[var(--color-decorative-border)] space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-[var(--color-ink)] block">
+                  Select Edition / Finish:
+                </label>
+                {selectedVariant && (
+                  <span className="text-[11px] text-[var(--color-bronze)] font-medium">
+                    {selectedVariant.title}
+                  </span>
+                )}
+              </div>
+
+              {/* Capsule Buttons (Pills) */}
+              <div className="flex flex-wrap gap-2.5">
                 {variants.map((v) => {
                   const isSelected = selectedVariant?.id === v.id;
                   const vPrice = new Intl.NumberFormat("en-IN", {
@@ -214,25 +231,27 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
                       key={v.id}
                       type="button"
                       onClick={() => handleVariantChange(v)}
-                      className={`text-left p-3 rounded-xl border text-xs transition-all ${
+                      className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-xs font-medium transition-all ${
                         isSelected
-                          ? "border-[var(--color-bronze)] bg-[var(--color-ivory)] shadow-sm font-semibold"
-                          : "border-[var(--color-control-border)] bg-[var(--color-canvas)] hover:border-[var(--color-ink)]"
+                          ? "bg-[var(--color-ink)] text-[var(--color-canvas)] ring-2 ring-[var(--color-bronze)] ring-offset-2 ring-offset-[var(--color-canvas)] shadow-sm font-semibold"
+                          : "bg-[var(--color-canvas)] text-[var(--color-ink)] border border-[var(--color-control-border)] hover:border-[var(--color-ink)] hover:bg-[var(--color-ivory)]/40"
                       }`}
                     >
-                      <div className="flex justify-between items-center text-[var(--color-ink)]">
-                        <span className="truncate">{v.title}</span>
-                        <span className="text-[var(--color-bronze)] ml-2">{vPrice}</span>
-                      </div>
-                      {v.materialFinish && (
-                        <p className="text-[10px] text-[var(--color-muted-light)] mt-0.5 truncate">
-                          {v.materialFinish}
-                        </p>
-                      )}
+                      <span>{v.title}</span>
+                      <span className={`text-[11px] ${isSelected ? "text-[var(--color-bronze)]" : "text-[var(--color-muted-light)]"}`}>
+                        · {vPrice}
+                      </span>
                     </button>
                   );
                 })}
               </div>
+
+              {/* Selected Variant Finish Note */}
+              {selectedVariant?.materialFinish && (
+                <p className="text-xs text-[var(--color-muted-light)] italic pt-1 pl-1">
+                  Finish: {selectedVariant.materialFinish}
+                </p>
+              )}
             </div>
           )}
 
@@ -262,9 +281,9 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
           )}
         </div>
 
-        {/* Short Description */}
+        {/* Short Description (Variant-Specific Override or Master Fallback) */}
         <div className="text-sm text-[var(--color-muted-light)] leading-relaxed space-y-4">
-          <p>{product.shortDescription}</p>
+          <p>{currentDescription}</p>
         </div>
 
         {/* Materials Badge List */}
@@ -285,7 +304,7 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
         </div>
 
         {/* Dynamic Distance-Band Delivery Estimator */}
-        <DeliveryEstimator product={product} />
+        <DeliveryEstimator product={effectiveProductForCart} />
 
         {/* Purchase Action (Add to Cart / Request Quote) */}
         <div className="pt-4 border-t border-[var(--color-decorative-border)]">
@@ -331,4 +350,3 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
     </div>
   );
 }
-

@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   parseProductMarkdown,
   importProductToDatabase,
-  importProductZipPackage,
   syncAllMarkdownEditionsFromDisk,
 } from "@/lib/markdownImporter";
 
@@ -10,7 +9,7 @@ export async function POST(request: NextRequest) {
   try {
     const contentType = request.headers.get("content-type") || "";
 
-    // Mode 1: Multipart form-data (.zip file upload)
+    // Mode 1: Multipart form-data (.md single file upload)
     if (contentType.includes("multipart/form-data")) {
       const formData = await request.formData();
       const file = formData.get("file") as File | null;
@@ -24,37 +23,24 @@ export async function POST(request: NextRequest) {
       }
 
       const buffer = Buffer.from(await file.arrayBuffer());
+      const text = buffer.toString("utf-8");
+      const parsed = parseProductMarkdown(text);
+      const imported = await importProductToDatabase(parsed, staffName);
 
-      if (file.name.toLowerCase().endsWith(".zip")) {
-        const result = await importProductZipPackage(buffer, staffName);
-        return NextResponse.json({
-          mode: "ZIP_PACKAGE",
-          ...result,
-        });
-      } else if (file.name.toLowerCase().endsWith(".md")) {
-        const text = buffer.toString("utf-8");
-        const parsed = parseProductMarkdown(text);
-        const imported = await importProductToDatabase(parsed, staffName);
-        return NextResponse.json({
-          success: true,
-          mode: "SINGLE_MARKDOWN",
-          product: imported.product,
-          variants: imported.variants,
-        });
-      }
-
-      return NextResponse.json(
-        { error: "Unsupported file type. Please upload a .zip product package or a .md file." },
-        { status: 400 }
-      );
+      return NextResponse.json({
+        success: true,
+        mode: "SINGLE_MARKDOWN",
+        product: imported.product,
+        variants: imported.variants,
+      });
     }
 
     // Mode 2: JSON payload
     const body = await request.json();
-    const { syncFromDocs, markdownContent, staffName = "Admin Staff" } = body;
+    const { syncFromDocs, syncFromDisk, markdownContent, staffName = "Admin Staff" } = body;
 
-    // 2A: Bulk Sync from docs/products
-    if (syncFromDocs) {
+    // 2A: Sync all folders from docs/products
+    if (syncFromDocs || syncFromDisk) {
       const result = await syncAllMarkdownEditionsFromDisk(staffName);
       return NextResponse.json({ success: true, ...result });
     }
@@ -71,7 +57,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: "Either syncFromDocs: true, markdownContent string, or multipart file must be provided." },
+      { error: "Either syncFromDocs: true or markdownContent string must be provided." },
       { status: 400 }
     );
   } catch (error: unknown) {

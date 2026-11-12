@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1A1816"/>
+      <stop offset="100%" stop-color="#0E0D0C"/>
+    </linearGradient>
+    <linearGradient id="brass" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E5C388"/>
+      <stop offset="50%" stop-color="#C59B56"/>
+      <stop offset="100%" stop-color="#8E6A2F"/>
+    </linearGradient>
+    <linearGradient id="mirrorGlass" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2D2B28" stop-opacity="0.8"/>
+      <stop offset="40%" stop-color="#4A453F" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#1E1C1A" stop-opacity="0.9"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#bg)"/>
+  
+  <!-- Mirror Frame -->
+  <g transform="translate(260, 60)">
+    <!-- Cast Shadow -->
+    <rect x="15" y="20" width="280" height="460" rx="140" fill="#000000" opacity="0.4" filter="blur(10px)"/>
+    <!-- Outer Brass Rim -->
+    <rect x="0" y="0" width="280" height="460" rx="140" fill="none" stroke="url(#brass)" stroke-width="18"/>
+    <!-- Mirror Glass Pane -->
+    <rect x="10" y="10" width="260" height="440" rx="130" fill="url(#mirrorGlass)"/>
+    <!-- Subtle Reflection Diagonal -->
+    <path d="M 30,120 L 220,380" stroke="#FFF5E6" stroke-width="2" opacity="0.15" stroke-linecap="round"/>
+    <path d="M 50,110 L 240,370" stroke="#FFF5E6" stroke-width="1" opacity="0.08" stroke-linecap="round"/>
+  </g>
+  
+  <!-- Studio Nomenclature -->
+  <text x="400" y="555" text-anchor="middle" font-family="'Cinzel', serif" font-size="14" fill="#C59B56" letter-spacing="4">TAVISTRA · ARC SOLID BRASS MIRROR</text>
+  <text x="400" y="575" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#7D756D" letter-spacing="2">HAND-ROLLED ARCHITECTURAL BRASS</text>
+</svg>
+

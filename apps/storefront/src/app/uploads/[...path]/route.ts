@@ -20,9 +20,44 @@ export async function GET(
     }
 
     const uploadsBase = getStorageUploadsDir();
-    const filePath = path.join(uploadsBase, relativePath);
+    let filePath = path.join(uploadsBase, relativePath);
 
-    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    // If file does not exist in storage uploads, check fallback in docs/products/<slug>/images/
+    if (!fs.existsSync(/*turbopackIgnore: true*/ filePath) || !fs.statSync(/*turbopackIgnore: true*/ filePath).isFile()) {
+      if (pathSegments[0] === "products" && pathSegments.length >= 3) {
+        const productSlug = pathSegments[1];
+        const filename = pathSegments.slice(2).join("/");
+
+        const candidateFallbacks = [
+          path.resolve(process.cwd(), "../../docs/products", productSlug, "images", filename),
+          path.resolve(process.cwd(), "docs/products", productSlug, "images", filename),
+          path.resolve(process.cwd(), "../../docs/products", productSlug, filename),
+          path.resolve(process.cwd(), "docs/products", productSlug, filename),
+        ];
+
+        let foundFallback: string | null = null;
+        for (const candidate of candidateFallbacks) {
+          if (fs.existsSync(/*turbopackIgnore: true*/ candidate) && fs.statSync(/*turbopackIgnore: true*/ candidate).isFile()) {
+            foundFallback = candidate;
+            break;
+          }
+        }
+
+        if (foundFallback) {
+          filePath = foundFallback;
+          // Optionally cache to uploads storage
+          try {
+            const destDir = path.dirname(path.join(uploadsBase, relativePath));
+            fs.mkdirSync(destDir, { recursive: true });
+            fs.copyFileSync(foundFallback, path.join(uploadsBase, relativePath));
+          } catch {
+            // Ignore cache copy error
+          }
+        }
+      }
+    }
+
+    if (!fs.existsSync(/*turbopackIgnore: true*/ filePath) || !fs.statSync(/*turbopackIgnore: true*/ filePath).isFile()) {
       return new NextResponse("File Not Found", { status: 404 });
     }
 
@@ -37,7 +72,7 @@ export async function GET(
     };
 
     const contentType = mimeTypes[ext] || "application/octet-stream";
-    const fileBuffer = fs.readFileSync(filePath);
+    const fileBuffer = fs.readFileSync(/*turbopackIgnore: true*/ filePath);
 
     return new NextResponse(fileBuffer, {
       status: 200,
@@ -51,4 +86,3 @@ export async function GET(
     return new NextResponse("Internal Server Error", { status: 500 });
   }
 }
-

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgS2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#141312"/>
+      <stop offset="100%" stop-color="#0A0909"/>
+    </linearGradient>
+    <linearGradient id="sandStone" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#D4CBBF"/>
+      <stop offset="100%" stop-color="#A89E90"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#bgS2)"/>
+  
+  <!-- Detail View: Natural Sand & Raw Aluminium Variant -->
+  <g transform="translate(180, 160)">
+    <rect x="0" y="0" width="440" height="220" rx="16" fill="url(#sandStone)" stroke="#E5DEC9" stroke-width="2"/>
+    <rect x="40" y="35" width="360" height="24" rx="8" fill="#ECE7DE" stroke="#B8B0A2" stroke-width="1"/>
+    <rect x="40" y="75" width="220" height="24" rx="8" fill="#ECE7DE" stroke="#B8B0A2" stroke-width="1"/>
+    <rect x="40" y="120" width="360" height="70" rx="10" fill="#8C8578"/>
+    <text x="55" y="160" font-family="sans-serif" font-size="10" fill="#FFFFFF" letter-spacing="1">GREY HEATHER MERINO FELT INLAY</text>
+  </g>
+  
+  <text x="400" y="475" text-anchor="middle" font-family="'Cinzel', serif" font-size="14" fill="#C59B56" letter-spacing="4">STRATA · NATURAL SAND EDITION</text>
+  <text x="400" y="497" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#7D756D" letter-spacing="2">HAND-CAST MINERAL AGGREGATE</text>
+</svg>
+

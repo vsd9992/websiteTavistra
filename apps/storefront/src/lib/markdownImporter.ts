@@ -1,7 +1,6 @@
 import fs from "fs";
 import path from "path";
 import * as yaml from "js-yaml";
-import AdmZip from "adm-zip";
 import { prisma, PurchaseMode, Prisma } from "@tavistra/db";
 
 export interface MarkdownVariantInput {
@@ -12,6 +11,12 @@ export interface MarkdownVariantInput {
   taxInclusivePrice: number;
   initialStock?: number;
   image?: string; // relative filename e.g. "images/smoked-oak.jpg" or "smoked-oak.jpg"
+  description?: string;
+  dimensions?: string;
+  weightGrams?: number;
+  lengthMm?: number;
+  widthMm?: number;
+  heightMm?: number;
   isPublished?: boolean;
 }
 
@@ -165,29 +170,56 @@ export function parseProductMarkdown(content: string): ParsedMarkdownProduct {
 
   // Normalize Images
   const rawImages = Array.isArray(doc.images) ? doc.images : [];
-  const images: MarkdownImageInput[] = rawImages.map((img: any, idx: number) => {
-    if (typeof img === "string") {
-      return { src: img.trim(), isPrimary: idx === 0 };
-    }
-    return {
-      src: String(img.src || img.url || "").trim(),
-      altText: img.altText ? String(img.altText).trim() : undefined,
-      isPrimary: Boolean(img.isPrimary || idx === 0),
-    };
-  }).filter((img: MarkdownImageInput) => img.src.length > 0);
+  const images: MarkdownImageInput[] = rawImages
+    .map((img: any, idx: number) => {
+      if (typeof img === "string") {
+        return { src: img.trim(), isPrimary: idx === 0 };
+      }
+      return {
+        src: String(img.src || img.url || "").trim(),
+        altText: img.altText ? String(img.altText).trim() : undefined,
+        isPrimary: Boolean(img.isPrimary || idx === 0),
+      };
+    })
+    .filter((img: MarkdownImageInput) => img.src.length > 0);
 
-  // Normalize Variants
+  // Normalize Variants with inheritance & override support
   const rawVariants = Array.isArray(doc.variants) ? doc.variants : [];
-  let variants: MarkdownVariantInput[] = rawVariants.map((v: any, idx: number) => ({
-    sku: String(v.sku || `${sku}-${String(idx + 1).padStart(2, "0")}`).trim(),
-    title: String(v.title || v.name || doc.variantTitle || "Standard Edition").trim(),
-    materialFinish: v.materialFinish ? String(v.materialFinish).trim() : undefined,
-    color: v.color ? String(v.color).trim() : undefined,
-    taxInclusivePrice: Number(v.taxInclusivePrice ?? basePrice),
-    initialStock: Number(v.initialStock ?? v.stock ?? doc.initialStock ?? 0),
-    image: v.image ? String(v.image).trim() : undefined,
-    isPublished: v.isPublished !== false,
-  }));
+  let variants: MarkdownVariantInput[] = rawVariants.map((v: any, idx: number) => {
+    const vPrice =
+      v.taxInclusivePrice !== undefined && v.taxInclusivePrice !== null && v.taxInclusivePrice !== ""
+        ? Number(v.taxInclusivePrice)
+        : basePrice;
+
+    return {
+      sku: String(v.sku || `${sku}-${String(idx + 1).padStart(2, "0")}`).trim(),
+      title: String(v.title || v.name || doc.variantTitle || "Standard Edition").trim(),
+      materialFinish: v.materialFinish ? String(v.materialFinish).trim() : undefined,
+      color: v.color ? String(v.color).trim() : undefined,
+      taxInclusivePrice: vPrice,
+      initialStock: Number(v.initialStock ?? v.stock ?? doc.initialStock ?? 0),
+      image: v.image ? String(v.image).trim() : undefined,
+      description: v.description ? String(v.description).trim() : undefined,
+      dimensions: v.dimensions ? String(v.dimensions).trim() : undefined,
+      weightGrams:
+        v.weightGrams !== undefined && v.weightGrams !== null && v.weightGrams !== ""
+          ? Number(v.weightGrams)
+          : undefined,
+      lengthMm:
+        v.lengthMm !== undefined && v.lengthMm !== null && v.lengthMm !== ""
+          ? Number(v.lengthMm)
+          : undefined,
+      widthMm:
+        v.widthMm !== undefined && v.widthMm !== null && v.widthMm !== ""
+          ? Number(v.widthMm)
+          : undefined,
+      heightMm:
+        v.heightMm !== undefined && v.heightMm !== null && v.heightMm !== ""
+          ? Number(v.heightMm)
+          : undefined,
+      isPublished: v.isPublished !== false,
+    };
+  });
 
   // Fallback to single primary variant if none explicitly defined in frontmatter
   if (variants.length === 0) {
@@ -338,25 +370,28 @@ export async function importProductToDatabase(parsed: ParsedMarkdownProduct, sta
   const upsertedVariants = [];
   for (const v of parsed.variants) {
     const variantImageUrl = v.image ? resolveImageUrl(v.image, product.slug) : undefined;
+    const variantData = {
+      title: v.title,
+      materialFinish: v.materialFinish || parsed.materialDescription,
+      color: v.color,
+      imageUrl: variantImageUrl,
+      taxInclusivePrice: new Prisma.Decimal(v.taxInclusivePrice),
+      description: v.description || null,
+      dimensions: v.dimensions || null,
+      weightGrams: v.weightGrams ?? null,
+      lengthMm: v.lengthMm ?? null,
+      widthMm: v.widthMm ?? null,
+      heightMm: v.heightMm ?? null,
+      isPublished: v.isPublished !== false,
+    };
+
     const variant = await prisma.productVariant.upsert({
       where: { sku: v.sku },
-      update: {
-        title: v.title,
-        materialFinish: v.materialFinish || parsed.materialDescription,
-        color: v.color,
-        imageUrl: variantImageUrl,
-        taxInclusivePrice: new Prisma.Decimal(v.taxInclusivePrice),
-        isPublished: v.isPublished !== false,
-      },
+      update: variantData,
       create: {
         productId: product.id,
         sku: v.sku,
-        title: v.title,
-        materialFinish: v.materialFinish || parsed.materialDescription,
-        color: v.color,
-        imageUrl: variantImageUrl,
-        taxInclusivePrice: new Prisma.Decimal(v.taxInclusivePrice),
-        isPublished: v.isPublished !== false,
+        ...variantData,
       },
     });
 
@@ -400,56 +435,9 @@ export async function importProductToDatabase(parsed: ParsedMarkdownProduct, sta
 }
 
 /**
- * Unpacks an uploaded .zip product package archive containing:
- * - <product-slug>.md or product.md (the master Markdown document)
- * - images/ (directory containing all referenced images)
- * Saves all images into persistent host storage at /storage/uploads/products/<slug>/
- * and upserts the product and variants into PostgreSQL.
- */
-export async function importProductZipPackage(zipBuffer: Buffer, staffName: string = "Admin Staff") {
-  const zip = new AdmZip(zipBuffer);
-  const zipEntries = zip.getEntries();
-
-  // Find the master markdown file
-  const mdEntry = zipEntries.find((e) => !e.isDirectory && e.entryName.toLowerCase().endsWith(".md"));
-  if (!mdEntry) {
-    throw new Error("Invalid product package: No .md markdown file found in the archive.");
-  }
-
-  const markdownContent = mdEntry.getData().toString("utf-8");
-  const parsed = parseProductMarkdown(markdownContent);
-
-  // Extract all media files into persistent storage
-  const uploadsBase = getStorageUploadsDir();
-  const productMediaDir = path.join(uploadsBase, "products", parsed.slug);
-  fs.mkdirSync(productMediaDir, { recursive: true });
-
-  const imageEntries = zipEntries.filter(
-    (e) => !e.isDirectory && /\.(png|jpe?g|webp|svg|gif)$/i.test(e.entryName)
-  );
-
-  const extractedFiles: string[] = [];
-  for (const entry of imageEntries) {
-    const filename = path.basename(entry.entryName);
-    const targetFile = path.join(productMediaDir, filename);
-    fs.writeFileSync(targetFile, entry.getData());
-    extractedFiles.push(filename);
-  }
-
-  // Import parsed product into PostgreSQL
-  const result = await importProductToDatabase(parsed, staffName);
-
-  return {
-    success: true,
-    product: result.product,
-    variants: result.variants,
-    extractedImages: extractedFiles,
-    storagePath: productMediaDir,
-  };
-}
-
-/**
- * Scans docs/products directory (or subfolders) and imports all markdown editions.
+ * Scans docs/products directory folders and imports all markdown editions.
+ * Ignores loose root files; strictly processes isolated product folders:
+ * docs/products/<slug>/<slug>.md + docs/products/<slug>/images/*
  */
 export async function syncAllMarkdownEditionsFromDisk(staffName: string = "Admin Staff") {
   const docsDir = path.resolve(process.cwd(), "../../docs/products");
@@ -464,64 +452,50 @@ export async function syncAllMarkdownEditionsFromDisk(staffName: string = "Admin
   const importedList = [];
 
   for (const item of items) {
-    if (item.isFile() && item.name.endsWith(".md")) {
-      const fullPath = path.join(targetDir, item.name);
-      const content = fs.readFileSync(fullPath, "utf-8");
+    // Only process subdirectories (each product is an isolated master folder)
+    if (!item.isDirectory()) {
+      continue;
+    }
+
+    const folderPath = path.join(targetDir, item.name);
+    const subFiles = fs.readdirSync(folderPath);
+    const mdFile = subFiles.find((f) => f.endsWith(".md"));
+
+    if (mdFile) {
+      const content = fs.readFileSync(path.join(folderPath, mdFile), "utf-8");
       try {
         const parsed = parseProductMarkdown(content);
+
+        // Copy images from folder's images/ subfolder to persistent storage if present
+        const imagesFolder = path.join(folderPath, "images");
+        if (fs.existsSync(imagesFolder)) {
+          const uploadsBase = getStorageUploadsDir();
+          const productMediaDir = path.join(uploadsBase, "products", parsed.slug);
+          fs.mkdirSync(productMediaDir, { recursive: true });
+
+          const imageFiles = fs.readdirSync(imagesFolder);
+          for (const img of imageFiles) {
+            fs.copyFileSync(path.join(imagesFolder, img), path.join(productMediaDir, img));
+          }
+        }
+
         const res = await importProductToDatabase(parsed, staffName);
         importedList.push({
-          file: item.name,
+          folder: item.name,
+          file: mdFile,
           sku: parsed.sku,
           title: parsed.title,
           status: "SUCCESS",
           id: res.product.id,
+          variantCount: res.variants.length,
         });
       } catch (err: unknown) {
         importedList.push({
-          file: item.name,
+          folder: item.name,
+          file: mdFile,
           status: "ERROR",
           error: (err as Error).message,
         });
-      }
-    } else if (item.isDirectory()) {
-      // Folder structure: <slug>/<slug>.md or <slug>/product.md + images/
-      const folderPath = path.join(targetDir, item.name);
-      const subFiles = fs.readdirSync(folderPath);
-      const mdFile = subFiles.find((f) => f.endsWith(".md"));
-      if (mdFile) {
-        const content = fs.readFileSync(path.join(folderPath, mdFile), "utf-8");
-        try {
-          const parsed = parseProductMarkdown(content);
-
-          // Copy images from folder's images/ subfolder to persistent storage if present
-          const imagesFolder = path.join(folderPath, "images");
-          if (fs.existsSync(imagesFolder)) {
-            const uploadsBase = getStorageUploadsDir();
-            const productMediaDir = path.join(uploadsBase, "products", parsed.slug);
-            fs.mkdirSync(productMediaDir, { recursive: true });
-
-            const imageFiles = fs.readdirSync(imagesFolder);
-            for (const img of imageFiles) {
-              fs.copyFileSync(path.join(imagesFolder, img), path.join(productMediaDir, img));
-            }
-          }
-
-          const res = await importProductToDatabase(parsed, staffName);
-          importedList.push({
-            file: `${item.name}/${mdFile}`,
-            sku: parsed.sku,
-            title: parsed.title,
-            status: "SUCCESS",
-            id: res.product.id,
-          });
-        } catch (err: unknown) {
-          importedList.push({
-            file: `${item.name}/${mdFile}`,
-            status: "ERROR",
-            error: (err as Error).message,
-          });
-        }
       }
     }
   }

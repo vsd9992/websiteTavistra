@@ -34,3 +34,4 @@ Implement an isolated, production-grade product content pipeline supporting a ma
 5. **Sample Product Package & Verification**:
    - Authored master folder and archive: `docs/products/monolith-minimalist-wall-clock/` with 2 variants (Matte Obsidian ₹14,500 and Raw Aluminium ₹16,200) and SVG media assets.
    - Verified end-to-end import, database records, and storefront PDP switching live on `devMachine` (`192.168.1.100`).
+

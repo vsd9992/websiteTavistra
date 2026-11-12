@@ -103,6 +103,9 @@ export interface CatalogueVariantItem {
   imageUrl?: string | null;
   priceRupees: number;
   stock: number;
+  description?: string;
+  dimensions?: string;
+  weightGrams?: number;
   isPublished?: boolean;
 }
 

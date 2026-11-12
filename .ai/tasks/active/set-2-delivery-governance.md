@@ -23,3 +23,4 @@ Finalize and harden Set 2 as an isolated functional unit, ensuring postal code s
 3. **Institutional Copy & Brand Compliance**:
    - Verify strict brand entity nomenclature: **VDesign** (never "VDesign Studio", prohibited term: "Commission").
    - Review and align institutional policy pages: `/shipping-policy`, `/terms`, `/privacy`, `/refund-policy`, `/about`, `/contact`.
+

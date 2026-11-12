@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgL" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#161514"/>
+      <stop offset="100%" stop-color="#0B0A09"/>
+    </linearGradient>
+    <linearGradient id="brassLamp" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E5C388"/>
+      <stop offset="50%" stop-color="#C59B56"/>
+      <stop offset="100%" stop-color="#7C5921"/>
+    </linearGradient>
+    <linearGradient id="glowWarm" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFE4B5" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#FFA500" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#bgL)"/>
+  
+  <!-- Counterbalanced Lamp Schematic -->
+  <g transform="translate(160, 100)">
+    <!-- Base -->
+    <ellipse cx="140" cy="400" rx="90" ry="24" fill="#2E2C28" stroke="url(#brassLamp)" stroke-width="4"/>
+    <rect x="130" y="380" width="20" height="20" fill="url(#brassLamp)"/>
+    
+    <!-- Main Upright Arm -->
+    <line x1="140" y1="380" x2="220" y2="180" stroke="#524E48" stroke-width="10" stroke-linecap="round"/>
+    
+    <!-- Articulation Joint -->
+    <circle cx="220" cy="180" r="18" fill="url(#brassLamp)"/>
+    <circle cx="220" cy="180" r="6" fill="#1A1816"/>
+    
+    <!-- Reach Arm & Counterweight -->
+    <line x1="160" y1="210" x2="440" y2="120" stroke="#524E48" stroke-width="8" stroke-linecap="round"/>
+    <!-- Brass Counterweight -->
+    <circle cx="160" cy="210" r="24" fill="url(#brassLamp)"/>
+    
+    <!-- Lamp Head -->
+    <g transform="translate(440, 120)">
+      <polygon points="0,0 60,-15 70,25 0,10" fill="#2E2C28" stroke="url(#brassLamp)" stroke-width="2"/>
+      <!-- Warm Light Cone -->
+      <polygon points="20,10 200,320 0,320" fill="url(#glowWarm)"/>
+    </g>
+  </g>
+  
+  <text x="400" y="540" text-anchor="middle" font-family="'Cinzel', serif" font-size="14" fill="#C59B56" letter-spacing="4">TAVISTRA · AETHER ARCHITECTURAL LAMP</text>
+  <text x="400" y="562" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#7D756D" letter-spacing="2">COUNTERBALANCED ARTICULATED ARM · 2700K HIGH-CRI</text>
+</svg>
+

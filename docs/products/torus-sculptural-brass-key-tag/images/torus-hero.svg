@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgT" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#181615"/>
+      <stop offset="100%" stop-color="#0D0B0A"/>
+    </linearGradient>
+    <linearGradient id="brassTorus" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F2D8A7"/>
+      <stop offset="50%" stop-color="#C59B56"/>
+      <stop offset="100%" stop-color="#805C23"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#bgT)"/>
+  
+  <!-- Torus Key Tag -->
+  <g transform="translate(260, 140)">
+    <!-- Shadow -->
+    <ellipse cx="140" cy="220" rx="140" ry="40" fill="#000000" opacity="0.4" filter="blur(15px)"/>
+    
+    <!-- Outer Ring -->
+    <circle cx="140" cy="140" r="110" fill="none" stroke="url(#brassTorus)" stroke-width="40"/>
+    
+    <!-- Threaded Barrel Joint -->
+    <rect x="120" y="20" width="40" height="25" rx="4" fill="#3D3A34" stroke="url(#brassTorus)" stroke-width="2"/>
+    <!-- Knurling Lines on Barrel -->
+    <line x1="128" y1="23" x2="128" y2="42" stroke="#FFF5E0" stroke-width="1.5" opacity="0.6"/>
+    <line x1="135" y1="23" x2="135" y2="42" stroke="#FFF5E0" stroke-width="1.5" opacity="0.6"/>
+    <line x1="142" y1="23" x2="142" y2="42" stroke="#FFF5E0" stroke-width="1.5" opacity="0.6"/>
+    <line x1="150" y1="23" x2="150" y2="42" stroke="#FFF5E0" stroke-width="1.5" opacity="0.6"/>
+    
+    <!-- Chamfer Highlight Ring -->
+    <circle cx="140" cy="140" r="92" fill="none" stroke="#FFF5E0" stroke-width="1" opacity="0.3"/>
+  </g>
+  
+  <text x="400" y="475" text-anchor="middle" font-family="'Cinzel', serif" font-size="14" fill="#C59B56" letter-spacing="4">TAVISTRA · TORUS SCULPTURAL KEY TAG</text>
+  <text x="400" y="497" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#7D756D" letter-spacing="2">LOST-WAX CAST BRASS &amp; TITANIUM LOCKING WIRE</text>
+</svg>
+

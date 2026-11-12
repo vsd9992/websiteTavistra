@@ -9,6 +9,13 @@ export interface ProductVariantView {
   imageUrl?: string | null;
   pricePaise: number;
   stock: number;
+  // Overrides (optional, falls back to master product)
+  description?: string | null;
+  dimensions?: string | null;
+  weightGrams?: number | null;
+  lengthMm?: number | null;
+  widthMm?: number | null;
+  heightMm?: number | null;
 }
 
 export interface ProductImageView {
