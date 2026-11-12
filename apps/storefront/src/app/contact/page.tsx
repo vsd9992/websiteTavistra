@@ -29,6 +29,11 @@ function ContactFormContent() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [referenceNumber, setReferenceNumber] = useState<string | null>(null);
+  const initialProductName =
+    productParam && skuParam && !productParam.toLowerCase().includes(skuParam.toLowerCase())
+      ? `${productParam} [${skuParam}]`
+      : productParam;
+
   const [formData, setFormData] = useState({
     name: "",
     practiceOrStudio: "",
@@ -36,7 +41,7 @@ function ContactFormContent() {
     phone: "",
     subject: subjectParam,
     pincode: pincodeParam,
-    productName: productParam,
+    productName: initialProductName,
     quantity: quantityParam || "10",
     message:
       messageParam ||

@@ -168,16 +168,22 @@ export default function CartPage() {
   const mtoBalancePaise = activeTotalPaise - mtoAdvancePaise;
 
   const getBulkEnquiryHref = () => {
-    const structuredItems = activeItems.map((item) => ({
-      name: item.product.name,
-      finish: item.product.variantTitle || "Standard Studio Finish",
-      quantity: item.quantity,
-      unitPriceRupees: Math.round(item.product.pricePaise / 100),
-    }));
+    const structuredItems = activeItems.map((item) => {
+      const skuCode = item.product.sku || item.product.variantId;
+      const skuTag = skuCode ? ` [${skuCode}]` : "";
+      return {
+        name: `${item.product.name}${skuTag}`,
+        finish: item.product.variantTitle || "Standard Studio Finish",
+        quantity: item.quantity,
+        unitPriceRupees: Math.round(item.product.pricePaise / 100),
+      };
+    });
 
     const lines = activeItems.map((item) => {
+      const skuCode = item.product.sku || item.product.variantId;
+      const skuTag = skuCode ? ` [${skuCode}]` : "";
       const finishText = item.product.variantTitle ? ` (${item.product.variantTitle})` : "";
-      return `- ${item.product.name}${finishText} × ${item.quantity} @ ₹${Math.round(
+      return `- ${item.product.name}${skuTag}${finishText} × ${item.quantity} @ ₹${Math.round(
         item.product.pricePaise / 100
       ).toLocaleString("en-IN")} each`;
     });

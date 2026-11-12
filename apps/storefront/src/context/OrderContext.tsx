@@ -17,6 +17,15 @@ export type OrderStatus =
   | "CANCELLED"
   | "REFUNDED";
 
+export interface OrderRefundRecord {
+  amountRupees: number;
+  status: string;
+  gateway?: string;
+  reference?: string;
+  verifiedAt?: string | null;
+  notes?: string | null;
+}
+
 export interface OrderRecord {
   id: string;
   orderNumber?: string;
@@ -56,6 +65,8 @@ export interface OrderRecord {
   graceDaysRemaining?: number;
   qcNotes?: string;
   qcImages?: string[];
+  refund?: OrderRefundRecord | null;
+  cancelledAt?: string | null;
   createdAt: string;
 }
 

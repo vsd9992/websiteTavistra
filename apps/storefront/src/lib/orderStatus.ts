@@ -57,6 +57,15 @@ export function safeParseQcImages(raw: string | null | undefined): string[] {
   }
 }
 
+export interface OrderRefundInfo {
+  amountRupees: number;
+  status: "COMPLETED" | "PENDING" | string;
+  gateway?: string;
+  reference?: string;
+  verifiedAt?: string | null;
+  notes?: string | null;
+}
+
 export interface OrderPresentationInput {
   status: OrderStatus | string;
   purchaseMode: PurchaseMode | string;
@@ -64,18 +73,57 @@ export interface OrderPresentationInput {
   amountPaid: number | { toNumber?: () => number } | string;
   carrierName?: string | null;
   trackingNumber?: string | null;
-  confirmedAt?: Date | null;
+  confirmedAt?: Date | string | null;
+  cancelledAt?: Date | string | null;
+  payments?: Array<{
+    paymentType: string;
+    amount: number | { toNumber?: () => number } | string;
+    status: string;
+    gateway?: string | null;
+    gatewayTransactionId?: string | null;
+    verifiedAt?: Date | string | null;
+    notes?: string | null;
+    createdAt?: Date | string | null;
+  }> | null;
 }
 
 export function deriveOrderStatusPresentation(order: OrderPresentationInput) {
   const balanceDue = Number(order.balanceAmount);
   const isFullyPaid = balanceDue <= 0;
   const isMto = order.purchaseMode === PurchaseMode.MADE_TO_ORDER || order.purchaseMode === "MADE_TO_ORDER";
-  const grace = computeGraceWindow(order.confirmedAt ?? null);
+  const grace = computeGraceWindow(order.confirmedAt ? new Date(order.confirmedAt) : null);
+  const isCancelled = order.status === "CANCELLED" || order.status === "REFUNDED";
+
+  const refundPayment = (order.payments || []).find(
+    (p) => p.paymentType === "REFUND" || p.status === "REFUNDED"
+  );
+  const refundAmount = refundPayment ? Number(refundPayment.amount) : Number(order.amountPaid);
+
+  let refund: OrderRefundInfo | null = null;
+  if (isCancelled && (refundPayment || refundAmount > 0)) {
+    const refundDate = refundPayment?.verifiedAt || refundPayment?.createdAt || order.cancelledAt;
+    refund = {
+      amountRupees: refundAmount,
+      status: refundPayment ? refundPayment.status : "COMPLETED",
+      gateway: refundPayment?.gateway || "PHONEPE_REFUND",
+      reference: refundPayment?.gatewayTransactionId || "REF-STATUTORY",
+      verifiedAt: refundDate
+        ? new Date(refundDate).toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })
+        : null,
+      notes: refundPayment?.notes || "100% pre-production / pre-dispatch statutory refund.",
+    };
+  }
 
   let paymentStatusLabel = "Pending Payment";
-  if (order.status === "CANCELLED" || order.status === "REFUNDED") {
-    paymentStatusLabel = "Cancelled & Refunded";
+  if (isCancelled) {
+    paymentStatusLabel =
+      refund?.status === "COMPLETED"
+        ? "Cancelled · 100% Refunded"
+        : "Cancelled · Refund Initiated";
   } else if (isFullyPaid) {
     paymentStatusLabel = "100% Paid — Verified";
   } else if (Number(order.amountPaid) > 0) {
@@ -146,11 +194,13 @@ export function deriveOrderStatusPresentation(order: OrderPresentationInput) {
 
   return {
     isFullyPaid,
+    isCancelled,
     paymentStatusLabel,
     statusLabel,
     statusDescription,
     graceDaysRemaining: grace.graceDaysRemaining,
     isGraceActive: grace.isGraceActive,
     releaseEligibleDate: grace.releaseEligibleDate,
+    refund,
   };
 }

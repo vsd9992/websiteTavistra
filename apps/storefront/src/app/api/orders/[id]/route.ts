@@ -362,6 +362,7 @@ export async function PATCH(
 
     // 5. Pre-production / Pre-dispatch 100% refund cancellation
     if (action === "CANCEL_ORDER") {
+      const { refundReference, refundGateway, refundNotes } = body;
       if (order.status === OrderStatus.CANCELLED || order.status === OrderStatus.REFUNDED) {
         return NextResponse.json(
           { error: "ALREADY_CANCELLED", message: "Order is already cancelled." },
@@ -390,7 +391,7 @@ export async function PATCH(
       }
 
       const updated = await prisma.$transaction(async (tx) => {
-        const resOrder = await tx.order.update({
+        await tx.order.update({
           where: { id: order.id },
           data: {
             status: OrderStatus.CANCELLED,
@@ -407,10 +408,10 @@ export async function PATCH(
               paymentType: PaymentType.REFUND,
               amount: paidRupees,
               status: PaymentStatus.COMPLETED,
-              gateway: "PHONEPE_REFUND",
-              gatewayTransactionId: `REF-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+              gateway: refundGateway || "PHONEPE_REFUND",
+              gatewayTransactionId: refundReference || `REF-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
               verifiedAt: new Date(),
-              notes: "100% pre-production / pre-dispatch statutory refund.",
+              notes: refundNotes || "100% pre-production / pre-dispatch statutory refund.",
             },
           });
         }
@@ -448,16 +449,83 @@ export async function PATCH(
             payloadJson: JSON.stringify({
               staff: actorName,
               refundAmountRupees: paidRupees,
+              refundReference: refundReference || undefined,
             }),
           },
         });
 
-        return resOrder;
+        const refreshed = await tx.order.findUniqueOrThrow({
+          where: { id: order.id },
+          include: { payments: true, items: true, shippingAddress: true },
+        });
+
+        return refreshed;
       });
 
       return NextResponse.json({
         success: true,
         message: "Order cancelled and marked for 100% pre-production refund.",
+        order: { ...updated, ...deriveOrderStatusPresentation(updated) },
+      });
+    }
+
+    // 6. Record or update refund reference (e.g. Bank UTR / Gateway refund transaction)
+    if (action === "RECORD_REFUND" || action === "UPDATE_REFUND") {
+      const { refundReference, refundGateway, refundNotes, refundStatus } = body;
+      const existingRefund = await prisma.payment.findFirst({
+        where: {
+          orderId: order.id,
+          paymentType: PaymentType.REFUND,
+        },
+      });
+
+      if (existingRefund) {
+        await prisma.payment.update({
+          where: { id: existingRefund.id },
+          data: {
+            gatewayTransactionId: refundReference || existingRefund.gatewayTransactionId,
+            gateway: refundGateway || existingRefund.gateway,
+            notes: refundNotes || existingRefund.notes,
+            status: refundStatus === "PENDING" ? PaymentStatus.PENDING : PaymentStatus.COMPLETED,
+            verifiedAt: new Date(),
+          },
+        });
+      } else {
+        await prisma.payment.create({
+          data: {
+            orderId: order.id,
+            paymentType: PaymentType.REFUND,
+            amount: Number(order.amountPaid),
+            status: refundStatus === "PENDING" ? PaymentStatus.PENDING : PaymentStatus.COMPLETED,
+            gateway: refundGateway || "PHONEPE_REFUND",
+            gatewayTransactionId: refundReference || `REF-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            verifiedAt: new Date(),
+            notes: refundNotes || "Manual statutory refund recorded by staff.",
+          },
+        });
+      }
+
+      await prisma.auditLog.create({
+        data: {
+          action: "ORDER_REFUND_UPDATED",
+          entityType: "Order",
+          entityId: order.orderNumber,
+          payloadJson: JSON.stringify({
+            staff: actorName,
+            refundReference,
+            refundGateway,
+          }),
+        },
+      });
+
+      const updated = await prisma.order.findUniqueOrThrow({
+        where: { id: order.id },
+        include: { payments: true, items: true, shippingAddress: true },
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: "Refund record updated cleanly.",
         order: { ...updated, ...deriveOrderStatusPresentation(updated) },
       });
     }

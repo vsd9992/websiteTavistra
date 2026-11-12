@@ -446,10 +446,47 @@ async function run() {
       });
       const cancelGraceData = await cancelGraceRes.json();
       assert(
-        cancelGraceRes.ok && cancelGraceData.order?.status === "CANCELLED",
+        cancelGraceRes.ok &&
+          cancelGraceData.order?.status === "CANCELLED" &&
+          cancelGraceData.order?.isCancelled === true &&
+          cancelGraceData.order?.refund?.amountRupees > 0,
         "Pre-Production Cancel During Grace Creates Refund & Cancels Order",
         "Grace Cancel",
         `status=${cancelGraceRes.status} orderStatus=${cancelGraceData.order?.status}`
+      );
+
+      // Verify Admin UTR recording and tracking on cancelled order
+      const updateRefundRes = await fetch(`${ADMIN_URL}/api/orders/${orderNum2}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "UPDATE_REFUND",
+          refundReference: "UTR9876543210",
+          refundGateway: "PHONEPE_REFUND",
+          staffName: "QA Finance Desk",
+        }),
+      });
+      const updateRefundData = await updateRefundRes.json();
+      assert(
+        updateRefundRes.ok &&
+          updateRefundData.order?.refund?.reference === "UTR9876543210",
+        "Admin Updates and Tracks Bank/Gateway Refund UTR on Cancelled Order",
+        "Refund Tracking",
+        JSON.stringify(updateRefundData.order?.refund || {})
+      );
+
+      // Verify Storefront Tracking API returns structured refund and UTR reference
+      const trackLookupRes = await fetch(
+        `${STOREFRONT_URL}/api/orders?orderId=${orderNum2}&contact=${encodeURIComponent(qaEmail)}`
+      );
+      const trackLookupData = await trackLookupRes.json();
+      assert(
+        trackLookupRes.ok &&
+          trackLookupData.order?.isCancelled === true &&
+          trackLookupData.order?.refund?.reference === "UTR9876543210",
+        "Storefront Tracking API Reflects Cancelled Order & Refund UTR Reference",
+        "Refund Tracking",
+        JSON.stringify(trackLookupData.order?.refund || {})
       );
     }
 

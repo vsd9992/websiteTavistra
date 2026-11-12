@@ -72,7 +72,7 @@ export function ProductPurchaseAction({
           <Link
             href={`/contact?subject=Architectural%20%26%20Bespoke%20Order%20(Quote%20Only)&product=${encodeURIComponent(
               product.name
-            )}&sku=${encodeURIComponent(product.id)}&materials=${encodeURIComponent(
+            )}&sku=${encodeURIComponent(product.sku || product.id)}&materials=${encodeURIComponent(
               product.materials.join(", ")
             )}`}
             className="block text-center w-full rounded-full bg-[var(--color-ink)] py-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] transition-all hover:bg-[var(--color-charcoal)] shadow-sm"

@@ -113,6 +113,13 @@ export async function GET(req: NextRequest) {
           ...presentation,
           qcNotes: order.qcNotes || undefined,
           qcImages: qcImagesArray,
+          cancelledAt: order.cancelledAt
+            ? order.cancelledAt.toLocaleDateString("en-IN", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })
+            : null,
           createdAt: order.createdAt.toLocaleDateString("en-IN", {
             day: "numeric",
             month: "long",
@@ -176,6 +183,13 @@ export async function GET(req: NextRequest) {
           ...deriveOrderStatusPresentation(order),
           qcNotes: order.qcNotes || undefined,
           qcImages: safeParseQcImages(order.qcImages),
+          cancelledAt: order.cancelledAt
+            ? order.cancelledAt.toLocaleDateString("en-IN", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })
+            : null,
           createdAt: order.createdAt.toLocaleDateString("en-IN", {
             day: "numeric",
             month: "long",
@@ -227,6 +241,13 @@ export async function GET(req: NextRequest) {
         ...deriveOrderStatusPresentation(order),
         qcNotes: order.qcNotes || undefined,
         qcImages: safeParseQcImages(order.qcImages),
+        cancelledAt: order.cancelledAt
+          ? order.cancelledAt.toLocaleDateString("en-IN", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            })
+          : null,
         placedAt: order.createdAt.toLocaleDateString("en-IN", {
           day: "numeric",
           month: "short",

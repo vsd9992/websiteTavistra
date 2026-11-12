@@ -77,8 +77,16 @@ export default function AccountOverviewPage() {
     };
   }, [isAuthenticated, user?.email]);
 
-  const activeCount = orders.filter((o) => o.status !== "DISPATCHED").length;
-  const totalBalanceDue = orders.reduce((acc, o) => acc + (o.balanceDueRupees || 0), 0);
+  const activeCount = orders.filter(
+    (o) =>
+      o.status !== "DISPATCHED" &&
+      o.status !== "DELIVERED" &&
+      o.status !== "CANCELLED" &&
+      o.status !== "REFUNDED"
+  ).length;
+  const totalBalanceDue = orders
+    .filter((o) => o.status !== "CANCELLED" && o.status !== "REFUNDED")
+    .reduce((acc, o) => acc + (o.balanceDueRupees || 0), 0);
   const defaultAddress = user?.addresses.find((a) => a.isDefault) || user?.addresses[0] || null;
 
   return (
@@ -232,7 +240,13 @@ export default function AccountOverviewPage() {
                             <span className="font-mono text-xs font-bold text-[var(--color-ink)]">
                               {order.orderNumber}
                             </span>
-                            <span className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            <span
+                              className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                                order.status === "CANCELLED" || order.status === "REFUNDED"
+                                  ? "bg-rose-50 text-rose-800 border border-rose-200"
+                                  : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                              }`}
+                            >
                               {order.statusLabel}
                             </span>
                           </div>

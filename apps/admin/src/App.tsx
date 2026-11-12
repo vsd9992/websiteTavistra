@@ -162,6 +162,8 @@ export default function App() {
   const [modeFilter, setModeFilter] = useState<"ALL" | "READY_STOCK" | "MADE_TO_ORDER">("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
+  const [refundUtrInput, setRefundUtrInput] = useState("");
+  const [isUpdatingRefund, setIsUpdatingRefund] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [copiedLinkOrderId, setCopiedLinkOrderId] = useState<string | null>(null);
 
@@ -255,20 +257,40 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (selectedOrder) {
+      setRefundUtrInput(selectedOrder.refund?.reference || "");
+    }
+  }, [selectedOrder]);
+
+  useEffect(() => {
     void syncBackendData();
   }, []);
 
   // Statistics
   const stats = useMemo(() => {
-    const totalRevenue = orders.reduce((acc, o) => acc + o.amountPaidRupees, 0);
-    const mtoGraceCount = orders.filter((o) => o.status === "GRACE_PERIOD_ACTIVE" || o.status === "CONFIRMED").length;
-    const inProductionCount = orders.filter((o) => o.status === "WORKSHOP_CRAFTING" || o.status === "IN_PRODUCTION").length;
+    const grossRevenue = orders.reduce((acc, o) => acc + o.amountPaidRupees, 0);
+    const cancelledOrders = orders.filter((o) => o.status === "CANCELLED" || o.status === "REFUNDED");
+    const totalRefunded = cancelledOrders.reduce(
+      (acc, o) => acc + (o.refund?.amountRupees ?? o.amountPaidRupees),
+      0
+    );
+    const netRevenue = Math.max(0, grossRevenue - totalRefunded);
+    const mtoGraceCount = orders.filter(
+      (o) => o.status === "GRACE_PERIOD_ACTIVE" || o.status === "CONFIRMED"
+    ).length;
+    const inProductionCount = orders.filter(
+      (o) => o.status === "WORKSHOP_CRAFTING" || o.status === "IN_PRODUCTION"
+    ).length;
     const openTicketsCount = tickets.filter((t) => t.status === "OPEN" || t.status === "IN_PROGRESS").length;
     const newInquiriesCount = inquiries.filter((i) => i.status === "NEW").length;
     const serviceablePinsCount = pincodes.filter((p) => p.isServiceable).length;
 
     return {
-      totalRevenue,
+      totalRevenue: netRevenue,
+      grossRevenue,
+      totalRefunded,
+      netRevenue,
+      cancelledOrdersCount: cancelledOrders.length,
       mtoGraceCount,
       inProductionCount,
       openTicketsCount,
@@ -408,6 +430,53 @@ export default function App() {
         type: "error",
         text: `Backend cancel failed: ${(err as Error).message}`,
       });
+    }
+  };
+
+  // Record or update refund reference (Bank UTR / Gateway transaction ID)
+  const handleUpdateRefundReference = async (orderId: string) => {
+    if (!refundUtrInput.trim()) return;
+    setIsUpdatingRefund(true);
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "UPDATE_REFUND",
+          refundReference: refundUtrInput.trim(),
+          refundGateway: "PHONEPE_REFUND",
+          staffName: currentStaff.name,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.message || data.error || "Failed to update refund record.");
+        return;
+      }
+      logAuditAction(
+        "ORDER_REFUND_UPDATED",
+        "Order",
+        selectedOrder?.orderNumber || orderId,
+        `Recorded refund gateway/UTR reference ${refundUtrInput.trim()}.`
+      );
+      await syncBackendData();
+      if (selectedOrder) {
+        setSelectedOrder({
+          ...selectedOrder,
+          refund: {
+            amountRupees: selectedOrder.refund?.amountRupees ?? selectedOrder.amountPaidRupees,
+            status: "COMPLETED",
+            reference: refundUtrInput.trim(),
+            gateway: "PHONEPE_REFUND",
+            verifiedAt: "Just now",
+          },
+        });
+      }
+      alert("Refund reference / UTR recorded successfully.");
+    } catch (err) {
+      alert((err as Error).message || "Network error updating refund.");
+    } finally {
+      setIsUpdatingRefund(false);
     }
   };
 
@@ -1170,10 +1239,22 @@ export default function App() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               <div className="p-5 rounded-2xl bg-[#1c1c20] border border-[#2e2e34] space-y-2">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-[#9e9ea8]">
-                  Verified Revenue
+                  Net Verified Revenue
                 </span>
-                <p className="text-2xl font-bold text-white">{formatPrice(stats.totalRevenue)}</p>
-                <p className="text-[11px] text-[#10b981]">Advance & Full Payments</p>
+                <p className="text-2xl font-bold text-white">{formatPrice(stats.netRevenue)}</p>
+                <p className="text-[11px] text-[#10b981]">
+                  Gross: {formatPrice(stats.grossRevenue)} · Refunds: {formatPrice(stats.totalRefunded)}
+                </p>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-[#1c1c20] border border-[#2e2e34] space-y-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-[#9e9ea8]">
+                  Cancelled & Refunds
+                </span>
+                <p className="text-2xl font-bold text-red-400">{stats.cancelledOrdersCount}</p>
+                <p className="text-[11px] text-[#9e9ea8]">
+                  {formatPrice(stats.totalRefunded)} total refunded
+                </p>
               </div>
 
               <div className="p-5 rounded-2xl bg-[#1c1c20] border border-[#2e2e34] space-y-2">
@@ -1190,14 +1271,6 @@ export default function App() {
                 </span>
                 <p className="text-2xl font-bold text-[#f43f5e]">{stats.openTicketsCount}</p>
                 <p className="text-[11px] text-[#9e9ea8]">Alterations & requests</p>
-              </div>
-
-              <div className="p-5 rounded-2xl bg-[#1c1c20] border border-[#2e2e34] space-y-2">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-[#9e9ea8]">
-                  Active Delivery PINs
-                </span>
-                <p className="text-2xl font-bold text-white">{stats.serviceablePinsCount}</p>
-                <p className="text-[11px] text-[#9e9ea8]">Across Zones A, B, C, D</p>
               </div>
             </div>
 
@@ -1366,14 +1439,33 @@ export default function App() {
                       </td>
                       <td className="py-4 px-4">
                         <p className="font-semibold text-white">{formatPrice(order.totalAmountRupees)}</p>
-                        <p className="text-[11px] text-[#10b981]">Paid: {formatPrice(order.amountPaidRupees)}</p>
-                        {order.balanceDueRupees > 0 && (
-                          <p className="text-[11px] text-[#f59e0b]">Due: {formatPrice(order.balanceDueRupees)}</p>
+                        {order.status === "CANCELLED" || order.status === "REFUNDED" ? (
+                          <>
+                            <p className="text-[11px] text-rose-400 font-semibold">
+                              Refund: {formatPrice(order.refund?.amountRupees ?? order.amountPaidRupees)}
+                            </p>
+                            <p className="text-[10px] text-[#9e9ea8] font-mono truncate max-w-[140px]" title={order.refund?.reference || "REF-COMPLETED"}>
+                              Ref: {order.refund?.reference || "REF-COMPLETED"}
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-[11px] text-[#10b981]">Paid: {formatPrice(order.amountPaidRupees)}</p>
+                            {order.balanceDueRupees > 0 && (
+                              <p className="text-[11px] text-[#f59e0b]">Due: {formatPrice(order.balanceDueRupees)}</p>
+                            )}
+                          </>
                         )}
                       </td>
                       <td className="py-4 px-4">
-                        <span className="inline-block px-2.5 py-1 rounded-full text-[10px] font-semibold bg-[#2a2a32] text-white border border-[#3e3e46]">
-                          {order.status}
+                        <span
+                          className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-semibold border ${
+                            order.status === "CANCELLED" || order.status === "REFUNDED"
+                              ? "bg-rose-950/80 text-rose-300 border-rose-800"
+                              : "bg-[#2a2a32] text-white border-[#3e3e46]"
+                          }`}
+                        >
+                          {order.status === "CANCELLED" ? "CANCELLED & REFUNDED" : order.status}
                         </span>
                       </td>
                       <td className="py-4 px-4 text-right">
@@ -2480,35 +2572,89 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="p-4 rounded-xl bg-[#24242a] space-y-2">
-                <div className="flex justify-between text-[#9e9ea8]">
-                  <span>Component 1: Items (Tax-Inclusive):</span>
-                  <span className="text-white font-semibold">{formatPrice(selectedOrder.itemsSubtotalRupees)}</span>
-                </div>
-                <div className="flex justify-between text-[#9e9ea8]">
-                  <span>Component 2: Insured Delivery Fee:</span>
-                  <span className="text-white font-semibold">{formatPrice(selectedOrder.deliveryFeeRupees)}</span>
-                </div>
-                <div className="flex justify-between pt-1 border-t border-[#2e2e34] font-bold text-white">
-                  <span>Total Order Value:</span>
-                  <span>{formatPrice(selectedOrder.totalAmountRupees)}</span>
-                </div>
-                <div className="flex justify-between text-[#10b981] font-semibold">
-                  <span>Amount Verified Paid:</span>
-                  <span>{formatPrice(selectedOrder.amountPaidRupees)}</span>
-                </div>
-                {selectedOrder.balanceDueRupees > 0 ? (
-                  <div className="flex justify-between text-[#f59e0b] font-semibold">
-                    <span>Pre-Dispatch Balance Due (75%):</span>
-                    <span>{formatPrice(selectedOrder.balanceDueRupees)}</span>
+              {selectedOrder.status === "CANCELLED" || selectedOrder.status === "REFUNDED" ? (
+                <div className="p-4 rounded-xl bg-red-950/30 border border-red-800/60 space-y-3">
+                  <div className="flex items-center justify-between border-b border-red-800/40 pb-2">
+                    <strong className="text-red-300 font-semibold flex items-center gap-1.5 text-xs">
+                      <span>⚠️</span> Consignment Cancelled · 100% Pre-Production Statutory Refund
+                    </strong>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-red-900 text-white">
+                      {selectedOrder.refund?.status || "COMPLETED"}
+                    </span>
                   </div>
-                ) : (
+
+                  <div className="grid grid-cols-2 gap-3 text-xs text-red-200/90">
+                    <div>
+                      <span className="text-[#9e9ea8] block text-[10px] uppercase font-semibold">100% Refund Amount</span>
+                      <p className="font-mono font-bold text-white text-base">
+                        {formatPrice(selectedOrder.refund?.amountRupees ?? selectedOrder.amountPaidRupees)}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-[#9e9ea8] block text-[10px] uppercase font-semibold">Cancellation Date</span>
+                      <p className="text-white font-medium">
+                        {selectedOrder.cancelledAt || selectedOrder.placedAt}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-red-800/40 space-y-2">
+                    <label className="text-[11px] text-[#9e9ea8] block font-semibold">
+                      Gateway Refund / Bank UTR Reference:
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={refundUtrInput}
+                        onChange={(e) => setRefundUtrInput(e.target.value)}
+                        placeholder="e.g. REF-173143... or UTR12345678"
+                        className="flex-1 px-3 py-1.5 rounded-lg bg-[#141416] border border-[#3e3e46] text-white font-mono text-xs focus:outline-none focus:border-[#c59b6d]"
+                      />
+                      <button
+                        type="button"
+                        disabled={isUpdatingRefund || !refundUtrInput.trim()}
+                        onClick={() => handleUpdateRefundReference(selectedOrder.id)}
+                        className="px-3 py-1.5 rounded-lg bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors disabled:opacity-50"
+                      >
+                        {isUpdatingRefund ? "Saving..." : "Save UTR"}
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-[#9e9ea8]">
+                      Gateway: {selectedOrder.refund?.gateway || "PHONEPE_REFUND"} · Verified: {selectedOrder.refund?.verifiedAt || "Recorded"}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-[#24242a] space-y-2">
+                  <div className="flex justify-between text-[#9e9ea8]">
+                    <span>Component 1: Items (Tax-Inclusive):</span>
+                    <span className="text-white font-semibold">{formatPrice(selectedOrder.itemsSubtotalRupees)}</span>
+                  </div>
+                  <div className="flex justify-between text-[#9e9ea8]">
+                    <span>Component 2: Insured Delivery Fee:</span>
+                    <span className="text-white font-semibold">{formatPrice(selectedOrder.deliveryFeeRupees)}</span>
+                  </div>
+                  <div className="flex justify-between pt-1 border-t border-[#2e2e34] font-bold text-white">
+                    <span>Total Order Value:</span>
+                    <span>{formatPrice(selectedOrder.totalAmountRupees)}</span>
+                  </div>
                   <div className="flex justify-between text-[#10b981] font-semibold">
-                    <span>Payment Settlement:</span>
-                    <span>100% Paid & Cleared</span>
+                    <span>Amount Verified Paid:</span>
+                    <span>{formatPrice(selectedOrder.amountPaidRupees)}</span>
                   </div>
-                )}
-              </div>
+                  {selectedOrder.balanceDueRupees > 0 ? (
+                    <div className="flex justify-between text-[#f59e0b] font-semibold">
+                      <span>Pre-Dispatch Balance Due (75%):</span>
+                      <span>{formatPrice(selectedOrder.balanceDueRupees)}</span>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between text-[#10b981] font-semibold">
+                      <span>Payment Settlement:</span>
+                      <span>100% Paid & Cleared</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="p-3 rounded-xl bg-[#16161a] border border-[#2e2e34] space-y-1 text-[11px] text-[#9e9ea8]">
                 <div className="flex justify-between">
@@ -2541,7 +2687,24 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex items-center justify-between border-t border-[#2e2e34] pt-4">
+              {selectedOrder.status !== "CANCELLED" &&
+              selectedOrder.status !== "REFUNDED" &&
+              selectedOrder.status !== "DISPATCHED" &&
+              selectedOrder.status !== "DELIVERED" ? (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await handleCancelOrder(selectedOrder.id);
+                    setSelectedOrder(null);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-red-950/70 text-xs font-semibold text-red-300 border border-red-800 hover:bg-red-900 transition-colors"
+                >
+                  Cancel Order & 100% Refund
+                </button>
+              ) : (
+                <div />
+              )}
               <button
                 onClick={() => setSelectedOrder(null)}
                 className="px-5 py-2 rounded-xl bg-[#2e2e34] text-xs font-semibold text-white hover:bg-[#3e3e46]"

@@ -13,6 +13,15 @@ interface AccountOrderItem {
   pricePaise: number;
 }
 
+interface AccountOrderRefund {
+  amountRupees: number;
+  status: string;
+  gateway?: string;
+  reference?: string;
+  verifiedAt?: string | null;
+  notes?: string | null;
+}
+
 interface AccountOrder {
   id: string;
   orderNumber: string;
@@ -38,6 +47,8 @@ interface AccountOrder {
   releaseEligibleDate?: string | null;
   graceDaysRemaining?: number;
   qcImages?: string[];
+  refund?: AccountOrderRefund | null;
+  cancelledAt?: string | null;
   createdAt: string;
 }
 
@@ -260,6 +271,24 @@ export default function AccountOrdersPage() {
                           <p className="text-[11px] text-[var(--color-muted-light)] pt-2 leading-relaxed">
                             {order.statusDescription}
                           </p>
+
+                          {(order.status === "CANCELLED" || order.status === "REFUNDED") && (
+                            <div className="rounded-xl border border-rose-200 bg-rose-50/80 p-3.5 space-y-1 text-xs text-rose-950 mt-3">
+                              <div className="flex items-center justify-between">
+                                <strong className="text-rose-900 font-semibold flex items-center gap-1.5">
+                                  <span>✓</span> 100% Pre-Production Statutory Refund
+                                </strong>
+                                <span className="font-mono font-bold text-rose-800">
+                                  ₹{(order.refund?.amountRupees ?? order.amountPaidRupees).toLocaleString("en-IN")}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-rose-800/90 leading-relaxed">
+                                {order.refund?.status === "COMPLETED"
+                                  ? `Refund successfully processed${order.refund?.reference ? ` under reference ${order.refund.reference}` : ""}${order.refund?.verifiedAt ? ` on ${order.refund.verifiedAt}` : ""}. Credited back to original payment method.`
+                                  : "Refund initiated and queued with payment gateway. Funds reflect in your account within 5–7 business days."}
+                              </p>
+                            </div>
+                          )}
                         </div>
 
                         <div className="space-y-4">
@@ -276,15 +305,30 @@ export default function AccountOrdersPage() {
                               <span>Order Total:</span>
                               <span>{formatPrice(order.totalAmountRupees)}</span>
                             </div>
-                            <div className="flex justify-between text-emerald-800 font-semibold">
-                              <span>Amount Paid:</span>
-                              <span>{formatPrice(order.amountPaidRupees)}</span>
-                            </div>
-                            {order.balanceDueRupees > 0 && (
-                              <div className="flex justify-between text-[var(--color-bronze)] font-semibold">
-                                <span>Balance Due at Dispatch:</span>
-                                <span>{formatPrice(order.balanceDueRupees)}</span>
-                              </div>
+                            {order.status === "CANCELLED" || order.status === "REFUNDED" ? (
+                              <>
+                                <div className="flex justify-between text-rose-800 font-semibold">
+                                  <span>100% Refund Issued:</span>
+                                  <span>{formatPrice(order.refund?.amountRupees ?? order.amountPaidRupees)}</span>
+                                </div>
+                                <div className="flex justify-between text-[var(--color-muted-light)]">
+                                  <span>Settlement Status:</span>
+                                  <span>Cancelled & Refunded</span>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="flex justify-between text-emerald-800 font-semibold">
+                                  <span>Amount Paid:</span>
+                                  <span>{formatPrice(order.amountPaidRupees)}</span>
+                                </div>
+                                {order.balanceDueRupees > 0 && (
+                                  <div className="flex justify-between text-[var(--color-bronze)] font-semibold">
+                                    <span>Balance Due at Dispatch:</span>
+                                    <span>{formatPrice(order.balanceDueRupees)}</span>
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
 

@@ -1,3 +1,12 @@
+export interface AdminOrderRefund {
+  amountRupees: number;
+  status: string;
+  gateway?: string;
+  reference?: string;
+  verifiedAt?: string | null;
+  notes?: string | null;
+}
+
 export interface AdminOrder {
   id: string;
   orderNumber: string;
@@ -37,6 +46,8 @@ export interface AdminOrder {
   paymentStatusLabel?: string;
   qcNotes?: string;
   qcImages?: string[];
+  refund?: AdminOrderRefund | null;
+  cancelledAt?: string | null;
   placedAt: string;
 }
 

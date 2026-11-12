@@ -293,11 +293,52 @@ function TrackOrderContent() {
                 </h3>
 
                 {matchedOrder.status === "CANCELLED" || matchedOrder.status === "REFUNDED" ? (
-                  <div className="p-5 rounded-xl border border-rose-300 bg-rose-50 text-xs text-rose-900 space-y-1">
-                    <span className="text-[10px] uppercase font-bold tracking-wider block">
-                      Consignment Cancelled
-                    </span>
-                    <p className="font-medium">{matchedOrder.statusDescription}</p>
+                  <div className="rounded-2xl border border-rose-300 bg-rose-50/90 p-6 space-y-4 text-xs text-rose-950">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rose-200/80 pb-3">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-rose-800 block">
+                          Consignment Cancelled · Pre-Production Refund
+                        </span>
+                        <h4 className="text-base font-semibold text-rose-950">
+                          100% Full Payment Refund Active
+                        </h4>
+                      </div>
+                      <span className="inline-block px-3 py-1 rounded-full text-xs font-mono font-bold bg-rose-900 text-white">
+                        {matchedOrder.refund?.status === "COMPLETED" ? "Refund Completed" : "Refund Processing"}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-rose-900/90 leading-relaxed font-medium">
+                      {matchedOrder.statusDescription}
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                      <div className="p-3 rounded-xl bg-white/70 border border-rose-200 space-y-0.5">
+                        <span className="text-[10px] text-rose-800 uppercase font-semibold block">Refund Amount</span>
+                        <p className="font-mono text-sm font-bold text-rose-950">
+                          ₹{(matchedOrder.refund?.amountRupees ?? matchedOrder.amountPaidRupees).toLocaleString("en-IN")}
+                        </p>
+                        <span className="text-[10px] text-rose-700 block">100% of Verified Payments</span>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-white/70 border border-rose-200 space-y-0.5">
+                        <span className="text-[10px] text-rose-800 uppercase font-semibold block">Gateway Transaction Ref</span>
+                        <p className="font-mono text-xs font-bold text-rose-950 truncate">
+                          {matchedOrder.refund?.reference || "REF-PROCESSING"}
+                        </p>
+                        <span className="text-[10px] text-rose-700 block">
+                          {matchedOrder.refund?.gateway || "Original Payment Source"}
+                        </span>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-white/70 border border-rose-200 space-y-0.5">
+                        <span className="text-[10px] text-rose-800 uppercase font-semibold block">Settlement Window</span>
+                        <p className="font-medium text-xs text-rose-950">
+                          {matchedOrder.refund?.verifiedAt ? `Processed on ${matchedOrder.refund.verifiedAt}` : "5–7 Business Days"}
+                        </p>
+                        <span className="text-[10px] text-rose-700 block">Credits to bank / card</span>
+                      </div>
+                    </div>
                   </div>
                 ) : matchedOrder.mode === "MADE_TO_ORDER" ? (
                   /* MTO Stepper */
@@ -518,15 +559,30 @@ function TrackOrderContent() {
                       <span>Total Transaction Value:</span>
                       <span>{formatPrice(matchedOrder.totalAmountRupees)}</span>
                     </div>
-                    <div className="flex justify-between pt-1 border-t border-[var(--color-decorative-border)]/60 text-emerald-800 font-semibold">
-                      <span>Verified Amount Paid:</span>
-                      <span>{formatPrice(matchedOrder.amountPaidRupees)}</span>
-                    </div>
-                    {matchedOrder.balanceDueRupees > 0 && (
-                      <div className="flex justify-between text-[var(--color-bronze)] font-semibold">
-                        <span>Balance Due Before Dispatch (75%):</span>
-                        <span>{formatPrice(matchedOrder.balanceDueRupees)}</span>
-                      </div>
+                    {matchedOrder.status === "CANCELLED" || matchedOrder.status === "REFUNDED" ? (
+                      <>
+                        <div className="flex justify-between pt-1 border-t border-[var(--color-decorative-border)]/60 text-rose-800 font-semibold">
+                          <span>100% Refund Issued:</span>
+                          <span>{formatPrice(matchedOrder.refund?.amountRupees ?? matchedOrder.amountPaidRupees)}</span>
+                        </div>
+                        <div className="flex justify-between text-[var(--color-muted-light)]">
+                          <span>Outstanding Balance:</span>
+                          <span>₹0 (Cancelled & Reconciled)</span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex justify-between pt-1 border-t border-[var(--color-decorative-border)]/60 text-emerald-800 font-semibold">
+                          <span>Verified Amount Paid:</span>
+                          <span>{formatPrice(matchedOrder.amountPaidRupees)}</span>
+                        </div>
+                        {matchedOrder.balanceDueRupees > 0 && (
+                          <div className="flex justify-between text-[var(--color-bronze)] font-semibold">
+                            <span>Balance Due Before Dispatch (75%):</span>
+                            <span>{formatPrice(matchedOrder.balanceDueRupees)}</span>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
 

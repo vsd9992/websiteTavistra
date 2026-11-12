@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
           },
         },
         shippingAddress: true,
+        payments: true,
       },
       orderBy: { createdAt: "desc" },
     });
@@ -57,6 +58,13 @@ export async function GET(req: NextRequest) {
           ...deriveOrderStatusPresentation(order),
           qcNotes: order.qcNotes || undefined,
           qcImages: safeParseQcImages(order.qcImages),
+          cancelledAt: order.cancelledAt
+            ? order.cancelledAt.toLocaleDateString("en-IN", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })
+            : null,
           createdAt: order.createdAt.toLocaleDateString("en-IN", {
             day: "numeric",
             month: "long",
