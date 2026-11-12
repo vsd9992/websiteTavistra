@@ -27,7 +27,7 @@ Approved by repository owner on 2026-11-06 in `docs/website/delivery-fee-pricing
 - Full order cancellations resulting from seller-side non-fulfilment or delivery impossibility receive a **100% full refund including the delivery charge**.
 
 ### 5. Quantity Ceilings & Bulk Order Threshold
-- Ordinary purchasable order limit: **up to 10 units of any single product** AND **up to 10 distinct order line items**.
+- Ordinary purchasable order limit: **up to 10 total units overall across the order** AND **up to 10 distinct order line items** (updated from 10-per-product on 2026-11-12 per owner instruction).
 - Exceeding **either** ceiling blocks ordinary checkout and directs the customer to the **Bulk Order Enquiry** workflow.
 - Bulk enquiries capture product, quantity, destination, and contact details for staff quotation; ordinary fee ladders do not automatically apply to bulk orders.
 

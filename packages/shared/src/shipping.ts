@@ -149,13 +149,13 @@ export function calculateOrderDeliveryFee(productFees: number[]): number {
 }
 
 /**
- * Bulk Order Ceiling Validation (2026-11-06 Owner Policy)
- * Up to 10 units of any single product AND up to 10 distinct order line items.
+ * Bulk Order Ceiling Validation (Cumulative Overall Policy)
+ * Up to 10 total units overall across an order AND up to 10 distinct order line items.
  * Breaching either ceiling directs the customer to Bulk Order Enquiry.
  */
 export interface BulkCeilingCheck {
   isBulkEnquiryRequired: boolean;
-  reason?: 'EXCEEDS_MAX_UNITS_PER_PRODUCT' | 'EXCEEDS_MAX_TOTAL_UNITS' | 'EXCEEDS_MAX_DISTINCT_LINES';
+  reason?: 'EXCEEDS_MAX_TOTAL_UNITS' | 'EXCEEDS_MAX_DISTINCT_LINES';
   message?: string;
 }
 
@@ -171,27 +171,15 @@ export function checkBulkOrderCeiling(
   }
 
   let cumulativeUnits = 0;
-  const productQtyMap = new Map<string, number>();
   for (const item of items) {
-    const qty = Math.max(0, Math.floor(item.quantity || 0));
-    cumulativeUnits += qty;
-    const current = productQtyMap.get(item.productId) || 0;
-    const total = current + qty;
-    if (total > 10) {
-      return {
-        isBulkEnquiryRequired: true,
-        reason: 'EXCEEDS_MAX_UNITS_PER_PRODUCT',
-        message: 'Orders exceeding 10 units of a single product must be placed via Bulk Order Enquiry.',
-      };
-    }
-    productQtyMap.set(item.productId, total);
+    cumulativeUnits += Math.max(0, Math.floor(item.quantity || 0));
   }
 
   if (cumulativeUnits > 10) {
     return {
       isBulkEnquiryRequired: true,
       reason: 'EXCEEDS_MAX_TOTAL_UNITS',
-      message: 'Retail orders are limited to 10 total units across all products. Larger quantities must be placed via Bulk Order Enquiry.',
+      message: 'Orders exceeding 10 total units overall must be placed via Bulk Order Enquiry.',
     };
   }
 

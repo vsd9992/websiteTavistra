@@ -149,7 +149,10 @@ async function runSet4Verification() {
       { productId: keyTagNat.productId, quantity: 5 },
     ]);
     assert(
-      breach11Split.isBulkEnquiryRequired && breach11Split.reason === "EXCEEDS_MAX_TOTAL_UNITS",
+      breach11Split.isBulkEnquiryRequired &&
+        breach11Split.reason === "EXCEEDS_MAX_TOTAL_UNITS" &&
+        /total units overall/i.test(breach11Split.message || "") &&
+        !/single product/i.test(breach11Split.message || ""),
       "11 Cumulative Units Across Distinct Products Blocked",
       "Bulk Boundary",
       `reason=${breach11Split.reason}`

@@ -72,9 +72,16 @@ async function runSet2Verification() {
   const okUnits = checkBulkOrderCeiling([{ productId: "prod-1", quantity: 10 }]);
   assert(!okUnits.isBulkEnquiryRequired, "10 Units Allowed", "Bulk Boundary", "Exactly 10 units allowed for ordinary checkout");
 
-  // > 10 units of same product
+  // > 10 total units
   const breachUnits = checkBulkOrderCeiling([{ productId: "prod-1", quantity: 11 }]);
-  assert(breachUnits.isBulkEnquiryRequired && breachUnits.reason === "EXCEEDS_MAX_UNITS_PER_PRODUCT", "11 Units Triggers Bulk", "Bulk Boundary", "11 units of a single product triggers Bulk Enquiry");
+  assert(
+    breachUnits.isBulkEnquiryRequired &&
+      breachUnits.reason === "EXCEEDS_MAX_TOTAL_UNITS" &&
+      !/single product/i.test(breachUnits.message || ""),
+    "11 Units Triggers Bulk",
+    "Bulk Boundary",
+    "11 total units overall triggers Bulk Enquiry without stale single-product wording"
+  );
 
   // Aggregated units across repeated lines of same product
   const splitLineUnits = checkBulkOrderCeiling([
