@@ -197,17 +197,6 @@ async function run() {
       "QOT-01",
       JSON.stringify(foundInq || {})
     );
-      (i: { inquiryNumber?: string; destinationCity?: string }) => i.inquiryNumber === inqNumber
-    );
-    assert(
-      adminInqListRes.ok &&
-        foundInq &&
-        foundInq.status === "NEW" &&
-        foundInq.destinationCity.toLowerCase().includes("bengaluru"),
-      "Inquiry appears in Admin worklist with resolved Bengaluru destination city",
-      "QOT-01",
-      JSON.stringify(foundInq || {})
-    );
 
     const inqMail = await waitForMailpitSubject(qaEmail, "Commercial Inquiry Registered");
     assert(
