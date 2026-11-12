@@ -5,7 +5,7 @@ import path from "path";
 const smtpHost = process.env.SMTP_HOST || "192.168.1.100";
 const smtpPort = parseInt(process.env.SMTP_PORT || "1025", 10);
 const smtpFrom = process.env.SMTP_FROM || "Tavistra <concierge@tavistra.in>";
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
 
 function resolveTavistraLogoPath(): string | null {
   const candidates = [
@@ -403,6 +403,8 @@ export async function sendQuoteProposalEmail(params: {
   balanceDueRupees: number;
   estimatedLeadDays: number;
   expiresAt: Date;
+  lineItems?: { name: string; finish?: string; quantity: number; unitPriceRupees: number }[];
+  deliveryChargeRupees?: number;
 }) {
   const {
     quoteNumber,
@@ -415,6 +417,8 @@ export async function sendQuoteProposalEmail(params: {
     balanceDueRupees,
     estimatedLeadDays,
     expiresAt,
+    lineItems,
+    deliveryChargeRupees,
   } = params;
 
   const quoteUrl = `${appUrl}/quote/${encodeURIComponent(quoteNumber)}`;
@@ -422,6 +426,7 @@ export async function sendQuoteProposalEmail(params: {
     day: "numeric",
     month: "long",
     year: "numeric",
+    timeZone: "Asia/Kolkata",
   }).format(new Date(expiresAt));
 
   const formatRupees = (val: number) =>
@@ -431,6 +436,51 @@ export async function sendQuoteProposalEmail(params: {
       maximumFractionDigits: 0,
     }).format(val);
 
+  const lineItemsHtml =
+    lineItems && lineItems.length > 0
+      ? `
+        <table style="width: 100%; border-collapse: collapse; margin: 10px 0 16px 0; font-size: 12px;">
+          <thead>
+            <tr style="border-bottom: 1px solid #e5e0d8; text-align: left; color: #726e64; font-size: 10px; text-transform: uppercase;">
+              <th style="padding: 6px 4px;">Edition / Specification</th>
+              <th style="padding: 6px 4px; text-align: center;">Qty</th>
+              <th style="padding: 6px 4px; text-align: right;">Rate</th>
+              <th style="padding: 6px 4px; text-align: right;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${lineItems
+              .map(
+                (item) => `
+              <tr style="border-bottom: 1px solid #f0ede6;">
+                <td style="padding: 7px 4px; color: #141412;">
+                  <strong>${item.name}</strong>${
+                  item.finish ? `<br><span style="font-size: 11px; color: #726e64;">${item.finish}</span>` : ""
+                }
+                </td>
+                <td style="padding: 7px 4px; text-align: center; color: #5a574f;">${item.quantity}</td>
+                <td style="padding: 7px 4px; text-align: right; color: #5a574f;">${formatRupees(item.unitPriceRupees)}</td>
+                <td style="padding: 7px 4px; text-align: right; font-weight: 600; color: #141412;">${formatRupees(
+                  item.quantity * item.unitPriceRupees
+                )}</td>
+              </tr>`
+              )
+              .join("")}
+            ${
+              typeof deliveryChargeRupees === "number"
+                ? `
+              <tr style="border-bottom: 1px solid #f0ede6;">
+                <td colspan="3" style="padding: 7px 4px; color: #5a574f;">Custom Insured Crating & Delivery Freight</td>
+                <td style="padding: 7px 4px; text-align: right; font-weight: 600; color: #141412;">${
+                  deliveryChargeRupees === 0 ? "Complimentary" : formatRupees(deliveryChargeRupees)
+                }</td>
+              </tr>`
+                : ""
+            }
+          </tbody>
+        </table>`
+      : "";
+
   const bodyContent = `
     <p>Dear ${customerName},</p>
     <p>Our architectural craftsmanship and design team has formulated a formal proposal for your bespoke project under reference <strong style="font-family: monospace;">${quoteNumber} (Revision ${versionNumber})</strong>.</p>
@@ -439,6 +489,7 @@ export async function sendQuoteProposalEmail(params: {
       <div style="margin-bottom: 14px;">
         <span class="badge" style="background-color: #fef3c7; color: #92400e; border: 1px solid #fde68a;">30-Day Locked Commercial Offer</span>
       </div>
+      ${lineItemsHtml}
       <strong style="color: #141412; font-size: 13px; display: block; margin-bottom: 6px;">Project Specifications:</strong>
       <p style="margin: 0 0 16px 0; font-size: 12px; color: #5a574f; white-space: pre-line;">${specifications}</p>
 
@@ -557,6 +608,168 @@ export async function sendCustomerOtpEmail(params: {
   return sendTavistraMail({
     to: email,
     subject: meta.subject,
+    html,
+  });
+}
+
+// 6. Send Bulk Inquiry Commercial Acknowledgement Email
+export async function sendBulkInquiryAckEmail(params: {
+  inquiryNumber: string;
+  clientName: string;
+  email: string;
+  requestedEditions: string;
+  quantityUnits: number;
+  destinationCity: string;
+  destinationPincode: string;
+}) {
+  const {
+    inquiryNumber,
+    clientName,
+    email,
+    requestedEditions,
+    quantityUnits,
+    destinationCity,
+    destinationPincode,
+  } = params;
+
+  const bodyContent = `
+    <p>Dear ${clientName},</p>
+    <p>We have registered your architectural commercial inquiry under reference <strong style="font-family: monospace;">${inquiryNumber}</strong>.</p>
+
+    <div class="card">
+      <div style="margin-bottom: 12px;">
+        <span class="badge" style="background-color: #faf2ea; color: #8e6c46; border: 1px solid #ebd9c7;">Commercial & Bulk Inquiry Logged</span>
+      </div>
+      <div class="ledger-row">
+        <span>Requested Edition(s):</span>
+        <strong style="color: #141412;">${requestedEditions}</strong>
+      </div>
+      <div class="ledger-row">
+        <span>Requested Volume:</span>
+        <strong>${quantityUnits} Units</strong>
+      </div>
+      <div class="ledger-row">
+        <span>Delivery Destination:</span>
+        <strong>${destinationCity} (PIN ${destinationPincode})</strong>
+      </div>
+      <div class="ledger-row">
+        <span>Studio Response Commitment:</span>
+        <span style="color: #8e6c46; font-weight: 600;">Formal proposal within 24–48 business hours</span>
+      </div>
+    </div>
+
+    <p style="font-size: 12px; color: #5a574f; line-height: 1.6;">
+      Our commercial desk is assessing material allocation, custom finish schedules, and crated white-glove transport feasibility. You will receive a formal 30-day locked architectural proposal with bespoke line-item specifications.
+    </p>
+
+    <div style="margin-top: 20px; padding: 12px; background-color: #f9f8f5; border-radius: 6px; font-size: 11px; color: #726e64;">
+      For immediate modifications to this inquiry, reply directly to this notice or contact our concierge at <a href="mailto:concierge@tavistra.in" style="color: #8e6c46;">concierge@tavistra.in</a> referencing <strong>${inquiryNumber}</strong>.
+    </div>
+  `;
+
+  const html = wrapLuxuryEmailTemplate(
+    "Commercial Inquiry Registered",
+    `Inquiry Reference: ${inquiryNumber}`,
+    bodyContent
+  );
+
+  return sendTavistraMail({
+    to: email,
+    subject: `[Tavistra] Commercial Inquiry Registered — ${inquiryNumber}`,
+    html,
+  });
+}
+
+// 7. Send Quote Acceptance & 25% Advance Confirmation Email (QOT-07)
+export async function sendQuoteAcceptedEmail(params: {
+  quoteNumber: string;
+  versionNumber: number;
+  orderNumber: string;
+  customerName: string;
+  customerEmail: string;
+  totalQuotedRupees: number;
+  advancePaidRupees: number;
+  balanceDueRupees: number;
+  estimatedLeadDays: number;
+  destinationPincode: string;
+}) {
+  const {
+    quoteNumber,
+    versionNumber,
+    orderNumber,
+    customerName,
+    customerEmail,
+    totalQuotedRupees,
+    advancePaidRupees,
+    balanceDueRupees,
+    estimatedLeadDays,
+    destinationPincode,
+  } = params;
+
+  const trackingLink = `${appUrl}/track?orderId=${encodeURIComponent(orderNumber)}`;
+  const formatRupees = (val: number) =>
+    new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }).format(val);
+
+  const bodyContent = `
+    <p>Dear ${customerName},</p>
+    <p>Thank you for accepting formal architectural proposal <strong style="font-family: monospace;">${quoteNumber} (Rev ${versionNumber})</strong>. Your 25% production advance has been verified and recorded in our immutable ledger.</p>
+
+    <div class="card">
+      <div style="margin-bottom: 12px;">
+        <span class="badge" style="background-color: #d1fae5; color: #065f46; border: 1px solid #a7f3d0;">25% Advance Paid · Production Scheduled</span>
+      </div>
+      <div class="ledger-row">
+        <span>Production Order Reference:</span>
+        <strong style="font-family: monospace; color: #141412;">${orderNumber}</strong>
+      </div>
+      <div class="ledger-row">
+        <span>Total Committed Value:</span>
+        <strong style="color: #141412;">${formatRupees(totalQuotedRupees)}</strong>
+      </div>
+      <div class="ledger-row" style="background-color: #ecfdf5; padding: 6px 8px; border-radius: 4px; margin: 4px 0;">
+        <span style="color: #065f46; font-weight: 600;">Verified 25% Advance:</span>
+        <strong style="color: #065f46;">${formatRupees(advancePaidRupees)}</strong>
+      </div>
+      <div class="ledger-row">
+        <span>Remaining Balance (Due post-QC before dispatch):</span>
+        <span style="color: #8e6c46; font-weight: 600;">${formatRupees(balanceDueRupees)}</span>
+      </div>
+      <div class="ledger-row">
+        <span>Estimated Craft Schedule:</span>
+        <strong>${estimatedLeadDays} Days (Plus 7-Day Pre-Production Grace)</strong>
+      </div>
+      <div class="ledger-row">
+        <span>Destination PIN:</span>
+        <strong>${destinationPincode}</strong>
+      </div>
+    </div>
+
+    <div style="text-align: center; margin: 26px 0 10px 0;">
+      <a href="${trackingLink}" class="btn" style="background-color: #141412;">Track Production Milestones & QC Photos</a>
+    </div>
+
+    <p style="font-size: 11px; text-align: center; color: #8a867c;">
+      Direct consignment tracking: <a href="${trackingLink}" style="color: #8e6c46;">${trackingLink}</a>
+    </p>
+
+    <div style="margin-top: 24px; padding: 14px; background-color: #f9f8f5; border-radius: 6px; font-size: 11px; color: #726e64; line-height: 1.5;">
+      <strong>Independent Confirmed-Order Grace (TAV-07):</strong> With order confirmation, the original 30-day quote clock ceases to constrain your acquisition. A distinct 7-calendar-day pre-production grace window is now active, during which dimension or finish alterations may be requested before our master artisans commence irreversible fabrication.
+    </div>
+  `;
+
+  const html = wrapLuxuryEmailTemplate(
+    "Proposal Accepted & Advance Verified",
+    `Order ${orderNumber} · Quote ${quoteNumber}`,
+    bodyContent
+  );
+
+  return sendTavistraMail({
+    to: customerEmail,
+    subject: `[Tavistra] Proposal Accepted & 25% Advance Verified — ${orderNumber}`,
     html,
   });
 }

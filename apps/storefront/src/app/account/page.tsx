@@ -28,24 +28,43 @@ interface AccountOrder {
   createdAt: string;
 }
 
+interface AccountQuote {
+  id: string;
+  quoteNumber: string;
+  status: string;
+  expiresAt: string;
+  versions: {
+    versionNumber: number;
+    quotedAmount: number | string;
+    advanceRequired: number | string;
+  }[];
+}
+
 export default function AccountOverviewPage() {
   const { user, isAuthenticated, authLoading } = useAuth();
   const [orders, setOrders] = useState<AccountOrder[]>([]);
+  const [quotes, setQuotes] = useState<AccountQuote[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !user?.email) {
       setOrders([]);
+      setQuotes([]);
       return;
     }
 
     let cancelled = false;
     setOrdersLoading(true);
-    fetch("/api/account/orders", { credentials: "include" })
-      .then((res) => (res.ok ? res.json() : { orders: [] }))
-      .then((data) => {
-        if (!cancelled && Array.isArray(data.orders)) {
-          setOrders(data.orders);
+    Promise.all([
+      fetch("/api/account/orders", { credentials: "include" }).then((res) => (res.ok ? res.json() : { orders: [] })),
+      fetch(`/api/quotes?email=${encodeURIComponent(user.email)}`, { credentials: "include" }).then((res) =>
+        res.ok ? res.json() : { proposals: [] }
+      ),
+    ])
+      .then(([ordersData, quotesData]) => {
+        if (!cancelled) {
+          if (Array.isArray(ordersData.orders)) setOrders(ordersData.orders);
+          if (Array.isArray(quotesData.proposals)) setQuotes(quotesData.proposals);
         }
       })
       .catch(() => {})
@@ -56,7 +75,7 @@ export default function AccountOverviewPage() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user?.email]);
 
   const activeCount = orders.filter((o) => o.status !== "DISPATCHED").length;
   const totalBalanceDue = orders.reduce((acc, o) => acc + (o.balanceDueRupees || 0), 0);
@@ -239,6 +258,65 @@ export default function AccountOverviewPage() {
                   </div>
                 )}
               </div>
+
+              {/* Architectural Proposals (30-Day Quotes) */}
+              {quotes.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-[var(--color-decorative-border)] pb-3">
+                    <h2 className="text-lg font-serif text-[var(--color-ink)]">
+                      Architectural Proposals ({quotes.length})
+                    </h2>
+                    <span className="text-[11px] uppercase tracking-wider text-[var(--color-bronze)] font-semibold">
+                      30-Day Locked Offers
+                    </span>
+                  </div>
+                  <div className="space-y-3">
+                    {quotes.map((q) => {
+                      const latest = q.versions?.[0];
+                      const amount = Number(latest?.quotedAmount || 0);
+                      const advance = Number(latest?.advanceRequired || 0);
+                      return (
+                        <div
+                          key={q.id}
+                          className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/60 p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm"
+                        >
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono text-xs font-bold text-[var(--color-ink)]">
+                                {q.quoteNumber}
+                              </span>
+                              <span className="text-[10px] px-2 py-0.5 rounded bg-[var(--color-stone)] text-[var(--color-ink)] font-semibold">
+                                Rev {latest?.versionNumber || 1}
+                              </span>
+                              <span
+                                className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider border ${
+                                  q.status === "ACCEPTED"
+                                    ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                    : q.status === "EXPIRED"
+                                    ? "bg-rose-50 text-rose-800 border-rose-200"
+                                    : "bg-amber-50 text-amber-800 border-amber-200"
+                                }`}
+                              >
+                                {q.status}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-[var(--color-muted-light)]">
+                              Total Quoted: <strong className="text-[var(--color-ink)]">₹{amount.toLocaleString("en-IN")}</strong> · 25% Advance: ₹{advance.toLocaleString("en-IN")} · Valid until{" "}
+                              {new Date(q.expiresAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}
+                            </p>
+                          </div>
+                          <Link
+                            href={`/quote/${encodeURIComponent(q.quoteNumber)}`}
+                            className="rounded-full bg-[var(--color-ink)] px-5 py-2 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shrink-0 text-center"
+                          >
+                            {q.status === "ISSUED" ? "Review & Pay 25% Advance ↗" : "View Proposal ↗"}
+                          </Link>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Quick Client Services */}
               <div className="pt-4 border-t border-[var(--color-decorative-border)] grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">

@@ -203,6 +203,7 @@ export default function CartPage() {
       intent: "bulk",
       subject: "Bulk Order Quotation Request",
       productName: productNameSummary,
+      quantity: String(totalQty),
       pincode: pincode.trim(),
       message: messageLines.join("\n"),
     });

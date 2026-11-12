@@ -4,6 +4,7 @@ export * from './shipping';
 export * from './pincodes';
 export * from './pincodeData';
 export * from './validation';
+export * from './quotes';
 
 /**
  * Tavistra Purchase Modes (Independent lifecycles per TAV-04)

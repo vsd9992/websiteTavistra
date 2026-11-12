@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, QuoteStatus } from "@tavistra/db";
+import {
+  QuoteLineItemSchema,
+  QuoteLineItem,
+  computeQuoteTotals,
+  formatQuoteSpecificationsText,
+  computeIstQuoteExpiry,
+  validateEmail,
+} from "@tavistra/shared";
 import { sendQuoteProposalEmail } from "@/lib/email";
 import { getAuthenticatedUser } from "@/lib/auth";
 
@@ -37,7 +45,11 @@ export async function GET(request: NextRequest) {
           const updated = await prisma.quoteProposal.update({
             where: { id: p.id },
             data: { status: QuoteStatus.EXPIRED },
-            include: { versions: true },
+            include: {
+              versions: {
+                orderBy: { versionNumber: "desc" },
+              },
+            },
           });
           return updated;
         }
@@ -45,7 +57,10 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    return NextResponse.json({ proposals: checkedProposals });
+    return NextResponse.json(
+      { proposals: checkedProposals },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch (error) {
     console.error("GET /api/quotes error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
@@ -61,55 +76,127 @@ export async function POST(request: NextRequest) {
       customerPhone,
       deliveryPincode,
       projectSpecifications,
+      notes,
+      lineItems,
+      deliveryChargeRupees = 0,
       quotedAmountRupees,
       estimatedLeadDays = 28,
       inquiryId,
       staffName = "Admin Staff",
     } = body;
 
-    if (!customerName || !customerEmail || !quotedAmountRupees || !projectSpecifications) {
+    if (!customerName || !customerEmail) {
       return NextResponse.json(
-        { error: "Missing required proposal fields (name, email, quotedAmount, specifications)" },
+        { error: "Client name and email are required to issue a proposal." },
         { status: 400 }
       );
     }
 
+    const emailVal = validateEmail(customerEmail);
+    if (!emailVal.isValid) {
+      return NextResponse.json({ error: emailVal.error || "Invalid client email address." }, { status: 400 });
+    }
+
+    const cleanPin = (deliveryPincode || "110001").toString().trim().replace(/\D/g, "");
+    if (cleanPin.length !== 6) {
+      return NextResponse.json({ error: "Valid 6-digit destination PIN code is required." }, { status: 400 });
+    }
+
+    let validatedItems: QuoteLineItem[] = [];
+    let resolvedSpecs = "";
+    let quotedDecimal = 0;
+    let advanceRequiredDecimal = 0;
+    let balanceDueDecimal = 0;
+    let cleanDelivery = Math.max(0, Number(deliveryChargeRupees || 0));
+
+    if (Array.isArray(lineItems) && lineItems.length > 0) {
+      for (const item of lineItems) {
+        const parsed = QuoteLineItemSchema.safeParse(item);
+        if (!parsed.success) {
+          return NextResponse.json(
+            { error: `Invalid line item: ${parsed.error.issues[0]?.message || "check name, qty & price"}` },
+            { status: 400 }
+          );
+        }
+        validatedItems.push(parsed.data);
+      }
+
+      const totals = computeQuoteTotals(validatedItems, cleanDelivery);
+      quotedDecimal = totals.totalQuotedRupees;
+      advanceRequiredDecimal = totals.advanceRequiredRupees;
+      balanceDueDecimal = totals.balanceDueRupees;
+      cleanDelivery = totals.deliveryChargeRupees;
+      resolvedSpecs = formatQuoteSpecificationsText({
+        lineItems: validatedItems,
+        deliveryChargeRupees: cleanDelivery,
+        notes: (notes ?? projectSpecifications ?? "").toString(),
+      });
+    } else {
+      if (!quotedAmountRupees || !projectSpecifications) {
+        return NextResponse.json(
+          { error: "Provide at least one bespoke line item or specifications with quotedAmountRupees." },
+          { status: 400 }
+        );
+      }
+      quotedDecimal = Number(quotedAmountRupees);
+      if (isNaN(quotedDecimal) || quotedDecimal <= 0) {
+        return NextResponse.json({ error: "Quoted amount must be greater than zero." }, { status: 400 });
+      }
+      advanceRequiredDecimal = Math.round(quotedDecimal * 0.25 * 100) / 100;
+      balanceDueDecimal = quotedDecimal - advanceRequiredDecimal;
+      resolvedSpecs = projectSpecifications.toString().trim();
+    }
+
     // Generate authoritative quote reference: QTE-YYYYMMDD-XXXX
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-    const quoteNumber = `QTE-${dateStr}-${randomSuffix}`;
+    let quoteNumber = "";
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+      const candidate = `QTE-${dateStr}-${randomSuffix}`;
+      const exists = await prisma.quoteProposal.findUnique({ where: { quoteNumber: candidate } });
+      if (!exists) {
+        quoteNumber = candidate;
+        break;
+      }
+    }
+    if (!quoteNumber) {
+      quoteNumber = `QTE-${dateStr}-${Date.now().toString().slice(-4)}`;
+    }
 
-    // 30-day locked offer clock from issuance date
+    // 30-day locked offer clock from issuance date (through 23:59:59.999 IST on Day 30)
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const expiresAt = computeIstQuoteExpiry(now);
 
-    const quotedDecimal = Number(quotedAmountRupees);
-    const advanceRequiredDecimal = Math.round(quotedDecimal * 0.25 * 100) / 100;
-    const balanceDueDecimal = quotedDecimal - advanceRequiredDecimal;
+    const normalizedEmail = emailVal.normalizedEmail || customerEmail.toLowerCase().trim();
 
     const proposal = await prisma.quoteProposal.create({
       data: {
         quoteNumber,
+        inquiryId: inquiryId || null,
         customerName: customerName.trim(),
-        customerEmail: customerEmail.toLowerCase().trim(),
-        customerPhone: (customerPhone || "N/A").trim(),
-        deliveryPincode: (deliveryPincode || "110001").trim(),
-        projectSpecifications: projectSpecifications.trim(),
+        customerEmail: normalizedEmail,
+        customerPhone: (customerPhone || "N/A").toString().trim(),
+        deliveryPincode: cleanPin,
+        projectSpecifications: resolvedSpecs,
         status: QuoteStatus.ISSUED,
         expiresAt,
         versions: {
           create: {
             versionNumber: 1,
-            specifications: projectSpecifications.trim(),
+            specifications: resolvedSpecs,
+            lineItemsJson: validatedItems.length > 0 ? JSON.stringify(validatedItems) : null,
+            deliveryCharge: cleanDelivery,
             quotedAmount: quotedDecimal,
             advanceRequired: advanceRequiredDecimal,
-            estimatedLeadDays: Number(estimatedLeadDays),
+            estimatedLeadDays: Math.max(1, Number(estimatedLeadDays || 28)),
             validUntil: expiresAt,
           },
         },
       },
       include: {
-        versions: true,
+        versions: {
+          orderBy: { versionNumber: "desc" },
+        },
       },
     });
 
@@ -128,10 +215,13 @@ export async function POST(request: NextRequest) {
         entityType: "QuoteProposal",
         entityId: quoteNumber,
         payloadJson: JSON.stringify({
+          versionNumber: 1,
+          lineItemsCount: validatedItems.length,
+          deliveryChargeRupees: cleanDelivery,
           quotedAmount: quotedDecimal,
           advanceRequired: advanceRequiredDecimal,
           expiresAt: expiresAt.toISOString(),
-          customerEmail,
+          customerEmail: normalizedEmail,
           staff: staffName,
         }),
       },
@@ -142,13 +232,15 @@ export async function POST(request: NextRequest) {
       await sendQuoteProposalEmail({
         quoteNumber,
         versionNumber: 1,
-        customerName,
-        customerEmail,
-        specifications: projectSpecifications,
+        customerName: customerName.trim(),
+        customerEmail: normalizedEmail,
+        specifications: resolvedSpecs,
+        lineItems: validatedItems,
+        deliveryChargeRupees: cleanDelivery,
         quotedAmountRupees: quotedDecimal,
         advanceRequiredRupees: advanceRequiredDecimal,
         balanceDueRupees: balanceDueDecimal,
-        estimatedLeadDays: Number(estimatedLeadDays),
+        estimatedLeadDays: Math.max(1, Number(estimatedLeadDays || 28)),
         expiresAt,
       });
     } catch (emailErr) {

@@ -5,14 +5,17 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { useAuth } from "@/context/AuthContext";
 import { lookupPincode, validateEmail, validateIndianMobile } from "@tavistra/shared";
 
 function ContactFormContent() {
+  const { user } = useAuth();
   const searchParams = useSearchParams();
   const intentParam = searchParams.get("intent") || "";
   const productParam = searchParams.get("product") || searchParams.get("productName") || "";
   const skuParam = searchParams.get("sku") || "";
   const materialsParam = searchParams.get("materials") || "";
+  const quantityParam = searchParams.get("quantity") || "";
   const subjectParam =
     searchParams.get("subject") ||
     (intentParam === "bulk"
@@ -23,14 +26,17 @@ function ContactFormContent() {
 
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [referenceNumber, setReferenceNumber] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
+    practiceOrStudio: "",
     email: "",
     phone: "",
     subject: subjectParam,
     pincode: pincodeParam,
     productName: productParam,
+    quantity: quantityParam || "10",
     message:
       messageParam ||
       (productParam
@@ -38,14 +44,27 @@ function ContactFormContent() {
         : ""),
   });
 
+  // Pre-fill signed-in user identity if fields are empty
+  useEffect(() => {
+    if (user) {
+      setFormData((prev) => ({
+        ...prev,
+        name: prev.name || user.name || "",
+        email: prev.email || user.email || "",
+        phone: prev.phone || user.phone || "",
+      }));
+    }
+  }, [user]);
+
   // Keep form synchronized if query params change
   useEffect(() => {
-    if (productParam || intentParam || messageParam || pincodeParam || subjectParam) {
+    if (productParam || intentParam || messageParam || pincodeParam || subjectParam || quantityParam) {
       setFormData((prev) => ({
         ...prev,
         productName: productParam || prev.productName,
         subject: subjectParam || prev.subject,
         pincode: pincodeParam || prev.pincode,
+        quantity: quantityParam || prev.quantity,
         message:
           messageParam ||
           prev.message ||
@@ -54,24 +73,36 @@ function ContactFormContent() {
             : ""),
       }));
     }
-  }, [productParam, skuParam, materialsParam, subjectParam, intentParam, messageParam, pincodeParam]);
+  }, [productParam, skuParam, materialsParam, subjectParam, intentParam, messageParam, pincodeParam, quantityParam]);
 
   const emailVal = validateEmail(formData.email);
   const mobileVal = validateIndianMobile(formData.phone);
 
+  const isBulkOrQuoteSubject = (subj: string) => {
+    const low = subj.toLowerCase();
+    return (
+      intentParam === "bulk" ||
+      low.includes("bulk") ||
+      low.includes("quote") ||
+      low.includes("architectural") ||
+      low.includes("commercial") ||
+      low.includes("bespoke") ||
+      low.includes("invoicing")
+    );
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError(null);
     if (!emailVal.isValid || !mobileVal.isValid) {
       return;
     }
 
     setSubmitting(true);
     try {
-      const isBulkOrQuote =
-        intentParam === "bulk" ||
-        formData.subject.toLowerCase().includes("bulk") ||
-        formData.subject.toLowerCase().includes("quote") ||
-        formData.subject.toLowerCase().includes("architectural");
+      const isBulkOrQuote = isBulkOrQuoteSubject(formData.subject);
+      const pinCheck =
+        formData.pincode.trim().length === 6 ? lookupPincode(formData.pincode.trim()) : null;
 
       if (isBulkOrQuote) {
         const res = await fetch("/api/inquiries", {
@@ -79,17 +110,21 @@ function ContactFormContent() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: formData.name,
+            practiceOrStudio: formData.practiceOrStudio,
             email: formData.email,
             phone: formData.phone,
+            city: pinCheck?.city ? `${pinCheck.city}, ${pinCheck.state}` : undefined,
             pincode: formData.pincode,
-            productName: formData.productName,
+            productName: formData.productName || formData.subject,
+            quantity: Math.max(1, parseInt(formData.quantity || "10", 10) || 10),
             message: formData.message,
           }),
         });
         const data = await res.json();
-        if (data.inquiryNumber) {
-          setReferenceNumber(data.inquiryNumber);
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to register commercial inquiry.");
         }
+        setReferenceNumber(data.inquiryNumber || null);
       } else {
         const res = await fetch("/api/tickets", {
           method: "POST",
@@ -103,15 +138,16 @@ function ContactFormContent() {
           }),
         });
         const data = await res.json();
-        if (data.ticketNumber) {
-          setReferenceNumber(data.ticketNumber);
+        if (!res.ok) {
+          throw new Error(data.error || "Unable to submit client ticket.");
         }
+        setReferenceNumber(data.ticketNumber || null);
       }
+      setSubmitted(true);
     } catch (err) {
-      console.warn("Backend submission error, continuing with local confirmation:", err);
+      setSubmitError((err as Error).message || "Network error submitting request. Please retry.");
     } finally {
       setSubmitting(false);
-      setSubmitted(true);
     }
   };
 
@@ -183,18 +219,39 @@ function ContactFormContent() {
               </div>
             ) : null}
 
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-2">
-                Full Legal Name *
-              </label>
-              <input
-                required
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="e.g. Ar. Vikramaditya Sharma"
-                className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
-              />
+            {submitError && (
+              <div className="rounded-xl border border-rose-300 bg-rose-50 p-4 text-xs text-rose-900">
+                ⚠ {submitError}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-2">
+                  Full Legal Name *
+                </label>
+                <input
+                  required
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="e.g. Ar. Vikramaditya Sharma"
+                  className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-2">
+                  Architecture Firm / Studio (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={formData.practiceOrStudio}
+                  onChange={(e) => setFormData({ ...formData, practiceOrStudio: e.target.value })}
+                  placeholder="e.g. Studio Vayu Architecture"
+                  className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -236,8 +293,8 @@ function ContactFormContent() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="sm:col-span-1">
                 <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-2">
                   Inquiry Nature
                 </label>
@@ -252,6 +309,20 @@ function ContactFormContent() {
                   <option>Existing Order Support & Tracking</option>
                   <option>B2B Corporate Invoicing (GST)</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-2">
+                  Requested Units
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="10000"
+                  value={formData.quantity}
+                  onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                  className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-bold"
+                />
               </div>
 
               <div>

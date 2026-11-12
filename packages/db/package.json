@@ -12,6 +12,7 @@
     "test:set3": "tsx tests/verify-set3-customer-identity.ts",
     "test:set4": "tsx tests/verify-set4-cart-checkout.ts",
     "test:set5": "tsx tests/verify-set5-order-tracking.ts",
+    "test:set6": "tsx tests/verify-set6-quotes-enquiries.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -480,6 +480,7 @@ model Payment {
 model QuoteProposal {
   id                    String              @id @default(cuid())
   quoteNumber           String              @unique // Format: QTE-YYYYMMDD-XXXX
+  inquiryId             String?             // Optional link to originating BulkInquiry
   customerName          String
   customerEmail         String
   customerPhone         String
@@ -498,6 +499,7 @@ model QuoteProposal {
 
   @@index([quoteNumber])
   @@index([customerEmail])
+  @@index([inquiryId])
   @@index([status])
 }
 
@@ -506,6 +508,8 @@ model QuoteVersion {
   quoteProposalId       String
   versionNumber         Int                 @default(1)
   specifications        String
+  lineItemsJson         String?             // Structured QuoteLineItem[] JSON
+  deliveryCharge        Decimal             @default(0.00) @db.Decimal(10, 2)
   quotedAmount          Decimal             @db.Decimal(10, 2)
   advanceRequired       Decimal             @db.Decimal(10, 2) // 25% of quotedAmount
   estimatedLeadDays     Int                 @default(28)

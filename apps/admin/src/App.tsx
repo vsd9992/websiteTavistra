@@ -19,9 +19,17 @@ import {
 } from "./data";
 import { LogisticsTab } from "./components/LogisticsTab";
 
+export interface ProposalLineItemInput {
+  name: string;
+  finish: string;
+  quantity: number;
+  unitPriceRupees: number;
+}
+
 export interface AdminProposal {
   id: string;
   quoteNumber: string;
+  inquiryId?: string | null;
   customerName: string;
   customerEmail: string;
   customerPhone: string;
@@ -35,9 +43,12 @@ export interface AdminProposal {
     id: string;
     versionNumber: number;
     specifications: string;
+    lineItemsJson?: string | null;
+    deliveryCharge?: number | string;
     quotedAmount: number;
     advanceRequired: number;
     estimatedLeadDays: number;
+    validUntil?: string;
   }[];
 }
 
@@ -88,17 +99,46 @@ export default function App() {
 
   // Proposal modal state
   const [isProposalModalOpen, setIsProposalModalOpen] = useState(false);
-  const [proposalForm, setProposalForm] = useState({
+  const [proposalForm, setProposalForm] = useState<{
+    inquiryId: string;
+    customerName: string;
+    customerEmail: string;
+    customerPhone: string;
+    deliveryPincode: string;
+    lineItems: ProposalLineItemInput[];
+    deliveryChargeRupees: number;
+    estimatedLeadWeeks: number;
+    notes: string;
+  }>({
     inquiryId: "",
     customerName: "",
     customerEmail: "",
     customerPhone: "",
-    deliveryPincode: "",
-    projectSpecifications: "",
-    quotedAmountRupees: 50000,
-    estimatedLeadDays: 28,
+    deliveryPincode: "110001",
+    lineItems: [
+      { name: "Bespoke Walnut Credenza with aged brass trim", finish: "Hand-rubbed oil & antiqued brass", quantity: 1, unitPriceRupees: 65000 },
+    ],
+    deliveryChargeRupees: 3500,
+    estimatedLeadWeeks: 4,
+    notes: "Architectural private residence consignment. All joinery mortise-and-tenon.",
   });
   const [isSubmittingProposal, setIsSubmittingProposal] = useState(false);
+
+  // Proposal Revision modal state (QOT-05)
+  const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
+  const [revisionQuote, setRevisionQuote] = useState<AdminProposal | null>(null);
+  const [revisionForm, setRevisionForm] = useState<{
+    lineItems: ProposalLineItemInput[];
+    deliveryChargeRupees: number;
+    estimatedLeadWeeks: number;
+    notes: string;
+  }>({
+    lineItems: [],
+    deliveryChargeRupees: 0,
+    estimatedLeadWeeks: 4,
+    notes: "",
+  });
+  const [isSubmittingRevision, setIsSubmittingRevision] = useState(false);
 
   // Markdown Product Importer State
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -254,14 +294,18 @@ export default function App() {
     });
   }, [orders, modeFilter, statusFilter, orderSearch]);
 
-  const getStorefrontBalanceLink = (orderNumber: string) => {
+  const getStorefrontUrl = (path: string) => {
     const origin =
       typeof window !== "undefined" && window.location.port === "3002"
         ? `${window.location.protocol}//${window.location.hostname}:3001`
         : typeof window !== "undefined"
         ? window.location.origin
         : "http://192.168.1.100:3001";
-    return `${origin}/track?orderId=${encodeURIComponent(orderNumber)}`;
+    return `${origin}${path.startsWith("/") ? path : `/${path}`}`;
+  };
+
+  const getStorefrontBalanceLink = (orderNumber: string) => {
+    return getStorefrontUrl(`/track?orderId=${encodeURIComponent(orderNumber)}`);
   };
 
   const handleCopyBalanceLink = async (order: AdminOrder) => {
@@ -725,21 +769,38 @@ export default function App() {
     e.preventDefault();
     setIsSubmittingProposal(true);
     try {
+      const itemsSubtotal = proposalForm.lineItems.reduce(
+        (sum, it) => sum + (Number(it.quantity) || 1) * (Number(it.unitPriceRupees) || 0),
+        0
+      );
+      const delivery = Math.max(0, Number(proposalForm.deliveryChargeRupees) || 0);
+      const quotedAmountRupees = itemsSubtotal + delivery;
+      const estimatedLeadDays = Math.max(7, (Number(proposalForm.estimatedLeadWeeks) || 4) * 7);
+
       const data = await fetchJson<{ proposal: AdminProposal }>("/api/quotes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...proposalForm,
+          inquiryId: proposalForm.inquiryId || undefined,
+          customerName: proposalForm.customerName.trim(),
+          customerEmail: proposalForm.customerEmail.trim(),
+          customerPhone: proposalForm.customerPhone.trim(),
+          deliveryPincode: proposalForm.deliveryPincode.trim(),
+          lineItems: proposalForm.lineItems,
+          deliveryChargeRupees: delivery,
+          quotedAmountRupees,
+          estimatedLeadDays,
+          notes: proposalForm.notes,
           staffName: currentStaff.name,
         }),
       });
 
-      setProposals((prev) => [data.proposal, ...prev]);
+      setProposals((prev) => [data.proposal, ...prev.filter((p) => p.id !== data.proposal.id)]);
       logAuditAction(
         "QUOTE_PROPOSAL_ISSUED",
         "QuoteProposal",
         data.proposal.quoteNumber,
-        `Proposal issued to ${proposalForm.customerEmail} for ₹${Number(proposalForm.quotedAmountRupees).toLocaleString("en-IN")}.`
+        `Proposal issued to ${proposalForm.customerEmail} for ₹${Number(quotedAmountRupees).toLocaleString("en-IN")}.`
       );
       setIsProposalModalOpen(false);
       if (proposalForm.inquiryId) {
@@ -752,6 +813,93 @@ export default function App() {
     } finally {
       setIsSubmittingProposal(false);
     }
+  };
+
+  // Create Proposal Revision (N+1) preserving original 30-day clock (QOT-05)
+  const handleCreateRevision = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!revisionQuote) return;
+    setIsSubmittingRevision(true);
+    try {
+      const itemsSubtotal = revisionForm.lineItems.reduce(
+        (sum, it) => sum + (Number(it.quantity) || 1) * (Number(it.unitPriceRupees) || 0),
+        0
+      );
+      const delivery = Math.max(0, Number(revisionForm.deliveryChargeRupees) || 0);
+      const quotedAmountRupees = itemsSubtotal + delivery;
+      const estimatedLeadDays = Math.max(7, (Number(revisionForm.estimatedLeadWeeks) || 4) * 7);
+
+      const data = await fetchJson<{ proposal: AdminProposal }>(
+        `/api/quotes/${encodeURIComponent(revisionQuote.quoteNumber)}/revisions`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            lineItems: revisionForm.lineItems,
+            deliveryChargeRupees: delivery,
+            quotedAmountRupees,
+            estimatedLeadDays,
+            notes: revisionForm.notes,
+            staffName: currentStaff.name,
+          }),
+        }
+      );
+
+      const updated = data.proposal;
+      setProposals((prev) =>
+        prev.map((p) => (p.quoteNumber === updated.quoteNumber ? updated : p))
+      );
+      logAuditAction(
+        "QUOTE_PROPOSAL_REVISED",
+        "QuoteProposal",
+        revisionQuote.quoteNumber,
+        `Revision V${(updated.versions?.[0]?.versionNumber || 2)} issued for ₹${Number(quotedAmountRupees).toLocaleString("en-IN")}. Original 30-day offer clock preserved.`
+      );
+      setIsRevisionModalOpen(false);
+      setRevisionQuote(null);
+    } catch (err: unknown) {
+      alert((err as Error).message || "Error revising proposal");
+    } finally {
+      setIsSubmittingRevision(false);
+    }
+  };
+
+  const handleOpenRevisionModal = (proposal: AdminProposal) => {
+    const latestVer = proposal.versions?.[0];
+    let items: ProposalLineItemInput[] = [];
+    if (latestVer?.lineItemsJson) {
+      try {
+        const parsed = JSON.parse(latestVer.lineItemsJson);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          items = parsed.map((it) => ({
+            name: it.name || "Bespoke Edition",
+            finish: it.finish || "",
+            quantity: Number(it.quantity) || 1,
+            unitPriceRupees: Number(it.unitPriceRupees) || 0,
+          }));
+        }
+      } catch {
+        // Fallback to default
+      }
+    }
+    if (items.length === 0 && latestVer) {
+      items = [
+        {
+          name: "Bespoke Architectural Scope",
+          finish: "Standard Studio Patina",
+          quantity: 1,
+          unitPriceRupees: Number(latestVer.quotedAmount) || 50000,
+        },
+      ];
+    }
+    setRevisionQuote(proposal);
+    setRevisionForm({
+      lineItems: items,
+      deliveryChargeRupees: Number(latestVer?.deliveryCharge || 0),
+      estimatedLeadWeeks: Math.max(1, Math.round((latestVer?.estimatedLeadDays || 28) / 7)),
+      notes: latestVer?.specifications || "",
+    });
+    setIsRevisionModalOpen(true);
   };
 
   // Sync Markdown Product Editions from docs/products
@@ -1775,9 +1923,17 @@ export default function App() {
                     customerEmail: "",
                     customerPhone: "",
                     deliveryPincode: "110001",
-                    projectSpecifications: "",
-                    quotedAmountRupees: 65000,
-                    estimatedLeadDays: 28,
+                    lineItems: [
+                      {
+                        name: "Bespoke Walnut Credenza with aged brass trim",
+                        finish: "Hand-rubbed oil & antiqued brass",
+                        quantity: 1,
+                        unitPriceRupees: 65000,
+                      },
+                    ],
+                    deliveryChargeRupees: 3500,
+                    estimatedLeadWeeks: 6,
+                    notes: "",
                   });
                   setIsProposalModalOpen(true);
                 }}
@@ -1854,8 +2010,16 @@ export default function App() {
                               )}
                             </td>
                             <td className="py-4 px-4 text-right space-x-2">
+                              {!isAccepted && !isExpired && (
+                                <button
+                                  onClick={() => handleOpenRevisionModal(p)}
+                                  className="px-3 py-1.5 rounded-lg bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors"
+                                >
+                                  + Issue Revision (v{(latestVer?.versionNumber || 1) + 1})
+                                </button>
+                              )}
                               <a
-                                href={`http://localhost:3000/quote/${p.quoteNumber}`}
+                                href={getStorefrontUrl(`/quote/${p.quoteNumber}`)}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="px-3 py-1.5 rounded-lg bg-[#2a2a30] text-xs font-semibold text-[#c59b6d] hover:bg-[#34343c]"
@@ -1918,15 +2082,24 @@ export default function App() {
                         <td className="py-4 px-4 text-right">
                           <button
                             onClick={() => {
+                              const units = Math.max(1, inq.quantityUnits || 10);
                               setProposalForm({
                                 inquiryId: inq.id,
                                 customerName: inq.clientName,
                                 customerEmail: inq.email,
                                 customerPhone: inq.phone,
-                                deliveryPincode: inq.destinationPincode,
-                                projectSpecifications: `Commercial Edition: ${inq.requestedEditions} (${inq.quantityUnits} Units).\nSpecifications: ${inq.specifications}`,
-                                quotedAmountRupees: 125000,
-                                estimatedLeadDays: 28,
+                                deliveryPincode: inq.destinationPincode || "110001",
+                                lineItems: [
+                                  {
+                                    name: inq.requestedEditions || "Bespoke Architectural Editions",
+                                    finish: "Studio Hand-Crafted Patina Finish",
+                                    quantity: units,
+                                    unitPriceRupees: Math.round(125000 / units),
+                                  },
+                                ],
+                                deliveryChargeRupees: 4500,
+                                estimatedLeadWeeks: 6,
+                                notes: `Client Inquiry Brief (${inq.inquiryNumber || inq.id}):\n${inq.specifications || "Trade / hospitality consignment"}`,
                               });
                               setIsProposalModalOpen(true);
                             }}
@@ -2788,139 +2961,516 @@ export default function App() {
       )}
 
       {/* MODAL 5: Issue 30-Day Formal Architectural Proposal (TAV-07) */}
-      {isProposalModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-xl rounded-2xl bg-[#1c1c20] border border-[#2e2e34] p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-[#2e2e34] pb-3">
-              <div>
-                <span className="text-[10px] uppercase font-bold text-[#c59b6d] tracking-wider block">
-                  Commercial Offer Engine · TAV-07
-                </span>
-                <h3 className="font-semibold text-base text-white">Issue 30-Day Locked Architectural Proposal</h3>
-              </div>
-              <button
-                onClick={() => setIsProposalModalOpen(false)}
-                className="text-xs text-[#9e9ea8] hover:text-white"
-              >
-                ✕ Close
-              </button>
-            </div>
+      {isProposalModalOpen && (() => {
+        const itemsSubtotal = proposalForm.lineItems.reduce(
+          (sum, it) => sum + (Number(it.quantity) || 1) * (Number(it.unitPriceRupees) || 0),
+          0
+        );
+        const delivery = Math.max(0, Number(proposalForm.deliveryChargeRupees) || 0);
+        const totalQuoted = itemsSubtotal + delivery;
+        const advanceRequired = Math.round(totalQuoted * 0.25);
+        const balanceDue = totalQuoted - advanceRequired;
 
-            <form onSubmit={handleCreateProposal} className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-white font-semibold">Client Legal Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={proposalForm.customerName}
-                    onChange={(e) => setProposalForm({ ...proposalForm, customerName: e.target.value })}
-                    className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-2.5 text-white focus:outline-none focus:border-[#c59b6d]"
-                  />
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="w-full max-w-2xl rounded-2xl bg-[#1c1c20] border border-[#2e2e34] p-6 space-y-5 shadow-2xl max-h-[92vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-[#2e2e34] pb-3">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#c59b6d] tracking-wider block">
+                    Commercial Offer Engine · TAV-07
+                  </span>
+                  <h3 className="font-semibold text-base text-white">Issue 30-Day Locked Architectural Proposal</h3>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-white font-semibold">Client Email (Proposal Destination)</label>
-                  <input
-                    type="email"
-                    required
-                    value={proposalForm.customerEmail}
-                    onChange={(e) => setProposalForm({ ...proposalForm, customerEmail: e.target.value })}
-                    className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-2.5 text-white focus:outline-none focus:border-[#c59b6d]"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-white font-semibold">Client Contact Phone</label>
-                  <input
-                    type="text"
-                    value={proposalForm.customerPhone}
-                    onChange={(e) => setProposalForm({ ...proposalForm, customerPhone: e.target.value })}
-                    className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-2.5 text-white focus:outline-none focus:border-[#c59b6d]"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-white font-semibold">Destination Delivery PIN</label>
-                  <input
-                    type="text"
-                    required
-                    value={proposalForm.deliveryPincode}
-                    onChange={(e) => setProposalForm({ ...proposalForm, deliveryPincode: e.target.value })}
-                    className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-2.5 font-mono text-white focus:outline-none focus:border-[#c59b6d]"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-white font-semibold">Project Scope & Architectural Specifications</label>
-                <textarea
-                  rows={4}
-                  required
-                  value={proposalForm.projectSpecifications}
-                  onChange={(e) => setProposalForm({ ...proposalForm, projectSpecifications: e.target.value })}
-                  className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-3 text-white focus:outline-none focus:border-[#c59b6d] font-mono text-[11px]"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-white font-semibold">Total Quoted Value (₹ Tax-Inclusive)</label>
-                  <input
-                    type="number"
-                    min="1000"
-                    step="500"
-                    required
-                    value={proposalForm.quotedAmountRupees}
-                    onChange={(e) => setProposalForm({ ...proposalForm, quotedAmountRupees: Number(e.target.value) })}
-                    className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-2.5 text-white focus:outline-none focus:border-[#c59b6d] font-bold"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-white font-semibold">Estimated Lead Time (Days)</label>
-                  <input
-                    type="number"
-                    min="7"
-                    max="180"
-                    required
-                    value={proposalForm.estimatedLeadDays}
-                    onChange={(e) => setProposalForm({ ...proposalForm, estimatedLeadDays: Number(e.target.value) })}
-                    className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-2.5 text-white focus:outline-none focus:border-[#c59b6d]"
-                  />
-                </div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-[#24242a] border border-[#2e2e34] space-y-1">
-                <div className="flex justify-between text-[#c59b6d] font-semibold">
-                  <span>25% Production Advance Required:</span>
-                  <span>{formatPrice(Math.round(proposalForm.quotedAmountRupees * 0.25))}</span>
-                </div>
-                <div className="flex justify-between text-[#9e9ea8]">
-                  <span>75% Final Balance (Due post-QC):</span>
-                  <span>{formatPrice(proposalForm.quotedAmountRupees - Math.round(proposalForm.quotedAmountRupees * 0.25))}</span>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#2e2e34]">
                 <button
                   type="button"
                   onClick={() => setIsProposalModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-[#3e3e46] text-xs text-[#9e9ea8] hover:text-white"
+                  className="text-xs text-[#9e9ea8] hover:text-white"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingProposal}
-                  className="px-5 py-2 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors disabled:opacity-50"
-                >
-                  {isSubmittingProposal ? "Dispatching Proposal..." : "Issue Proposal & Send Email"}
+                  ✕ Close
                 </button>
               </div>
-            </form>
+
+              <form onSubmit={handleCreateProposal} className="space-y-5 text-xs">
+                {/* Client Identifiers */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-white font-semibold">Client Legal Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={proposalForm.customerName}
+                      onChange={(e) => setProposalForm({ ...proposalForm, customerName: e.target.value })}
+                      className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-2.5 text-white focus:outline-none focus:border-[#c59b6d]"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-white font-semibold">Client Email (Proposal Destination) *</label>
+                    <input
+                      type="email"
+                      required
+                      value={proposalForm.customerEmail}
+                      onChange={(e) => setProposalForm({ ...proposalForm, customerEmail: e.target.value })}
+                      className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-2.5 text-white focus:outline-none focus:border-[#c59b6d]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-white font-semibold">Client Contact Phone</label>
+                    <input
+                      type="text"
+                      value={proposalForm.customerPhone}
+                      onChange={(e) => setProposalForm({ ...proposalForm, customerPhone: e.target.value })}
+                      className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-2.5 text-white focus:outline-none focus:border-[#c59b6d]"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-white font-semibold">Destination Delivery PIN (6-Digit) *</label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={6}
+                      value={proposalForm.deliveryPincode}
+                      onChange={(e) => setProposalForm({ ...proposalForm, deliveryPincode: e.target.value.replace(/\D/g, "") })}
+                      className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-2.5 font-mono text-white focus:outline-none focus:border-[#c59b6d]"
+                    />
+                  </div>
+                </div>
+
+                {/* Bespoke Line Items Editor */}
+                <div className="space-y-3 pt-2 border-t border-[#2e2e34]">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold text-white">Bespoke Architectural Line Items ({proposalForm.lineItems.length})</h4>
+                      <p className="text-[11px] text-[#9e9ea8]">Add individual custom editions, materials, and artisan finish specifications.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setProposalForm({
+                          ...proposalForm,
+                          lineItems: [
+                            ...proposalForm.lineItems,
+                            { name: "Additional Bespoke Piece", finish: "Hand-crafted studio patina", quantity: 1, unitPriceRupees: 25000 },
+                          ],
+                        })
+                      }
+                      className="px-3 py-1 rounded-lg bg-[#2e2e34] text-[#c59b6d] hover:bg-[#3e3e46] text-xs font-semibold"
+                    >
+                      + Add Line Item
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {proposalForm.lineItems.map((item, idx) => (
+                      <div key={idx} className="p-3 rounded-xl bg-[#121214] border border-[#2e2e34] grid grid-cols-12 gap-2 items-center">
+                        <div className="col-span-12 sm:col-span-5 space-y-1">
+                          <label className="text-[10px] text-[#9e9ea8] font-semibold uppercase">Item Name / Edition</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. Monolith Console Table"
+                            value={item.name}
+                            onChange={(e) => {
+                              const next = [...proposalForm.lineItems];
+                              next[idx].name = e.target.value;
+                              setProposalForm({ ...proposalForm, lineItems: next });
+                            }}
+                            className="w-full rounded-lg border border-[#3e3e46] bg-[#1c1c20] p-1.5 text-white text-xs"
+                          />
+                        </div>
+                        <div className="col-span-12 sm:col-span-3 space-y-1">
+                          <label className="text-[10px] text-[#9e9ea8] font-semibold uppercase">Finish / Patina</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Antiqued Brass"
+                            value={item.finish}
+                            onChange={(e) => {
+                              const next = [...proposalForm.lineItems];
+                              next[idx].finish = e.target.value;
+                              setProposalForm({ ...proposalForm, lineItems: next });
+                            }}
+                            className="w-full rounded-lg border border-[#3e3e46] bg-[#1c1c20] p-1.5 text-white text-xs"
+                          />
+                        </div>
+                        <div className="col-span-4 sm:col-span-1 space-y-1">
+                          <label className="text-[10px] text-[#9e9ea8] font-semibold uppercase">Qty</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => {
+                              const next = [...proposalForm.lineItems];
+                              next[idx].quantity = Math.max(1, Number(e.target.value));
+                              setProposalForm({ ...proposalForm, lineItems: next });
+                            }}
+                            className="w-full rounded-lg border border-[#3e3e46] bg-[#1c1c20] p-1.5 text-white text-xs text-center font-bold"
+                          />
+                        </div>
+                        <div className="col-span-6 sm:col-span-2 space-y-1">
+                          <label className="text-[10px] text-[#9e9ea8] font-semibold uppercase">Rate (₹)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={item.unitPriceRupees}
+                            onChange={(e) => {
+                              const next = [...proposalForm.lineItems];
+                              next[idx].unitPriceRupees = Math.max(0, Number(e.target.value));
+                              setProposalForm({ ...proposalForm, lineItems: next });
+                            }}
+                            className="w-full rounded-lg border border-[#3e3e46] bg-[#1c1c20] p-1.5 text-white text-xs font-mono"
+                          />
+                        </div>
+                        <div className="col-span-2 sm:col-span-1 flex justify-end pt-4">
+                          {proposalForm.lineItems.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = proposalForm.lineItems.filter((_, i) => i !== idx);
+                                setProposalForm({ ...proposalForm, lineItems: next });
+                              }}
+                              className="text-rose-400 hover:text-rose-300 text-xs px-2 py-1"
+                              title="Remove Line Item"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Delivery & Production Lead Time */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#2e2e34]">
+                  <div className="space-y-1">
+                    <label className="text-white font-semibold">Custom Insured Wooden Crating &amp; Freight (₹)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="500"
+                      value={proposalForm.deliveryChargeRupees}
+                      onChange={(e) => setProposalForm({ ...proposalForm, deliveryChargeRupees: Math.max(0, Number(e.target.value)) })}
+                      className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-2.5 text-white font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-white font-semibold">Workshop Production Lead Time (Weeks)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="30"
+                      required
+                      value={proposalForm.estimatedLeadWeeks}
+                      onChange={(e) => setProposalForm({ ...proposalForm, estimatedLeadWeeks: Math.max(1, Number(e.target.value)) })}
+                      className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-2.5 text-white"
+                    />
+                  </div>
+                </div>
+
+                {/* Scope & Notes */}
+                <div className="space-y-1">
+                  <label className="text-white font-semibold">Project Scope &amp; Special Client Instructions</label>
+                  <textarea
+                    rows={3}
+                    value={proposalForm.notes}
+                    onChange={(e) => setProposalForm({ ...proposalForm, notes: e.target.value })}
+                    className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-2.5 text-white font-mono text-[11px]"
+                  />
+                </div>
+
+                {/* Computed Ledger Breakdown */}
+                <div className="p-4 rounded-xl bg-[#121214] border border-[#2e2e34] space-y-1.5">
+                  <div className="flex justify-between text-[#9e9ea8]">
+                    <span>Items Subtotal:</span>
+                    <span className="font-semibold text-white">{formatPrice(itemsSubtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-[#9e9ea8]">
+                    <span>Insured Crating &amp; Transport:</span>
+                    <span className="font-semibold text-white">{delivery === 0 ? "Complimentary" : formatPrice(delivery)}</span>
+                  </div>
+                  <div className="flex justify-between text-white font-bold pt-1.5 border-t border-[#2e2e34]">
+                    <span>Total Quoted Value (Tax-Inclusive):</span>
+                    <span className="text-[#c59b6d]">{formatPrice(totalQuoted)}</span>
+                  </div>
+                  <div className="flex justify-between text-[#c59b6d] font-semibold pt-1">
+                    <span>25% Production Advance Required:</span>
+                    <span>{formatPrice(advanceRequired)}</span>
+                  </div>
+                  <div className="flex justify-between text-[#9e9ea8]">
+                    <span>75% Final Balance (Due post-QC before dispatch):</span>
+                    <span>{formatPrice(balanceDue)}</span>
+                  </div>
+                  <div className="pt-2 text-[10px] text-[#9e9ea8] border-t border-[#2e2e34]">
+                    ⏳ <strong>TAV-07 Clock Lock:</strong> Automatically valid for 30 calendar days from issuance.
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#2e2e34]">
+                  <button
+                    type="button"
+                    onClick={() => setIsProposalModalOpen(false)}
+                    className="px-4 py-2 rounded-xl border border-[#3e3e46] text-xs text-[#9e9ea8] hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingProposal || totalQuoted <= 0}
+                    className="px-5 py-2 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors disabled:opacity-50"
+                  >
+                    {isSubmittingProposal ? "Dispatching Proposal..." : `Issue 30-Day Proposal (${formatPrice(totalQuoted)})`}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
+
+      {/* MODAL 5B: Issue Proposal Revision (N+1) with Preserved 30-Day Clock (QOT-05) */}
+      {isRevisionModalOpen && revisionQuote && (() => {
+        const itemsSubtotal = revisionForm.lineItems.reduce(
+          (sum, it) => sum + (Number(it.quantity) || 1) * (Number(it.unitPriceRupees) || 0),
+          0
+        );
+        const delivery = Math.max(0, Number(revisionForm.deliveryChargeRupees) || 0);
+        const totalQuoted = itemsSubtotal + delivery;
+        const advanceRequired = Math.round(totalQuoted * 0.25);
+        const balanceDue = totalQuoted - advanceRequired;
+        const nextVer = (revisionQuote.versions?.[0]?.versionNumber || 1) + 1;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="w-full max-w-2xl rounded-2xl bg-[#1c1c20] border border-[#2e2e34] p-6 space-y-5 shadow-2xl max-h-[92vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-[#2e2e34] pb-3">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#c59b6d] tracking-wider block">
+                    Offer Revision Engine · TAV-07
+                  </span>
+                  <h3 className="font-semibold text-base text-white">
+                    Issue Proposal Revision V{nextVer} for {revisionQuote.quoteNumber}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRevisionModalOpen(false);
+                    setRevisionQuote(null);
+                  }}
+                  className="text-xs text-[#9e9ea8] hover:text-white"
+                >
+                  ✕ Close
+                </button>
+              </div>
+
+              {/* TAV-07 Clock Immutability Banner */}
+              <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-800 text-amber-200 text-xs space-y-1">
+                <strong>CRITICAL (TAV-07 Policy):</strong> Revisions update bespoke specifications or pricing but{" "}
+                <strong>strictly preserve the original 30-day offer clock</strong>. This quotation expires on{" "}
+                <strong>
+                  {new Date(revisionQuote.expiresAt).toLocaleDateString("en-IN", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                    timeZone: "Asia/Kolkata",
+                  })}
+                </strong>{" "}
+                (no extension).
+              </div>
+
+              <form onSubmit={handleCreateRevision} className="space-y-5 text-xs">
+                {/* Client Reference Summary */}
+                <div className="p-3 rounded-xl bg-[#121214] border border-[#2e2e34] flex flex-wrap justify-between gap-2 text-[#9e9ea8]">
+                  <span>Client: <strong className="text-white">{revisionQuote.customerName}</strong></span>
+                  <span>Email: <strong className="text-white">{revisionQuote.customerEmail}</strong></span>
+                  <span>Destination: <strong className="text-white font-mono">PIN {revisionQuote.deliveryPincode}</strong></span>
+                </div>
+
+                {/* Line Items Editor */}
+                <div className="space-y-3 pt-2 border-t border-[#2e2e34]">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-white">Revised Line Items ({revisionForm.lineItems.length})</h4>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setRevisionForm({
+                          ...revisionForm,
+                          lineItems: [
+                            ...revisionForm.lineItems,
+                            { name: "Additional Bespoke Piece", finish: "Hand-crafted patina", quantity: 1, unitPriceRupees: 25000 },
+                          ],
+                        })
+                      }
+                      className="px-3 py-1 rounded-lg bg-[#2e2e34] text-[#c59b6d] hover:bg-[#3e3e46] text-xs font-semibold"
+                    >
+                      + Add Line Item
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {revisionForm.lineItems.map((item, idx) => (
+                      <div key={idx} className="p-3 rounded-xl bg-[#121214] border border-[#2e2e34] grid grid-cols-12 gap-2 items-center">
+                        <div className="col-span-12 sm:col-span-5 space-y-1">
+                          <label className="text-[10px] text-[#9e9ea8] font-semibold uppercase">Item Name</label>
+                          <input
+                            type="text"
+                            required
+                            value={item.name}
+                            onChange={(e) => {
+                              const next = [...revisionForm.lineItems];
+                              next[idx].name = e.target.value;
+                              setRevisionForm({ ...revisionForm, lineItems: next });
+                            }}
+                            className="w-full rounded-lg border border-[#3e3e46] bg-[#1c1c20] p-1.5 text-white text-xs"
+                          />
+                        </div>
+                        <div className="col-span-12 sm:col-span-3 space-y-1">
+                          <label className="text-[10px] text-[#9e9ea8] font-semibold uppercase">Finish</label>
+                          <input
+                            type="text"
+                            value={item.finish}
+                            onChange={(e) => {
+                              const next = [...revisionForm.lineItems];
+                              next[idx].finish = e.target.value;
+                              setRevisionForm({ ...revisionForm, lineItems: next });
+                            }}
+                            className="w-full rounded-lg border border-[#3e3e46] bg-[#1c1c20] p-1.5 text-white text-xs"
+                          />
+                        </div>
+                        <div className="col-span-4 sm:col-span-1 space-y-1">
+                          <label className="text-[10px] text-[#9e9ea8] font-semibold uppercase">Qty</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => {
+                              const next = [...revisionForm.lineItems];
+                              next[idx].quantity = Math.max(1, Number(e.target.value));
+                              setRevisionForm({ ...revisionForm, lineItems: next });
+                            }}
+                            className="w-full rounded-lg border border-[#3e3e46] bg-[#1c1c20] p-1.5 text-white text-xs text-center font-bold"
+                          />
+                        </div>
+                        <div className="col-span-6 sm:col-span-2 space-y-1">
+                          <label className="text-[10px] text-[#9e9ea8] font-semibold uppercase">Rate (₹)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={item.unitPriceRupees}
+                            onChange={(e) => {
+                              const next = [...revisionForm.lineItems];
+                              next[idx].unitPriceRupees = Math.max(0, Number(e.target.value));
+                              setRevisionForm({ ...revisionForm, lineItems: next });
+                            }}
+                            className="w-full rounded-lg border border-[#3e3e46] bg-[#1c1c20] p-1.5 text-white text-xs font-mono"
+                          />
+                        </div>
+                        <div className="col-span-2 sm:col-span-1 flex justify-end pt-4">
+                          {revisionForm.lineItems.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = revisionForm.lineItems.filter((_, i) => i !== idx);
+                                setRevisionForm({ ...revisionForm, lineItems: next });
+                              }}
+                              className="text-rose-400 hover:text-rose-300 text-xs px-2 py-1"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Delivery & Production Lead Time */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#2e2e34]">
+                  <div className="space-y-1">
+                    <label className="text-white font-semibold">Custom Insured Freight (₹)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="500"
+                      value={revisionForm.deliveryChargeRupees}
+                      onChange={(e) => setRevisionForm({ ...revisionForm, deliveryChargeRupees: Math.max(0, Number(e.target.value)) })}
+                      className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-2.5 text-white font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-white font-semibold">Workshop Production Lead Time (Weeks)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="30"
+                      required
+                      value={revisionForm.estimatedLeadWeeks}
+                      onChange={(e) => setRevisionForm({ ...revisionForm, estimatedLeadWeeks: Math.max(1, Number(e.target.value)) })}
+                      className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-2.5 text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-white font-semibold">Scope Modifications &amp; Revision Notes</label>
+                  <textarea
+                    rows={3}
+                    value={revisionForm.notes}
+                    onChange={(e) => setRevisionForm({ ...revisionForm, notes: e.target.value })}
+                    className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-2.5 text-white font-mono text-[11px]"
+                  />
+                </div>
+
+                {/* Computed Ledger Breakdown */}
+                <div className="p-4 rounded-xl bg-[#121214] border border-[#2e2e34] space-y-1.5">
+                  <div className="flex justify-between text-[#9e9ea8]">
+                    <span>Items Subtotal:</span>
+                    <span className="font-semibold text-white">{formatPrice(itemsSubtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-[#9e9ea8]">
+                    <span>Insured Crating &amp; Transport:</span>
+                    <span className="font-semibold text-white">{delivery === 0 ? "Complimentary" : formatPrice(delivery)}</span>
+                  </div>
+                  <div className="flex justify-between text-white font-bold pt-1.5 border-t border-[#2e2e34]">
+                    <span>Revised Quoted Commitment:</span>
+                    <span className="text-[#c59b6d]">{formatPrice(totalQuoted)}</span>
+                  </div>
+                  <div className="flex justify-between text-[#c59b6d] font-semibold pt-1">
+                    <span>25% Advance Required:</span>
+                    <span>{formatPrice(advanceRequired)}</span>
+                  </div>
+                  <div className="flex justify-between text-[#9e9ea8]">
+                    <span>75% Final Balance:</span>
+                    <span>{formatPrice(balanceDue)}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#2e2e34]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsRevisionModalOpen(false);
+                      setRevisionQuote(null);
+                    }}
+                    className="px-4 py-2 rounded-xl border border-[#3e3e46] text-xs text-[#9e9ea8] hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingRevision || totalQuoted <= 0}
+                    className="px-5 py-2 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors disabled:opacity-50"
+                  >
+                    {isSubmittingRevision ? "Issuing Revision..." : `Issue Revision V${nextVer} (${formatPrice(totalQuoted)})`}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* MODAL 6: Markdown Product Importer */}
       {isImportModalOpen && (
