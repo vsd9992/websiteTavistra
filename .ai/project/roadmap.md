@@ -15,8 +15,8 @@ modified: 2026-11-12
 - Set 3: Customer Identity, Hardened Validation, Email/TOTP MFA, Addresses & Privacy Isolation [Completed & Verified on devMachine — 54/54]
 - Set 4: Cart Governance, Delivery Engine & Ready Stock / MTO Checkout [Completed & Verified on devMachine — 20/20]
 - Set 5: Order Tracking, 7-Day Grace, QC Photos & 75% Balance Gate [Completed & Verified on devMachine — 21/21]
-- Set 6: 30-Day Architectural Quotes & Bulk Enquiry Lifecycle [Next — Pending Approval]
-- Set 7: Support Ticket Desk & Email Threading [Pending]
+- Set 6: 30-Day Architectural Quotes & Bulk Enquiry Lifecycle [Completed & Verified on devMachine — 23/23]
+- Set 7: Support Ticket Desk & Email Threading [Next — Pending Approval]
 - Set 8: Staff Authentication, RBAC & Final Acceptance Runbook Sweep [Pending]
 
 ## Phase 3: Testing & Bug Fixing (Comprehensive Pre-Live Acceptance Sweep)
