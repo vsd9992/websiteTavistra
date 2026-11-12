@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useEffect, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Header } from "@/components/Header";
@@ -49,11 +49,25 @@ function LoginContent() {
   const [error, setError] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
 
+  const resetLoginState = useCallback(() => {
+    setMode("password");
+    setEmail("");
+    setPassword("");
+    setOtpCode("");
+    setMfaToken("");
+    setMfaMethod("EMAIL");
+    setNewPassword("");
+    setConfirmNewPassword("");
+    setError("");
+    setInfoMessage("");
+  }, []);
+
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
+      resetLoginState();
       router.replace(nextPath);
     }
-  }, [authLoading, isAuthenticated, router, nextPath]);
+  }, [authLoading, isAuthenticated, router, nextPath, resetLoginState]);
 
   const clearAlerts = () => {
     setError("");
@@ -100,6 +114,7 @@ function LoginContent() {
       return;
     }
 
+    resetLoginState();
     router.push(nextPath);
   };
 
@@ -153,6 +168,7 @@ function LoginContent() {
       return;
     }
 
+    resetLoginState();
     router.push(nextPath);
   };
 
@@ -173,6 +189,7 @@ function LoginContent() {
       return;
     }
 
+    resetLoginState();
     router.push(nextPath);
   };
 
@@ -192,6 +209,7 @@ function LoginContent() {
       return;
     }
 
+    resetLoginState();
     router.push(nextPath);
   };
 
@@ -330,7 +348,7 @@ function LoginContent() {
           )}
 
           {mode === "password" && (
-            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+            <form onSubmit={handlePasswordSubmit} autoComplete="off" className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-1.5">
                   Email Address *
@@ -338,6 +356,7 @@ function LoginContent() {
                 <input
                   type="email"
                   required
+                  autoComplete="off"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="client@architecturalstudio.in"
@@ -364,6 +383,7 @@ function LoginContent() {
                 <input
                   type="password"
                   required
+                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"

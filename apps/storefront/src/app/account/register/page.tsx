@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
@@ -38,11 +38,27 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
 
+  const resetRegisterState = useCallback(() => {
+    setStep("details");
+    setName("");
+    setEmail("");
+    setPhone("");
+    setPracticeOrStudio("");
+    setGstin("");
+    setPassword("");
+    setConfirmPassword("");
+    setOtpCode("");
+    setTouched({});
+    setError("");
+    setInfoMessage("");
+  }, []);
+
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
+      resetRegisterState();
       router.replace("/account");
     }
-  }, [authLoading, isAuthenticated, router]);
+  }, [authLoading, isAuthenticated, router, resetRegisterState]);
 
   const emailVal = validateEmail(email);
   const mobileVal = validateIndianMobile(phone);
@@ -123,6 +139,7 @@ export default function RegisterPage() {
       return;
     }
 
+    resetRegisterState();
     router.push("/account");
   };
 

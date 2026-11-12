@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
 const NAV_ITEMS = [
@@ -14,12 +14,11 @@ const NAV_ITEMS = [
 
 export default function AccountNav() {
   const pathname = usePathname();
-  const router = useRouter();
   const { user, logout } = useAuth();
 
   const handleLogout = async () => {
     await logout();
-    router.push("/account/login");
+    window.location.assign("/account/login");
   };
 
   return (
