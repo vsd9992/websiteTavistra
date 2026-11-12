@@ -35,7 +35,9 @@ export function DeliveryEstimator({ product }: DeliveryEstimatorProps) {
     isFragile: true,
   };
 
-  const handleEstimate = () => {
+  const [loading, setLoading] = useState(false);
+
+  const handleEstimate = async () => {
     const targetPin = pincode.trim();
     if (!/^\d{6}$/.test(targetPin)) {
       setError("Please enter a valid 6-digit Indian PIN code.");
@@ -44,7 +46,21 @@ export function DeliveryEstimator({ product }: DeliveryEstimatorProps) {
       return;
     }
 
-    const lookup = lookupPincode(targetPin);
+    setLoading(true);
+    let lookup: PincodeLookupResult;
+    try {
+      const res = await fetch(`/api/pincodes/check?pincode=${targetPin}`);
+      if (res.ok) {
+        lookup = await res.json();
+      } else {
+        lookup = lookupPincode(targetPin);
+      }
+    } catch {
+      lookup = lookupPincode(targetPin);
+    } finally {
+      setLoading(false);
+    }
+
     if (!lookup.isServiceable) {
       setError(
         lookup.unserviceableReason ||
@@ -101,9 +117,10 @@ export function DeliveryEstimator({ product }: DeliveryEstimatorProps) {
         <button
           type="button"
           onClick={handleEstimate}
-          className="rounded-lg bg-[var(--color-ink)] px-4 py-2 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors"
+          disabled={loading}
+          className="rounded-lg bg-[var(--color-ink)] px-4 py-2 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors disabled:opacity-50"
         >
-          Check
+          {loading ? "Checking..." : "Check"}
         </button>
       </div>
 

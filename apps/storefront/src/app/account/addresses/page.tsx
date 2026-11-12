@@ -32,28 +32,46 @@ export default function AccountAddressesPage() {
     setFormData((prev) => ({ ...prev, pincode: raw }));
 
     if (raw.length === 6) {
-      const info = lookupPincode(raw);
-      if (info && info.isServiceable) {
-        setFormData((prev) => ({
-          ...prev,
-          city: info.city,
-          state: info.state,
-        }));
-        setPinMessage({
-          text: `Serviceable destination located: ${info.city}, ${info.state} (Zone ${info.zoneCode})`,
-          isError: false,
+      fetch(`/api/pincodes/check?pincode=${raw}`)
+        .then((res) => (res.ok ? res.json() : lookupPincode(raw)))
+        .then((info) => {
+          if (info && info.isServiceable) {
+            setFormData((prev) => ({
+              ...prev,
+              city: info.city,
+              state: info.state,
+            }));
+            setPinMessage({
+              text: `Serviceable destination located: ${info.city}, ${info.state} (Zone ${info.zoneCode})`,
+              isError: false,
+            });
+          } else {
+            setFormData((prev) => ({
+              ...prev,
+              city: "",
+              state: "",
+            }));
+            setPinMessage({
+              text: info?.unserviceableReason || "We currently do not service this PIN code. Tavistra delivers exclusively across verified Tier-1 & Tier-2 hubs.",
+              isError: true,
+            });
+          }
+        })
+        .catch(() => {
+          const info = lookupPincode(raw);
+          if (info && info.isServiceable) {
+            setFormData((prev) => ({ ...prev, city: info.city, state: info.state }));
+            setPinMessage({
+              text: `Serviceable destination located: ${info.city}, ${info.state} (Zone ${info.zoneCode})`,
+              isError: false,
+            });
+          } else {
+            setPinMessage({
+              text: "We currently do not service this PIN code. Tavistra delivers exclusively across verified Tier-1 & Tier-2 hubs.",
+              isError: true,
+            });
+          }
         });
-      } else {
-        setFormData((prev) => ({
-          ...prev,
-          city: "",
-          state: "",
-        }));
-        setPinMessage({
-          text: "We currently do not service this PIN code. Tavistra delivers exclusively across verified Tier-1 & Tier-2 hubs.",
-          isError: true,
-        });
-      }
     } else {
       setPinMessage(null);
     }

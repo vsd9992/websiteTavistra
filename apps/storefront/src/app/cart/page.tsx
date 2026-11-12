@@ -65,7 +65,7 @@ export default function CartPage() {
     }))
   );
 
-  const handleEstimateShipping = (pinToTest?: string) => {
+  const handleEstimateShipping = async (pinToTest?: string) => {
     const targetPin = (pinToTest || pincode).trim();
     if (!/^\d{6}$/.test(targetPin)) {
       setPinError("Please enter a valid 6-digit Indian PIN code.");
@@ -79,7 +79,17 @@ export default function CartPage() {
       return;
     }
 
-    const lookup = lookupPincode(targetPin);
+    let lookup: PincodeLookupResult;
+    try {
+      const res = await fetch(`/api/pincodes/check?pincode=${targetPin}`);
+      if (res.ok) {
+        lookup = await res.json();
+      } else {
+        lookup = lookupPincode(targetPin);
+      }
+    } catch {
+      lookup = lookupPincode(targetPin);
+    }
     if (!lookup.isServiceable) {
       setPinError(
         lookup.unserviceableReason ||
