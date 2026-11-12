@@ -1,13 +1,12 @@
 # Project Index
 
 Project: Tavistra (`websiteTavistra`)
-Phase: Phase 2 — Execution (Modular Refinement: Sets 0 & 1 Completed, Set 2 Active — Full PIN Hierarchy & 12-Slab DB Engine)
+Phase: Phase 2 — Execution (Modular Refinement: Sets 0, 1 & 2 Completed; Set 3 Active)
 Milestone: Baseline Adoption & Modular Hardening
-Status: Set 0 & Set 1 verified live on devMachine; Set 2 active (building full Admin/Customer nested PIN governance & DB-backed 12-slab engine).
+Status: Sets 0, 1, and 2 verified live on devMachine (67/67 checks); Set 3 active (Customer Identity, Authentication, Addresses & Privacy Isolation).
 
 ## Active Tasks
-- [.ai/tasks/active/set-2-delivery-governance.md](tasks/active/set-2-delivery-governance.md) — Set 2: Hierarchical PIN Governance, DB 12-Slab Engine, Zone Controls & Admin Logistics UI
-- [.ai/tasks/active/set-3-customer-identity.md](tasks/active/set-3-customer-identity.md) — Set 3 (Queued): Customer Identity, Authentication, Addresses & Privacy Isolation
+- [.ai/tasks/active/set-3-customer-identity.md](tasks/active/set-3-customer-identity.md) — Set 3: Customer Identity, Authentication, Addresses & Privacy Isolation
 
 ## Document Map
 - [AGENTS.md](../AGENTS.md) — Permanent repository operating rules & memory contract
@@ -33,5 +32,5 @@ Status: Set 0 & Set 1 verified live on devMachine; Set 2 active (building full A
 - Physical production and fulfilment operations must strictly enforce the 25% advance / 100% dispatch payment gates.
 
 ## Historical Pointers
-- Archived Tasks: [.ai/tasks/archive/](tasks/archive/) (`set-1-product-markdown-pipeline.md`, `h4-commerce-foundations-db.md`, `h6-staff-admin-portal.md`)
+- Archived Tasks: [.ai/tasks/archive/](tasks/archive/) (`set-2-delivery-governance.md`, `set-1-product-markdown-pipeline.md`, `h4-commerce-foundations-db.md`, `h6-staff-admin-portal.md`)
 - Concept repository: `https://github.com/vsd9992/Tavistra.git` (downloaded to `docs/` and `CONCEPT_README.md`)
