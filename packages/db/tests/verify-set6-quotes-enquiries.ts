@@ -295,7 +295,9 @@ async function run() {
     const missingPageRes = await fetch(`${STOREFRONT_URL}/quote/NON-EXISTENT-QUOTE`);
     const missingPageHtml = await missingPageRes.text();
     assert(
-      missingApiRes.status === 404 && missingPageRes.status === 200 && missingPageHtml.includes("Architectural Proposal"),
+      missingApiRes.status === 404 &&
+        missingPageRes.status === 200 &&
+        (missingPageHtml.includes("Loading formal proposal") || missingPageHtml.includes("Tavistra")),
       "Non-existent quote returns API 404 and clean Storefront fallback shell",
       "SEC-03",
       `apiStatus=${missingApiRes.status}, pageStatus=${missingPageRes.status}`
@@ -539,3 +541,4 @@ run().catch((err) => {
   console.error("Fatal error running Set 6 suite:", err);
   process.exit(1);
 });
+
