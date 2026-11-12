@@ -3,7 +3,7 @@
 Project: Tavistra (`websiteTavistra`)
 Phase: Phase 2 — Execution (Modular Refinement: Sets 0–3 Completed; Set 4 Next)
 Milestone: Baseline Adoption & Modular Hardening
-Status: Sets 0, 1, 2 (68/68), and 3 (38/38) verified live on devMachine; ready for Set 4 (Cart Governance, Delivery Engine & Checkout).
+Status: Sets 0, 1, 2 (68/68), and 3 (54/54) verified live on devMachine; ready for Set 4 (Cart Governance, Delivery Engine & Checkout).
 
 ## Active Tasks
 - [.ai/tasks/active/set-4-cart-checkout.md](tasks/active/set-4-cart-checkout.md) — Set 4: Cart Governance, Delivery Engine & Ready Stock / MTO Checkout (Pending start approval)
