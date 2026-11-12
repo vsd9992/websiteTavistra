@@ -50,6 +50,13 @@ wait_for_port() {
 wait_for_port 3001 "Tavistra Storefront"
 wait_for_port 3002 "Tavistra Admin"
 
+SF_PID="$(cat "$ROOT_DIR/storefront.pid")"
+AD_PID="$(cat "$ROOT_DIR/admin.pid")"
+if ! kill -0 "$SF_PID" 2>/dev/null || ! kill -0 "$AD_PID" 2>/dev/null; then
+  echo "ERROR: Expected launched PID(s) (Storefront=$SF_PID, Admin=$AD_PID) are not running!" >&2
+  exit 1
+fi
+
 # Verify Admin proxy to Storefront API returns valid JSON (not 404 HTML)
 if curl -fsS "http://127.0.0.1:3002/api/admin/settings" | grep -q "maintenanceMode"; then
   echo "VERIFIED: Admin -> Storefront /api proxy healthy."
@@ -58,4 +65,4 @@ else
   exit 1
 fi
 
-echo "Storefront PID: $(cat "$ROOT_DIR/storefront.pid"), Admin PID: $(cat "$ROOT_DIR/admin.pid")"
+echo "Storefront PID: $SF_PID, Admin PID: $AD_PID"
