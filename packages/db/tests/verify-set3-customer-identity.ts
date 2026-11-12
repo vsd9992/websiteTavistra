@@ -710,11 +710,11 @@ async function runSet3Verification() {
         city: "Ahmedabad",
         state: "Gujarat",
         destinationPin: "380001",
-        items: [{ name: "Monolith Minimalist Wall Clock", quantity: 1, pricePaise: 2450000 }],
-        itemsSubtotalRupees: 24500,
-        deliveryFeeRupees: 500,
-        totalAmountRupees: 25000,
-        amountPaidRupees: 25000,
+        items: [{ name: "Monolith Minimalist Wall Clock", quantity: 1, pricePaise: 1450000 }],
+        itemsSubtotalRupees: 14500,
+        deliveryFeeRupees: 1000,
+        totalAmountRupees: 15500,
+        amountPaidRupees: 15500,
         balanceDueRupees: 0,
       }),
     });
@@ -734,11 +734,11 @@ async function runSet3Verification() {
         city: "Ahmedabad",
         state: "Gujarat",
         destinationPin: "380001",
-        items: [{ name: "Monolith Minimalist Wall Clock", quantity: 1, pricePaise: 2450000 }],
-        itemsSubtotalRupees: 24500,
-        deliveryFeeRupees: 500,
-        totalAmountRupees: 25000,
-        amountPaidRupees: 25000,
+        items: [{ name: "Monolith Minimalist Wall Clock", quantity: 1, pricePaise: 1450000 }],
+        itemsSubtotalRupees: 14500,
+        deliveryFeeRupees: 1000,
+        totalAmountRupees: 15500,
+        amountPaidRupees: 15500,
         balanceDueRupees: 0,
       }),
     });
@@ -801,7 +801,7 @@ async function runSet3Verification() {
     assert(
       adminCustRes.ok &&
         Boolean(foundUserA) &&
-        foundUserA.lifetimeSpendRupees === 25000 &&
+        foundUserA.lifetimeSpendRupees === 15500 &&
         foundUserA.gstin === validGstinAUpdated &&
         foundUserA.emailVerified === true &&
         Array.isArray(foundUserA.addresses) &&
