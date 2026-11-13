@@ -1,6 +1,6 @@
 # Task: Set 7 — Support Tickets, Threaded Messaging & Client Concierge Desk
 
-**Status:** COMPLETED LOCALLY (Awaiting devMachine execution upon GitHub cloud sync resumption)  
+**Status:** VERIFIED LIVE ON devMachine (28/28 checks passed)  
 **Created:** 2026-11-12  
 **Completed:** 2026-11-13  
 **Owner:** Antigravity / User  
@@ -44,10 +44,11 @@
    - Submitting staff reply auto-transitions ticket status from `OPEN` to `IN_PROGRESS`.
 
 6. **Automated Verification Suite:**
-   - `packages/db/tests/verify-set7-support-tickets.ts` (`test:set7`): 19 rigorous assertion checks covering TCK-01 to TCK-05, field validation gates, DB status transitions, Mailpit emails, and order cross-linking.
+   - `packages/db/tests/verify-set7-support-tickets.ts` (`test:set7`): 28 assertion checks covering TCK-01 to TCK-05, field validation gates, DB status transitions, Mailpit emails, contact authorization guards, and order cross-linking.
 
 ## Verification Gate
-- Local Next.js Turbopack storefront build: **PASSED (0 errors, 50/50 routes compiled including `/track-ticket`)**.
-- Local Vite admin build: **PASSED (0 errors, 5.11s)**.
-- Local git commits created (`efe08e9`, `dcca915`, `e98c905`).
-- devMachine live run: Queued pending GitHub cloud sync resumption.
+- Local Next.js Turbopack storefront build: **PASSED (0 errors, 50/50 routes compiled)**.
+- Local Vite admin build: **PASSED (0 errors)**.
+- devMachine live execution (`pnpm test:set7`): **28/28 PASSED (0 FAILED)**.
+- devMachine full regression (`test:set6`, `test:set5`, `test:set4`, `test:set3`, `test:set2`): **188/188 PASSED (0 FAILED)**.
+- Total passing checks across all suites on `devMachine`: **216/216 PASSED**.
