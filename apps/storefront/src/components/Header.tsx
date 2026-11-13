@@ -192,12 +192,6 @@ export function Header() {
           >
             Contact
           </Link>
-          <Link
-            href="/track-ticket"
-            className="text-xs font-semibold uppercase tracking-wider text-[var(--color-bronze)] transition-colors hover:text-[var(--color-ink)]"
-          >
-            Support Desk
-          </Link>
         </nav>
 
         {/* Right Utility Navigation (Minimalist Luxury Symbols) */}
@@ -342,46 +336,11 @@ export function Header() {
               Track Order Milestones
             </Link>
             <Link
-              href="/track-ticket"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="block font-semibold text-[var(--color-bronze)] hover:text-[var(--color-ink)]"
-            >
-              Track Support Ticket
-            </Link>
-            <Link
-              href="/contact?intent=support"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="block font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)]"
-            >
-              Raise Support Ticket
-            </Link>
-            <Link
               href="/account"
               onClick={() => setIsMobileMenuOpen(false)}
               className="block font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)]"
             >
-              Client Account & Addresses
-            </Link>
-            <Link
-              href="/shipping"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="block text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
-            >
-              Shipping & Distance Bands
-            </Link>
-            <Link
-              href="/returns-refunds"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="block text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
-            >
-              Returns & Cancellations
-            </Link>
-            <Link
-              href="/terms"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="block text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
-            >
-              Terms of Service
+              Client Account &amp; Addresses
             </Link>
             <Link
               href="/contact"

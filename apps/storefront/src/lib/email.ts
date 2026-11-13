@@ -425,7 +425,7 @@ export async function sendTicketEmail(params: {
            <p style="font-size: 11px; text-align: center; color: #8a867c;">
              Direct ticket link: <a href="${threadLink}" style="color: #8e6c46;">${threadLink}</a>
            </p>
-           <p style="font-size: 12px; color: #726e64; margin-top: 16px;">Our client concierge desk actively reviews incoming notes and commits to a formal response within 24 business hours.</p>`
+           <p style="font-size: 12px; color: #726e64; margin-top: 16px;">Our client concierge desk actively reviews incoming notes and commits to a formal response within 24 business hours (Desk Schedule: Mon – Fri, 10:00 AM – 5:00 PM IST).</p>`
     }
   `;
 

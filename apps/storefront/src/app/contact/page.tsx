@@ -198,10 +198,8 @@ function ContactFormContent() {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-      {/* Left Column: Form & Switcher (Span 7) */}
-      <div className="lg:col-span-7">
-        {/* Top-Level Mode Selector */}
+    <div className="max-w-3xl mx-auto">
+      {/* Top-Level Mode Selector */}
         <div className="grid grid-cols-2 p-1.5 rounded-2xl bg-[var(--color-stone)] border border-[var(--color-decorative-border)] mb-8">
           <button
             type="button"
@@ -615,78 +613,6 @@ function ContactFormContent() {
             )}
           </form>
         )}
-      </div>
-
-      {/* Right Column: Studio Information & Support Portal Shortcuts (Span 5) */}
-      <div className="lg:col-span-5 space-y-6">
-        {/* Support Portal Card */}
-        <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs uppercase tracking-widest text-[var(--color-bronze)] font-semibold">
-              Client Concierge Desk
-            </span>
-            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-              Active Desk
-            </span>
-          </div>
-
-          <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
-            Need assistance with an existing order, wish to request finish alterations during your 7-day grace period, or report a delivery issue?
-          </p>
-
-          <div className="pt-2 space-y-2.5">
-            <button
-              type="button"
-              onClick={() => {
-                setContactMode("SUPPORT_TICKET");
-                setSubmitted(false);
-              }}
-              className="w-full rounded-xl bg-[var(--color-ink)] py-3 px-4 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors text-center block shadow-sm"
-            >
-              Raise a Support Ticket Now →
-            </button>
-            <Link
-              href="/track-ticket"
-              className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] py-3 px-4 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors text-center block"
-            >
-              Track Existing Support Ticket →
-            </Link>
-          </div>
-        </div>
-
-        {/* Operating Hours & Direct Email */}
-        <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-6 space-y-3 text-xs text-[var(--color-ink)]">
-          <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
-            Studio Desk Hours &amp; Contacts
-          </h4>
-          <div className="space-y-2 text-[var(--color-muted-light)]">
-            <div>
-              <strong className="block text-[var(--color-ink)]">Client Desk Email:</strong>
-              <a href="mailto:concierge@tavistra.in" className="text-[var(--color-bronze)] font-semibold hover:underline">
-                concierge@tavistra.in
-              </a>
-            </div>
-            <div>
-              <strong className="block text-[var(--color-ink)]">Operating Hours:</strong>
-              <span>Monday to Saturday, 10:00 AM – 7:00 PM IST</span>
-            </div>
-            <div>
-              <strong className="block text-[var(--color-ink)]">Response Commitment:</strong>
-              <span>All direct inquiries &amp; support tickets reviewed within 24 business hours.</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Studio Policy Card */}
-        <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/60 p-6 space-y-2">
-          <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
-            7-Day Pre-Production Alterations
-          </h4>
-          <p className="text-[11px] text-[var(--color-muted-light)] leading-relaxed">
-            All Made-to-Order and bespoke consignments enjoy an authoritative 7-day post-advance grace period. You may request finish or dimension alterations via a support ticket before craftsmanship begins.
-          </p>
-        </div>
-      </div>
     </div>
   );
 }

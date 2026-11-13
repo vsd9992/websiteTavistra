@@ -8,6 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 const NAV_ITEMS = [
   { href: "/account", label: "Account Overview" },
   { href: "/account/orders", label: "Orders & Production" },
+  { href: "/account/tickets", label: "Support Tickets" },
   { href: "/account/addresses", label: "Delivery Addresses" },
   { href: "/account/profile", label: "Profile & GSTIN" },
 ];

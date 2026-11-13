@@ -93,28 +93,23 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/contact?intent=support" className="hover:text-[var(--color-canvas)] transition-colors">
-                  Raise Support Ticket
-                </Link>
-              </li>
-              <li>
                 <Link href="/account" className="hover:text-[var(--color-canvas)] transition-colors">
                   Client Account Portal
                 </Link>
               </li>
               <li>
                 <Link href="/contact" className="hover:text-[var(--color-canvas)] transition-colors">
-                  Contact &amp; Studio Inquiry
+                  Contact &amp; Support Desk
                 </Link>
               </li>
               <li>
                 <Link href="/shipping" className="hover:text-[var(--color-canvas)] transition-colors">
-                  Delivery & Shipping
+                  Delivery &amp; Shipping
                 </Link>
               </li>
               <li>
                 <Link href="/returns-refunds" className="hover:text-[var(--color-canvas)] transition-colors">
-                  Returns & Refunds
+                  Returns &amp; Refunds
                 </Link>
               </li>
               <li>
@@ -146,19 +141,28 @@ export function Footer() {
               </p>
 
               <ul className="space-y-2.5 pt-1">
-                <li className="flex items-center gap-2.5">
-                  <svg className="w-3.5 h-3.5 text-[var(--color-bronze)] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                  <a href="mailto:support@tavistra.in" className="hover:text-[var(--color-canvas)] transition-colors font-medium">
-                    support@tavistra.in
-                  </a>
+                <li className="space-y-1">
+                  <div className="flex items-center gap-2.5">
+                    <svg className="w-3.5 h-3.5 text-[var(--color-bronze)] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    <a href="mailto:concierge@tavistra.in" className="hover:text-[var(--color-canvas)] transition-colors font-medium">
+                      concierge@tavistra.in
+                    </a>
+                    <span className="text-[10px] text-[var(--color-muted-dark)]">(Desk)</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 pl-6">
+                    <a href="mailto:support@tavistra.com" className="hover:text-[var(--color-canvas)] transition-colors font-medium">
+                      support@tavistra.com
+                    </a>
+                    <span className="text-[10px] text-[var(--color-muted-dark)]">(Support)</span>
+                  </div>
                 </li>
                 <li className="flex items-center gap-2.5">
                   <svg className="w-3.5 h-3.5 text-[var(--color-bronze)] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <span>Mon – Sat, 10:00 AM – 7:00 PM IST</span>
+                  <span>Mon – Fri, 10:00 AM – 5:00 PM IST</span>
                 </li>
                 <li className="flex items-center gap-2.5 text-[11px] text-[var(--color-muted-dark)]/80">
                   <svg className="w-3.5 h-3.5 text-[var(--color-bronze)] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

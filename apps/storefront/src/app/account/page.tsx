@@ -40,16 +40,28 @@ interface AccountQuote {
   }[];
 }
 
+interface AccountTicketSummary {
+  id: string;
+  ticketNumber: string;
+  subject: string;
+  categoryLabel: string;
+  status: string;
+  statusLabel: string;
+  createdAt: string;
+}
+
 export default function AccountOverviewPage() {
   const { user, isAuthenticated, authLoading } = useAuth();
   const [orders, setOrders] = useState<AccountOrder[]>([]);
   const [quotes, setQuotes] = useState<AccountQuote[]>([]);
+  const [tickets, setTickets] = useState<AccountTicketSummary[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated || !user?.email) {
       setOrders([]);
       setQuotes([]);
+      setTickets([]);
       return;
     }
 
@@ -60,11 +72,13 @@ export default function AccountOverviewPage() {
       fetch(`/api/quotes?email=${encodeURIComponent(user.email)}`, { credentials: "include" }).then((res) =>
         res.ok ? res.json() : { proposals: [] }
       ),
+      fetch("/api/account/tickets", { credentials: "include" }).then((res) => (res.ok ? res.json() : { tickets: [] })),
     ])
-      .then(([ordersData, quotesData]) => {
+      .then(([ordersData, quotesData, ticketsData]) => {
         if (!cancelled) {
           if (Array.isArray(ordersData.orders)) setOrders(ordersData.orders);
           if (Array.isArray(quotesData.proposals)) setQuotes(quotesData.proposals);
+          if (Array.isArray(ticketsData.tickets)) setTickets(ticketsData.tickets);
         }
       })
       .catch(() => {})
@@ -83,6 +97,9 @@ export default function AccountOverviewPage() {
       o.status !== "DELIVERED" &&
       o.status !== "CANCELLED" &&
       o.status !== "REFUNDED"
+  ).length;
+  const activeTicketsCount = tickets.filter(
+    (t) => t.status === "OPEN" || t.status === "IN_PROGRESS"
   ).length;
   const totalBalanceDue = orders
     .filter((o) => o.status !== "CANCELLED" && o.status !== "REFUNDED")
@@ -147,7 +164,7 @@ export default function AccountOverviewPage() {
               </div>
 
               {/* KPI Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                 <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/80 p-5 space-y-1">
                   <p className="text-[11px] uppercase tracking-wider text-[var(--color-muted-light)] font-semibold">
                     Account Orders
@@ -169,6 +186,20 @@ export default function AccountOverviewPage() {
                   </p>
                   <p className="text-[11px] text-[var(--color-muted-light)]">
                     Due upon QC completion before dispatch
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/80 p-5 space-y-1">
+                  <p className="text-[11px] uppercase tracking-wider text-[var(--color-muted-light)] font-semibold">
+                    Support Tickets
+                  </p>
+                  <p className="text-2xl font-serif text-[var(--color-ink)]">
+                    {ordersLoading ? "…" : tickets.length}
+                  </p>
+                  <p className="text-[11px] text-[var(--color-muted-light)]">
+                    <Link href="/account/tickets" className="text-[var(--color-bronze)] hover:underline">
+                      {activeTicketsCount} active desk {activeTicketsCount === 1 ? "ticket" : "tickets"} →
+                    </Link>
                   </p>
                 </div>
 
@@ -337,6 +368,77 @@ export default function AccountOverviewPage() {
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              )}
+
+              {/* Active Support Tickets */}
+              {tickets.length > 0 && (
+                <div className="space-y-4 pt-4 border-t border-[var(--color-decorative-border)]">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-xl font-serif font-light text-[var(--color-ink)]">
+                        Support Tickets &amp; Concierge Desk
+                      </h2>
+                      <p className="text-xs text-[var(--color-muted-light)]">
+                        Track open alteration requests, order assistance, and official studio correspondence.
+                      </p>
+                    </div>
+                    <Link
+                      href="/account/tickets"
+                      className="text-xs font-semibold text-[var(--color-bronze)] hover:underline"
+                    >
+                      Manage Tickets ({tickets.length}) →
+                    </Link>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {tickets.slice(0, 2).map((t) => (
+                      <div
+                        key={t.id}
+                        className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/40 p-5 space-y-2 flex flex-col justify-between"
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-mono text-xs font-bold text-[var(--color-ink)]">
+                              {t.ticketNumber}
+                            </span>
+                            <span
+                              className={`rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                                t.status === "RESOLVED"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : t.status === "IN_PROGRESS"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : "bg-amber-100 text-amber-800"
+                              }`}
+                            >
+                              {t.statusLabel}
+                            </span>
+                          </div>
+                          <h4 className="font-serif text-sm text-[var(--color-ink)] font-medium line-clamp-1">
+                            {t.subject}
+                          </h4>
+                          <p className="text-[11px] text-[var(--color-muted-light)]">
+                            {t.categoryLabel}
+                          </p>
+                        </div>
+                        <div className="pt-2 flex items-center justify-between border-t border-[var(--color-decorative-border)]/50">
+                          <span className="text-[10px] text-[var(--color-muted-light)]">
+                            {new Date(t.createdAt).toLocaleDateString("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </span>
+                          <Link
+                            href="/account/tickets"
+                            className="text-xs font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)] underline"
+                          >
+                            View Conversation →
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

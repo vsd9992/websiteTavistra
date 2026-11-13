@@ -468,6 +468,149 @@ async function run() {
     `Linked Order: ${dbFinal?.orderNumber}`
   );
 
+  // SECTION 7: INBOUND EMAIL WEBHOOK ROUTING (support@tavistra.com & concierge@tavistra.in)
+  console.log("\n--- SECTION 7: Inbound Email Ingestion & Routing ---");
+
+  // 7.1 Inbound Email to support@tavistra.com creates SupportTicket
+  const inboundSupportEmail = `client.support.${runId}@studio-vayu.in`;
+  const resInboundSupport = await fetch(`${STOREFRONT_URL}/api/webhooks/inbound-email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      to: "support@tavistra.com",
+      from: `Kanishk Sen <${inboundSupportEmail}>`,
+      subject: "Urgent: Transit Damage on TAV-RS-2026-1001",
+      text: "The outer crate arrived with a visible fissure. Please advise on inspection and return replacement.",
+    }),
+  });
+  const dataInboundSupport = await resInboundSupport.json();
+  assert(
+    resInboundSupport.status === 201 &&
+      dataInboundSupport.channel === "SUPPORT_TICKET" &&
+      typeof dataInboundSupport.ticketNumber === "string" &&
+      dataInboundSupport.priority === "HIGH",
+    "Inbound email to support@tavistra.com creates SupportTicket with HIGH priority",
+    "Inbound Email",
+    `Status: ${resInboundSupport.status}, Ticket: ${dataInboundSupport.ticketNumber}, Priority: ${dataInboundSupport.priority}`
+  );
+
+  const dbInboundTicket = await prisma.supportTicket.findUnique({
+    where: { ticketNumber: dataInboundSupport.ticketNumber },
+    include: { messages: true },
+  });
+  assert(
+    Boolean(
+      dbInboundTicket &&
+        dbInboundTicket.email === inboundSupportEmail &&
+        dbInboundTicket.orderNumber === "TAV-RS-2026-1001" &&
+        dbInboundTicket.messages.length === 1 &&
+        dbInboundTicket.messages[0].sender === "CUSTOMER"
+    ),
+    "Inbound ticket saved in DB with customer message and detected order link",
+    "Inbound Email",
+    `Saved in DB: ${Boolean(dbInboundTicket)}, Messages: ${dbInboundTicket?.messages.length}`
+  );
+
+  const inboundSupportMail = await waitForMailpitSubject(inboundSupportEmail, "Support Ticket Registered", 6000);
+  assert(
+    Boolean(inboundSupportMail),
+    "Customer received automated ticket intake confirmation from inbound email",
+    "Inbound Email",
+    `Mailpit Subject: ${inboundSupportMail?.Subject}`
+  );
+
+  // 7.2 Inbound Email to concierge@tavistra.in creates BulkInquiry
+  const inboundConciergeEmail = `client.concierge.${runId}@studio-vayu.in`;
+  const resInboundConcierge = await fetch(`${STOREFRONT_URL}/api/webhooks/inbound-email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      to: "concierge@tavistra.in",
+      from: `Devi Prasad <${inboundConciergeEmail}>`,
+      subject: "Hospitality Architectural Quote Request — 24 Kinetic Lamps",
+      text: "We are specifying 24 bespoke kinetic brass table lamps for a boutique retreat in Coorg.",
+    }),
+  });
+  const dataInboundConcierge = await resInboundConcierge.json();
+  assert(
+    resInboundConcierge.status === 201 &&
+      dataInboundConcierge.channel === "GENERAL_INQUIRY" &&
+      typeof dataInboundConcierge.inquiryNumber === "string",
+    "Inbound email to concierge@tavistra.in creates BulkInquiry (INQ-YYYY-NNNN)",
+    "Inbound Email",
+    `Status: ${resInboundConcierge.status}, Inquiry: ${dataInboundConcierge.inquiryNumber}`
+  );
+
+  const dbInboundInquiry = await prisma.bulkInquiry.findUnique({
+    where: { inquiryNumber: dataInboundConcierge.inquiryNumber },
+  });
+  assert(
+    Boolean(dbInboundInquiry && dbInboundInquiry.email === inboundConciergeEmail),
+    "Inbound general inquiry saved in PostgreSQL BulkInquiry table",
+    "Inbound Email",
+    `Inquiry saved: ${Boolean(dbInboundInquiry)}`
+  );
+
+  // SECTION 8: NAVIGATION, FOOTER & CLIENT PORTAL GOVERNANCE
+  console.log("\n--- SECTION 8: Navigation, Footer & Client Account Portal ---");
+
+  // 8.1 /api/account/tickets requires authentication
+  const resAccountTicketsUnauth = await fetch(`${STOREFRONT_URL}/api/account/tickets`);
+  assert(
+    resAccountTicketsUnauth.status === 401,
+    "GET /api/account/tickets rejects unauthenticated requests with 401",
+    "Account Portal",
+    `Expected 401, got ${resAccountTicketsUnauth.status}`
+  );
+
+  // 8.2 Header does NOT contain "Support Desk" (reserved for footer only)
+  const resHeader = await fetch(`${STOREFRONT_URL}/`);
+  const headerHtml = await resHeader.text();
+  const headerHasSupportDeskNav =
+    headerHtml.includes(`href="/track-ticket">Support Desk<`) ||
+    headerHtml.includes(`>Support Desk</a>`);
+  assert(
+    !headerHasSupportDeskNav,
+    "Header navigation cleanly omits 'Support Desk' (only in footer)",
+    "Header Navigation",
+    `Support Desk in header nav: ${headerHasSupportDeskNav}`
+  );
+
+  // 8.3 Footer contains Mon-Fri 10-5 operating hours and merged Contact & Support Desk
+  const footerHasHours =
+    headerHtml.includes("Mon – Fri, 10:00 AM – 5:00 PM IST") ||
+    headerHtml.includes("Mon - Fri, 10:00 AM - 5:00 PM IST");
+  assert(
+    footerHasHours,
+    "Footer displays authoritative hours: 'Mon – Fri, 10:00 AM – 5:00 PM IST'",
+    "Footer Governance",
+    `Operating hours found in footer: ${footerHasHours}`
+  );
+
+  const footerHasMergedContact =
+    headerHtml.includes("Contact &amp; Support Desk") ||
+    headerHtml.includes("Contact & Support Desk");
+  assert(
+    footerHasMergedContact,
+    "Footer Helpful Links includes merged 'Contact & Support Desk'",
+    "Footer Governance",
+    `Merged contact link found: ${footerHasMergedContact}`
+  );
+
+  // 8.4 Contact page omits obsolete sidebar cards
+  const resContact = await fetch(`${STOREFRONT_URL}/contact`);
+  const contactHtml = await resContact.text();
+  const contactHasObsoleteCards =
+    contactHtml.includes("Studio Desk Hours &amp; Contacts") ||
+    contactHtml.includes("Studio Desk Hours & Contacts") ||
+    contactHtml.includes("7-Day Pre-Production Alterations");
+  assert(
+    !contactHasObsoleteCards,
+    "Contact page cleanly omits obsolete sidebar cards",
+    "Contact Page",
+    `Obsolete cards present: ${contactHasObsoleteCards}`
+  );
+
   // Final Summary
   console.log("\n=======================================================");
   const total = results.length;

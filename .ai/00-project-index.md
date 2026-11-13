@@ -1,12 +1,12 @@
 # Project Index
 
 Project: Tavistra (`websiteTavistra`)
-Phase: Phase 2 — Execution (Sets 0–7 Complete & Verified Live; Set 8 Next)
+Phase: Phase 2 — Execution (Set 7 Refinements Active; Sets 0–6 Verified Live)
 Milestone: Modular Hardening & Verification
-Status: Sets 0–7 verified live on `devMachine` (216/216 checks across Sets 2–7); Set 8 (Customer Account Portal, Profile & Orders) ready for kickoff.
+Status: Set 7 undergoing client portal tracking, inbound email architecture, and desk refinements; Sets 0–6 verified live on `devMachine`.
 
 ## Active Tasks
-- None (Set 7 verified live and archived; ready for Set 8 kickoff)
+- [.ai/tasks/active/set-7-support-tickets.md](tasks/active/set-7-support-tickets.md) — Set 7: Support Tickets, Client Portal Tracking & Concierge Desk (Active)
 
 ## Document Map
 - [AGENTS.md](../AGENTS.md) — Operating rules & memory policy
@@ -26,11 +26,12 @@ Status: Sets 0–7 verified live on `devMachine` (216/216 checks across Sets 2�
 - [0003-dev-server-ports-and-runtime.md](decisions/current/0003-dev-server-ports-and-runtime.md) — Ports `3001` (storefront), `3002` (admin)
 - [0004-delivery-fee-and-bulk-policy.md](decisions/current/0004-delivery-fee-and-bulk-policy.md) — 12-slab ladder, strict enabled PINs, 10-unit/10-line bulk boundary
 - [0005-modular-workflow-and-product-pipeline.md](decisions/current/0005-modular-workflow-and-product-pipeline.md) — Sets 0–8 phasing & folder-based product pipeline
+- [0006-inbound-email-routing-and-desk-channels.md](decisions/current/0006-inbound-email-routing-and-desk-channels.md) — Inbound email routing (`support@tavistra.com` / `concierge@tavistra.in`) & Mon–Fri 10–5 hours
 
 ## Active Risks
 - PhonePe merchant review requires a live review-ready public site before gateway keys are issued.
 - Physical production & dispatch must enforce 25% advance / 100% dispatch payment gates.
 
 ## Historical Pointers
-- Archived Tasks: [.ai/tasks/archive/](tasks/archive/) (`set-1`–`set-7`, `h4`, `h6`)
+- Archived Tasks: [.ai/tasks/archive/](tasks/archive/) (`set-1`–`set-6`, `h4`, `h6`)
 - Concept docs in `docs/` and `CONCEPT_README.md`.
