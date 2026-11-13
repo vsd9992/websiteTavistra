@@ -389,6 +389,7 @@ model ProductDeliveryOverride {
 model Order {
   id                    String              @id @default(cuid())
   orderNumber           String              @unique // Format: TAV-YYYYMMDD-XXXX
+  quoteNumber           String?             // Originating Quote proposal number if converted from quote
   userId                String?
   customerEmail         String
   customerPhone         String
@@ -432,6 +433,7 @@ model Order {
   payments              Payment[]
 
   @@index([orderNumber])
+  @@index([quoteNumber])
   @@index([customerEmail])
   @@index([status])
   @@index([purchaseMode])

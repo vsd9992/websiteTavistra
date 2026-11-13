@@ -3,6 +3,8 @@ import { prisma } from "@tavistra/db";
 import { getAuthenticatedUser } from "@/lib/auth";
 import { deriveOrderStatusPresentation, safeParseQcImages } from "@/lib/orderStatus";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Strict session-authenticated customer order history.
  * Returns ONLY orders owned by `sessionUser.id` (never leaks guest orders or other users' orders).
@@ -33,6 +35,7 @@ export async function GET(req: NextRequest) {
         orders: orders.map((order) => ({
           id: order.orderNumber,
           orderNumber: order.orderNumber,
+          quoteNumber: order.quoteNumber || undefined,
           mode: order.purchaseMode,
           customerName: order.shippingAddress.fullName,
           email: order.customerEmail,

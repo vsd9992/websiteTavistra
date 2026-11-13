@@ -13,7 +13,7 @@ function resolveTavistraLogoPath(): string | null {
     path.join(process.cwd(), "apps", "storefront", "public", "logo-name.png"),
   ];
   for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) return candidate;
+    if (fs.existsSync(/*turbopackIgnore: true*/ candidate)) return candidate;
   }
   return null;
 }
@@ -770,6 +770,129 @@ export async function sendQuoteAcceptedEmail(params: {
   return sendTavistraMail({
     to: customerEmail,
     subject: `[Tavistra] Proposal Accepted & 25% Advance Verified — ${orderNumber}`,
+    html,
+  });
+}
+
+// 8. Send Order Cancellation & 100% Statutory Pre-Production Refund Confirmation Email
+export async function sendOrderCancelledRefundEmail(params: {
+  orderNumber: string;
+  quoteNumber?: string | null;
+  customerName: string;
+  customerEmail: string;
+  refundAmountRupees: number;
+  totalAmountRupees: number;
+  refundReference?: string | null;
+  refundGateway?: string | null;
+  cancellationReason?: string | null;
+  itemsSummary?: string | null;
+}) {
+  const {
+    orderNumber,
+    quoteNumber,
+    customerName,
+    customerEmail,
+    refundAmountRupees,
+    totalAmountRupees,
+    refundReference,
+    refundGateway,
+    cancellationReason,
+    itemsSummary,
+  } = params;
+
+  const trackingLink = `${appUrl}/track?orderId=${encodeURIComponent(orderNumber)}`;
+  const formatRupees = (val: number) =>
+    new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }).format(val);
+
+  const cleanReference = refundReference || `REF-${Date.now().toString().slice(-6)}`;
+  const cleanGateway = refundGateway || "Original Payment Source (PhonePe / Direct Bank Transfer)";
+
+  const bodyContent = `
+    <p>Dear ${customerName},</p>
+    <p>This authoritative notice confirms that your consignment <strong style="font-family: monospace;">${orderNumber}</strong>${
+      quoteNumber ? ` (originating from quote proposal <strong style="font-family: monospace;">${quoteNumber}</strong>)` : ""
+    } has been formally cancelled prior to irreversible physical fabrication.</p>
+
+    <div class="card">
+      <div style="margin-bottom: 12px;">
+        <span class="badge" style="background-color: #fee2e2; color: #991b1b; border: 1px solid #fecaca;">Cancelled · 100% Statutory Refund Initiated</span>
+      </div>
+      <div class="ledger-row">
+        <span>Order Reference:</span>
+        <strong style="font-family: monospace; color: #141412;">${orderNumber}</strong>
+      </div>
+      ${
+        quoteNumber
+          ? `<div class="ledger-row">
+        <span>Originating Quote:</span>
+        <strong style="font-family: monospace; color: #8e6c46;">${quoteNumber}</strong>
+      </div>`
+          : ""
+      }
+      <div class="ledger-row">
+        <span>Total Committed Value:</span>
+        <strong style="color: #141412;">${formatRupees(totalAmountRupees)}</strong>
+      </div>
+      <div class="ledger-row" style="background-color: #fef2f2; padding: 6px 8px; border-radius: 4px; margin: 4px 0;">
+        <span style="color: #991b1b; font-weight: 600;">100% Statutory Refund Amount:</span>
+        <strong style="color: #991b1b; font-size: 14px;">${formatRupees(refundAmountRupees)}</strong>
+      </div>
+      <div class="ledger-row">
+        <span>Refund Transaction Reference:</span>
+        <strong style="font-family: monospace; color: #141412;">${cleanReference}</strong>
+      </div>
+      <div class="ledger-row">
+        <span>Refund Destination Channel:</span>
+        <strong style="color: #141412;">${cleanGateway}</strong>
+      </div>
+      ${
+        cancellationReason
+          ? `<div class="ledger-row">
+        <span>Recorded Note / Reason:</span>
+        <span style="color: #5a574f;">${cancellationReason}</span>
+      </div>`
+          : ""
+      }
+      ${
+        itemsSummary
+          ? `<div class="ledger-row">
+        <span>Acquisition Items:</span>
+        <span style="color: #5a574f;">${itemsSummary}</span>
+      </div>`
+          : ""
+      }
+    </div>
+
+    <div style="text-align: center; margin: 26px 0 10px 0;">
+      <a href="${trackingLink}" class="btn" style="background-color: #141412;">View Cancellation &amp; Refund Ledger</a>
+    </div>
+
+    <p style="font-size: 11px; text-align: center; color: #8a867c;">
+      Direct consignment tracking: <a href="${trackingLink}" style="color: #8e6c46;">${trackingLink}</a>
+    </p>
+
+    <div style="margin-top: 24px; padding: 14px; background-color: #f9f8f5; border-radius: 6px; font-size: 11px; color: #726e64; line-height: 1.5;">
+      <strong>Statutory Settlement Timeline:</strong> In accordance with our pre-production consumer protection policy and RBI guidelines, pre-production cancellations receive a 100% full refund with zero cancellation or crating penalty. Funds are routed directly to your originating payment method and typically reflect within 5 to 7 banking days depending on your issuing bank.
+    </div>
+
+    <div style="margin-top: 14px; padding: 12px; background-color: #faf9f6; border: 1px solid #edebe4; border-radius: 6px; font-size: 11px; color: #726e64;">
+      Need further assistance with this refund or wish to commission an alternative piece? Reply directly to this notification or contact our studio concierge desk at <a href="mailto:concierge@tavistra.in" style="color: #8e6c46;">concierge@tavistra.in</a>.
+    </div>
+  `;
+
+  const html = wrapLuxuryEmailTemplate(
+    "Consignment Cancelled & 100% Refund Active",
+    `Order ${orderNumber}${quoteNumber ? ` · Quote ${quoteNumber}` : ""}`,
+    bodyContent
+  );
+
+  return sendTavistraMail({
+    to: customerEmail,
+    subject: `[Tavistra] Order Cancellation & 100% Statutory Refund Confirmation — ${orderNumber}`,
     html,
   });
 }

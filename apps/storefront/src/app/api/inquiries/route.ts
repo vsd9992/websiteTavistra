@@ -9,28 +9,80 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
     });
 
+    const inquiryIds = inquiries.map((i) => i.id);
+    const proposals = await prisma.quoteProposal.findMany({
+      where: { inquiryId: { in: inquiryIds } },
+      select: {
+        id: true,
+        inquiryId: true,
+        quoteNumber: true,
+        status: true,
+        linkedOrderId: true,
+      },
+    });
+
+    const linkedOrderIds = proposals
+      .map((p) => p.linkedOrderId)
+      .filter((id): id is string => Boolean(id));
+
+    const orders =
+      linkedOrderIds.length > 0
+        ? await prisma.order.findMany({
+            where: { id: { in: linkedOrderIds } },
+            select: {
+              id: true,
+              orderNumber: true,
+              status: true,
+              totalAmount: true,
+              amountPaid: true,
+              cancelledAt: true,
+            },
+          })
+        : [];
+
+    const proposalByInquiryId = new Map(proposals.map((p) => [p.inquiryId!, p]));
+    const orderById = new Map(orders.map((o) => [o.id, o]));
+
     return NextResponse.json({
-      inquiries: inquiries.map((inq) => ({
-        id: inq.id,
-        inquiryNumber: inq.inquiryNumber,
-        clientName: inq.clientName,
-        practiceOrStudio: inq.practiceOrStudio || undefined,
-        email: inq.email,
-        phone: inq.phone,
-        destinationCity: inq.destinationCity,
-        destinationPincode: inq.destinationPincode,
-        requestedEditions: inq.requestedEditions,
-        quantityUnits: inq.quantityUnits,
-        specifications: inq.specifications,
-        lineItemsJson: inq.lineItemsJson,
-        lineItems: parseInquiryLineItems(inq.lineItemsJson, inq.specifications),
-        status: inq.status,
-        submittedAt: inq.createdAt.toLocaleDateString("en-IN", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-        }),
-      })),
+      inquiries: inquiries.map((inq) => {
+        const quote = proposalByInquiryId.get(inq.id);
+        const order = quote?.linkedOrderId ? orderById.get(quote.linkedOrderId) : null;
+        let dynamicStatus = inq.status;
+        if (order?.status === "CANCELLED" || order?.status === "REFUNDED") {
+          dynamicStatus = "ORDER_CANCELLED";
+        } else if (order) {
+          dynamicStatus = "ORDER_CONFIRMED";
+        } else if (quote) {
+          dynamicStatus = "QUOTE_ISSUED";
+        }
+
+        return {
+          id: inq.id,
+          inquiryNumber: inq.inquiryNumber,
+          clientName: inq.clientName,
+          practiceOrStudio: inq.practiceOrStudio || undefined,
+          email: inq.email,
+          phone: inq.phone,
+          destinationCity: inq.destinationCity,
+          destinationPincode: inq.destinationPincode,
+          requestedEditions: inq.requestedEditions,
+          quantityUnits: inq.quantityUnits,
+          specifications: inq.specifications,
+          lineItemsJson: inq.lineItemsJson,
+          lineItems: parseInquiryLineItems(inq.lineItemsJson, inq.specifications),
+          status: dynamicStatus,
+          quoteNumber: quote?.quoteNumber || null,
+          quoteStatus: quote?.status || null,
+          orderNumber: order?.orderNumber || null,
+          orderStatus: order?.status || null,
+          orderId: order?.id || null,
+          submittedAt: inq.createdAt.toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          }),
+        };
+      }),
     });
   } catch (error) {
     console.error("GET /api/inquiries error:", error);

@@ -162,6 +162,7 @@ export async function POST(
       const order = await tx.order.create({
         data: {
           orderNumber,
+          quoteNumber: cleanNumber,
           userId: user.id,
           customerEmail: proposal.customerEmail.toLowerCase(),
           customerPhone: proposal.customerPhone,
@@ -203,13 +204,20 @@ export async function POST(
         },
       });
 
-      // 6. Link generated Order ID to QuoteProposal
+      // 6. Link generated Order ID to QuoteProposal and sync Inquiry status
       const updatedProposal = await tx.quoteProposal.update({
         where: { id: proposal.id },
         data: {
           linkedOrderId: order.id,
         },
       });
+
+      if (proposal.inquiryId) {
+        await tx.bulkInquiry.update({
+          where: { id: proposal.inquiryId },
+          data: { status: "ORDER_CONFIRMED" },
+        }).catch((err) => console.warn("Failed to update inquiry status on acceptance:", err));
+      }
 
       // 7. Immutable Audit Log
       await tx.auditLog.create({

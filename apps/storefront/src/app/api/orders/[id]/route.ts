@@ -8,7 +8,7 @@ import {
   StockMovementType,
 } from "@tavistra/db";
 import { getAuthenticatedUser } from "@/lib/auth";
-import { sendQcPhotosReadyEmail } from "@/lib/email";
+import { sendQcPhotosReadyEmail, sendOrderCancelledRefundEmail } from "@/lib/email";
 import {
   computeGraceWindow,
   deriveOrderStatusPresentation,
@@ -401,6 +401,10 @@ export async function PATCH(
         });
 
         const paidRupees = Number(order.amountPaid);
+        const resolvedRef = refundReference || `REF-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        const resolvedGateway = refundGateway || "PHONEPE_REFUND";
+        const resolvedNotes = refundNotes || "100% pre-production / pre-dispatch statutory refund.";
+
         if (paidRupees > 0) {
           await tx.payment.create({
             data: {
@@ -408,10 +412,10 @@ export async function PATCH(
               paymentType: PaymentType.REFUND,
               amount: paidRupees,
               status: PaymentStatus.COMPLETED,
-              gateway: refundGateway || "PHONEPE_REFUND",
-              gatewayTransactionId: refundReference || `REF-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+              gateway: resolvedGateway,
+              gatewayTransactionId: resolvedRef,
               verifiedAt: new Date(),
-              notes: refundNotes || "100% pre-production / pre-dispatch statutory refund.",
+              notes: resolvedNotes,
             },
           });
         }
@@ -441,6 +445,29 @@ export async function PATCH(
           }
         }
 
+        // Sync linked QuoteProposal and BulkInquiry status
+        let originatingQuoteNumber = (order as any).quoteNumber || null;
+        const linkedQuote = await tx.quoteProposal.findFirst({
+          where: {
+            OR: [
+              { linkedOrderId: order.id },
+              ...(originatingQuoteNumber ? [{ quoteNumber: originatingQuoteNumber }] : []),
+            ],
+          },
+        });
+
+        if (linkedQuote) {
+          if (!originatingQuoteNumber) {
+            originatingQuoteNumber = linkedQuote.quoteNumber;
+          }
+          if (linkedQuote.inquiryId) {
+            await tx.bulkInquiry.update({
+              where: { id: linkedQuote.inquiryId },
+              data: { status: "ORDER_CANCELLED" },
+            });
+          }
+        }
+
         await tx.auditLog.create({
           data: {
             action: "ORDER_CANCELLED_REFUND",
@@ -449,7 +476,8 @@ export async function PATCH(
             payloadJson: JSON.stringify({
               staff: actorName,
               refundAmountRupees: paidRupees,
-              refundReference: refundReference || undefined,
+              refundReference: resolvedRef,
+              originatingQuoteNumber,
             }),
           },
         });
@@ -459,13 +487,27 @@ export async function PATCH(
           include: { payments: true, items: true, shippingAddress: true },
         });
 
-        return refreshed;
+        return { refreshed, paidRupees, resolvedRef, resolvedGateway, resolvedNotes, originatingQuoteNumber };
       });
+
+      // Send Order Cancellation & 100% Statutory Refund Confirmation Email via Mailpit
+      sendOrderCancelledRefundEmail({
+        orderNumber: order.orderNumber,
+        quoteNumber: updated.originatingQuoteNumber,
+        customerName: order.shippingAddress?.fullName || "Client",
+        customerEmail: order.customerEmail,
+        refundAmountRupees: updated.paidRupees,
+        totalAmountRupees: Number(order.totalAmount),
+        refundReference: updated.resolvedRef,
+        refundGateway: updated.resolvedGateway,
+        cancellationReason: updated.resolvedNotes,
+        itemsSummary: order.items?.map((i) => i.productId).join(", ") || undefined,
+      }).catch((emailErr) => console.warn("Cancellation refund email non-blocking error:", emailErr));
 
       return NextResponse.json({
         success: true,
         message: "Order cancelled and marked for 100% pre-production refund.",
-        order: { ...updated, ...deriveOrderStatusPresentation(updated) },
+        order: { ...updated.refreshed, ...deriveOrderStatusPresentation(updated.refreshed) },
       });
     }
 

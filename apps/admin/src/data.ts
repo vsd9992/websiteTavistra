@@ -48,6 +48,7 @@ export interface AdminOrder {
   qcImages?: string[];
   refund?: AdminOrderRefund | null;
   cancelledAt?: string | null;
+  quoteNumber?: string | null;
   placedAt: string;
 }
 
@@ -70,7 +71,12 @@ export interface BulkInquiry {
     quantity: number;
     unitPriceRupees: number;
   }>;
-  status: "NEW" | "IN_REVIEW" | "QUOTE_ISSUED" | "CLOSED";
+  quoteNumber?: string | null;
+  quoteStatus?: string | null;
+  orderNumber?: string | null;
+  orderStatus?: string | null;
+  orderId?: string | null;
+  status: "NEW" | "IN_REVIEW" | "QUOTE_ISSUED" | "ORDER_CONFIRMED" | "ORDER_CANCELLED" | "CLOSED" | string;
   submittedAt: string;
 }
 

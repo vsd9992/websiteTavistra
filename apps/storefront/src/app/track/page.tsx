@@ -9,6 +9,7 @@ import { useOrders, OrderRecord } from "@/context/OrderContext";
 
 interface TrackedOrder extends OrderRecord {
   orderNumber?: string;
+  quoteNumber?: string;
   qcNotes?: string;
   qcImages?: string[];
 }
@@ -261,6 +262,18 @@ function TrackOrderContent() {
                   <p className="text-xs text-[var(--color-muted-light)]">
                     Placed on {matchedOrder.createdAt} · Client: <strong className="text-[var(--color-ink)]">{matchedOrder.customerName}</strong>
                   </p>
+                  {matchedOrder.quoteNumber && (
+                    <div className="pt-1.5">
+                      <Link
+                        href={`/quote/${encodeURIComponent(matchedOrder.quoteNumber)}`}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[var(--color-ivory)] border border-[var(--color-decorative-border)] text-[var(--color-bronze)] hover:border-[var(--color-bronze)] transition-colors"
+                      >
+                        <span className="text-[var(--color-muted-light)] font-normal">Originating Quote:</span>
+                        <span className="font-mono">{matchedOrder.quoteNumber}</span>
+                        <span>↗</span>
+                      </Link>
+                    </div>
+                  )}
                 </div>
                 <div className="text-left sm:text-right space-y-1.5">
                   <div className="flex flex-wrap sm:justify-end gap-2">

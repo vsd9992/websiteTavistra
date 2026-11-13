@@ -51,12 +51,14 @@ export async function GET(
     const expiryStatus = getQuoteExpiryStatus(proposal.expiresAt, proposal.status, now);
 
     let linkedOrderNumber: string | null = null;
+    let linkedOrderStatus: string | null = null;
     if (proposal.linkedOrderId) {
       const orderRow = await prisma.order.findUnique({
         where: { id: proposal.linkedOrderId },
-        select: { orderNumber: true },
+        select: { orderNumber: true, status: true },
       });
       linkedOrderNumber = orderRow?.orderNumber || null;
+      linkedOrderStatus = orderRow?.status || null;
     }
 
     return NextResponse.json(
@@ -66,6 +68,7 @@ export async function GET(
         lineItems: parseQuoteLineItems(latestVersion?.lineItemsJson),
         deliveryChargeRupees: latestVersion ? Number(latestVersion.deliveryCharge || 0) : 0,
         linkedOrderNumber,
+        linkedOrderStatus,
         daysRemaining: expiryStatus.daysRemaining,
         expiresToday: expiryStatus.expiresToday,
         isExpired: expiryStatus.isExpired,

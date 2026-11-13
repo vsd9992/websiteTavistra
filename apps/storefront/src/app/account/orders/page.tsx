@@ -25,6 +25,7 @@ interface AccountOrderRefund {
 interface AccountOrder {
   id: string;
   orderNumber: string;
+  quoteNumber?: string;
   mode: string;
   addressLine1: string;
   city: string;
@@ -214,13 +215,21 @@ export default function AccountOrdersPage() {
                     >
                       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-decorative-border)] pb-4">
                         <div className="space-y-1">
-                          <div className="flex items-center gap-2.5">
+                          <div className="flex flex-wrap items-center gap-2.5">
                             <span className="font-mono text-sm font-bold text-[var(--color-ink)]">
                               {order.orderNumber}
                             </span>
                             <span className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-[var(--color-stone)] text-[var(--color-ink)]">
                               {order.mode === "MADE_TO_ORDER" ? "Made To Order" : "Ready Stock"}
                             </span>
+                            {order.quoteNumber && (
+                              <Link
+                                href={`/quote/${encodeURIComponent(order.quoteNumber)}`}
+                                className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 transition-colors"
+                              >
+                                Quote: {order.quoteNumber} ↗
+                              </Link>
+                            )}
                           </div>
                           <p className="text-[11px] text-[var(--color-muted-light)]">
                             Placed on {order.createdAt} · Destination: {order.addressLine1}, {order.city}, {order.state} ({order.destinationPin})

@@ -87,6 +87,7 @@ export async function GET(req: NextRequest) {
         order: {
           id: order.orderNumber,
           orderNumber: order.orderNumber,
+          quoteNumber: order.quoteNumber || undefined,
           mode: order.purchaseMode,
           customerName: order.shippingAddress.fullName,
           email: order.customerEmail,
@@ -158,6 +159,7 @@ export async function GET(req: NextRequest) {
         orders: orders.map((order) => ({
           id: order.orderNumber,
           orderNumber: order.orderNumber,
+          quoteNumber: order.quoteNumber || undefined,
           mode: order.purchaseMode,
           customerName: order.shippingAddress.fullName,
           email: order.customerEmail,
@@ -217,6 +219,7 @@ export async function GET(req: NextRequest) {
       orders: allOrders.map((order) => ({
         id: order.id,
         orderNumber: order.orderNumber,
+        quoteNumber: order.quoteNumber || undefined,
         mode: order.purchaseMode,
         customerName: order.shippingAddress.fullName,
         email: order.customerEmail,

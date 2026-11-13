@@ -57,8 +57,30 @@ export async function GET(request: NextRequest) {
       })
     );
 
+    const linkedOrderIds = checkedProposals
+      .map((p) => p.linkedOrderId)
+      .filter((id): id is string => Boolean(id));
+
+    const orders =
+      linkedOrderIds.length > 0
+        ? await prisma.order.findMany({
+            where: { id: { in: linkedOrderIds } },
+            select: { id: true, orderNumber: true, status: true },
+          })
+        : [];
+    const orderById = new Map(orders.map((o) => [o.id, o]));
+
+    const enriched = checkedProposals.map((p) => {
+      const order = p.linkedOrderId ? orderById.get(p.linkedOrderId) : null;
+      return {
+        ...p,
+        linkedOrderNumber: order?.orderNumber || null,
+        linkedOrderStatus: order?.status || null,
+      };
+    });
+
     return NextResponse.json(
-      { proposals: checkedProposals },
+      { proposals: enriched },
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {

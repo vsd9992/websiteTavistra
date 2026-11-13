@@ -44,6 +44,7 @@ interface QuoteData {
   lineItems?: QuoteLineItem[];
   deliveryChargeRupees?: number;
   linkedOrderNumber?: string | null;
+  linkedOrderStatus?: string | null;
   daysRemaining: number;
   expiresToday?: boolean;
   isExpired: boolean;
@@ -61,6 +62,7 @@ function QuoteContent({ params }: ProposalPageProps) {
   const [acceptError, setAcceptError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [acceptedOrderNumber, setAcceptedOrderNumber] = useState<string | null>(null);
+  const [acceptedOrderStatus, setAcceptedOrderStatus] = useState<string | null>(null);
 
   const loadProposal = () => {
     setLoading(true);
@@ -74,6 +76,9 @@ function QuoteContent({ params }: ProposalPageProps) {
         setSelectedVersionNum(d.latestVersion?.versionNumber || 1);
         if (d.linkedOrderNumber) {
           setAcceptedOrderNumber(d.linkedOrderNumber);
+        }
+        if (d.linkedOrderStatus) {
+          setAcceptedOrderStatus(d.linkedOrderStatus);
         }
         setLoading(false);
       })
@@ -254,26 +259,51 @@ function QuoteContent({ params }: ProposalPageProps) {
                   </div>
                 )}
 
-                {/* Acceptance Confirmation Success Card */}
+                {/* Acceptance / Converted Order Card */}
                 {resolvedOrderRef && (
-                  <div className="mb-6 p-6 rounded-xl bg-emerald-900 text-white space-y-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">✓</span>
-                      <h3 className="font-semibold text-base">25% Production Advance Verified</h3>
+                  acceptedOrderStatus === "CANCELLED" || acceptedOrderStatus === "REFUNDED" ? (
+                    <div className="mb-6 p-6 rounded-xl bg-rose-950 text-white border border-rose-800 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">✕</span>
+                          <h3 className="font-semibold text-base">Converted Order Cancelled &amp; Refunded</h3>
+                        </div>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-900 border border-rose-700 text-rose-200 uppercase">
+                          100% Refund Issued
+                        </span>
+                      </div>
+                      <p className="text-xs text-rose-200 leading-relaxed">
+                        The order converted from this proposal (<strong className="font-mono text-white underline">{resolvedOrderRef}</strong>) was cancelled prior to physical workshop production. A 100% statutory pre-production refund has been processed.
+                      </p>
+                      <div className="pt-2">
+                        <Link
+                          href={`/track?orderId=${encodeURIComponent(resolvedOrderRef)}`}
+                          className="inline-block px-5 py-2 rounded-full bg-white text-rose-950 font-semibold text-xs hover:bg-rose-50 transition-colors shadow-sm"
+                        >
+                          View Cancellation &amp; Refund Ledger ↗
+                        </Link>
+                      </div>
                     </div>
-                    <p className="text-xs text-emerald-100 leading-relaxed">
-                      Your proposal has successfully transitioned into active workshop production under order reference{" "}
-                      <strong className="font-mono text-white underline">{resolvedOrderRef}</strong>. Our artisans have been notified.
-                    </p>
-                    <div className="pt-2">
-                      <Link
-                        href={`/track?orderId=${encodeURIComponent(resolvedOrderRef)}`}
-                        className="inline-block px-5 py-2 rounded-full bg-white text-emerald-950 font-semibold text-xs hover:bg-emerald-50 transition-colors shadow-sm"
-                      >
-                        Track Production Milestones &amp; QC Photos ↗
-                      </Link>
+                  ) : (
+                    <div className="mb-6 p-6 rounded-xl bg-emerald-900 text-white space-y-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">✓</span>
+                        <h3 className="font-semibold text-base">25% Production Advance Verified</h3>
+                      </div>
+                      <p className="text-xs text-emerald-100 leading-relaxed">
+                        Your proposal has successfully transitioned into active workshop production under order reference{" "}
+                        <strong className="font-mono text-white underline">{resolvedOrderRef}</strong>. Our artisans have been notified.
+                      </p>
+                      <div className="pt-2">
+                        <Link
+                          href={`/track?orderId=${encodeURIComponent(resolvedOrderRef)}`}
+                          className="inline-block px-5 py-2 rounded-full bg-white text-emerald-950 font-semibold text-xs hover:bg-emerald-50 transition-colors shadow-sm"
+                        >
+                          Track Production Milestones &amp; QC Photos ↗
+                        </Link>
+                      </div>
                     </div>
-                  </div>
+                  )
                 )}
 
                 {/* Error Banner */}

@@ -40,6 +40,8 @@ export interface AdminProposal {
   expiresAt: string;
   acceptedAt: string | null;
   linkedOrderId: string | null;
+  linkedOrderNumber?: string | null;
+  linkedOrderStatus?: string | null;
   versions: {
     id: string;
     versionNumber: number;
@@ -1419,6 +1421,16 @@ export default function App() {
                       <td className="py-4 px-4 font-mono font-bold text-white">
                         {order.orderNumber}
                         <span className="block text-[10px] font-normal text-[#9e9ea8]">{order.placedAt}</span>
+                        {order.quoteNumber && (
+                          <a
+                            href={getStorefrontUrl(`/quote/${order.quoteNumber}`)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-block mt-1 px-1.5 py-0.5 rounded text-[9px] font-mono bg-amber-950/80 text-amber-300 border border-amber-800 hover:bg-amber-900"
+                          >
+                            Quote: {order.quoteNumber} ↗
+                          </a>
+                        )}
                       </td>
                       <td className="py-4 px-4">
                         <span
@@ -2096,10 +2108,34 @@ export default function App() {
                               >
                                 {isAccepted ? "Accepted & Order Active" : isExpired ? "Offer Expired" : "30-Day Offer Active"}
                               </span>
-                              {p.linkedOrderId && (
-                                <span className="block text-[10px] font-mono text-[#10b981] mt-1">
-                                  Order ID: {p.linkedOrderId.slice(0, 12)}...
-                                </span>
+                              {(p.linkedOrderNumber || p.linkedOrderId) && (
+                                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                  <button
+                                    onClick={() => {
+                                      const found = orders.find(
+                                        (o) =>
+                                          (p.linkedOrderNumber && o.orderNumber === p.linkedOrderNumber) ||
+                                          (p.linkedOrderId && o.id === p.linkedOrderId)
+                                      );
+                                      if (found) setSelectedOrder(found);
+                                    }}
+                                    className="text-[10px] font-mono font-semibold text-[#10b981] hover:underline"
+                                    title="Inspect converted order"
+                                  >
+                                    Order: {p.linkedOrderNumber || `${p.linkedOrderId?.slice(0, 12)}...`} ↗
+                                  </button>
+                                  {p.linkedOrderStatus && (
+                                    <span
+                                      className={`px-1.5 py-0.2 rounded text-[9px] font-semibold border ${
+                                        p.linkedOrderStatus === "CANCELLED" || p.linkedOrderStatus === "REFUNDED"
+                                          ? "bg-rose-950 text-rose-300 border-rose-800"
+                                          : "bg-emerald-950 text-emerald-300 border-emerald-800"
+                                      }`}
+                                    >
+                                      {p.linkedOrderStatus === "CANCELLED" ? "CANCELLED & REFUNDED" : p.linkedOrderStatus}
+                                    </span>
+                                  )}
+                                </div>
                               )}
                             </td>
                             <td className="py-4 px-4 text-right space-x-2">
@@ -2148,7 +2184,48 @@ export default function App() {
                   <tbody className="divide-y divide-[#2e2e34]">
                     {inquiries.map((inq) => (
                       <tr key={inq.id} className="hover:bg-[#222228]/40 transition-colors">
-                        <td className="py-4 px-4 font-mono font-bold text-white">{inq.inquiryNumber || inq.id}</td>
+                        <td className="py-4 px-4 font-mono font-bold text-white">
+                          {inq.inquiryNumber || inq.id}
+                          {inq.quoteNumber && (
+                            <div className="mt-1">
+                              <a
+                                href={getStorefrontUrl(`/quote/${inq.quoteNumber}`)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-block px-1.5 py-0.5 rounded text-[9px] font-mono text-amber-300 bg-amber-950/80 border border-amber-800 hover:bg-amber-900"
+                              >
+                                Quote: {inq.quoteNumber} ↗
+                              </a>
+                            </div>
+                          )}
+                          {inq.orderNumber && (
+                            <div className="mt-1 flex flex-wrap items-center gap-1">
+                              <button
+                                onClick={() => {
+                                  const found = orders.find(
+                                    (o) => o.orderNumber === inq.orderNumber || (inq.orderId && o.id === inq.orderId)
+                                  );
+                                  if (found) setSelectedOrder(found);
+                                }}
+                                className="inline-block px-1.5 py-0.5 rounded text-[9px] font-mono text-emerald-300 bg-emerald-950/80 border border-emerald-800 hover:underline"
+                                title="Inspect converted order"
+                              >
+                                Order: {inq.orderNumber} ↗
+                              </button>
+                              {inq.orderStatus && (
+                                <span
+                                  className={`px-1.5 py-0.2 rounded text-[9px] font-semibold border ${
+                                    inq.orderStatus === "CANCELLED" || inq.orderStatus === "REFUNDED"
+                                      ? "bg-rose-950 text-rose-300 border-rose-800"
+                                      : "bg-emerald-950 text-emerald-300 border-emerald-800"
+                                  }`}
+                                >
+                                  {inq.orderStatus === "CANCELLED" ? "CANCELLED" : inq.orderStatus}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </td>
                         <td className="py-4 px-4 text-white">
                           {inq.clientName}
                           <span className="block text-[10px] text-[#c59b6d]">{inq.practiceOrStudio || "Private Patron"}</span>
@@ -2161,15 +2238,27 @@ export default function App() {
                         </td>
                         <td className="py-4 px-4">
                           <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
-                              inq.status === "NEW"
-                                ? "bg-amber-950 text-amber-300 border border-amber-800"
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${
+                              inq.status === "ORDER_CANCELLED"
+                                ? "bg-rose-950 text-rose-300 border-rose-800"
+                                : inq.status === "ORDER_CONFIRMED"
+                                ? "bg-emerald-950 text-emerald-300 border-emerald-800"
                                 : inq.status === "QUOTE_ISSUED"
-                                ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
-                                : "bg-[#24242a] text-[#9e9ea8]"
+                                ? "bg-blue-950 text-blue-300 border border-blue-800"
+                                : inq.status === "NEW"
+                                ? "bg-amber-950 text-amber-300 border border-amber-800"
+                                : "bg-[#24242a] text-[#9e9ea8] border border-[#3e3e46]"
                             }`}
                           >
-                            {inq.status === "QUOTE_ISSUED" ? "Proposal Issued" : inq.status}
+                            {inq.status === "ORDER_CANCELLED"
+                              ? "Order Cancelled & Refunded"
+                              : inq.status === "ORDER_CONFIRMED"
+                              ? "Converted to Order"
+                              : inq.status === "QUOTE_ISSUED"
+                              ? "Proposal Issued"
+                              : inq.status === "NEW"
+                              ? "New Inquiry"
+                              : inq.status}
                           </span>
                         </td>
                         <td className="py-4 px-4 text-right">
@@ -2534,7 +2623,19 @@ export default function App() {
           <div className="w-full max-w-2xl rounded-2xl bg-[#1c1c20] border border-[#2e2e34] p-6 space-y-6 shadow-2xl">
             <div className="flex items-center justify-between border-b border-[#2e2e34] pb-4">
               <div>
-                <span className="font-mono font-bold text-lg text-white">{selectedOrder.orderNumber}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-bold text-lg text-white">{selectedOrder.orderNumber}</span>
+                  {selectedOrder.quoteNumber && (
+                    <a
+                      href={getStorefrontUrl(`/quote/${selectedOrder.quoteNumber}`)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-950 text-amber-300 border border-amber-800 hover:bg-amber-900 transition-colors"
+                    >
+                      Originating Quote: {selectedOrder.quoteNumber} ↗
+                    </a>
+                  )}
+                </div>
                 <p className="text-xs text-[#9e9ea8]">Placed {selectedOrder.placedAt}</p>
               </div>
               <button
