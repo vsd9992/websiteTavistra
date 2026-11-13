@@ -250,8 +250,7 @@ async function run() {
       data: {
         orderNumber: testOrderNumber,
         purchaseMode: PurchaseMode.MADE_TO_ORDER,
-        status: OrderStatus.GRACE_PERIOD_ACTIVE,
-        currency: "INR",
+        status: OrderStatus.CONFIRMED,
         totalAmount: unitPrice,
         itemsSubtotal: unitPrice,
         shippingCharge: 0,
