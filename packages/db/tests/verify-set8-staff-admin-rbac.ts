@@ -273,10 +273,10 @@ async function run() {
         items: {
           create: {
             productId: testProduct.id,
-            productVariantId: testProduct.variants[0].id,
+            variantId: testProduct.variants[0].id,
             quantity: 1,
             unitPrice: unitPrice,
-            lineTotal: unitPrice,
+            subtotal: unitPrice,
           },
         },
         payments: {
