@@ -1,12 +1,12 @@
 # Project Index
 
 Project: Tavistra (`websiteTavistra`)
-Phase: Phase 2 — Execution (Set 7 Refinements Active; Sets 0–6 Verified Live)
+Phase: Phase 2 — Execution (Sets 0–7 Complete & Verified Live; Set 8 Active)
 Milestone: Modular Hardening & Verification
-Status: Set 7 undergoing client portal tracking, inbound email architecture, and desk refinements; Sets 0–6 verified live on `devMachine`.
+Status: Sets 0–7 verified live on `devMachine` (226/226 checks); Set 8 (Staff Admin Workbench, RBAC & Final Pre-Live Sweep) active.
 
 ## Active Tasks
-- [.ai/tasks/active/set-7-support-tickets.md](tasks/active/set-7-support-tickets.md) — Set 7: Support Tickets, Client Portal Tracking & Concierge Desk (Active)
+- [.ai/tasks/active/set-8-staff-admin-rbac.md](tasks/active/set-8-staff-admin-rbac.md) — Set 8: Staff Administration Portal, RBAC & Pre-Live Sweep (Active)
 
 ## Document Map
 - [AGENTS.md](../AGENTS.md) — Operating rules & memory policy
@@ -33,5 +33,5 @@ Status: Set 7 undergoing client portal tracking, inbound email architecture, and
 - Physical production & dispatch must enforce 25% advance / 100% dispatch payment gates.
 
 ## Historical Pointers
-- Archived Tasks: [.ai/tasks/archive/](tasks/archive/) (`set-1`–`set-6`, `h4`, `h6`)
+- Archived Tasks: [.ai/tasks/archive/](tasks/archive/) (`set-1`–`set-7`, `h4`, `h6`)
 - Concept docs in `docs/` and `CONCEPT_README.md`.
