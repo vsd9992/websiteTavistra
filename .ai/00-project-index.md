@@ -1,9 +1,9 @@
 # Project Index
 
 Project: Tavistra (`websiteTavistra`)
-Phase: Phase 2 — Execution (Sets 0–6 Completed; Set 7 Next)
+Phase: Phase 2 — Execution (Sets 0–6 Complete; Set 7 Next)
 Milestone: Modular Hardening & Verification
-Status: Sets 0, 1, 2 (68/68), 3 (54/54), 4 (20/20), 5 (23/23), and 6 (23/23) verified live on `devMachine`; bidirectional quote-order linkage, cancellation/refund emails, and inquiry status sync active; ready for Set 7 on approval.
+Status: Sets 0–6 verified live on `devMachine` (188/188 checks); quote-order linkage, cancellation/refund emails & inquiry sync active; ready for Set 7.
 
 ## Active Tasks
 - [.ai/tasks/active/set-7-support-tickets.md](tasks/active/set-7-support-tickets.md) — Set 7: Support Tickets, Threaded Messaging & Client Concierge Desk (Pending approval)
@@ -32,5 +32,5 @@ Status: Sets 0, 1, 2 (68/68), 3 (54/54), 4 (20/20), 5 (23/23), and 6 (23/23) ver
 - Physical production & dispatch must enforce 25% advance / 100% dispatch payment gates.
 
 ## Historical Pointers
-- Archived Tasks: [.ai/tasks/archive/](tasks/archive/) (`set-6-quotes-enquiries.md`, `set-5-order-tracking.md`, `set-4-cart-checkout.md`, `set-3-customer-identity.md`, `set-2-delivery-governance.md`, `set-1-product-markdown-pipeline.md`, `h4-commerce-foundations-db.md`, `h6-staff-admin-portal.md`)
-- Concept docs imported into `docs/` and `CONCEPT_README.md`.
+- Archived Tasks: [.ai/tasks/archive/](tasks/archive/) (`set-1`–`set-6`, `h4`, `h6`)
+- Concept docs in `docs/` and `CONCEPT_README.md`.
