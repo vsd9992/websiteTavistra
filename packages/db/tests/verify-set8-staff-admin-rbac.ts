@@ -16,8 +16,8 @@ import {
   StaffRole,
   AdminTabId,
   AdminAction,
-} from "../../apps/admin/src/rbac";
-import { STAFF_USERS } from "../../apps/admin/src/data";
+} from "../../../apps/admin/src/rbac";
+import { STAFF_USERS } from "../../../apps/admin/src/data";
 
 const prisma = new PrismaClient();
 const STOREFRONT_URL = process.env.STOREFRONT_URL || "http://192.168.1.100:3001";
