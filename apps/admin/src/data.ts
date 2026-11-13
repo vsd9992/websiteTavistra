@@ -677,6 +677,14 @@ export const STAFF_USERS: StaffUser[] = [
     roleLabel: "Support Specialist · Courier & Ticket Resolution",
     avatarInitials: "KR",
   },
+  {
+    id: "usr_comm_4",
+    name: "Pooja Mehta (Commerce Director)",
+    email: "commerce@tavistra.in",
+    role: "COMMERCE_ADMIN",
+    roleLabel: "Commerce Admin · Catalogue, Quotes & Logistics",
+    avatarInitials: "PM",
+  },
 ];
 
 export const INITIAL_AUDIT_LOGS: AuditEntry[] = [

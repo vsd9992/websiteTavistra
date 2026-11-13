@@ -19,6 +19,7 @@ import {
 } from "./data";
 import { LogisticsTab } from "./components/LogisticsTab";
 import { parseInquiryLineItems } from "@tavistra/shared";
+import { isTabPermitted, isActionPermitted, type AdminTabId } from "./rbac";
 
 export interface ProposalLineItemInput {
   name: string;
@@ -83,9 +84,7 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<
-    "OVERVIEW" | "ORDERS" | "PRODUCTION" | "DISPATCH" | "TICKETS" | "CUSTOMERS" | "PROPOSALS" | "CATALOGUE" | "PINCODES" | "SETTINGS" | "AUDIT"
-  >("OVERVIEW");
+  const [activeTab, setActiveTab] = useState<AdminTabId>("OVERVIEW");
 
   // State
   const [backendStatus, setBackendStatus] = useState<"connecting" | "connected" | "error">("connecting");
@@ -379,6 +378,13 @@ export default function App() {
   // Release MTO order to workshop (strict Day 8 IST enforcement)
   const handleReleaseToProduction = async (orderId: string) => {
     setActionFeedback(null);
+    if (!isActionPermitted(currentStaff.role, "WORKSHOP_RELEASE")) {
+      setActionFeedback({
+        type: "error",
+        text: `Unauthorized: Role '${currentStaff.role}' cannot release orders to workshop. Requires Production Staff or Super Admin.`,
+      });
+      return;
+    }
     const target = orders.find((o) => o.id === orderId);
     try {
       const res = await fetch(`/api/orders/${orderId}`, {
@@ -422,6 +428,13 @@ export default function App() {
       return;
     }
     setActionFeedback(null);
+    if (!isActionPermitted(currentStaff.role, "ORDER_CANCEL")) {
+      setActionFeedback({
+        type: "error",
+        text: `Unauthorized: Role '${currentStaff.role}' does not have permission to cancel orders.`,
+      });
+      return;
+    }
     const target = orders.find((o) => o.id === orderId);
     try {
       const res = await fetch(`/api/orders/${orderId}`, {
@@ -462,6 +475,10 @@ export default function App() {
   // Record or update refund reference (Bank UTR / Gateway transaction ID)
   const handleUpdateRefundReference = async (orderId: string) => {
     if (!refundUtrInput.trim()) return;
+    if (!isActionPermitted(currentStaff.role, "ORDER_REFUND_MANAGE")) {
+      alert(`Unauthorized: Role '${currentStaff.role}' does not have permission to update refund records. Requires Commerce Admin or Super Admin.`);
+      return;
+    }
     setIsUpdatingRefund(true);
     try {
       const res = await fetch(`/api/orders/${orderId}`, {
@@ -540,6 +557,10 @@ export default function App() {
   const handleSaveQc = async () => {
     if (!qcOrderModal) return;
     setQcUploadError(null);
+    if (!isActionPermitted(currentStaff.role, "QC_PHOTO_UPLOAD")) {
+      setQcUploadError(`Unauthorized: Role '${currentStaff.role}' does not have permission to publish QC inspections. Requires Production Staff or Super Admin.`);
+      return;
+    }
     const images = qcImageInput
       .split("\n")
       .map((s) => s.trim())
@@ -585,6 +606,14 @@ export default function App() {
     if (!awbInput.trim()) return;
     setActionFeedback(null);
     const targetOrder = orders.find((o) => o.id === orderId);
+
+    if (!isActionPermitted(currentStaff.role, "DISPATCH_AWB")) {
+      setActionFeedback({
+        type: "error",
+        text: `Unauthorized: Role '${currentStaff.role}' does not have permission to assign carrier AWBs.`,
+      });
+      return;
+    }
 
     // HARD SECURITY GATE: 100% cumulative payment verified before dispatch
     if (targetOrder && targetOrder.balanceDueRupees > 0) {
@@ -641,6 +670,13 @@ export default function App() {
 
   const handleMarkDelivered = async (orderId: string) => {
     setActionFeedback(null);
+    if (!isActionPermitted(currentStaff.role, "DISPATCH_AWB")) {
+      setActionFeedback({
+        type: "error",
+        text: `Unauthorized: Role '${currentStaff.role}' cannot update delivery status.`,
+      });
+      return;
+    }
     const targetOrder = orders.find((o) => o.id === orderId);
     try {
       const res = await fetch(`/api/orders/${orderId}`, {
@@ -681,6 +717,10 @@ export default function App() {
   // Send reply to support ticket
   const handleSendTicketReply = async () => {
     if (!selectedTicket || !ticketReplyText.trim()) return;
+    if (!isActionPermitted(currentStaff.role, "TICKET_MANAGE")) {
+      alert(`Unauthorized: Role '${currentStaff.role}' does not have permission to reply to support tickets. Requires Support Staff or Super Admin.`);
+      return;
+    }
 
     try {
       const data = await fetchJson<{
@@ -752,6 +792,10 @@ export default function App() {
   };
 
   const handleUpdateTicketStatus = async (ticketId: string, newStatus: "OPEN" | "IN_PROGRESS" | "RESOLVED") => {
+    if (!isActionPermitted(currentStaff.role, "TICKET_MANAGE")) {
+      alert(`Unauthorized: Role '${currentStaff.role}' cannot update ticket status. Requires Support Staff or Super Admin.`);
+      return;
+    }
     try {
       await fetchJson(`/api/tickets/${encodeURIComponent(ticketId)}`, {
         method: "PATCH",
@@ -784,6 +828,10 @@ export default function App() {
   };
 
   const handleUpdateTicketPriority = async (ticketId: string, newPriority: "NORMAL" | "HIGH" | "URGENT") => {
+    if (!isActionPermitted(currentStaff.role, "TICKET_MANAGE")) {
+      alert(`Unauthorized: Role '${currentStaff.role}' cannot update ticket priority. Requires Support Staff or Super Admin.`);
+      return;
+    }
     try {
       await fetchJson(`/api/tickets/${encodeURIComponent(ticketId)}`, {
         method: "PATCH",
@@ -822,6 +870,10 @@ export default function App() {
 
   // Toggle Catalogue Publication with DB synchronization
   const handleTogglePublish = async (itemId: string) => {
+    if (!isActionPermitted(currentStaff.role, "CATALOGUE_MUTATE")) {
+      alert(`Unauthorized: Role '${currentStaff.role}' cannot modify catalogue items. Requires Commerce Admin or Super Admin.`);
+      return;
+    }
     const item = catalogue.find((c) => c.id === itemId);
     if (!item) return;
     const prevPublished = item.isPublished;
@@ -870,6 +922,10 @@ export default function App() {
 
   // Toggle Maintenance Mode with DB synchronization
   const handleToggleMaintenance = async () => {
+    if (!isActionPermitted(currentStaff.role, "SETTINGS_MUTATE")) {
+      alert(`Unauthorized: Role '${currentStaff.role}' cannot change studio maintenance mode. Requires Super Admin.`);
+      return;
+    }
     const prev = maintenanceMode;
     const next = !prev;
     setMaintenanceMode(next);
@@ -890,6 +946,10 @@ export default function App() {
 
   // Toggle Studio Hiatus with DB synchronization
   const handleToggleHiatus = async () => {
+    if (!isActionPermitted(currentStaff.role, "SETTINGS_MUTATE")) {
+      alert(`Unauthorized: Role '${currentStaff.role}' cannot change studio hiatus mode. Requires Super Admin.`);
+      return;
+    }
     const prev = studioHiatus;
     const next = !prev;
     setStudioHiatus(next);
@@ -910,6 +970,10 @@ export default function App() {
 
   // Save Announcement Banner with DB synchronization
   const handleSaveAnnouncement = async () => {
+    if (!isActionPermitted(currentStaff.role, "SETTINGS_MUTATE")) {
+      alert(`Unauthorized: Role '${currentStaff.role}' cannot update studio broadcast announcements. Requires Super Admin.`);
+      return;
+    }
     setIsSavingSettings(true);
     setSettingsSaveSuccess(false);
     try {
@@ -932,6 +996,10 @@ export default function App() {
   // Create Formal 30-Day Architectural Proposal (TAV-07)
   const handleCreateProposal = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isActionPermitted(currentStaff.role, "PROPOSAL_CREATE_REVISE")) {
+      alert(`Unauthorized: Role '${currentStaff.role}' cannot issue formal proposals. Requires Commerce Admin or Super Admin.`);
+      return;
+    }
     setIsSubmittingProposal(true);
     try {
       const itemsSubtotal = proposalForm.lineItems.reduce(
@@ -984,6 +1052,10 @@ export default function App() {
   const handleCreateRevision = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!revisionQuote) return;
+    if (!isActionPermitted(currentStaff.role, "PROPOSAL_CREATE_REVISE")) {
+      alert(`Unauthorized: Role '${currentStaff.role}' cannot revise proposals. Requires Commerce Admin or Super Admin.`);
+      return;
+    }
     setIsSubmittingRevision(true);
     try {
       const itemsSubtotal = revisionForm.lineItems.reduce(
@@ -1069,6 +1141,10 @@ export default function App() {
 
   // Sync Markdown Product Editions from docs/products
   const handleSyncMarkdownDocs = async () => {
+    if (!isActionPermitted(currentStaff.role, "CATALOGUE_MUTATE")) {
+      setImportFeedback(`Unauthorized: Role '${currentStaff.role}' cannot import catalogue data. Requires Commerce Admin or Super Admin.`);
+      return;
+    }
     setIsImporting(true);
     setImportFeedback("Scanning docs/products/*.md and syncing with PostgreSQL...");
     try {
@@ -1098,6 +1174,10 @@ export default function App() {
   // Import Single Custom Markdown Specification
   const handleImportSingleMarkdown = async () => {
     if (!markdownInput.trim()) return;
+    if (!isActionPermitted(currentStaff.role, "CATALOGUE_MUTATE")) {
+      setImportFeedback(`Unauthorized: Role '${currentStaff.role}' cannot import catalogue data. Requires Commerce Admin or Super Admin.`);
+      return;
+    }
     setIsImporting(true);
     setImportFeedback("Parsing YAML frontmatter and specifications...");
     try {
@@ -1131,6 +1211,10 @@ export default function App() {
   // Upload single .md specification
   const handleUploadSingleMdFile = async () => {
     if (!selectedMdFile) return;
+    if (!isActionPermitted(currentStaff.role, "CATALOGUE_MUTATE")) {
+      setImportFeedback(`Unauthorized: Role '${currentStaff.role}' cannot import catalogue data. Requires Commerce Admin or Super Admin.`);
+      return;
+    }
     setIsImporting(true);
     setImportFeedback(`Parsing and importing '${selectedMdFile.name}'...`);
 
@@ -1278,7 +1362,12 @@ export default function App() {
                 value={currentStaff.id}
                 onChange={(e) => {
                   const found = STAFF_USERS.find((u) => u.id === e.target.value);
-                  if (found) setCurrentStaff(found);
+                  if (found) {
+                    setCurrentStaff(found);
+                    if (!isTabPermitted(found.role, activeTab as any)) {
+                      setActiveTab("OVERVIEW");
+                    }
+                  }
                 }}
                 className="bg-[#24242a] border border-[#3e3e46] rounded-lg px-2.5 py-1 text-xs font-semibold text-white focus:outline-none focus:border-[#c59b6d]"
               >
@@ -1310,24 +1399,56 @@ export default function App() {
             { id: "PINCODES", label: `Delivery PINs (${stats.serviceablePinsCount})` },
             { id: "SETTINGS", label: "System & Settings" },
             { id: "AUDIT", label: `Audit Log (${auditLogs.length})` },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as typeof activeTab)}
-              className={`py-3 px-3.5 text-xs font-semibold whitespace-nowrap border-b-2 transition-all ${
-                activeTab === tab.id
-                  ? "border-[#c59b6d] text-white bg-[#222228]/50"
-                  : "border-transparent text-[#9e9ea8] hover:text-white"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+          ].map((tab) => {
+            const permitted = isTabPermitted(currentStaff.role, tab.id as any);
+            return (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  if (permitted) {
+                    setActiveTab(tab.id as typeof activeTab);
+                  }
+                }}
+                disabled={!permitted}
+                title={permitted ? tab.label : `Access restricted for role '${currentStaff.role}'`}
+                className={`py-3 px-3.5 text-xs font-semibold whitespace-nowrap border-b-2 transition-all flex items-center gap-1.5 ${
+                  !permitted
+                    ? "opacity-35 cursor-not-allowed border-transparent text-[#6e6e76]"
+                    : activeTab === tab.id
+                    ? "border-[#c59b6d] text-white bg-[#222228]/50"
+                    : "border-transparent text-[#9e9ea8] hover:text-white"
+                }`}
+              >
+                {!permitted && <span className="text-[10px]">🔒</span>}
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
       </header>
 
       {/* Main Content Workspace */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-8">
+        {!isTabPermitted(currentStaff.role, activeTab as any) ? (
+          <div className="p-12 text-center rounded-2xl bg-[#1c1c20] border border-[#2e2e34] space-y-4">
+            <div className="w-12 h-12 rounded-full bg-[#2a2a32] text-amber-500 mx-auto flex items-center justify-center text-xl">
+              🔒
+            </div>
+            <h3 className="text-lg font-bold text-white">Access Restricted</h3>
+            <p className="text-xs text-[#9e9ea8] max-w-md mx-auto leading-relaxed">
+              The active staff identity (<strong>{currentStaff.name}</strong> · <span className="text-[#10b981]">{currentStaff.role}</span>) does not possess authority to inspect or modify the <strong>{activeTab}</strong> workspace.
+            </p>
+            <button
+              onClick={() => setActiveTab("OVERVIEW")}
+              className="rounded-full bg-[#c59b6d] px-5 py-2 text-xs font-semibold text-black hover:bg-[#d6ad80] transition-colors"
+            >
+              Return to Operations Overview
+            </button>
+          </div>
+        ) : null}
+
+        {isTabPermitted(currentStaff.role, activeTab as any) && (
+          <>
         {/* TAB 1: OVERVIEW */}
         {activeTab === "OVERVIEW" && (
           <div className="space-y-8">
@@ -2712,6 +2833,7 @@ export default function App() {
         {activeTab === "PINCODES" && (
           <LogisticsTab
             staffName={currentStaff.name}
+            staffRole={currentStaff.role}
             onLogAudit={logAuditAction}
             onPincodesUpdated={(rows) => setPincodes(rows as any)}
           />
@@ -2889,6 +3011,8 @@ export default function App() {
             </div>
           </div>
         )}
+        </>
+      )}
       </main>
 
       {/* MODAL 1: Selected Order Slide-Over */}

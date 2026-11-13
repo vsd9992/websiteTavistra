@@ -14,6 +14,7 @@
     "test:set5": "tsx tests/verify-set5-order-tracking.ts",
     "test:set6": "tsx tests/verify-set6-quotes-enquiries.ts",
     "test:set7": "tsx tests/verify-set7-support-tickets.ts",
+    "test:set8": "tsx tests/verify-set8-staff-admin-rbac.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

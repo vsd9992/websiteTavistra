@@ -39,3 +39,4 @@
 
 4. **Automated Verification Suite:**
    - Author `packages/db/tests/verify-set8-staff-admin-rbac.ts` (`pnpm test:set8`) verifying ADM-01 through ADM-12, SEC-01 through SEC-05, and RBAC permissions.
+

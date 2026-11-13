@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { StaffRole, isActionPermitted } from "../rbac";
 
 export interface ZoneConfig {
   id: string;
@@ -57,14 +58,23 @@ interface ProductOverrideRow {
 
 interface LogisticsTabProps {
   staffName: string;
+  staffRole?: StaffRole;
   onLogAudit: (action: string, entityType: string, entityId: string, details: string) => void;
   onPincodesUpdated?: (pincodes: PincodeRuleRow[]) => void;
 }
 
-export function LogisticsTab({ staffName, onLogAudit, onPincodesUpdated }: LogisticsTabProps) {
+export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdated }: LogisticsTabProps) {
   const [subTab, setSubTab] = useState<"PINS" | "SLABS_ZONES" | "PRODUCT_OVERRIDES">("PINS");
   const [loading, setLoading] = useState(true);
   const [statusBanner, setStatusBanner] = useState<{ text: string; isError?: boolean } | null>(null);
+
+  const checkPermitted = () => {
+    if (staffRole && !isActionPermitted(staffRole, "PINCODES_MUTATE")) {
+      notify(`Unauthorized: Role '${staffRole}' cannot modify delivery logistics or PIN codes. Requires Commerce Admin or Super Admin.`, true);
+      return false;
+    }
+    return true;
+  };
 
   // PINs State
   const [pincodes, setPincodes] = useState<PincodeRuleRow[]>([]);
@@ -324,6 +334,7 @@ export function LogisticsTab({ staffName, onLogAudit, onPincodesUpdated }: Logis
 
   // Toggle or create a 2-digit Region rule cleanly
   const handleToggleRegionPause = async (group: RegionGroup) => {
+    if (!checkPermitted()) return;
     const nextActive = !group.isRegionActive;
     try {
       if (group.regionRule) {
@@ -360,6 +371,7 @@ export function LogisticsTab({ staffName, onLogAudit, onPincodesUpdated }: Logis
     group: RegionGroup,
     updates: { zoneCode?: string; coverageMode?: "STRICT_WHITELIST" | "ALLOW_ALL_IN_PREFIX" }
   ) => {
+    if (!checkPermitted()) return;
     try {
       if (group.regionRule) {
         const res = await fetch("/api/admin/pincodes", {
@@ -432,6 +444,7 @@ export function LogisticsTab({ staffName, onLogAudit, onPincodesUpdated }: Logis
 
   const handleSavePinRule = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!checkPermitted()) return;
     try {
       const res = await fetch("/api/admin/pincodes", {
         method: "POST",
@@ -456,6 +469,7 @@ export function LogisticsTab({ staffName, onLogAudit, onPincodesUpdated }: Logis
   };
 
   const handleImportUrban884 = async () => {
+    if (!checkPermitted()) return;
     if (!confirm(`Import up to ${urbanCandidateCount} curated urban 6-digit PIN codes into PostgreSQL? Existing custom rules will be preserved.`)) {
       return;
     }
@@ -476,6 +490,7 @@ export function LogisticsTab({ staffName, onLogAudit, onPincodesUpdated }: Logis
   };
 
   const handleTogglePin = async (rule: PincodeRuleRow) => {
+    if (!checkPermitted()) return;
     const nextState = !rule.isServiceable;
     setPincodes((prev) => prev.map((p) => (p.id === rule.id ? { ...p, isServiceable: nextState } : p)));
     try {
@@ -498,6 +513,7 @@ export function LogisticsTab({ staffName, onLogAudit, onPincodesUpdated }: Logis
   };
 
   const handleChangePinZone = async (rule: PincodeRuleRow, newZone: string) => {
+    if (!checkPermitted()) return;
     try {
       const res = await fetch("/api/admin/pincodes", {
         method: "PATCH",
@@ -513,6 +529,7 @@ export function LogisticsTab({ staffName, onLogAudit, onPincodesUpdated }: Logis
   };
 
   const handleDeleteRule = async (rule: PincodeRuleRow) => {
+    if (!checkPermitted()) return;
     if (!confirm(`Delete rule '${rule.pincode}'? Nested PINs matching this prefix will inherit the parent prefix or fallback.`)) {
       return;
     }
@@ -529,6 +546,7 @@ export function LogisticsTab({ staffName, onLogAudit, onPincodesUpdated }: Logis
 
   // Save 12 Slabs
   const handleSaveSlabs = async () => {
+    if (!checkPermitted()) return;
     const nums = editingSlabs.map((s) => Number(s));
     if (nums.length !== 12 || nums.some((n) => isNaN(n) || n < 0)) {
       notify("All 12 slab values must be valid non-negative INR amounts.", true);
@@ -553,6 +571,7 @@ export function LogisticsTab({ staffName, onLogAudit, onPincodesUpdated }: Logis
 
   // Update Matrix Cell
   const handleUpdateMatrixCell = async (tierCode: string, shippingZoneCode: string, feeSlabRupees: number) => {
+    if (!checkPermitted()) return;
     setRateMatrix((prev) =>
       prev.map((r) =>
         r.tierCode === tierCode && r.shippingZoneCode === shippingZoneCode
@@ -583,6 +602,7 @@ export function LogisticsTab({ staffName, onLogAudit, onPincodesUpdated }: Logis
   // Update Zone Config
   const handleSaveZone = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!checkPermitted()) return;
     if (!editingZone) return;
     try {
       const res = await fetch("/api/admin/logistics", {
@@ -605,6 +625,7 @@ export function LogisticsTab({ staffName, onLogAudit, onPincodesUpdated }: Logis
 
   // Set Product Zone Override
   const handleSetProductOverride = async (productId: string, zoneCode: string, valueStr: string) => {
+    if (!checkPermitted()) return;
     const feeSlabRupees = valueStr === "AUTO" ? null : Number(valueStr);
     try {
       const res = await fetch("/api/admin/logistics", {

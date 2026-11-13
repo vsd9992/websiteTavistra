@@ -410,6 +410,24 @@ export async function POST(req: NextRequest) {
     const resolvedLines: ResolvedOrderLine[] = [];
 
     for (const rawItem of items) {
+      if (
+        rawItem.quantity !== undefined &&
+        (typeof rawItem.quantity !== "number" || rawItem.quantity <= 0 || !Number.isInteger(rawItem.quantity))
+      ) {
+        return NextResponse.json(
+          { success: false, error: "Invalid item quantity. Quantities must be positive integers." },
+          { status: 400 }
+        );
+      }
+      if (
+        rawItem.priceRupees !== undefined &&
+        (typeof rawItem.priceRupees !== "number" || rawItem.priceRupees < 0)
+      ) {
+        return NextResponse.json(
+          { success: false, error: "Invalid item price. Tampered negative prices are rejected." },
+          { status: 400 }
+        );
+      }
       const qty = Math.max(1, Math.floor(Number(rawItem.quantity) || 1));
 
       let matchedVariant = null as (Prisma.ProductVariantGetPayload<{
