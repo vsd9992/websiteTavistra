@@ -342,7 +342,8 @@ async function run() {
   if (intakeEmail) {
     const body = await fetchMailpitBody(intakeEmail.ID);
     assert(
-      body.includes(createdTicketNumber) && body.includes("/track?ticket="),
+      body.includes(createdTicketNumber) &&
+        (body.includes("/track-ticket?ticket=") || body.includes("/track?ticket=")),
       "Intake email contains ticketNumber and direct tracking link",
       "TCK-04 Email",
       "Tracking link verified in email body"

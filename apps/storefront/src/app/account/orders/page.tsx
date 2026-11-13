@@ -364,8 +364,11 @@ export default function AccountOrdersPage() {
                             </Link>
                             <Link
                               href={`/contact?intent=support&order=${encodeURIComponent(order.orderNumber || order.id)}&subject=${encodeURIComponent(`Assistance for Order ${order.orderNumber || order.id}`)}`}
-                              className="rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors"
+                              className="rounded-full border border-[var(--color-bronze)]/60 bg-[var(--color-ivory)] px-4 py-2.5 text-xs font-semibold text-[var(--color-ink)] hover:border-[var(--color-ink)] transition-colors inline-flex items-center justify-center gap-1.5 shadow-sm"
                             >
+                              <svg className="w-3.5 h-3.5 text-[var(--color-bronze)] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+                              </svg>
                               Raise Support Ticket
                             </Link>
                           </div>

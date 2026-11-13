@@ -370,7 +370,7 @@ export async function sendTicketEmail(params: {
     category,
   } = params;
 
-  const threadLink = `${appUrl}/track?ticket=${encodeURIComponent(ticketNumber)}`;
+  const threadLink = `${appUrl}/track-ticket?ticket=${encodeURIComponent(ticketNumber)}`;
 
   const bodyContent = `
     <p>Dear ${customerName},</p>

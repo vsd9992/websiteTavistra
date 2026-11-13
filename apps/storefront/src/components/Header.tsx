@@ -192,6 +192,12 @@ export function Header() {
           >
             Contact
           </Link>
+          <Link
+            href="/track-ticket"
+            className="text-xs font-semibold uppercase tracking-wider text-[var(--color-bronze)] transition-colors hover:text-[var(--color-ink)]"
+          >
+            Support Desk
+          </Link>
         </nav>
 
         {/* Right Utility Navigation (Minimalist Luxury Symbols) */}
@@ -334,6 +340,20 @@ export function Header() {
               className="block font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)]"
             >
               Track Order Milestones
+            </Link>
+            <Link
+              href="/track-ticket"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="block font-semibold text-[var(--color-bronze)] hover:text-[var(--color-ink)]"
+            >
+              Track Support Ticket
+            </Link>
+            <Link
+              href="/contact?intent=support"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="block font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)]"
+            >
+              Raise Support Ticket
             </Link>
             <Link
               href="/account"

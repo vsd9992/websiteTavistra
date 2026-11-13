@@ -14,45 +14,28 @@ interface TrackedOrder extends OrderRecord {
   qcImages?: string[];
 }
 
-interface TrackedTicketMessage {
-  id: string;
-  sender: "CUSTOMER" | "STAFF";
-  authorName: string;
-  text: string;
-  timestamp: string;
-}
-
-interface TrackedTicket {
-  id: string;
-  ticketNumber: string;
-  orderNumber?: string;
-  customerName: string;
-  email: string;
-  phone: string;
-  subject: string;
-  category: string;
-  priority: string;
-  status: "OPEN" | "IN_PROGRESS" | "RESOLVED";
-  createdAt: string;
-  messages: TrackedTicketMessage[];
-}
-
 function TrackOrderContent() {
   const searchParams = useSearchParams();
   const initialOrderId = searchParams.get("orderId") || searchParams.get("order") || "";
-  const initialTicketId = searchParams.get("ticket") || searchParams.get("ticketNumber") || "";
   const initialContact = searchParams.get("contact") || "";
+  const initialTicket = searchParams.get("ticket") || searchParams.get("ticketNumber") || "";
 
-  const [trackMode, setTrackMode] = useState<"ORDER" | "TICKET">(
-    initialTicketId || (initialOrderId && initialOrderId.startsWith("TCK")) ? "TICKET" : "ORDER"
-  );
+  // Auto redirect if user navigated to /track with ticket reference
+  useEffect(() => {
+    if (initialTicket) {
+      window.location.replace(
+        `/track-ticket?ticket=${encodeURIComponent(initialTicket)}${
+          initialContact ? `&contact=${encodeURIComponent(initialContact)}` : ""
+        }`
+      );
+    }
+  }, [initialTicket, initialContact]);
 
-  const [referenceId, setReferenceId] = useState(initialTicketId || initialOrderId);
+  const [orderId, setOrderId] = useState(initialOrderId);
   const [contact, setContact] = useState(initialContact);
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [matchedOrder, setMatchedOrder] = useState<TrackedOrder | null>(null);
-  const [matchedTicket, setMatchedTicket] = useState<TrackedTicket | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
 
   // Balance payment states
@@ -60,17 +43,10 @@ function TrackOrderContent() {
   const [paymentSuccessMessage, setPaymentSuccessMessage] = useState<string | null>(null);
   const [paymentErrorMessage, setPaymentErrorMessage] = useState<string | null>(null);
 
-  // Ticket reply states
-  const [ticketReplyText, setTicketReplyText] = useState("");
-  const [submittingReply, setSubmittingReply] = useState(false);
-  const [replyError, setReplyError] = useState<string | null>(null);
-  const [replySuccess, setReplySuccess] = useState<string | null>(null);
-
-  // Direct server query function for Orders
+  // Direct server query function
   const fetchOrderFromServer = async (ref: string, contactInfo?: string) => {
     setLoading(true);
     setSearchError(null);
-    setMatchedTicket(null);
     try {
       const url = `/api/orders?orderId=${encodeURIComponent(ref.trim())}${
         contactInfo ? `&contact=${encodeURIComponent(contactInfo.trim())}` : ""
@@ -106,102 +82,38 @@ function TrackOrderContent() {
     return false;
   };
 
-  // Direct server query function for Support Tickets
-  const fetchTicketFromServer = async (ref: string, contactInfo?: string) => {
-    setLoading(true);
-    setSearchError(null);
-    setMatchedOrder(null);
-    try {
-      const url = `/api/tickets?ticketNumber=${encodeURIComponent(ref.trim())}${
-        contactInfo ? `&contact=${encodeURIComponent(contactInfo.trim())}` : ""
-      }`;
-      const res = await fetch(url, { credentials: "include", cache: "no-store" });
-      const data = await res.json();
-
-      if (res.ok && data.found && data.ticket) {
-        setMatchedTicket(data.ticket);
-        setSearched(true);
-        setLoading(false);
-        return true;
-      }
-
-      if (res.status === 401 || res.status === 403 || res.status === 404) {
-        setMatchedTicket(null);
-        setSearched(true);
-        setSearchError(
-          data.error ||
-            "Provide the registered email or mobile number associated with this ticket to inspect the thread."
-        );
-        setLoading(false);
-        return false;
-      }
-    } catch (err) {
-      console.warn("Backend ticket lookup error:", err);
-      setSearchError("Unable to reach the ticket tracking service. Please try again.");
-    }
-
-    setMatchedTicket(null);
-    setSearched(true);
-    setLoading(false);
-    return false;
-  };
-
-  // Auto-lookup if query params provided
   useEffect(() => {
-    if (initialTicketId) {
-      setTrackMode("TICKET");
-      setReferenceId(initialTicketId);
+    if (initialOrderId) {
+      setOrderId(initialOrderId);
       setContact(initialContact);
-      fetchTicketFromServer(initialTicketId, initialContact);
-    } else if (initialOrderId) {
-      if (initialOrderId.startsWith("TCK")) {
-        setTrackMode("TICKET");
-        setReferenceId(initialOrderId);
-        setContact(initialContact);
-        fetchTicketFromServer(initialOrderId, initialContact);
-      } else {
-        setTrackMode("ORDER");
-        setReferenceId(initialOrderId);
-        setContact(initialContact);
-        fetchOrderFromServer(initialOrderId, initialContact);
-      }
+      fetchOrderFromServer(initialOrderId, initialContact);
     } else {
-      setReferenceId("");
+      setOrderId("");
       setContact("");
       setMatchedOrder(null);
-      setMatchedTicket(null);
       setSearched(false);
       setSearchError(null);
       setPaymentSuccessMessage(null);
       setPaymentErrorMessage(null);
     }
-  }, [initialOrderId, initialTicketId, initialContact]);
+  }, [initialOrderId, initialContact]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!referenceId.trim()) {
-      setSearchError(
-        trackMode === "ORDER"
-          ? "Please enter your Order Reference (e.g. TAV-RS-2026-1001)."
-          : "Please enter your Ticket Reference (e.g. TCK-2026-0101)."
+    if (!orderId.trim()) {
+      setSearchError("Please enter your Order Reference (e.g. TAV-RS-2026-1001).");
+      return;
+    }
+    const cleanRef = orderId.trim().toUpperCase();
+    if (cleanRef.startsWith("TCK")) {
+      window.location.assign(
+        `/track-ticket?ticket=${encodeURIComponent(cleanRef)}${
+          contact ? `&contact=${encodeURIComponent(contact.trim())}` : ""
+        }`
       );
       return;
     }
-
-    const cleanRef = referenceId.trim().toUpperCase();
-    if (cleanRef.startsWith("TCK")) {
-      setTrackMode("TICKET");
-      fetchTicketFromServer(cleanRef, contact);
-    } else if (cleanRef.startsWith("TAV") || cleanRef.startsWith("ORD")) {
-      setTrackMode("ORDER");
-      fetchOrderFromServer(cleanRef, contact);
-    } else {
-      if (trackMode === "TICKET") {
-        fetchTicketFromServer(cleanRef, contact);
-      } else {
-        fetchOrderFromServer(cleanRef, contact);
-      }
-    }
+    fetchOrderFromServer(orderId, contact);
   };
 
   const handlePayBalance = async () => {
@@ -222,7 +134,6 @@ function TrackOrderContent() {
         setPaymentSuccessMessage(
           `Payment of ₹${matchedOrder.balanceDueRupees.toLocaleString("en-IN")} cleared successfully! Your order is now 100% verified.`
         );
-        // Refresh order details from server
         await fetchOrderFromServer(matchedOrder.id, contact || matchedOrder.email);
       } else {
         setPaymentErrorMessage(data.error || "Unable to complete balance payment.");
@@ -231,48 +142,6 @@ function TrackOrderContent() {
       setPaymentErrorMessage("Network error processing balance payment.");
     } finally {
       setPayingBalance(false);
-    }
-  };
-
-  const handleSendTicketReply = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!matchedTicket || !ticketReplyText.trim()) return;
-
-    setSubmittingReply(true);
-    setReplyError(null);
-    setReplySuccess(null);
-
-    try {
-      const res = await fetch(`/api/tickets/${matchedTicket.id}/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sender: "CUSTOMER",
-          authorName: matchedTicket.customerName,
-          text: ticketReplyText.trim(),
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to post message to ticket thread.");
-      }
-
-      setMatchedTicket((prev) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          status: data.ticketStatus || (prev.status === "RESOLVED" ? "IN_PROGRESS" : prev.status),
-          messages: [...prev.messages, data.message],
-        };
-      });
-
-      setTicketReplyText("");
-      setReplySuccess("Your follow-up note has been submitted to the studio concierge desk.");
-    } catch (err) {
-      setReplyError((err as Error).message || "Failed to deliver message.");
-    } finally {
-      setSubmittingReply(false);
     }
   };
 
@@ -288,52 +157,14 @@ function TrackOrderContent() {
       {/* Header */}
       <div className="text-center space-y-3 max-w-2xl mx-auto">
         <span className="text-xs uppercase tracking-widest text-[var(--color-bronze)] font-semibold block">
-          Tavistra Fulfilment &amp; Concierge Desk
+          Tavistra Fulfilment &amp; Consignment Tracking
         </span>
         <h1 className="font-editorial text-4xl sm:text-5xl text-[var(--color-ink)]">
-          {trackMode === "TICKET" ? "Track Support Ticket" : "Track Your Order"}
+          Track Your Order
         </h1>
         <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
-          {trackMode === "TICKET"
-            ? "Inspect two-way studio conversation threads, request alterations, and track concierge desk resolutions."
-            : "Monitor your studio consignment through every milestone: verified advance, workshop craft, inspection, crating, and white-glove courier transit."}
+          Monitor your studio consignment through every milestone: verified advance, workshop craft, inspection, crating, and white-glove courier transit.
         </p>
-      </div>
-
-      {/* Dual Switcher: Track Order vs Track Support Ticket */}
-      <div className="max-w-md mx-auto grid grid-cols-2 p-1.5 rounded-2xl bg-[var(--color-stone)] border border-[var(--color-decorative-border)]">
-        <button
-          type="button"
-          onClick={() => {
-            setTrackMode("ORDER");
-            setSearchError(null);
-            setMatchedTicket(null);
-            if (referenceId.startsWith("TCK")) setReferenceId("");
-          }}
-          className={`py-2.5 px-4 rounded-xl text-xs font-semibold transition-all text-center ${
-            trackMode === "ORDER"
-              ? "bg-[var(--color-canvas)] text-[var(--color-ink)] shadow-sm"
-              : "text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
-          }`}
-        >
-          Track Consignment / Order
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setTrackMode("TICKET");
-            setSearchError(null);
-            setMatchedOrder(null);
-            if (referenceId.startsWith("TAV")) setReferenceId("");
-          }}
-          className={`py-2.5 px-4 rounded-xl text-xs font-semibold transition-all text-center ${
-            trackMode === "TICKET"
-              ? "bg-[var(--color-canvas)] text-[var(--color-ink)] shadow-sm"
-              : "text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
-          }`}
-        >
-          Track Support Ticket
-        </button>
       </div>
 
       {/* Tracking Search Form */}
@@ -341,15 +172,15 @@ function TrackOrderContent() {
         <form onSubmit={handleSearch} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label htmlFor="referenceId" className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
-                {trackMode === "TICKET" ? "Ticket Reference *" : "Order Reference *"}
+              <label htmlFor="orderId" className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
+                Order Reference *
               </label>
               <input
-                id="referenceId"
+                id="orderId"
                 type="text"
-                placeholder={trackMode === "TICKET" ? "TCK-2026-0101" : "TAV-RS-2026-1001"}
-                value={referenceId}
-                onChange={(e) => setReferenceId(e.target.value)}
+                placeholder="e.g. TAV-RS-2026-1001"
+                value={orderId}
+                onChange={(e) => setOrderId(e.target.value)}
                 className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-4 py-3 text-xs text-[var(--color-ink)] placeholder-[var(--color-muted-light)] focus:border-[var(--color-ink)] focus:outline-none font-mono"
               />
             </div>
@@ -379,185 +210,24 @@ function TrackOrderContent() {
             disabled={loading}
             className="w-full rounded-full bg-[var(--color-ink)] py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm disabled:opacity-50"
           >
-            {loading
-              ? "Searching Authoritative Records..."
-              : trackMode === "TICKET"
-              ? "Locate Support Ticket & Conversation Thread"
-              : "Locate Consignment & Production Record"}
+            {loading ? "Searching Authoritative Records..." : "Locate Consignment & Production Record"}
           </button>
         </form>
+
+        {/* Support Ticket Cross Link Banner */}
+        <div className="pt-4 border-t border-[var(--color-decorative-border)] flex flex-col sm:flex-row sm:items-center justify-between text-xs text-[var(--color-muted-light)] gap-2">
+          <span>Looking to track a support ticket or alteration query?</span>
+          <Link
+            href="/track-ticket"
+            className="font-semibold text-[var(--color-bronze)] hover:underline inline-flex items-center gap-1"
+          >
+            Track Support Ticket Online →
+          </Link>
+        </div>
       </div>
 
-      {/* SUPPORT TICKET VIEW */}
-      {trackMode === "TICKET" && searched && (
-        <>
-          {matchedTicket ? (
-            <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-8 shadow-sm space-y-8">
-              {/* Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-[var(--color-decorative-border)] gap-4">
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2.5 flex-wrap">
-                    <span className="font-mono text-base font-bold text-[var(--color-ink)]">
-                      {matchedTicket.ticketNumber}
-                    </span>
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold tracking-wider ${
-                        matchedTicket.status === "OPEN"
-                          ? "bg-rose-100 text-rose-900 border border-rose-300"
-                          : matchedTicket.status === "IN_PROGRESS"
-                          ? "bg-amber-100 text-amber-900 border border-amber-300"
-                          : "bg-emerald-100 text-emerald-900 border border-emerald-300"
-                      }`}
-                    >
-                      {matchedTicket.status === "OPEN"
-                        ? "Open · Awaiting Concierge Review"
-                        : matchedTicket.status === "IN_PROGRESS"
-                        ? "In Progress · Concierge Active"
-                        : "✓ Resolved"}
-                    </span>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-[var(--color-stone)] text-[var(--color-ink)]">
-                      {matchedTicket.category.replace(/_/g, " ")}
-                    </span>
-                  </div>
-                  <h2 className="font-editorial text-2xl text-[var(--color-ink)]">
-                    {matchedTicket.subject}
-                  </h2>
-                  <p className="text-xs text-[var(--color-muted-light)]">
-                    Submitted on {matchedTicket.createdAt} by {matchedTicket.customerName}
-                  </p>
-                </div>
-
-                {matchedTicket.orderNumber && (
-                  <div className="rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-3 text-right">
-                    <span className="text-[10px] uppercase font-semibold text-[var(--color-muted-light)] block">
-                      Linked Consignment
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTrackMode("ORDER");
-                        setReferenceId(matchedTicket.orderNumber!);
-                        fetchOrderFromServer(matchedTicket.orderNumber!, contact || matchedTicket.email);
-                      }}
-                      className="font-mono text-xs font-bold text-[var(--color-bronze)] hover:underline inline-block mt-0.5"
-                    >
-                      {matchedTicket.orderNumber} →
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Conversation Thread */}
-              <div className="space-y-4">
-                <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-light)] block">
-                  Concierge Conversation History ({matchedTicket.messages.length} notes)
-                </span>
-
-                <div className="space-y-4">
-                  {matchedTicket.messages.map((msg) => {
-                    const isStaff = msg.sender === "STAFF";
-                    return (
-                      <div
-                        key={msg.id}
-                        className={`rounded-2xl p-5 border transition-all ${
-                          isStaff
-                            ? "bg-[#faf7f2] border-[var(--color-bronze)]/50 sm:mr-8"
-                            : "bg-[var(--color-canvas)] border-[var(--color-decorative-border)] sm:ml-8"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between pb-2 mb-2 border-b border-[var(--color-decorative-border)]/40 text-xs">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${
-                                isStaff
-                                  ? "bg-[var(--color-bronze)] text-[var(--color-canvas)]"
-                                  : "bg-[var(--color-stone)] text-[var(--color-ink)]"
-                              }`}
-                            >
-                              {isStaff ? "Studio Concierge" : "Client"}
-                            </span>
-                            <span className="font-semibold text-[var(--color-ink)]">
-                              {msg.authorName}
-                            </span>
-                          </div>
-                          <span className="text-[11px] text-[var(--color-muted-light)]">
-                            {msg.timestamp}
-                          </span>
-                        </div>
-                        <p className="text-xs text-[var(--color-ink)] leading-relaxed whitespace-pre-line">
-                          {msg.text}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Reply Box */}
-              <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-6 space-y-4">
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
-                  Add Follow-Up Note or Alteration Request
-                </h4>
-
-                {replySuccess && (
-                  <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-xs text-emerald-900">
-                    ✓ {replySuccess}
-                  </div>
-                )}
-                {replyError && (
-                  <div className="rounded-xl border border-rose-300 bg-rose-50 p-3 text-xs text-rose-900">
-                    ⚠ {replyError}
-                  </div>
-                )}
-
-                <form onSubmit={handleSendTicketReply} className="space-y-3">
-                  <textarea
-                    rows={4}
-                    value={ticketReplyText}
-                    onChange={(e) => setTicketReplyText(e.target.value)}
-                    placeholder="Type your message, query, or specification details for the concierge desk..."
-                    className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono leading-relaxed"
-                  />
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-[var(--color-muted-light)]">
-                      {matchedTicket.status === "RESOLVED"
-                        ? "Posting a message will reopen this ticket for concierge review."
-                        : "Messages are delivered directly to assigned studio staff."}
-                    </span>
-                    <button
-                      type="submit"
-                      disabled={submittingReply || !ticketReplyText.trim()}
-                      className="rounded-full bg-[var(--color-ink)] px-6 py-2.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
-                    >
-                      {submittingReply ? "Posting Message..." : "Post Follow-Up Message"}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-12 text-center space-y-4">
-              <span className="font-editorial text-2xl text-[var(--color-ink)] block">
-                No Support Ticket Located
-              </span>
-              <p className="text-xs text-[var(--color-muted-light)] max-w-md mx-auto">
-                We could not locate a support ticket matching reference <strong className="font-mono text-[var(--color-ink)]">{referenceId}</strong> with the provided contact information.
-              </p>
-              <div className="pt-2">
-                <Link
-                  href="/contact?intent=support"
-                  className="inline-block rounded-full bg-[var(--color-ink)] px-6 py-2.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
-                >
-                  Create New Support Ticket
-                </Link>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ORDER RESULTS VIEW */}
-      {trackMode === "ORDER" && searched && (
+      {/* Order Results */}
+      {searched && (
         <>
           {matchedOrder ? (
             <div className="space-y-8">
@@ -590,11 +260,15 @@ function TrackOrderContent() {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                  {/* High visibility Raise Support Ticket button */}
                   <Link
                     href={`/contact?intent=support&order=${encodeURIComponent(matchedOrder.id)}&subject=${encodeURIComponent(`Assistance for Order ${matchedOrder.id}`)}`}
-                    className="rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors"
+                    className="rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors inline-flex items-center gap-1.5 shadow-sm"
                   >
+                    <svg className="w-3.5 h-3.5 text-[var(--color-bronze)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
                     Raise Support Ticket
                   </Link>
                   <button
@@ -607,7 +281,6 @@ function TrackOrderContent() {
                 </div>
               </div>
 
-              {/* Status Notice / Notifications */}
               {paymentSuccessMessage && (
                 <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-xs text-emerald-900">
                   ✓ {paymentSuccessMessage}
@@ -748,9 +421,12 @@ function TrackOrderContent() {
                     <div className="pt-2 space-y-2">
                       <Link
                         href={`/contact?intent=support&order=${encodeURIComponent(matchedOrder.id)}&subject=${encodeURIComponent(`Assistance for Order ${matchedOrder.id}`)}`}
-                        className="block text-center w-full rounded-full bg-[var(--color-ink)] py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
+                        className="block text-center w-full rounded-full bg-[var(--color-ink)] py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm flex items-center justify-center gap-1.5"
                       >
-                        Contact Client Desk / Raise Ticket
+                        <svg className="w-3.5 h-3.5 text-[var(--color-bronze)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                        Need Help? Raise Support Ticket
                       </Link>
                     </div>
                   </div>
@@ -781,14 +457,25 @@ function TrackOrderContent() {
           ) : (
             <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-12 text-center space-y-4">
               <span className="font-editorial text-2xl text-[var(--color-ink)] block">
-                No Record Located
+                No Consignment Located
               </span>
               <p className="text-xs text-[var(--color-muted-light)] max-w-md mx-auto">
-                We could not locate an active studio order matching reference <strong className="font-mono text-[var(--color-ink)]">{referenceId}</strong> with the provided contact information.
+                We could not locate an active studio order matching reference <strong className="font-mono text-[var(--color-ink)]">{orderId}</strong> with the provided contact information.
               </p>
-              <p className="text-[11px] text-[var(--color-muted-light)]">
-                Please double-check your Order Confirmation SMS/Email or contact our studio desk for direct assistance.
-              </p>
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+                <Link
+                  href="/track-ticket"
+                  className="rounded-full bg-[var(--color-ink)] px-6 py-2.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
+                >
+                  Track Support Ticket Instead →
+                </Link>
+                <Link
+                  href="/contact?intent=support"
+                  className="rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-6 py-2.5 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors"
+                >
+                  Raise Support Ticket
+                </Link>
+              </div>
             </div>
           )}
         </>

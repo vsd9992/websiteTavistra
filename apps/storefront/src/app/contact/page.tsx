@@ -22,55 +22,67 @@ function ContactFormContent() {
   const orderParam = searchParams.get("order") || searchParams.get("orderNumber") || "";
   const ticketParam = searchParams.get("ticket") || "";
 
+  // Explicit mode: GENERAL_INQUIRY vs SUPPORT_TICKET
   const initialMode =
     intentParam === "support" || orderParam || ticketParam
       ? "SUPPORT_TICKET"
-      : "BULK_QUOTE";
+      : "GENERAL_INQUIRY";
 
-  const [contactMode, setContactMode] = useState<"BULK_QUOTE" | "SUPPORT_TICKET">(initialMode);
-  const [ticketCategory, setTicketCategory] = useState("ORDER_INQUIRY");
-  const [ticketOrderNumber, setTicketOrderNumber] = useState(orderParam);
+  const [contactMode, setContactMode] = useState<"GENERAL_INQUIRY" | "SUPPORT_TICKET">(initialMode);
+
+  // General Inquiry form state
+  const [generalData, setGeneralData] = useState({
+    name: "",
+    practiceOrStudio: "",
+    email: "",
+    phone: "",
+    subject:
+      searchParams.get("subject") ||
+      (intentParam === "bulk"
+        ? "Bulk / Commercial Order Quotation"
+        : "Architectural & Bespoke Order (Quote Only)"),
+    pincode: pincodeParam,
+    productName: productParam && skuParam && !productParam.toLowerCase().includes(skuParam.toLowerCase())
+      ? `${productParam} [${skuParam}]`
+      : productParam,
+    quantity: quantityParam || "10",
+    message:
+      messageParam ||
+      (productParam
+        ? `Inquiring for Quote on: ${productParam} (Ref: ${skuParam || "Bespoke"})\nSpecified Materials: ${materialsParam || "Standard Studio Finish"}\n\nProject Scope & Custom Dimension Details:`
+        : ""),
+  });
+
+  // Support Ticket form state
+  const [ticketData, setTicketData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    category: "ORDER_INQUIRY",
+    orderNumber: orderParam,
+    subject:
+      orderParam
+        ? `Support Inquiry for Order ${orderParam}`
+        : searchParams.get("subject") || "Client Desk Assistance",
+    message: messageParam || "",
+  });
 
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [referenceNumber, setReferenceNumber] = useState<string | null>(null);
 
-  const initialProductName =
-    productParam && skuParam && !productParam.toLowerCase().includes(skuParam.toLowerCase())
-      ? `${productParam} [${skuParam}]`
-      : productParam;
-
-  const defaultSubject =
-    searchParams.get("subject") ||
-    (initialMode === "SUPPORT_TICKET"
-      ? orderParam
-        ? `Support Inquiry for Order ${orderParam}`
-        : "Client Desk Assistance"
-      : intentParam === "bulk"
-      ? "Bulk Order Quotation Request"
-      : "Architectural & Bespoke Order (Quote Only)");
-
-  const [formData, setFormData] = useState({
-    name: "",
-    practiceOrStudio: "",
-    email: "",
-    phone: "",
-    subject: defaultSubject,
-    pincode: pincodeParam,
-    productName: initialProductName,
-    quantity: quantityParam || "10",
-    message:
-      messageParam ||
-      (productParam
-        ? `Inquiring for Quote on: ${productParam} (Ref: ${skuParam || "Bespoke"})\nSpecified Materials: ${materialsParam || "Standard Studio Finish"}\n\nProject / Custom Dimensions Requirements:`
-        : ""),
-  });
-
-  // Pre-fill signed-in user identity if fields are empty
+  // Pre-fill authenticated client identity
   useEffect(() => {
     if (user) {
-      setFormData((prev) => ({
+      setGeneralData((prev) => ({
+        ...prev,
+        name: prev.name || user.name || "",
+        email: prev.email || user.email || "",
+        phone: prev.phone || user.phone || "",
+        practiceOrStudio: prev.practiceOrStudio || user.practiceOrStudio || "",
+      }));
+      setTicketData((prev) => ({
         ...prev,
         name: prev.name || user.name || "",
         email: prev.email || user.email || "",
@@ -79,41 +91,33 @@ function ContactFormContent() {
     }
   }, [user]);
 
-  // Keep form synchronized if query params change
+  // Synchronize when query parameters change
   useEffect(() => {
-    if (orderParam) {
-      setTicketOrderNumber(orderParam);
+    if (intentParam === "support" || orderParam) {
       setContactMode("SUPPORT_TICKET");
+      if (orderParam) {
+        setTicketData((prev) => ({
+          ...prev,
+          orderNumber: orderParam,
+          subject: prev.subject.includes("Order") ? prev.subject : `Support Inquiry for Order ${orderParam}`,
+        }));
+      }
     }
-    if (productParam || intentParam || messageParam || pincodeParam || quantityParam) {
-      setFormData((prev) => ({
-        ...prev,
-        productName: productParam || prev.productName,
-        subject:
-          searchParams.get("subject") ||
-          (intentParam === "support" || orderParam
-            ? orderParam
-              ? `Support Inquiry for Order ${orderParam}`
-              : "Client Desk Assistance"
-            : prev.subject),
-        pincode: pincodeParam || prev.pincode,
-        quantity: quantityParam || prev.quantity,
-        message:
-          messageParam ||
-          prev.message ||
-          (productParam
-            ? `Inquiring for Quote on: ${productParam} (Ref: ${skuParam || "Bespoke"})\nSpecified Materials: ${materialsParam || "Standard Studio Finish"}\n\nProject / Custom Dimensions Requirements:`
-            : ""),
-      }));
-    }
-  }, [productParam, skuParam, materialsParam, intentParam, messageParam, pincodeParam, quantityParam, orderParam, searchParams]);
+  }, [intentParam, orderParam]);
 
-  const emailVal = validateEmail(formData.email);
-  const mobileVal = validateIndianMobile(formData.phone);
+  // Field validations
+  const activeEmail = contactMode === "SUPPORT_TICKET" ? ticketData.email : generalData.email;
+  const activePhone = contactMode === "SUPPORT_TICKET" ? ticketData.phone : generalData.phone;
+  const activeName = contactMode === "SUPPORT_TICKET" ? ticketData.name : generalData.name;
+  const activeMessage = contactMode === "SUPPORT_TICKET" ? ticketData.message : generalData.message;
+
+  const emailVal = validateEmail(activeEmail);
+  const mobileVal = validateIndianMobile(activePhone);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
+
     if (!emailVal.isValid || !mobileVal.isValid) {
       return;
     }
@@ -125,24 +129,24 @@ function ContactFormContent() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            name: formData.name.trim(),
-            email: formData.email.trim(),
-            phone: formData.phone.trim(),
-            subject: formData.subject.trim() || "Client Desk Assistance",
-            category: ticketCategory,
-            orderNumber: ticketOrderNumber.trim() || undefined,
-            message: formData.message.trim(),
+            name: ticketData.name.trim(),
+            email: ticketData.email.trim(),
+            phone: ticketData.phone.trim(),
+            category: ticketData.category,
+            orderNumber: ticketData.orderNumber.trim() || undefined,
+            subject: ticketData.subject.trim() || "Client Desk Assistance",
+            message: ticketData.message.trim(),
           }),
         });
         const data = await res.json();
         if (!res.ok) {
-          throw new Error(data.error || "Unable to submit client support ticket.");
+          throw new Error(data.error || "Unable to register client support ticket.");
         }
         setReferenceNumber(data.ticketNumber || null);
         setSubmitted(true);
       } else {
         const pinCheck =
-          formData.pincode.trim().length === 6 ? lookupPincode(formData.pincode.trim()) : null;
+          generalData.pincode.trim().length === 6 ? lookupPincode(generalData.pincode.trim()) : null;
 
         let structuredLineItems: Array<{ name: string; finish?: string; quantity: number; unitPriceRupees: number }> | undefined = undefined;
         if (itemsParam) {
@@ -159,7 +163,7 @@ function ContactFormContent() {
                 }));
             }
           } catch {
-            // Non-JSON items param fallback
+            // Non-JSON fallback
           }
         }
 
@@ -167,27 +171,27 @@ function ContactFormContent() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            name: formData.name,
-            practiceOrStudio: formData.practiceOrStudio,
-            email: formData.email,
-            phone: formData.phone,
+            name: generalData.name.trim(),
+            practiceOrStudio: generalData.practiceOrStudio.trim() || undefined,
+            email: generalData.email.trim(),
+            phone: generalData.phone.trim(),
             city: pinCheck?.city ? `${pinCheck.city}, ${pinCheck.state}` : undefined,
-            pincode: formData.pincode,
-            productName: formData.productName || formData.subject,
-            quantity: Math.max(1, parseInt(formData.quantity || "10", 10) || 10),
-            message: formData.message,
+            pincode: generalData.pincode.trim() || undefined,
+            productName: generalData.productName || generalData.subject,
+            quantity: Math.max(1, parseInt(generalData.quantity || "10", 10) || 10),
+            message: generalData.message.trim(),
             lineItems: structuredLineItems && structuredLineItems.length > 0 ? structuredLineItems : undefined,
           }),
         });
         const data = await res.json();
         if (!res.ok) {
-          throw new Error(data.error || "Unable to register commercial inquiry.");
+          throw new Error(data.error || "Unable to register studio inquiry.");
         }
         setReferenceNumber(data.inquiryNumber || null);
         setSubmitted(true);
       }
     } catch (err) {
-      setSubmitError((err as Error).message || "Network error submitting request. Please retry.");
+      setSubmitError((err as Error).message || "Network error transmitting request. Please retry.");
     } finally {
       setSubmitting(false);
     }
@@ -195,83 +199,80 @@ function ContactFormContent() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-      {/* Left Column: Contact Form (Span 7) */}
+      {/* Left Column: Form & Switcher (Span 7) */}
       <div className="lg:col-span-7">
-        {/* Dual Mode Switcher */}
+        {/* Top-Level Mode Selector */}
         <div className="grid grid-cols-2 p-1.5 rounded-2xl bg-[var(--color-stone)] border border-[var(--color-decorative-border)] mb-8">
           <button
             type="button"
             onClick={() => {
-              setContactMode("BULK_QUOTE");
+              setContactMode("GENERAL_INQUIRY");
               setSubmitError(null);
-              if (formData.subject.includes("Support")) {
-                setFormData((prev) => ({ ...prev, subject: "Bulk Order Quotation Request" }));
-              }
             }}
-            className={`py-3 px-4 rounded-xl text-xs font-semibold transition-all text-center ${
-              contactMode === "BULK_QUOTE"
+            className={`py-3.5 px-4 rounded-xl text-xs font-semibold transition-all text-center ${
+              contactMode === "GENERAL_INQUIRY"
                 ? "bg-[var(--color-canvas)] text-[var(--color-ink)] shadow-sm"
                 : "text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
             }`}
           >
-            <span className="block font-medium">Commercial &amp; Bespoke Quotes</span>
-            <span className="text-[10px] opacity-75 font-normal hidden sm:inline">Wholesale &amp; Custom Orders</span>
+            <span className="block font-medium">General &amp; Studio Inquiry</span>
+            <span className="text-[10px] opacity-75 font-normal hidden sm:inline">
+              Bespoke Proposals, Visits &amp; Trade
+            </span>
           </button>
           <button
             type="button"
             onClick={() => {
               setContactMode("SUPPORT_TICKET");
               setSubmitError(null);
-              if (!formData.subject || formData.subject.includes("Quotation")) {
-                setFormData((prev) => ({
-                  ...prev,
-                  subject: ticketOrderNumber
-                    ? `Support Inquiry for Order ${ticketOrderNumber}`
-                    : "Client Desk Assistance",
-                }));
-              }
             }}
-            className={`py-3 px-4 rounded-xl text-xs font-semibold transition-all text-center ${
+            className={`py-3.5 px-4 rounded-xl text-xs font-semibold transition-all text-center relative ${
               contactMode === "SUPPORT_TICKET"
                 ? "bg-[var(--color-canvas)] text-[var(--color-ink)] shadow-sm"
                 : "text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
             }`}
           >
-            <span className="block font-medium">Client Desk &amp; Support Tickets</span>
-            <span className="text-[10px] opacity-75 font-normal hidden sm:inline">Order Support &amp; Alterations</span>
+            <span className="block font-medium flex items-center justify-center gap-1.5">
+              <svg className="w-3.5 h-3.5 text-[var(--color-bronze)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+              Raise Support Ticket
+            </span>
+            <span className="text-[10px] opacity-75 font-normal hidden sm:inline">
+              Order Support, Alterations &amp; Damage
+            </span>
           </button>
         </div>
 
         {submitted ? (
           <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-10 text-center space-y-5">
             <span className="font-editorial text-3xl text-[var(--color-ink)] block">
-              {contactMode === "SUPPORT_TICKET" ? "Support Ticket Registered" : "Inquiry Registered"}
+              {contactMode === "SUPPORT_TICKET" ? "Support Ticket Registered" : "Studio Inquiry Dispatched"}
             </span>
             {referenceNumber && (
-              <span className="inline-block px-3.5 py-1.5 rounded-full text-xs font-mono font-bold bg-[var(--color-ink)] text-[var(--color-canvas)]">
+              <span className="inline-block px-4 py-1.5 rounded-full text-xs font-mono font-bold bg-[var(--color-ink)] text-[var(--color-canvas)]">
                 Reference: {referenceNumber}
               </span>
             )}
             <p className="text-xs text-[var(--color-muted-light)] leading-relaxed max-w-md mx-auto">
               {contactMode === "SUPPORT_TICKET" ? (
                 <>
-                  Thank you, <strong>{formData.name}</strong>. Your support ticket has been formally logged into our studio concierge system under reference <strong className="font-mono">{referenceNumber}</strong>. A confirmation copy has been dispatched to <strong>{formData.email}</strong>.
+                  Thank you, <strong>{ticketData.name}</strong>. Your ticket has been formally registered with our client concierge desk under reference <strong className="font-mono">{referenceNumber}</strong>. An acknowledgment notice has been emailed to <strong>{ticketData.email}</strong>.
                 </>
               ) : (
                 <>
-                  Thank you, <strong>{formData.name}</strong>. Our commercial and architectural design desk has logged your request for{" "}
-                  <strong>{formData.productName || "your project"}</strong> into our central studio queue. A formal proposal will be dispatched to <strong>{formData.email}</strong>.
+                  Thank you, <strong>{generalData.name}</strong>. Your inquiry has been routed to our studio design and commercial desk. A formal response will be dispatched to <strong>{generalData.email}</strong> within 24 to 48 business hours.
                 </>
               )}
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-3">
               {contactMode === "SUPPORT_TICKET" && referenceNumber && (
                 <Link
-                  href={`/track?ticket=${encodeURIComponent(referenceNumber)}&contact=${encodeURIComponent(formData.email)}`}
+                  href={`/track-ticket?ticket=${encodeURIComponent(referenceNumber)}&contact=${encodeURIComponent(ticketData.email)}`}
                   className="w-full sm:w-auto inline-block rounded-full bg-[var(--color-ink)] px-6 py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
                 >
-                  Track Ticket &amp; View Thread →
+                  Track Your Support Ticket Online →
                 </Link>
               )}
               <button
@@ -288,28 +289,31 @@ function ContactFormContent() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Visual Context Badges */}
+            {/* Context Notice / Header info */}
             {contactMode === "SUPPORT_TICKET" ? (
-              <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <span className="text-[10px] uppercase tracking-wider text-blue-900 font-semibold block flex items-center gap-1.5">
+              <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <span className="text-[10px] uppercase tracking-wider text-blue-900 font-bold block flex items-center gap-1.5">
                     <svg className="w-3.5 h-3.5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
-                    Tavistra Client Concierge Desk
+                    Client Concierge Desk Support
                   </span>
-                  <span className="text-xs font-semibold text-[var(--color-ink)]">
-                    Direct two-way support desk &amp; pre-production alterations
-                  </span>
-                  {ticketOrderNumber && (
-                    <p className="text-[11px] text-[var(--color-muted-light)]">
-                      Linked Consignment: <span className="font-mono font-semibold text-[var(--color-ink)]">{ticketOrderNumber}</span>
+                  <p className="text-xs text-[var(--color-ink)]">
+                    For existing orders, 7-day pre-production grace alterations, transit reports, or refunds.
+                  </p>
+                  {ticketData.orderNumber && (
+                    <p className="text-[11px] text-[var(--color-muted-light)] font-mono">
+                      Target Order: <strong className="text-[var(--color-ink)]">{ticketData.orderNumber}</strong>
                     </p>
                   )}
                 </div>
-                <span className="rounded-md bg-[var(--color-canvas)] px-2.5 py-1 text-[11px] font-semibold text-blue-800 border border-blue-200">
-                  Support Ticket
-                </span>
+                <Link
+                  href="/track-ticket"
+                  className="shrink-0 text-xs font-semibold text-blue-800 hover:text-blue-950 underline flex items-center gap-1"
+                >
+                  Already have a ticket? Track here →
+                </Link>
               </div>
             ) : intentParam === "bulk" ? (
               <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-4 flex items-center justify-between">
@@ -321,30 +325,11 @@ function ContactFormContent() {
                     Bulk Order Quotation Transfer
                   </span>
                   <span className="text-xs font-semibold text-[var(--color-ink)]">
-                    {formData.productName || "Cart items transferred for wholesale / bulk review"}
+                    {generalData.productName || "Cart items transferred for wholesale review"}
                   </span>
-                  {formData.pincode && (
-                    <p className="text-[11px] text-[var(--color-muted-light)]">
-                      Destination PIN Code: <span className="font-semibold text-[var(--color-ink)]">{formData.pincode}</span>
-                    </p>
-                  )}
                 </div>
                 <span className="rounded-md bg-[var(--color-canvas)] px-2.5 py-1 text-[11px] font-semibold text-amber-800 border border-amber-200">
                   Bulk Enquiry
-                </span>
-              </div>
-            ) : productParam ? (
-              <div className="rounded-xl border border-[var(--color-bronze)]/40 bg-[var(--color-ivory)] p-4 flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] uppercase tracking-wider text-[var(--color-bronze)] font-semibold block">
-                    Pre-Filled Quote Reference
-                  </span>
-                  <span className="text-xs font-semibold text-[var(--color-ink)]">
-                    {productParam} {skuParam && `(${skuParam})`}
-                  </span>
-                </div>
-                <span className="rounded-md bg-[var(--color-canvas)] px-2.5 py-1 text-[11px] font-semibold text-[var(--color-ink)] border border-[var(--color-decorative-border)]/60">
-                  Quote Only
                 </span>
               </div>
             ) : null}
@@ -355,52 +340,55 @@ function ContactFormContent() {
               </div>
             )}
 
-            {/* Support Ticket Mode Fields */}
+            {/* MODE 1: RAISE SUPPORT TICKET */}
             {contactMode === "SUPPORT_TICKET" ? (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-2">
-                      Inquiry Category *
+                      Support Category *
                     </label>
                     <select
-                      value={ticketCategory}
-                      onChange={(e) => setTicketCategory(e.target.value)}
+                      value={ticketData.category}
+                      onChange={(e) => setTicketData({ ...ticketData, category: e.target.value })}
                       className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
                     >
                       <option value="ORDER_INQUIRY">Order Status &amp; Production Schedule</option>
                       <option value="SPEC_ALTERATION">Pre-Production Alteration (7-Day Grace)</option>
-                      <option value="DELIVERY_SCHEDULE">Consignment Dispatch &amp; Delivery Appointment</option>
-                      <option value="DAMAGE_REPORT">Transit Damage &amp; QC Inspection Report</option>
-                      <option value="CANCELLATION">Pre-Production Cancellation &amp; Statutory Refund</option>
-                      <option value="GENERAL_ASSISTANCE">General Concierge Desk Assistance</option>
+                      <option value="DELIVERY_SCHEDULE">Delivery Coordination &amp; Courier Inquiries</option>
+                      <option value="DAMAGE_REPORT">Transit Damage &amp; Inspection Report (High Priority)</option>
+                      <option value="CANCELLATION">Order Cancellation &amp; Statutory Refund</option>
+                      <option value="GENERAL_ASSISTANCE">General Client Support</option>
                     </select>
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-2">
-                      Order / Quote Reference (Optional)
+                      Order / Consignment Reference (Optional)
                     </label>
                     <input
                       type="text"
-                      value={ticketOrderNumber}
-                      onChange={(e) => setTicketOrderNumber(e.target.value)}
-                      placeholder="e.g. TAV-RS-2026-1001 or QTE-20261112-..."
+                      value={ticketData.orderNumber}
+                      onChange={(e) => setTicketData({ ...ticketData, orderNumber: e.target.value })}
+                      placeholder="e.g. TAV-RS-2026-1001 or TAV-QTE-..."
                       className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono"
                     />
+                    <p className="text-[10px] text-[var(--color-muted-light)] mt-1">
+                      Include your order reference if your query concerns an existing purchase.
+                    </p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-2">
-                      Client Legal Name *
+                      Full Legal Name *
                     </label>
                     <input
                       required
                       type="text"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      value={ticketData.name}
+                      onChange={(e) => setTicketData({ ...ticketData, name: e.target.value })}
                       placeholder="e.g. Ar. Vikramaditya Sharma"
                       className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
                     />
@@ -408,14 +396,14 @@ function ContactFormContent() {
 
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-2">
-                      Subject / Topic *
+                      Subject / Issue Summary *
                     </label>
                     <input
                       required
                       type="text"
-                      value={formData.subject}
-                      onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                      placeholder="e.g. Alteration request for finish selection"
+                      value={ticketData.subject}
+                      onChange={(e) => setTicketData({ ...ticketData, subject: e.target.value })}
+                      placeholder="e.g. Finish alteration request for wall piece"
                       className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
                     />
                   </div>
@@ -429,30 +417,31 @@ function ContactFormContent() {
                     <input
                       required
                       type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      placeholder="vikram@studiovishnu.in"
+                      value={ticketData.email}
+                      onChange={(e) => setTicketData({ ...ticketData, email: e.target.value })}
+                      placeholder="name@studio.in"
                       className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
                     />
-                    {formData.email && !emailVal.isValid && (
+                    {ticketData.email && !emailVal.isValid && (
                       <p className="text-[11px] text-red-600 mt-1.5 font-medium leading-snug">
                         ⚠ {emailVal.error}
                       </p>
                     )}
                   </div>
+
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-2">
-                      Mobile Number *
+                      Contact Mobile Number *
                     </label>
                     <input
                       required
                       type="tel"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      value={ticketData.phone}
+                      onChange={(e) => setTicketData({ ...ticketData, phone: e.target.value })}
                       placeholder="+91 98765 43210"
                       className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono"
                     />
-                    {formData.phone && !mobileVal.isValid && (
+                    {ticketData.phone && !mobileVal.isValid && (
                       <p className="text-[11px] text-red-600 mt-1.5 font-medium leading-snug">
                         ⚠ {mobileVal.error}
                       </p>
@@ -467,23 +456,23 @@ function ContactFormContent() {
                   <textarea
                     required
                     rows={6}
-                    value={formData.message}
-                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                    placeholder="Describe your query in detail, including any specific delivery requirements, finish alteration requests, or damage details..."
+                    value={ticketData.message}
+                    onChange={(e) => setTicketData({ ...ticketData, message: e.target.value })}
+                    placeholder="Provide full details regarding your alteration, delivery instruction, transit damage report, or query..."
                     className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono leading-relaxed"
                   />
                 </div>
 
                 <button
                   type="submit"
-                  disabled={submitting || !emailVal.isValid || !mobileVal.isValid || !formData.name.trim() || !formData.message.trim()}
+                  disabled={submitting || !emailVal.isValid || !mobileVal.isValid || !ticketData.name.trim() || !ticketData.message.trim()}
                   className="w-full rounded-full bg-[var(--color-ink)] py-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
                 >
                   {submitting ? "Registering Support Ticket..." : "Submit Support Ticket"}
                 </button>
               </>
             ) : (
-              /* Commercial & Bulk Quote Mode Fields */
+              /* MODE 2: GENERAL STUDIO & COMMERCIAL INQUIRY */
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
@@ -493,8 +482,8 @@ function ContactFormContent() {
                     <input
                       required
                       type="text"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      value={generalData.name}
+                      onChange={(e) => setGeneralData({ ...generalData, name: e.target.value })}
                       placeholder="e.g. Ar. Vikramaditya Sharma"
                       className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
                     />
@@ -502,12 +491,12 @@ function ContactFormContent() {
 
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-2">
-                      Architecture Firm / Studio (Optional)
+                      Architecture Firm / Practice (Optional)
                     </label>
                     <input
                       type="text"
-                      value={formData.practiceOrStudio}
-                      onChange={(e) => setFormData({ ...formData, practiceOrStudio: e.target.value })}
+                      value={generalData.practiceOrStudio}
+                      onChange={(e) => setGeneralData({ ...generalData, practiceOrStudio: e.target.value })}
                       placeholder="e.g. Studio Vayu Architecture"
                       className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
                     />
@@ -522,17 +511,18 @@ function ContactFormContent() {
                     <input
                       required
                       type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      value={generalData.email}
+                      onChange={(e) => setGeneralData({ ...generalData, email: e.target.value })}
                       placeholder="vikram@studio.in"
                       className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
                     />
-                    {formData.email && !emailVal.isValid && (
+                    {generalData.email && !emailVal.isValid && (
                       <p className="text-[11px] text-red-600 mt-1.5 font-medium leading-snug">
                         ⚠ {emailVal.error}
                       </p>
                     )}
                   </div>
+
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-2">
                       Mobile Number *
@@ -540,12 +530,12 @@ function ContactFormContent() {
                     <input
                       required
                       type="tel"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      value={generalData.phone}
+                      onChange={(e) => setGeneralData({ ...generalData, phone: e.target.value })}
                       placeholder="+91 98765 43210"
                       className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono"
                     />
-                    {formData.phone && !mobileVal.isValid && (
+                    {generalData.phone && !mobileVal.isValid && (
                       <p className="text-[11px] text-red-600 mt-1.5 font-medium leading-snug">
                         ⚠ {mobileVal.error}
                       </p>
@@ -554,57 +544,46 @@ function ContactFormContent() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="sm:col-span-1">
+                  <div className="sm:col-span-2">
                     <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-2">
-                      Inquiry Nature
+                      Inquiry Nature / Subject *
                     </label>
                     <select
-                      value={formData.subject}
-                      onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                      value={generalData.subject}
+                      onChange={(e) => setGeneralData({ ...generalData, subject: e.target.value })}
                       className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
                     >
-                      <option>Bulk Order Quotation Request</option>
                       <option>Architectural &amp; Bespoke Order (Quote Only)</option>
-                      <option>Made to Order Lead Time Query</option>
-                      <option>B2B Corporate Invoicing (GST)</option>
+                      <option>General Studio Inquiry &amp; Visit</option>
+                      <option>Trade &amp; Architecture Partnership</option>
+                      <option>Material Finishes &amp; Sample Request</option>
+                      <option>Bulk / Commercial Order Quotation</option>
+                      <option>Corporate &amp; Hospitality Project</option>
+                      <option>Other Query</option>
                     </select>
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-2">
-                      Requested Units
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="10000"
-                      value={formData.quantity}
-                      onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                      className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-bold"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-2">
-                      Delivery PIN Code
+                      Delivery PIN (Optional)
                     </label>
                     <input
                       type="text"
-                      value={formData.pincode}
-                      onChange={(e) => setFormData({ ...formData, pincode: e.target.value.replace(/\D/g, "") })}
+                      value={generalData.pincode}
+                      onChange={(e) => setGeneralData({ ...generalData, pincode: e.target.value.replace(/\D/g, "") })}
                       placeholder="e.g. 560001"
                       maxLength={6}
                       className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono"
                     />
-                    {formData.pincode.length === 6 && (() => {
-                      const lookup = lookupPincode(formData.pincode);
+                    {generalData.pincode.length === 6 && (() => {
+                      const lookup = lookupPincode(generalData.pincode);
                       return lookup.isServiceable ? (
-                        <p className="text-[11px] text-emerald-700 font-medium mt-1.5 flex items-center gap-1">
-                          ✓ Serviceable Hub: {lookup.city}, {lookup.state}
+                        <p className="text-[10px] text-emerald-700 font-medium mt-1">
+                          ✓ Hub: {lookup.city}, {lookup.state}
                         </p>
                       ) : (
-                        <p className="text-[11px] text-red-600 font-medium mt-1.5">
-                          ⚠ {lookup.unserviceableReason || "Destination outside standard delivery network — custom freight required."}
+                        <p className="text-[10px] text-amber-700 font-medium mt-1">
+                          Custom freight zone
                         </p>
                       );
                     })()}
@@ -613,24 +592,24 @@ function ContactFormContent() {
 
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-2">
-                    Project Specification &amp; Details *
+                    Project Specification &amp; Message *
                   </label>
                   <textarea
                     required
                     rows={6}
-                    value={formData.message}
-                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                    placeholder="Outline your required dimensions, metal finish preferences, quantities, or site mounting details..."
+                    value={generalData.message}
+                    onChange={(e) => setGeneralData({ ...generalData, message: e.target.value })}
+                    placeholder="Outline your project scope, custom dimensions, preferred finishes, or studio questions..."
                     className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono leading-relaxed"
                   />
                 </div>
 
                 <button
                   type="submit"
-                  disabled={submitting || !emailVal.isValid || !mobileVal.isValid || !formData.name.trim() || !formData.message.trim()}
+                  disabled={submitting || !emailVal.isValid || !mobileVal.isValid || !generalData.name.trim() || !generalData.message.trim()}
                   className="w-full rounded-full bg-[var(--color-ink)] py-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
                 >
-                  {submitting ? "Transmitting Request to Studio..." : "Submit Proposal Request"}
+                  {submitting ? "Transmitting to Studio..." : "Send Studio Inquiry"}
                 </button>
               </>
             )}
@@ -638,65 +617,74 @@ function ContactFormContent() {
         )}
       </div>
 
-      {/* Right Column: Studio Information & General Tavistra Knowledge (Span 5) */}
+      {/* Right Column: Studio Information & Support Portal Shortcuts (Span 5) */}
       <div className="lg:col-span-5 space-y-6">
-        {/* Client Desk Card */}
+        {/* Support Portal Card */}
         <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-6 space-y-4">
-          <span className="text-xs uppercase tracking-widest text-[var(--color-bronze)] font-semibold block">
-            Tavistra Client Desk
-          </span>
-          <div className="space-y-3 text-xs text-[var(--color-ink)]">
+          <div className="flex items-center justify-between">
+            <span className="text-xs uppercase tracking-widest text-[var(--color-bronze)] font-semibold">
+              Client Concierge Desk
+            </span>
+            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+              Active Desk
+            </span>
+          </div>
+
+          <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
+            Need assistance with an existing order, wish to request finish alterations during your 7-day grace period, or report a delivery issue?
+          </p>
+
+          <div className="pt-2 space-y-2.5">
+            <button
+              type="button"
+              onClick={() => {
+                setContactMode("SUPPORT_TICKET");
+                setSubmitted(false);
+              }}
+              className="w-full rounded-xl bg-[var(--color-ink)] py-3 px-4 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors text-center block shadow-sm"
+            >
+              Raise a Support Ticket Now →
+            </button>
+            <Link
+              href="/track-ticket"
+              className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] py-3 px-4 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors text-center block"
+            >
+              Track Existing Support Ticket →
+            </Link>
+          </div>
+        </div>
+
+        {/* Operating Hours & Direct Email */}
+        <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-6 space-y-3 text-xs text-[var(--color-ink)]">
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
+            Studio Desk Hours &amp; Contacts
+          </h4>
+          <div className="space-y-2 text-[var(--color-muted-light)]">
             <div>
-              <strong className="block text-[var(--color-muted-light)]">Inquiries &amp; Client Support:</strong>
-              <a href="mailto:support@tavistra.in" className="text-[var(--color-bronze)] font-semibold hover:underline">
-                support@tavistra.in
+              <strong className="block text-[var(--color-ink)]">Client Desk Email:</strong>
+              <a href="mailto:concierge@tavistra.in" className="text-[var(--color-bronze)] font-semibold hover:underline">
+                concierge@tavistra.in
               </a>
             </div>
             <div>
-              <strong className="block text-[var(--color-muted-light)]">Response Commitment:</strong>
-              <span>All direct inquiries &amp; support tickets reviewed within 24 business hours.</span>
-            </div>
-            <div>
-              <strong className="block text-[var(--color-muted-light)]">Operating Desk Hours:</strong>
+              <strong className="block text-[var(--color-ink)]">Operating Hours:</strong>
               <span>Monday to Saturday, 10:00 AM – 7:00 PM IST</span>
             </div>
+            <div>
+              <strong className="block text-[var(--color-ink)]">Response Commitment:</strong>
+              <span>All direct inquiries &amp; support tickets reviewed within 24 business hours.</span>
+            </div>
           </div>
         </div>
 
-        {/* General Information Card */}
-        <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-6 space-y-3">
-          <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
-            General Information &amp; Fulfilment
-          </h4>
-          <ul className="space-y-2 text-xs text-[var(--color-muted-light)] leading-relaxed">
-            <li className="flex items-start gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-bronze)] mt-1.5 shrink-0"></span>
-              <span><strong>Pan-India Insured Dispatch:</strong> Master-crafted in India and delivered via specialized transit-safe freight across all serviceable PIN codes.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-bronze)] mt-1.5 shrink-0"></span>
-              <span><strong>Statutory GST Invoicing:</strong> Tax-inclusive transparent pricing with formal B2C/B2B GST invoices on all confirmed orders.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-bronze)] mt-1.5 shrink-0"></span>
-              <span><strong>Pre-Production Grace:</strong> Dedicated 7-calendar-day alteration window post-advance confirmation before irreversible workshop crafting begins.</span>
-            </li>
-          </ul>
-        </div>
-
-        {/* Offer Governance Card */}
+        {/* Studio Policy Card */}
         <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/60 p-6 space-y-2">
           <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
-            Offer Governance &amp; Resolution
+            7-Day Pre-Production Alterations
           </h4>
           <p className="text-[11px] text-[var(--color-muted-light)] leading-relaxed">
-            Formal proposals generated for bespoke projects remain locked for 30 calendar days from initial issuance. Production begins upon verified receipt of the 25% advance.
+            All Made-to-Order and bespoke consignments enjoy an authoritative 7-day post-advance grace period. You may request finish or dimension alterations via a support ticket before craftsmanship begins.
           </p>
-          <div className="pt-2">
-            <Link href="/terms" className="text-[11px] text-[var(--color-bronze)] font-semibold hover:underline">
-              Review Commercial Terms →
-            </Link>
-          </div>
         </div>
       </div>
     </div>
@@ -711,19 +699,19 @@ export default function ContactPage() {
       <main className="flex-1 py-16 px-6 bg-[var(--color-canvas)]">
         <div className="mx-auto max-w-4xl">
           {/* Header */}
-          <div className="border-b border-[var(--color-decorative-border)] pb-8 mb-12">
+          <div className="border-b border-[var(--color-decorative-border)] pb-8 mb-10">
             <p className="text-xs uppercase tracking-widest text-[var(--color-bronze)] font-semibold mb-2">
-              Studio Inquiries &amp; Bespoke Proposals
+              Tavistra Studio &amp; Concierge Desk
             </p>
-            <h1 className="font-editorial text-4xl sm:text-5xl text-[var(--color-ink)] mb-4">
-              Connect with Tavistra Studio
+            <h1 className="font-editorial text-4xl sm:text-5xl text-[var(--color-ink)] mb-3">
+              Connect with Tavistra
             </h1>
             <p className="text-sm text-[var(--color-muted-light)] leading-relaxed max-w-2xl">
-              For custom architectural orders, site-specific lighting proposals (Quote Only), general orders, or order-linked support assistance.
+              Choose between submitting a general architectural inquiry or raising a client support ticket for order assistance, alterations, and courier coordination.
             </p>
           </div>
 
-          <Suspense fallback={<div className="py-12 text-center text-xs text-[var(--color-muted-light)]">Loading concierge desk...</div>}>
+          <Suspense fallback={<div className="py-12 text-center text-xs text-[var(--color-muted-light)]">Loading studio desk...</div>}>
             <ContactFormContent />
           </Suspense>
         </div>

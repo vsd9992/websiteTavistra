@@ -88,13 +88,23 @@ export function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/track-ticket" className="hover:text-[var(--color-canvas)] transition-colors">
+                  Track Support Ticket
+                </Link>
+              </li>
+              <li>
+                <Link href="/contact?intent=support" className="hover:text-[var(--color-canvas)] transition-colors">
+                  Raise Support Ticket
+                </Link>
+              </li>
+              <li>
                 <Link href="/account" className="hover:text-[var(--color-canvas)] transition-colors">
                   Client Account Portal
                 </Link>
               </li>
               <li>
                 <Link href="/contact" className="hover:text-[var(--color-canvas)] transition-colors">
-                  Contact & Inquiry
+                  Contact &amp; Studio Inquiry
                 </Link>
               </li>
               <li>
