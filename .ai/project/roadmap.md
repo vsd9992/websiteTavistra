@@ -17,7 +17,7 @@ modified: 2026-11-13
 - Set 5: Order Tracking, 7-Day Grace, QC Photos & 75% Balance Gate [Completed & Verified on devMachine — 21/21]
 - Set 6: 30-Day Architectural Quotes & Bulk Enquiry Lifecycle [Completed & Verified on devMachine — 23/23]
 - Set 7: Support Ticket Desk, Client Portal Tracking, Threaded Messaging & Inbound Email Routing [Completed & Verified on devMachine — 38/38]
-- Set 8: Staff Administration Portal, RBAC & Pre-Live Acceptance Runbook Sweep [Active]
+- Set 8: Staff Administration Portal, RBAC & Pre-Live Acceptance Runbook Sweep [Completed & Verified on devMachine — 40/40]
 
 ## Phase 3: Testing & Bug Fixing (Comprehensive Pre-Live Acceptance Sweep)
 - Milestone 3.1: Critical requirements acceptance audit (TAV-01 to TAV-15) [Pending]

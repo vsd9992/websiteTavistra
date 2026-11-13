@@ -1,12 +1,12 @@
 # Project Index
 
 Project: Tavistra (`websiteTavistra`)
-Phase: Phase 2 — Execution (Sets 0–7 Complete & Verified Live; Set 8 Active)
-Milestone: Modular Hardening & Verification
-Status: Sets 0–7 verified live on `devMachine` (226/226 checks); Set 8 (Staff Admin Workbench, RBAC & Final Pre-Live Sweep) active.
+Phase: Phase 2 — Execution (Sets 0–8 Complete & Verified Live)
+Milestone: Modular Hardening & Verification Complete (Ready for Final Acceptance Review)
+Status: Sets 0–8 verified live on `devMachine` (268/268 checks passing); All Runbook Phases (1–8) verified.
 
 ## Active Tasks
-- [.ai/tasks/active/set-8-staff-admin-rbac.md](tasks/active/set-8-staff-admin-rbac.md) — Set 8: Staff Administration Portal, RBAC & Pre-Live Sweep (Active)
+- None (All Sets 0–8 archived and verified live).
 
 ## Document Map
 - [AGENTS.md](../AGENTS.md) — Operating rules & memory policy
@@ -33,5 +33,5 @@ Status: Sets 0–7 verified live on `devMachine` (226/226 checks); Set 8 (Staff 
 - Physical production & dispatch must enforce 25% advance / 100% dispatch payment gates.
 
 ## Historical Pointers
-- Archived Tasks: [.ai/tasks/archive/](tasks/archive/) (`set-1`–`set-7`, `h4`, `h6`)
+- Archived Tasks: [.ai/tasks/archive/](tasks/archive/) (`set-1`–`set-8`, `h4`, `h6`)
 - Concept docs in `docs/` and `CONCEPT_README.md`.
