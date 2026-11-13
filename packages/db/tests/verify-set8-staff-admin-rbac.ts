@@ -283,10 +283,9 @@ async function run() {
           create: {
             paymentType: "ADVANCE_25",
             amount: advance,
-            currency: "INR",
             status: "COMPLETED",
             gateway: "SIMULATED",
-            paymentRef: `PAY-ADV-${Date.now()}`,
+            gatewayTransactionId: `PAY-ADV-${Date.now()}`,
           },
         },
       },
@@ -831,10 +830,14 @@ Hand-finished architectural storage piece.`;
 
   // Clean up test order from DB
   if (testOrderId) {
+    const o = await prisma.order.findUnique({ where: { id: testOrderId }, select: { shippingAddressId: true } });
     await prisma.auditLog.deleteMany({ where: { entityId: testOrderNumber } });
     await prisma.payment.deleteMany({ where: { orderId: testOrderId } });
     await prisma.orderItem.deleteMany({ where: { orderId: testOrderId } });
     await prisma.order.deleteMany({ where: { id: testOrderId } });
+    if (o?.shippingAddressId) {
+      await prisma.customerAddress.deleteMany({ where: { id: o.shippingAddressId } });
+    }
   }
 
   // Clean up test import credenza
