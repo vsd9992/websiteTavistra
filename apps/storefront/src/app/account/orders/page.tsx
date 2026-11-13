@@ -363,10 +363,10 @@ export default function AccountOrdersPage() {
                               Track Full Milestones
                             </Link>
                             <Link
-                              href={`/contact?subject=Support%20Inquiry%20(${order.id})`}
+                              href={`/contact?intent=support&order=${encodeURIComponent(order.orderNumber || order.id)}&subject=${encodeURIComponent(`Assistance for Order ${order.orderNumber || order.id}`)}`}
                               className="rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors"
                             >
-                              Inquire
+                              Raise Support Ticket
                             </Link>
                           </div>
                         </div>

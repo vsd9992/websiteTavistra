@@ -355,38 +355,89 @@ export async function sendTicketEmail(params: {
   messageText: string;
   isStaffReply?: boolean;
   authorName?: string;
+  orderNumber?: string | null;
+  category?: string | null;
 }) {
-  const { ticketNumber, customerName, customerEmail, subject, messageText, isStaffReply, authorName } = params;
+  const {
+    ticketNumber,
+    customerName,
+    customerEmail,
+    subject,
+    messageText,
+    isStaffReply,
+    authorName,
+    orderNumber,
+    category,
+  } = params;
+
+  const threadLink = `${appUrl}/track?ticket=${encodeURIComponent(ticketNumber)}`;
 
   const bodyContent = `
     <p>Dear ${customerName},</p>
     ${
       isStaffReply
-        ? `<p>Our studio team has reviewed your note regarding <strong style="font-family: monospace;">${ticketNumber}</strong>.</p>
+        ? `<p>Our studio concierge desk has posted a response to your support ticket <strong style="font-family: monospace;">${ticketNumber}</strong>.</p>
            <div class="card" style="background-color: #faf7f2; border-left: 3px solid #8e6c46;">
-             <strong style="color: #8e6c46; display: block; font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Response from ${authorName || "Studio Concierge"}:</strong>
-             <p style="margin: 0; white-space: pre-line;">${messageText}</p>
+             <strong style="color: #8e6c46; display: block; font-size: 11px; text-transform: uppercase; margin-bottom: 6px;">Official Response from ${authorName || "Studio Concierge"}:</strong>
+             <p style="margin: 0; white-space: pre-line; color: #141412; font-size: 13px; line-height: 1.6;">${messageText}</p>
            </div>
-           <p style="font-size: 12px; color: #726e64;">You may reply directly to this thread or reach us at <a href="mailto:concierge@tavistra.in" style="color: #8e6c46;">concierge@tavistra.in</a>.</p>`
-        : `<p>Thank you for contacting the Tavistra client desk. We have registered your inquiry under reference <strong style="font-family: monospace;">${ticketNumber}</strong>.</p>
+           <div style="text-align: center; margin: 24px 0 12px 0;">
+             <a href="${threadLink}" class="btn" style="background-color: #141412;">View Conversation &amp; Reply Online</a>
+           </div>
+           <p style="font-size: 11px; text-align: center; color: #8a867c;">
+             Direct ticket link: <a href="${threadLink}" style="color: #8e6c46;">${threadLink}</a>
+           </p>
+           <p style="font-size: 12px; color: #726e64; margin-top: 16px;">You may reply directly to this thread online or reach our concierge desk at <a href="mailto:concierge@tavistra.in" style="color: #8e6c46;">concierge@tavistra.in</a>.</p>`
+        : `<p>Thank you for contacting the Tavistra client concierge desk. We have registered your ticket under reference <strong style="font-family: monospace;">${ticketNumber}</strong>.</p>
            <div class="card">
-             <strong>Subject:</strong> ${subject}<br><br>
-             <strong>Your Note:</strong>
-             <p style="margin: 6px 0 0 0; white-space: pre-line; color: #5a574f;">${messageText}</p>
+             <div class="ledger-row">
+               <span>Ticket Reference:</span>
+               <strong style="font-family: monospace; color: #141412;">${ticketNumber}</strong>
+             </div>
+             ${
+               orderNumber
+                 ? `<div class="ledger-row">
+               <span>Linked Order:</span>
+               <strong style="font-family: monospace; color: #8e6c46;">${orderNumber}</strong>
+             </div>`
+                 : ""
+             }
+             ${
+               category
+                 ? `<div class="ledger-row">
+               <span>Inquiry Category:</span>
+               <strong>${category.replace(/_/g, " ")}</strong>
+             </div>`
+                 : ""
+             }
+             <div class="ledger-row">
+               <span>Subject:</span>
+               <strong>${subject}</strong>
+             </div>
+             <div style="margin-top: 12px;">
+               <strong style="font-size: 11px; text-transform: uppercase; color: #726e64; display: block; margin-bottom: 4px;">Your Recorded Note:</strong>
+               <p style="margin: 0; white-space: pre-line; color: #35332e; font-size: 12px; line-height: 1.6;">${messageText}</p>
+             </div>
            </div>
-           <p>Our commercial and architectural design desk will review your inquiry within 24 to 48 business hours.</p>`
+           <div style="text-align: center; margin: 24px 0 12px 0;">
+             <a href="${threadLink}" class="btn" style="background-color: #141412;">Track Ticket &amp; Add Follow-Up Notes</a>
+           </div>
+           <p style="font-size: 11px; text-align: center; color: #8a867c;">
+             Direct ticket link: <a href="${threadLink}" style="color: #8e6c46;">${threadLink}</a>
+           </p>
+           <p style="font-size: 12px; color: #726e64; margin-top: 16px;">Our client concierge desk actively reviews incoming notes and commits to a formal response within 24 business hours.</p>`
     }
   `;
 
   const html = wrapLuxuryEmailTemplate(
-    isStaffReply ? "Studio Reply to Your Inquiry" : "Inquiry Received & Registered",
+    isStaffReply ? "Studio Concierge Response" : "Support Ticket Registered",
     `Ticket: ${ticketNumber}`,
     bodyContent
   );
 
   return sendTavistraMail({
     to: customerEmail,
-    subject: `[Tavistra] ${isStaffReply ? "Update regarding" : "Inquiry Registered"} — ${ticketNumber}: ${subject}`,
+    subject: `[Tavistra] ${isStaffReply ? "Update regarding" : "Support Ticket Registered"} — ${ticketNumber}: ${subject}`,
     html,
   });
 }

@@ -93,7 +93,9 @@ export interface SupportTicket {
     | "SPEC_ALTERATION"
     | "DELIVERY_SCHEDULE"
     | "DAMAGE_REPORT"
-    | "CANCELLATION";
+    | "CANCELLATION"
+    | "GENERAL_ASSISTANCE"
+    | (string & {});
   priority: "NORMAL" | "HIGH" | "URGENT";
   status: "OPEN" | "IN_PROGRESS" | "RESOLVED";
   createdAt: string;

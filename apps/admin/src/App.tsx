@@ -169,9 +169,13 @@ export default function App() {
   const [actionFeedback, setActionFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [copiedLinkOrderId, setCopiedLinkOrderId] = useState<string | null>(null);
 
-  // Ticket detail view
+  // Ticket detail view & filters
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
   const [ticketReplyText, setTicketReplyText] = useState("");
+  const [ticketStatusFilter, setTicketStatusFilter] = useState<string>("ALL");
+  const [ticketPriorityFilter, setTicketPriorityFilter] = useState<string>("ALL");
+  const [ticketCategoryFilter, setTicketCategoryFilter] = useState<string>("ALL");
+  const [ticketSearchQuery, setTicketSearchQuery] = useState<string>("");
 
   // Customer inspector
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerProfile | null>(null);
@@ -318,6 +322,26 @@ export default function App() {
       return matchesMode && matchesStatus && matchesSearch;
     });
   }, [orders, modeFilter, statusFilter, orderSearch]);
+
+  // Filtered Support Tickets
+  const filteredTickets = useMemo(() => {
+    return tickets.filter((t) => {
+      const matchesStatus = ticketStatusFilter === "ALL" || t.status === ticketStatusFilter;
+      const matchesPriority = ticketPriorityFilter === "ALL" || t.priority === ticketPriorityFilter;
+      const matchesCategory = ticketCategoryFilter === "ALL" || t.category === ticketCategoryFilter;
+      const q = ticketSearchQuery.trim().toLowerCase();
+      const matchesSearch =
+        !q ||
+        t.ticketNumber.toLowerCase().includes(q) ||
+        t.customerName.toLowerCase().includes(q) ||
+        t.email.toLowerCase().includes(q) ||
+        t.phone.toLowerCase().includes(q) ||
+        (t.orderNumber && t.orderNumber.toLowerCase().includes(q)) ||
+        t.subject.toLowerCase().includes(q);
+
+      return matchesStatus && matchesPriority && matchesCategory && matchesSearch;
+    });
+  }, [tickets, ticketStatusFilter, ticketPriorityFilter, ticketCategoryFilter, ticketSearchQuery]);
 
   const getStorefrontUrl = (path: string) => {
     const origin =
@@ -659,7 +683,17 @@ export default function App() {
     if (!selectedTicket || !ticketReplyText.trim()) return;
 
     try {
-      await fetch(`/api/tickets/${selectedTicket.id}/messages`, {
+      const data = await fetchJson<{
+        success: boolean;
+        message: {
+          id: string;
+          sender: "STAFF" | "CUSTOMER";
+          authorName: string;
+          text: string;
+          timestamp: string;
+        };
+        ticketStatus: "OPEN" | "IN_PROGRESS" | "RESOLVED";
+      }>(`/api/tickets/${encodeURIComponent(selectedTicket.id)}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -669,62 +703,121 @@ export default function App() {
           status: "IN_PROGRESS",
         }),
       });
+
+      const newMsg = data?.message || {
+        id: `msg_${Date.now()}`,
+        sender: "STAFF" as const,
+        authorName: currentStaff.name,
+        text: ticketReplyText.trim(),
+        timestamp:
+          new Date().toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          }) + " IST",
+      };
+
+      setTickets((prev) =>
+        prev.map((t) => {
+          if (t.id === selectedTicket.id) {
+            const updated = {
+              ...t,
+              status: "IN_PROGRESS" as const,
+              messages: [...t.messages, newMsg],
+            };
+            setSelectedTicket(updated);
+            return updated;
+          }
+          return t;
+        })
+      );
+
+      logAuditAction(
+        "TICKET_REPLY",
+        "SupportTicket",
+        selectedTicket.ticketNumber,
+        `Staff reply dispatched: "${ticketReplyText.trim().substring(0, 60)}..."`
+      );
+
+      setTicketReplyText("");
     } catch (err) {
       console.warn("Backend ticket reply error:", err);
+      setActionFeedback({
+        type: "error",
+        text: `Reply dispatch failed: ${(err as Error).message}`,
+      });
     }
-
-    const newMsg = {
-      id: `msg_${Date.now()}`,
-      sender: "STAFF" as const,
-      authorName: currentStaff.name,
-      text: ticketReplyText.trim(),
-      timestamp: new Date().toLocaleDateString("en-IN", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }) + " IST",
-    };
-
-    setTickets((prev) =>
-      prev.map((t) => {
-        if (t.id === selectedTicket.id) {
-          const updated = {
-            ...t,
-            status: "IN_PROGRESS" as const,
-            messages: [...t.messages, newMsg],
-          };
-          setSelectedTicket(updated);
-          return updated;
-        }
-        return t;
-      })
-    );
-
-    logAuditAction(
-      "TICKET_REPLY",
-      "SupportTicket",
-      selectedTicket.ticketNumber,
-      `Staff reply dispatched: "${ticketReplyText.trim().substring(0, 60)}..."`
-    );
-
-    setTicketReplyText("");
   };
 
-  // Toggle ticket status
-  const handleResolveTicket = (ticketId: string) => {
-    setTickets((prev) =>
-      prev.map((t) => {
-        if (t.id === ticketId) {
-          const updated = { ...t, status: "RESOLVED" as const };
-          if (selectedTicket?.id === ticketId) setSelectedTicket(updated);
-          logAuditAction("TICKET_RESOLVED", "SupportTicket", t.ticketNumber, "Ticket marked as resolved.");
-          return updated;
-        }
-        return t;
-      })
-    );
+  const handleUpdateTicketStatus = async (ticketId: string, newStatus: "OPEN" | "IN_PROGRESS" | "RESOLVED") => {
+    try {
+      await fetchJson(`/api/tickets/${encodeURIComponent(ticketId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus, staffName: currentStaff.name }),
+      });
+      setTickets((prev) =>
+        prev.map((t) => {
+          if (t.id === ticketId || t.ticketNumber === ticketId) {
+            const updated = { ...t, status: newStatus };
+            if (selectedTicket?.id === t.id) setSelectedTicket(updated);
+            return updated;
+          }
+          return t;
+        })
+      );
+      logAuditAction(
+        "TICKET_STATUS_UPDATED",
+        "SupportTicket",
+        selectedTicket?.ticketNumber || ticketId,
+        `Status updated to ${newStatus}.`
+      );
+    } catch (err) {
+      console.warn("Backend ticket status update error:", err);
+      setActionFeedback({
+        type: "error",
+        text: `Status update failed: ${(err as Error).message}`,
+      });
+    }
+  };
+
+  const handleUpdateTicketPriority = async (ticketId: string, newPriority: "NORMAL" | "HIGH" | "URGENT") => {
+    try {
+      await fetchJson(`/api/tickets/${encodeURIComponent(ticketId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ priority: newPriority, staffName: currentStaff.name }),
+      });
+      setTickets((prev) =>
+        prev.map((t) => {
+          if (t.id === ticketId || t.ticketNumber === ticketId) {
+            const updated = { ...t, priority: newPriority };
+            if (selectedTicket?.id === t.id) setSelectedTicket(updated);
+            return updated;
+          }
+          return t;
+        })
+      );
+      logAuditAction(
+        "TICKET_PRIORITY_UPDATED",
+        "SupportTicket",
+        selectedTicket?.ticketNumber || ticketId,
+        `Priority updated to ${newPriority}.`
+      );
+    } catch (err) {
+      console.warn("Backend ticket priority update error:", err);
+      setActionFeedback({
+        type: "error",
+        text: `Priority update failed: ${(err as Error).message}`,
+      });
+    }
+  };
+
+  // Toggle ticket status to RESOLVED
+  const handleResolveTicket = async (ticketId: string) => {
+    await handleUpdateTicketStatus(ticketId, "RESOLVED");
   };
 
   // Toggle Catalogue Publication with DB synchronization
@@ -1823,114 +1916,295 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 5: SUPPORT TICKETS & ALTERATIONS */}
+        {/* TAB 5: SUPPORT TICKETS & CLIENT CONCIERGE DESK */}
         {activeTab === "TICKETS" && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between border-b border-[#2e2e34] pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#2e2e34] pb-4 gap-4">
               <div>
                 <h2 className="text-base font-semibold text-white">Client Desk Support Tickets</h2>
                 <p className="text-xs text-[#9e9ea8]">
-                  Inquiries, pre-production alteration requests during 7-day grace, and delivery appointment coordination.
+                  Two-way threaded client messaging, pre-production alteration requests during 7-day grace, and studio order coordination.
                 </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[#9e9ea8]">
+                  Showing <strong className="text-white">{filteredTickets.length}</strong> of {tickets.length} tickets
+                </span>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-              <div className="lg:col-span-5 space-y-3">
-                {tickets.map((t) => (
-                  <div
-                    key={t.id}
-                    onClick={() => setSelectedTicket(t)}
-                    className={`p-4 rounded-2xl border cursor-pointer transition-all ${
-                      selectedTicket?.id === t.id
-                        ? "bg-[#222228] border-[#c59b6d]"
-                        : "bg-[#1c1c20] border-[#2e2e34] hover:border-[#3e3e46]"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-mono text-xs font-bold text-white">{t.ticketNumber}</span>
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                          t.status === "OPEN"
-                            ? "bg-rose-950 text-rose-300 border border-rose-800"
-                            : t.status === "IN_PROGRESS"
-                            ? "bg-amber-950 text-amber-300 border border-amber-800"
-                            : "bg-emerald-950 text-emerald-300 border border-emerald-800"
-                        }`}
-                      >
-                        {t.status}
-                      </span>
-                    </div>
-                    <h4 className="text-xs font-semibold text-white line-clamp-1">{t.subject}</h4>
-                    <p className="text-[11px] text-[#9e9ea8] mt-1">
-                      {t.customerName} {t.orderNumber && `· Ref: ${t.orderNumber}`}
-                    </p>
-                    <span className="text-[10px] text-[#6e6e76] block mt-2">{t.createdAt}</span>
-                  </div>
-                ))}
+            {/* Filter Bar */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-[#18181c] p-3.5 rounded-2xl border border-[#2e2e34]">
+              {/* Search */}
+              <div>
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#9e9ea8] mb-1">
+                  Search Tickets
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ticket #, client, email, order..."
+                  value={ticketSearchQuery}
+                  onChange={(e) => setTicketSearchQuery(e.target.value)}
+                  className="w-full rounded-xl border border-[#2e2e34] bg-[#121214] px-3 py-2 text-xs text-white placeholder-[#6e6e76] focus:outline-none focus:border-[#c59b6d]"
+                />
               </div>
 
+              {/* Status Filter */}
+              <div>
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#9e9ea8] mb-1">
+                  Status
+                </label>
+                <select
+                  value={ticketStatusFilter}
+                  onChange={(e) => setTicketStatusFilter(e.target.value)}
+                  className="w-full rounded-xl border border-[#2e2e34] bg-[#121214] px-3 py-2 text-xs text-white focus:outline-none focus:border-[#c59b6d]"
+                >
+                  <option value="ALL">All Statuses</option>
+                  <option value="OPEN">Open (Awaiting Response)</option>
+                  <option value="IN_PROGRESS">In Progress</option>
+                  <option value="RESOLVED">Resolved</option>
+                </select>
+              </div>
+
+              {/* Priority Filter */}
+              <div>
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#9e9ea8] mb-1">
+                  Priority
+                </label>
+                <select
+                  value={ticketPriorityFilter}
+                  onChange={(e) => setTicketPriorityFilter(e.target.value)}
+                  className="w-full rounded-xl border border-[#2e2e34] bg-[#121214] px-3 py-2 text-xs text-white focus:outline-none focus:border-[#c59b6d]"
+                >
+                  <option value="ALL">All Priorities</option>
+                  <option value="NORMAL">Normal Priority</option>
+                  <option value="HIGH">High Priority</option>
+                  <option value="URGENT">Urgent Priority</option>
+                </select>
+              </div>
+
+              {/* Category Filter */}
+              <div>
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#9e9ea8] mb-1">
+                  Category
+                </label>
+                <select
+                  value={ticketCategoryFilter}
+                  onChange={(e) => setTicketCategoryFilter(e.target.value)}
+                  className="w-full rounded-xl border border-[#2e2e34] bg-[#121214] px-3 py-2 text-xs text-white focus:outline-none focus:border-[#c59b6d]"
+                >
+                  <option value="ALL">All Categories</option>
+                  <option value="ORDER_INQUIRY">Order Inquiry</option>
+                  <option value="SPEC_ALTERATION">Spec Alteration</option>
+                  <option value="DELIVERY_SCHEDULE">Delivery Schedule</option>
+                  <option value="DAMAGE_REPORT">Damage Report</option>
+                  <option value="CANCELLATION">Cancellation &amp; Refund</option>
+                  <option value="GENERAL_ASSISTANCE">General Assistance</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Main Workbench: Left List + Right Thread */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Left Column: Tickets Worklist (Span 5) */}
+              <div className="lg:col-span-5 space-y-3 max-h-[750px] overflow-y-auto pr-1">
+                {filteredTickets.length === 0 ? (
+                  <div className="p-8 text-center rounded-2xl bg-[#1c1c20] border border-[#2e2e34] text-xs text-[#9e9ea8]">
+                    No support tickets match the selected filters.
+                  </div>
+                ) : (
+                  filteredTickets.map((t) => (
+                    <div
+                      key={t.id}
+                      onClick={() => setSelectedTicket(t)}
+                      className={`p-4 rounded-2xl border cursor-pointer transition-all ${
+                        selectedTicket?.id === t.id
+                          ? "bg-[#222228] border-[#c59b6d]"
+                          : "bg-[#1c1c20] border-[#2e2e34] hover:border-[#3e3e46]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-bold text-white">{t.ticketNumber}</span>
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                              t.priority === "URGENT"
+                                ? "bg-rose-950 text-rose-300 border border-rose-800"
+                                : t.priority === "HIGH"
+                                ? "bg-amber-950 text-amber-300 border border-amber-800"
+                                : "bg-[#282830] text-[#9e9ea8]"
+                            }`}
+                          >
+                            {t.priority}
+                          </span>
+                        </div>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                            t.status === "OPEN"
+                              ? "bg-rose-950 text-rose-300 border border-rose-800"
+                              : t.status === "IN_PROGRESS"
+                              ? "bg-amber-950 text-amber-300 border border-amber-800"
+                              : "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                          }`}
+                        >
+                          {t.status}
+                        </span>
+                      </div>
+
+                      <h4 className="text-xs font-semibold text-white line-clamp-1">{t.subject}</h4>
+                      
+                      <div className="flex items-center justify-between text-[11px] text-[#9e9ea8] mt-1.5">
+                        <span className="truncate">{t.customerName}</span>
+                        <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-[#121214] text-[#a0a0aa]">
+                          {t.category ? t.category.replace(/_/g, " ") : "GENERAL"}
+                        </span>
+                      </div>
+
+                      {t.orderNumber && (
+                        <div className="mt-2 text-[10px] font-mono text-[#c59b6d]">
+                          Linked Consignment: {t.orderNumber}
+                        </div>
+                      )}
+
+                      <span className="text-[10px] text-[#6e6e76] block mt-2">{t.createdAt}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Right Column: Ticket Conversation & Resolution Panel (Span 7) */}
               <div className="lg:col-span-7 rounded-2xl bg-[#1c1c20] border border-[#2e2e34] p-6 space-y-5">
                 {selectedTicket ? (
                   <>
-                    <div className="flex items-center justify-between border-b border-[#2e2e34] pb-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#2e2e34] pb-4 gap-4">
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-mono font-bold text-sm text-white">
                             {selectedTicket.ticketNumber}
                           </span>
                           {selectedTicket.orderNumber && (
-                            <span className="font-mono text-xs text-[#c59b6d] bg-[#24242a] px-2 py-0.5 rounded">
-                              {selectedTicket.orderNumber}
-                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const matched = orders.find(
+                                  (o) => o.id === selectedTicket.orderNumber || o.orderNumber === selectedTicket.orderNumber
+                                );
+                                if (matched) {
+                                  setSelectedOrder(matched);
+                                  setActiveTab("ORDERS");
+                                }
+                              }}
+                              className="font-mono text-xs text-[#c59b6d] bg-[#24242a] px-2 py-0.5 rounded border border-[#3e3e46] hover:border-[#c59b6d] transition-colors"
+                              title="Click to view full order in Orders tab"
+                            >
+                              Linked: {selectedTicket.orderNumber} ↗
+                            </button>
                           )}
+                          <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-[#24242a] text-[#a0a0aa]">
+                            {selectedTicket.category.replace(/_/g, " ")}
+                          </span>
                         </div>
-                        <h3 className="font-semibold text-sm text-white mt-1">{selectedTicket.subject}</h3>
-                        <p className="text-xs text-[#9e9ea8]">
-                          Client: {selectedTicket.customerName} ({selectedTicket.phone}) · {selectedTicket.email}
+                        <h3 className="font-semibold text-sm text-white mt-1.5">{selectedTicket.subject}</h3>
+                        <p className="text-xs text-[#9e9ea8] mt-0.5">
+                          Client: <strong className="text-white">{selectedTicket.customerName}</strong> ({selectedTicket.phone}) · {selectedTicket.email}
                         </p>
                       </div>
-                      <button
-                        onClick={() => handleResolveTicket(selectedTicket.id)}
-                        disabled={selectedTicket.status === "RESOLVED"}
-                        className="px-3 py-1.5 rounded-lg bg-emerald-950 text-emerald-300 border border-emerald-800 text-xs font-semibold hover:bg-emerald-900 disabled:opacity-40"
-                      >
-                        {selectedTicket.status === "RESOLVED" ? "✓ Resolved" : "Mark Resolved"}
-                      </button>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Status dropdown */}
+                        <select
+                          value={selectedTicket.status}
+                          onChange={(e) =>
+                            handleUpdateTicketStatus(
+                              selectedTicket.id,
+                              e.target.value as "OPEN" | "IN_PROGRESS" | "RESOLVED"
+                            )
+                          }
+                          className="rounded-lg bg-[#24242a] border border-[#3e3e46] px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#c59b6d]"
+                        >
+                          <option value="OPEN">Open</option>
+                          <option value="IN_PROGRESS">In Progress</option>
+                          <option value="RESOLVED">Resolved</option>
+                        </select>
+
+                        {/* Priority dropdown */}
+                        <select
+                          value={selectedTicket.priority}
+                          onChange={(e) =>
+                            handleUpdateTicketPriority(
+                              selectedTicket.id,
+                              e.target.value as "NORMAL" | "HIGH" | "URGENT"
+                            )
+                          }
+                          className="rounded-lg bg-[#24242a] border border-[#3e3e46] px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#c59b6d]"
+                        >
+                          <option value="NORMAL">Normal Priority</option>
+                          <option value="HIGH">High Priority</option>
+                          <option value="URGENT">Urgent Priority</option>
+                        </select>
+
+                        {/* One-click Resolve Button */}
+                        <button
+                          onClick={() => handleResolveTicket(selectedTicket.id)}
+                          disabled={selectedTicket.status === "RESOLVED"}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-950 text-emerald-300 border border-emerald-800 text-xs font-semibold hover:bg-emerald-900 disabled:opacity-40 transition-colors"
+                        >
+                          {selectedTicket.status === "RESOLVED" ? "✓ Resolved" : "Mark Resolved"}
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
+                    {/* Messages Thread */}
+                    <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
                       {selectedTicket.messages.map((msg) => (
                         <div
                           key={msg.id}
-                          className={`p-4 rounded-xl text-xs space-y-1 ${
+                          className={`p-4 rounded-xl text-xs space-y-1.5 ${
                             msg.sender === "CUSTOMER"
                               ? "bg-[#24242a] border border-[#2e2e34] text-[#f4f4f6]"
                               : "bg-[#2e2820] border border-[#c59b6d]/40 text-amber-100"
                           }`}
                         >
-                          <div className="flex justify-between text-[11px] font-semibold">
-                            <span>{msg.authorName}</span>
+                          <div className="flex justify-between items-center text-[11px] font-semibold">
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider ${
+                                  msg.sender === "STAFF"
+                                    ? "bg-[#c59b6d] text-[#121214]"
+                                    : "bg-[#3e3e46] text-white"
+                                }`}
+                              >
+                                {msg.sender === "STAFF" ? "Studio Staff" : "Client"}
+                              </span>
+                              <span>{msg.authorName}</span>
+                            </div>
                             <span className="text-[#9e9ea8] font-normal">{msg.timestamp}</span>
                           </div>
-                          <p className="leading-relaxed">{msg.text}</p>
+                          <p className="leading-relaxed whitespace-pre-line">{msg.text}</p>
                         </div>
                       ))}
                     </div>
 
+                    {/* Reply Form */}
                     <div className="pt-3 border-t border-[#2e2e34] space-y-3">
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#9e9ea8]">
+                        Compose Staff Response (Dispatches luxury email to client)
+                      </label>
                       <textarea
                         rows={3}
-                        placeholder="Type response or internal dispatch note..."
+                        placeholder="Type official studio response or operational instructions for the client..."
                         value={ticketReplyText}
                         onChange={(e) => setTicketReplyText(e.target.value)}
-                        className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-3 text-xs text-white placeholder-[#6e6e76] focus:outline-none focus:border-[#c59b6d]"
+                        className="w-full rounded-xl border border-[#3e3e46] bg-[#121214] p-3 text-xs text-white placeholder-[#6e6e76] focus:outline-none focus:border-[#c59b6d] font-mono leading-relaxed"
                       />
-                      <div className="flex justify-end">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] text-[#9e9ea8]">
+                          Posting will automatically update ticket status to <strong className="text-amber-300">IN_PROGRESS</strong>.
+                        </span>
                         <button
                           onClick={handleSendTicketReply}
                           disabled={!ticketReplyText.trim()}
-                          className="px-5 py-2 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] disabled:opacity-40 transition-colors"
+                          className="px-5 py-2 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] disabled:opacity-40 transition-colors shadow-sm"
                         >
                           Send Official Reply
                         </button>
@@ -1938,8 +2212,8 @@ export default function App() {
                     </div>
                   </>
                 ) : (
-                  <div className="text-center py-16 text-xs text-[#9e9ea8]">
-                    Select a support ticket from the list to view thread history and respond.
+                  <div className="text-center py-24 text-xs text-[#9e9ea8]">
+                    Select a support ticket from the list to inspect thread history and post official studio responses.
                   </div>
                 )}
               </div>

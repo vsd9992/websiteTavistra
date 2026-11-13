@@ -14,27 +14,63 @@ interface TrackedOrder extends OrderRecord {
   qcImages?: string[];
 }
 
+interface TrackedTicketMessage {
+  id: string;
+  sender: "CUSTOMER" | "STAFF";
+  authorName: string;
+  text: string;
+  timestamp: string;
+}
+
+interface TrackedTicket {
+  id: string;
+  ticketNumber: string;
+  orderNumber?: string;
+  customerName: string;
+  email: string;
+  phone: string;
+  subject: string;
+  category: string;
+  priority: string;
+  status: "OPEN" | "IN_PROGRESS" | "RESOLVED";
+  createdAt: string;
+  messages: TrackedTicketMessage[];
+}
+
 function TrackOrderContent() {
   const searchParams = useSearchParams();
-  const initialOrderId = searchParams.get("orderId") || "";
+  const initialOrderId = searchParams.get("orderId") || searchParams.get("order") || "";
+  const initialTicketId = searchParams.get("ticket") || searchParams.get("ticketNumber") || "";
   const initialContact = searchParams.get("contact") || "";
 
-  const { orders, lookupOrder } = useOrders();
+  const [trackMode, setTrackMode] = useState<"ORDER" | "TICKET">(
+    initialTicketId || (initialOrderId && initialOrderId.startsWith("TCK")) ? "TICKET" : "ORDER"
+  );
 
-  const [orderId, setOrderId] = useState(initialOrderId);
+  const [referenceId, setReferenceId] = useState(initialTicketId || initialOrderId);
   const [contact, setContact] = useState(initialContact);
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [matchedOrder, setMatchedOrder] = useState<TrackedOrder | null>(null);
+  const [matchedTicket, setMatchedTicket] = useState<TrackedTicket | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
+
+  // Balance payment states
   const [payingBalance, setPayingBalance] = useState(false);
   const [paymentSuccessMessage, setPaymentSuccessMessage] = useState<string | null>(null);
   const [paymentErrorMessage, setPaymentErrorMessage] = useState<string | null>(null);
 
-  // Direct server query function
+  // Ticket reply states
+  const [ticketReplyText, setTicketReplyText] = useState("");
+  const [submittingReply, setSubmittingReply] = useState(false);
+  const [replyError, setReplyError] = useState<string | null>(null);
+  const [replySuccess, setReplySuccess] = useState<string | null>(null);
+
+  // Direct server query function for Orders
   const fetchOrderFromServer = async (ref: string, contactInfo?: string) => {
     setLoading(true);
     setSearchError(null);
+    setMatchedTicket(null);
     try {
       const url = `/api/orders?orderId=${encodeURIComponent(ref.trim())}${
         contactInfo ? `&contact=${encodeURIComponent(contactInfo.trim())}` : ""
@@ -70,30 +106,102 @@ function TrackOrderContent() {
     return false;
   };
 
-  // Auto-lookup if query params provided; reset cleanly if navigating to /track without params
+  // Direct server query function for Support Tickets
+  const fetchTicketFromServer = async (ref: string, contactInfo?: string) => {
+    setLoading(true);
+    setSearchError(null);
+    setMatchedOrder(null);
+    try {
+      const url = `/api/tickets?ticketNumber=${encodeURIComponent(ref.trim())}${
+        contactInfo ? `&contact=${encodeURIComponent(contactInfo.trim())}` : ""
+      }`;
+      const res = await fetch(url, { credentials: "include", cache: "no-store" });
+      const data = await res.json();
+
+      if (res.ok && data.found && data.ticket) {
+        setMatchedTicket(data.ticket);
+        setSearched(true);
+        setLoading(false);
+        return true;
+      }
+
+      if (res.status === 401 || res.status === 403 || res.status === 404) {
+        setMatchedTicket(null);
+        setSearched(true);
+        setSearchError(
+          data.error ||
+            "Provide the registered email or mobile number associated with this ticket to inspect the thread."
+        );
+        setLoading(false);
+        return false;
+      }
+    } catch (err) {
+      console.warn("Backend ticket lookup error:", err);
+      setSearchError("Unable to reach the ticket tracking service. Please try again.");
+    }
+
+    setMatchedTicket(null);
+    setSearched(true);
+    setLoading(false);
+    return false;
+  };
+
+  // Auto-lookup if query params provided
   useEffect(() => {
-    if (initialOrderId) {
-      setOrderId(initialOrderId);
+    if (initialTicketId) {
+      setTrackMode("TICKET");
+      setReferenceId(initialTicketId);
       setContact(initialContact);
-      fetchOrderFromServer(initialOrderId, initialContact);
+      fetchTicketFromServer(initialTicketId, initialContact);
+    } else if (initialOrderId) {
+      if (initialOrderId.startsWith("TCK")) {
+        setTrackMode("TICKET");
+        setReferenceId(initialOrderId);
+        setContact(initialContact);
+        fetchTicketFromServer(initialOrderId, initialContact);
+      } else {
+        setTrackMode("ORDER");
+        setReferenceId(initialOrderId);
+        setContact(initialContact);
+        fetchOrderFromServer(initialOrderId, initialContact);
+      }
     } else {
-      setOrderId("");
+      setReferenceId("");
       setContact("");
       setMatchedOrder(null);
+      setMatchedTicket(null);
       setSearched(false);
       setSearchError(null);
       setPaymentSuccessMessage(null);
       setPaymentErrorMessage(null);
     }
-  }, [initialOrderId, initialContact]);
+  }, [initialOrderId, initialTicketId, initialContact]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!orderId.trim()) {
-      setSearchError("Please enter your Order Reference (e.g. TAV-RS-2026-1001).");
+    if (!referenceId.trim()) {
+      setSearchError(
+        trackMode === "ORDER"
+          ? "Please enter your Order Reference (e.g. TAV-RS-2026-1001)."
+          : "Please enter your Ticket Reference (e.g. TCK-2026-0101)."
+      );
       return;
     }
-    fetchOrderFromServer(orderId, contact);
+
+    const cleanRef = referenceId.trim().toUpperCase();
+    if (cleanRef.startsWith("TCK")) {
+      setTrackMode("TICKET");
+      fetchTicketFromServer(cleanRef, contact);
+    } else if (cleanRef.startsWith("TAV") || cleanRef.startsWith("ORD")) {
+      setTrackMode("ORDER");
+      fetchOrderFromServer(cleanRef, contact);
+    } else {
+      if (trackMode === "TICKET") {
+        fetchTicketFromServer(cleanRef, contact);
+      } else {
+        fetchOrderFromServer(cleanRef, contact);
+      }
+    }
   };
 
   const handlePayBalance = async () => {
@@ -126,10 +234,46 @@ function TrackOrderContent() {
     }
   };
 
-  const loadExample = (exId: string, exContact: string) => {
-    setOrderId(exId);
-    setContact(exContact);
-    fetchOrderFromServer(exId, exContact);
+  const handleSendTicketReply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!matchedTicket || !ticketReplyText.trim()) return;
+
+    setSubmittingReply(true);
+    setReplyError(null);
+    setReplySuccess(null);
+
+    try {
+      const res = await fetch(`/api/tickets/${matchedTicket.id}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sender: "CUSTOMER",
+          authorName: matchedTicket.customerName,
+          text: ticketReplyText.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to post message to ticket thread.");
+      }
+
+      setMatchedTicket((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          status: data.ticketStatus || (prev.status === "RESOLVED" ? "IN_PROGRESS" : prev.status),
+          messages: [...prev.messages, data.message],
+        };
+      });
+
+      setTicketReplyText("");
+      setReplySuccess("Your follow-up note has been submitted to the studio concierge desk.");
+    } catch (err) {
+      setReplyError((err as Error).message || "Failed to deliver message.");
+    } finally {
+      setSubmittingReply(false);
+    }
   };
 
   const formatPrice = (amountRupees: number) =>
@@ -144,14 +288,52 @@ function TrackOrderContent() {
       {/* Header */}
       <div className="text-center space-y-3 max-w-2xl mx-auto">
         <span className="text-xs uppercase tracking-widest text-[var(--color-bronze)] font-semibold block">
-          Tavistra Fulfilment & Production Tracking
+          Tavistra Fulfilment &amp; Concierge Desk
         </span>
         <h1 className="font-editorial text-4xl sm:text-5xl text-[var(--color-ink)]">
-          Track Your Order
+          {trackMode === "TICKET" ? "Track Support Ticket" : "Track Your Order"}
         </h1>
         <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
-          Monitor your studio consignment through every milestone: verified advance, workshop craft, inspection, crating, and white-glove courier transit.
+          {trackMode === "TICKET"
+            ? "Inspect two-way studio conversation threads, request alterations, and track concierge desk resolutions."
+            : "Monitor your studio consignment through every milestone: verified advance, workshop craft, inspection, crating, and white-glove courier transit."}
         </p>
+      </div>
+
+      {/* Dual Switcher: Track Order vs Track Support Ticket */}
+      <div className="max-w-md mx-auto grid grid-cols-2 p-1.5 rounded-2xl bg-[var(--color-stone)] border border-[var(--color-decorative-border)]">
+        <button
+          type="button"
+          onClick={() => {
+            setTrackMode("ORDER");
+            setSearchError(null);
+            setMatchedTicket(null);
+            if (referenceId.startsWith("TCK")) setReferenceId("");
+          }}
+          className={`py-2.5 px-4 rounded-xl text-xs font-semibold transition-all text-center ${
+            trackMode === "ORDER"
+              ? "bg-[var(--color-canvas)] text-[var(--color-ink)] shadow-sm"
+              : "text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
+          }`}
+        >
+          Track Consignment / Order
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setTrackMode("TICKET");
+            setSearchError(null);
+            setMatchedOrder(null);
+            if (referenceId.startsWith("TAV")) setReferenceId("");
+          }}
+          className={`py-2.5 px-4 rounded-xl text-xs font-semibold transition-all text-center ${
+            trackMode === "TICKET"
+              ? "bg-[var(--color-canvas)] text-[var(--color-ink)] shadow-sm"
+              : "text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
+          }`}
+        >
+          Track Support Ticket
+        </button>
       </div>
 
       {/* Tracking Search Form */}
@@ -159,15 +341,15 @@ function TrackOrderContent() {
         <form onSubmit={handleSearch} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label htmlFor="orderId" className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
-                Order Reference *
+              <label htmlFor="referenceId" className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
+                {trackMode === "TICKET" ? "Ticket Reference *" : "Order Reference *"}
               </label>
               <input
-                id="orderId"
+                id="referenceId"
                 type="text"
-                placeholder="TAV-RS-2026-1001"
-                value={orderId}
-                onChange={(e) => setOrderId(e.target.value)}
+                placeholder={trackMode === "TICKET" ? "TCK-2026-0101" : "TAV-RS-2026-1001"}
+                value={referenceId}
+                onChange={(e) => setReferenceId(e.target.value)}
                 className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-4 py-3 text-xs text-[var(--color-ink)] placeholder-[var(--color-muted-light)] focus:border-[var(--color-ink)] focus:outline-none font-mono"
               />
             </div>
@@ -197,450 +379,401 @@ function TrackOrderContent() {
             disabled={loading}
             className="w-full rounded-full bg-[var(--color-ink)] py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm disabled:opacity-50"
           >
-            {loading ? "Searching Authoritative Records..." : "Locate Consignment & Production Record"}
+            {loading
+              ? "Searching Authoritative Records..."
+              : trackMode === "TICKET"
+              ? "Locate Support Ticket & Conversation Thread"
+              : "Locate Consignment & Production Record"}
           </button>
         </form>
-
-        {/* Quick Example Chips */}
-        <div className="pt-4 border-t border-[var(--color-decorative-border)]/60 flex flex-wrap items-center gap-2">
-          <span className="text-[11px] text-[var(--color-muted-light)]">Test Records in Database:</span>
-          <button
-            type="button"
-            onClick={() => loadExample("TAV-RS-2026-1001", "arjun.mehta@studio.in")}
-            className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-medium text-blue-900 hover:bg-blue-100 transition-colors"
-          >
-            Ready Stock Dispatched (1001)
-          </button>
-          <button
-            type="button"
-            onClick={() => loadExample("TAV-MTO-2026-2002", "vikramaditya@studiovishnu.in")}
-            className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-[11px] font-medium text-amber-900 hover:bg-amber-100 transition-colors"
-          >
-            Made to Order in 7-Day Grace (2002)
-          </button>
-          <button
-            type="button"
-            onClick={() => loadExample("TAV-MTO-2026-2004", "vikramaditya@studiovishnu.in")}
-            className="rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-[11px] font-medium text-emerald-900 hover:bg-emerald-100 transition-colors"
-          >
-            MTO Finished with QC Photos (2004)
-          </button>
-        </div>
       </div>
 
-      {/* Success / Error Notifications */}
-      {paymentSuccessMessage && (
-        <div className="mx-auto max-w-2xl p-4 rounded-xl border border-emerald-300 bg-emerald-50 text-xs text-emerald-900 font-semibold text-center">
-          ✓ {paymentSuccessMessage}
-        </div>
-      )}
-      {paymentErrorMessage && (
-        <div className="mx-auto max-w-2xl p-4 rounded-xl border border-rose-300 bg-rose-50 text-xs text-rose-800 font-semibold text-center">
-          {paymentErrorMessage}
-        </div>
-      )}
-
-      {/* Result Card */}
-      {searched && (
+      {/* SUPPORT TICKET VIEW */}
+      {trackMode === "TICKET" && searched && (
         <>
-          {matchedOrder ? (
-            <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-8 sm:p-12 space-y-10 shadow-sm">
-              {/* Order Header Summary */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--color-decorative-border)] pb-8">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs uppercase tracking-widest text-[var(--color-bronze)] font-semibold">
-                      Authoritative Order Record
+          {matchedTicket ? (
+            <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-8 shadow-sm space-y-8">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-[var(--color-decorative-border)] gap-4">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="font-mono text-base font-bold text-[var(--color-ink)]">
+                      {matchedTicket.ticketNumber}
                     </span>
-                    <span className="rounded-md bg-[var(--color-ivory)] px-2.5 py-0.5 text-[10px] font-semibold text-[var(--color-ink)] border border-[var(--color-decorative-border)]">
-                      {matchedOrder.mode === "READY_STOCK" ? "Ready Stock" : "Made to Order"}
-                    </span>
-                  </div>
-                  <h2 className="font-editorial text-3xl sm:text-4xl text-[var(--color-ink)]">
-                    {matchedOrder.id}
-                  </h2>
-                  <p className="text-xs text-[var(--color-muted-light)]">
-                    Placed on {matchedOrder.createdAt} · Client: <strong className="text-[var(--color-ink)]">{matchedOrder.customerName}</strong>
-                  </p>
-                  {matchedOrder.quoteNumber && (
-                    <div className="pt-1.5">
-                      <Link
-                        href={`/quote/${encodeURIComponent(matchedOrder.quoteNumber)}`}
-                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[var(--color-ivory)] border border-[var(--color-decorative-border)] text-[var(--color-bronze)] hover:border-[var(--color-bronze)] transition-colors"
-                      >
-                        <span className="text-[var(--color-muted-light)] font-normal">Originating Quote:</span>
-                        <span className="font-mono">{matchedOrder.quoteNumber}</span>
-                        <span>↗</span>
-                      </Link>
-                    </div>
-                  )}
-                </div>
-                <div className="text-left sm:text-right space-y-1.5">
-                  <div className="flex flex-wrap sm:justify-end gap-2">
                     <span
-                      className={`inline-block rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wider border ${
-                        matchedOrder.status === "CANCELLED" || matchedOrder.status === "REFUNDED"
-                          ? "bg-rose-50 text-rose-800 border-rose-200"
-                          : matchedOrder.balanceDueRupees <= 0
-                          ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                          : "bg-amber-50 text-amber-800 border-amber-200"
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold tracking-wider ${
+                        matchedTicket.status === "OPEN"
+                          ? "bg-rose-100 text-rose-900 border border-rose-300"
+                          : matchedTicket.status === "IN_PROGRESS"
+                          ? "bg-amber-100 text-amber-900 border border-amber-300"
+                          : "bg-emerald-100 text-emerald-900 border border-emerald-300"
                       }`}
                     >
-                      {matchedOrder.paymentStatusLabel ||
-                        (matchedOrder.balanceDueRupees <= 0 ? "100% Paid — Verified" : "25% Advance Paid")}
+                      {matchedTicket.status === "OPEN"
+                        ? "Open · Awaiting Concierge Review"
+                        : matchedTicket.status === "IN_PROGRESS"
+                        ? "In Progress · Concierge Active"
+                        : "✓ Resolved"}
                     </span>
-                    <span className="inline-block rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wider bg-[var(--color-ivory)] text-[var(--color-ink)] border border-[var(--color-decorative-border)]">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-[var(--color-stone)] text-[var(--color-ink)]">
+                      {matchedTicket.category.replace(/_/g, " ")}
+                    </span>
+                  </div>
+                  <h2 className="font-editorial text-2xl text-[var(--color-ink)]">
+                    {matchedTicket.subject}
+                  </h2>
+                  <p className="text-xs text-[var(--color-muted-light)]">
+                    Submitted on {matchedTicket.createdAt} by {matchedTicket.customerName}
+                  </p>
+                </div>
+
+                {matchedTicket.orderNumber && (
+                  <div className="rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-3 text-right">
+                    <span className="text-[10px] uppercase font-semibold text-[var(--color-muted-light)] block">
+                      Linked Consignment
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTrackMode("ORDER");
+                        setReferenceId(matchedTicket.orderNumber!);
+                        fetchOrderFromServer(matchedTicket.orderNumber!, contact || matchedTicket.email);
+                      }}
+                      className="font-mono text-xs font-bold text-[var(--color-bronze)] hover:underline inline-block mt-0.5"
+                    >
+                      {matchedTicket.orderNumber} →
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Conversation Thread */}
+              <div className="space-y-4">
+                <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-light)] block">
+                  Concierge Conversation History ({matchedTicket.messages.length} notes)
+                </span>
+
+                <div className="space-y-4">
+                  {matchedTicket.messages.map((msg) => {
+                    const isStaff = msg.sender === "STAFF";
+                    return (
+                      <div
+                        key={msg.id}
+                        className={`rounded-2xl p-5 border transition-all ${
+                          isStaff
+                            ? "bg-[#faf7f2] border-[var(--color-bronze)]/50 sm:mr-8"
+                            : "bg-[var(--color-canvas)] border-[var(--color-decorative-border)] sm:ml-8"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between pb-2 mb-2 border-b border-[var(--color-decorative-border)]/40 text-xs">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${
+                                isStaff
+                                  ? "bg-[var(--color-bronze)] text-[var(--color-canvas)]"
+                                  : "bg-[var(--color-stone)] text-[var(--color-ink)]"
+                              }`}
+                            >
+                              {isStaff ? "Studio Concierge" : "Client"}
+                            </span>
+                            <span className="font-semibold text-[var(--color-ink)]">
+                              {msg.authorName}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-[var(--color-muted-light)]">
+                            {msg.timestamp}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[var(--color-ink)] leading-relaxed whitespace-pre-line">
+                          {msg.text}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Reply Box */}
+              <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-6 space-y-4">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
+                  Add Follow-Up Note or Alteration Request
+                </h4>
+
+                {replySuccess && (
+                  <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-xs text-emerald-900">
+                    ✓ {replySuccess}
+                  </div>
+                )}
+                {replyError && (
+                  <div className="rounded-xl border border-rose-300 bg-rose-50 p-3 text-xs text-rose-900">
+                    ⚠ {replyError}
+                  </div>
+                )}
+
+                <form onSubmit={handleSendTicketReply} className="space-y-3">
+                  <textarea
+                    rows={4}
+                    value={ticketReplyText}
+                    onChange={(e) => setTicketReplyText(e.target.value)}
+                    placeholder="Type your message, query, or specification details for the concierge desk..."
+                    className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono leading-relaxed"
+                  />
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-[var(--color-muted-light)]">
+                      {matchedTicket.status === "RESOLVED"
+                        ? "Posting a message will reopen this ticket for concierge review."
+                        : "Messages are delivered directly to assigned studio staff."}
+                    </span>
+                    <button
+                      type="submit"
+                      disabled={submittingReply || !ticketReplyText.trim()}
+                      className="rounded-full bg-[var(--color-ink)] px-6 py-2.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+                    >
+                      {submittingReply ? "Posting Message..." : "Post Follow-Up Message"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-12 text-center space-y-4">
+              <span className="font-editorial text-2xl text-[var(--color-ink)] block">
+                No Support Ticket Located
+              </span>
+              <p className="text-xs text-[var(--color-muted-light)] max-w-md mx-auto">
+                We could not locate a support ticket matching reference <strong className="font-mono text-[var(--color-ink)]">{referenceId}</strong> with the provided contact information.
+              </p>
+              <div className="pt-2">
+                <Link
+                  href="/contact?intent=support"
+                  className="inline-block rounded-full bg-[var(--color-ink)] px-6 py-2.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
+                >
+                  Create New Support Ticket
+                </Link>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ORDER RESULTS VIEW */}
+      {trackMode === "ORDER" && searched && (
+        <>
+          {matchedOrder ? (
+            <div className="space-y-8">
+              {/* Top Banner: Status & Order Reference */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-[var(--color-decorative-border)] gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-mono text-sm font-bold text-[var(--color-ink)]">
+                      {matchedOrder.id}
+                    </span>
+                    {matchedOrder.quoteNumber && (
+                      <span className="font-mono text-xs text-[#8e6c46] bg-[#faf2ea] px-2 py-0.5 rounded border border-[#f5e6d6]">
+                        Quote: {matchedOrder.quoteNumber}
+                      </span>
+                    )}
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold tracking-wider ${
+                        matchedOrder.status === "CANCELLED" || matchedOrder.status === "REFUNDED"
+                          ? "bg-rose-100 text-rose-900 border border-rose-300"
+                          : matchedOrder.status === "DISPATCHED" || matchedOrder.status === "DELIVERED"
+                          ? "bg-emerald-100 text-emerald-900 border border-emerald-300"
+                          : "bg-amber-100 text-amber-900 border border-amber-300"
+                      }`}
+                    >
                       {matchedOrder.statusLabel}
                     </span>
                   </div>
                   <p className="text-xs text-[var(--color-muted-light)]">
-                    Destination: {matchedOrder.city}, {matchedOrder.state} ({matchedOrder.destinationPin})
+                    Placed on {matchedOrder.createdAt} · Mode: {matchedOrder.mode}
                   </p>
                 </div>
-              </div>
 
-              {/* Lifecycle Progress Stepper */}
-              <div className="space-y-4">
-                <h3 className="text-xs uppercase tracking-widest text-[var(--color-ink)] font-semibold">
-                  Milestone Lifecycle Progress
-                </h3>
-
-                {matchedOrder.status === "CANCELLED" || matchedOrder.status === "REFUNDED" ? (
-                  <div className="rounded-2xl border border-rose-300 bg-rose-50/90 p-6 space-y-4 text-xs text-rose-950">
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rose-200/80 pb-3">
-                      <div>
-                        <span className="text-[10px] uppercase font-bold tracking-wider text-rose-800 block">
-                          Consignment Cancelled · Pre-Production Refund
-                        </span>
-                        <h4 className="text-base font-semibold text-rose-950">
-                          100% Full Payment Refund Active
-                        </h4>
-                      </div>
-                      <span className="inline-block px-3 py-1 rounded-full text-xs font-mono font-bold bg-rose-900 text-white">
-                        {matchedOrder.refund?.status === "COMPLETED" ? "Refund Completed" : "Refund Processing"}
-                      </span>
-                    </div>
-
-                    <p className="text-xs text-rose-900/90 leading-relaxed font-medium">
-                      {matchedOrder.statusDescription}
-                    </p>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                      <div className="p-3 rounded-xl bg-white/70 border border-rose-200 space-y-0.5">
-                        <span className="text-[10px] text-rose-800 uppercase font-semibold block">Refund Amount</span>
-                        <p className="font-mono text-sm font-bold text-rose-950">
-                          ₹{(matchedOrder.refund?.amountRupees ?? matchedOrder.amountPaidRupees).toLocaleString("en-IN")}
-                        </p>
-                        <span className="text-[10px] text-rose-700 block">100% of Verified Payments</span>
-                      </div>
-
-                      <div className="p-3 rounded-xl bg-white/70 border border-rose-200 space-y-0.5">
-                        <span className="text-[10px] text-rose-800 uppercase font-semibold block">Gateway Transaction Ref</span>
-                        <p className="font-mono text-xs font-bold text-rose-950 truncate">
-                          {matchedOrder.refund?.reference || "REF-PROCESSING"}
-                        </p>
-                        <span className="text-[10px] text-rose-700 block">
-                          {matchedOrder.refund?.gateway || "Original Payment Source"}
-                        </span>
-                      </div>
-
-                      <div className="p-3 rounded-xl bg-white/70 border border-rose-200 space-y-0.5">
-                        <span className="text-[10px] text-rose-800 uppercase font-semibold block">Settlement Window</span>
-                        <p className="font-medium text-xs text-rose-950">
-                          {matchedOrder.refund?.verifiedAt ? `Processed on ${matchedOrder.refund.verifiedAt}` : "5–7 Business Days"}
-                        </p>
-                        <span className="text-[10px] text-rose-700 block">Credits to bank / card</span>
-                      </div>
-                    </div>
-                  </div>
-                ) : matchedOrder.mode === "MADE_TO_ORDER" ? (
-                  /* MTO Stepper */
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                    <div className="p-4 rounded-xl border border-emerald-300 bg-emerald-50/70 space-y-1">
-                      <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider">Step 1 · Complete</span>
-                      <h4 className="text-xs font-semibold text-[var(--color-ink)]">
-                        {matchedOrder.balanceDueRupees <= 0 ? "100% Payment Verified" : "25% Advance Verified"}
-                      </h4>
-                      <p className="text-[11px] text-[var(--color-muted-light)]">
-                        ₹{matchedOrder.amountPaidRupees.toLocaleString("en-IN")} received
-                      </p>
-                    </div>
-
-                    <div className={`p-4 rounded-xl border space-y-1 ${
-                      matchedOrder.status === "CONFIRMED"
-                        ? matchedOrder.isGraceActive === false
-                          ? "border-2 border-emerald-400 bg-emerald-50"
-                          : "border-2 border-amber-400 bg-amber-50"
-                        : "border-emerald-300 bg-emerald-50/70"
-                    }`}>
-                      <span className="text-[10px] uppercase font-bold tracking-wider text-amber-900">
-                        Step 2 · {matchedOrder.status === "CONFIRMED" ? (matchedOrder.isGraceActive === false ? "Ready Day 8+" : "Active") : "Complete"}
-                      </span>
-                      <h4 className="text-xs font-semibold text-[var(--color-ink)]">7-Day Confirmation Grace</h4>
-                      <p className="text-[11px] text-amber-900 font-medium">
-                        {matchedOrder.status === "CONFIRMED"
-                          ? matchedOrder.graceDaysRemaining && matchedOrder.graceDaysRemaining > 0
-                            ? `${matchedOrder.graceDaysRemaining} day(s) left${matchedOrder.releaseEligibleDate ? ` · Start ${matchedOrder.releaseEligibleDate}` : ""}`
-                            : "Grace elapsed · Ready for release"
-                          : "Grace concluded · Released"}
-                      </p>
-                    </div>
-
-                    <div className={`p-4 rounded-xl border space-y-1 ${
-                      matchedOrder.status === "IN_PRODUCTION"
-                        ? "border-2 border-blue-400 bg-blue-50"
-                        : matchedOrder.status === "PRODUCTION_COMPLETED" || matchedOrder.status === "AWAITING_DISPATCH" || matchedOrder.status === "DISPATCHED" || matchedOrder.status === "DELIVERED"
-                        ? "border-emerald-300 bg-emerald-50/70"
-                        : "border-[var(--color-decorative-border)] bg-[var(--color-ivory)] opacity-60"
-                    }`}>
-                      <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-ink)]">
-                        Step 3 · {matchedOrder.status === "IN_PRODUCTION" ? "Active" : matchedOrder.status === "CONFIRMED" ? "Pending" : "Complete"}
-                      </span>
-                      <h4 className="text-xs font-semibold text-[var(--color-ink)]">Workshop Machining</h4>
-                      <p className="text-[11px] text-[var(--color-muted-light)]">
-                        {matchedOrder.status === "IN_PRODUCTION" ? "Active Crafting in Studio" : matchedOrder.status === "CONFIRMED" ? "Commences on Day 8" : "Machining Finished"}
-                      </p>
-                    </div>
-
-                    <div className={`p-4 rounded-xl border space-y-1 ${
-                      matchedOrder.status === "DELIVERED" || matchedOrder.status === "DISPATCHED"
-                        ? "border-2 border-emerald-500 bg-emerald-50"
-                        : matchedOrder.status === "PRODUCTION_COMPLETED" || matchedOrder.status === "AWAITING_DISPATCH"
-                        ? "border-2 border-amber-400 bg-amber-50"
-                        : "border-[var(--color-decorative-border)] bg-[var(--color-ivory)] opacity-60"
-                    }`}>
-                      <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-ink)]">
-                        Step 4 · {matchedOrder.status === "DELIVERED" ? "Delivered" : matchedOrder.status === "DISPATCHED" ? "In Transit" : matchedOrder.status === "AWAITING_DISPATCH" ? "100% Paid · Crating" : matchedOrder.status === "PRODUCTION_COMPLETED" ? "QC Ready" : "Pending"}
-                      </span>
-                      <h4 className="text-xs font-semibold text-[var(--color-ink)]">QC & Insured Handover</h4>
-                      <p className="text-[11px] text-[var(--color-muted-light)]">
-                        {matchedOrder.balanceDueRupees === 0 ? "100% Paid" : `₹${matchedOrder.balanceDueRupees.toLocaleString("en-IN")} due`}
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  /* Ready Stock Stepper */
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                    <div className="p-4 rounded-xl border border-emerald-300 bg-emerald-50/70 space-y-1">
-                      <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider">Step 1 · Complete</span>
-                      <h4 className="text-xs font-semibold text-[var(--color-ink)]">100% Payment Confirmed</h4>
-                      <p className="text-[11px] text-[var(--color-muted-light)]">Electronic verification done</p>
-                    </div>
-
-                    <div className={`p-4 rounded-xl border space-y-1 ${
-                      matchedOrder.status === "DISPATCHED" || matchedOrder.status === "DELIVERED"
-                        ? "border-emerald-300 bg-emerald-50/70"
-                        : "border-2 border-amber-400 bg-amber-50"
-                    }`}>
-                      <span className="text-[10px] uppercase font-bold text-amber-900 tracking-wider">
-                        Step 2 · {matchedOrder.status === "DISPATCHED" || matchedOrder.status === "DELIVERED" ? "Complete" : "Active"}
-                      </span>
-                      <h4 className="text-xs font-semibold text-[var(--color-ink)]">Inspection & Crating</h4>
-                      <p className="text-[11px] text-[var(--color-muted-light)]">Multi-layer protective box</p>
-                    </div>
-
-                    <div className={`p-4 rounded-xl border space-y-1 ${
-                      matchedOrder.status === "DELIVERED"
-                        ? "border-emerald-300 bg-emerald-50/70"
-                        : matchedOrder.status === "DISPATCHED"
-                        ? "border-2 border-emerald-500 bg-emerald-50"
-                        : "border-[var(--color-decorative-border)] bg-[var(--color-ivory)] opacity-60"
-                    }`}>
-                      <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-800">
-                        Step 3 · {matchedOrder.status === "DELIVERED" ? "Complete" : matchedOrder.status === "DISPATCHED" ? "Active" : "Pending"}
-                      </span>
-                      <h4 className="text-xs font-semibold text-[var(--color-ink)]">In Transit with Carrier</h4>
-                      <p className="text-[11px] text-[var(--color-muted-light)]">{matchedOrder.carrierName}</p>
-                    </div>
-
-                    <div className={`p-4 rounded-xl border space-y-1 ${
-                      matchedOrder.status === "DELIVERED"
-                        ? "border-2 border-emerald-500 bg-emerald-50"
-                        : "border-[var(--color-decorative-border)] bg-[var(--color-ivory)] opacity-60"
-                    }`}>
-                      <span className="text-[10px] uppercase font-bold text-[var(--color-muted-light)] tracking-wider">
-                        Step 4 · {matchedOrder.status === "DELIVERED" ? "Complete" : "Pending"}
-                      </span>
-                      <h4 className="text-xs font-semibold text-[var(--color-ink)]">
-                        {matchedOrder.status === "DELIVERED" ? "Delivered" : "Out for Delivery"}
-                      </h4>
-                      <p className="text-[11px] text-[var(--color-muted-light)]">Estimated {matchedOrder.transitEstimate}</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Status Narrative Callout */}
-                <div className="rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-5 text-xs text-[var(--color-ink)] leading-relaxed space-y-1.5">
-                  <span className="font-semibold text-[var(--color-bronze)] uppercase tracking-wider text-[11px] block">
-                    Current Milestone Summary
-                  </span>
-                  <p>{matchedOrder.statusDescription}</p>
-                  {matchedOrder.awbNumber && (
-                    <p className="text-[11px] text-[var(--color-muted-light)] pt-1">
-                      Carrier Air Waybill (AWB): <strong className="font-mono text-[var(--color-ink)]">{matchedOrder.awbNumber}</strong> · Insured Carriage by {matchedOrder.carrierName}
-                    </p>
-                  )}
+                <div className="flex items-center gap-3">
+                  <Link
+                    href={`/contact?intent=support&order=${encodeURIComponent(matchedOrder.id)}&subject=${encodeURIComponent(`Assistance for Order ${matchedOrder.id}`)}`}
+                    className="rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors"
+                  >
+                    Raise Support Ticket
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors"
+                  >
+                    Print Record
+                  </button>
                 </div>
               </div>
 
-              {/* STUDIO WORKSHOP QC PHOTOS GALLERY (IF AVAILABLE) */}
-              {matchedOrder.qcImages && matchedOrder.qcImages.length > 0 && (
-                <div className="space-y-4 pt-6 border-t border-[var(--color-decorative-border)]">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] uppercase tracking-widest text-[var(--color-bronze)] font-semibold block">
-                        Studio Workshop Verification
-                      </span>
-                      <h3 className="font-editorial text-2xl text-[var(--color-ink)]">
-                        Finished Piece QC Inspection Photos
-                      </h3>
-                    </div>
-                    <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                      ✓ Quality Control Passed
-                    </span>
-                  </div>
-                  {matchedOrder.qcNotes && (
-                    <div className="p-4 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] text-xs text-[var(--color-ink)] leading-relaxed">
-                      <strong className="block text-[11px] uppercase tracking-wider text-[var(--color-muted-light)] pb-1">Master Craftsman Notes:</strong>
-                      {matchedOrder.qcNotes}
-                    </div>
-                  )}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {matchedOrder.qcImages.map((imgUrl, i) => (
-                      <div key={i} className="group relative rounded-xl overflow-hidden border border-[var(--color-decorative-border)] aspect-[16/10] bg-neutral-100">
-                        <img
-                          src={imgUrl}
-                          alt={`QC Inspection ${i + 1}`}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                        <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 text-white text-[10px] backdrop-blur-sm">
-                          QC Photo {i + 1}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+              {/* Status Notice / Notifications */}
+              {paymentSuccessMessage && (
+                <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-xs text-emerald-900">
+                  ✓ {paymentSuccessMessage}
+                </div>
+              )}
+              {paymentErrorMessage && (
+                <div className="rounded-xl border border-rose-300 bg-rose-50 p-4 text-xs text-rose-900">
+                  ⚠ {paymentErrorMessage}
                 </div>
               )}
 
-              {/* Items & Delivery Details (2 Columns) */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 pt-4 border-t border-[var(--color-decorative-border)]">
-                {/* Left: Ordered Objects (Span 7) */}
-                <div className="lg:col-span-7 space-y-3">
-                  <h3 className="text-xs uppercase tracking-widest text-[var(--color-ink)] font-semibold">
-                    Consignment Items
-                  </h3>
-                  <div className="divide-y divide-[var(--color-decorative-border)]/60 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] overflow-hidden">
-                    {matchedOrder.items.map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-4 text-xs">
-                        <div>
-                          <p className="font-semibold text-[var(--color-ink)]">{item.name}</p>
-                          <p className="text-[11px] text-[var(--color-muted-light)]">Quantity: {item.quantity}</p>
-                        </div>
-                        <span className="font-semibold text-[var(--color-ink)]">
-                          ₹{((item.pricePaise * item.quantity) / 100).toLocaleString("en-IN")}
-                        </span>
-                      </div>
-                    ))}
+              {/* Grid: Production Progress & Ledger Summary */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* Left: Milestones & Items (Col 7) */}
+                <div className="lg:col-span-7 space-y-6">
+                  {/* Status Description Box */}
+                  <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-6 space-y-2">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-bronze)] block">
+                      Production State &amp; Progress
+                    </span>
+                    <h3 className="font-editorial text-xl text-[var(--color-ink)]">
+                      {matchedOrder.statusLabel}
+                    </h3>
+                    <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
+                      {matchedOrder.statusDescription}
+                    </p>
                   </div>
 
-                  <div className="p-4 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] text-xs text-[var(--color-muted-light)] space-y-1">
-                    <strong className="text-[var(--color-ink)] block">Destination Address:</strong>
-                    <p>{matchedOrder.addressLine1}</p>
-                    <p>{matchedOrder.city}, {matchedOrder.state} — {matchedOrder.destinationPin}</p>
-                  </div>
-                </div>
-
-                {/* Right: Payment Ledger, 75% Balance Action & Safeguards (Span 5) */}
-                <div className="lg:col-span-5 space-y-4">
-                  <h3 className="text-xs uppercase tracking-widest text-[var(--color-ink)] font-semibold">
-                    Two-Component Price & Payment
-                  </h3>
-                  <div className="rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-5 space-y-3 text-xs">
-                    <div className="flex justify-between text-[var(--color-muted-light)]">
-                      <span>1. Items Value (Tax Inclusive):</span>
-                      <span className="font-semibold text-[var(--color-ink)]">
-                        {formatPrice(matchedOrder.itemsSubtotalRupees)}
+                  {/* QC Inspection Photos if Available */}
+                  {matchedOrder.qcImages && matchedOrder.qcImages.length > 0 && (
+                    <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-6 space-y-3">
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-bronze)] block">
+                        Workshop Quality Inspection Photos
                       </span>
-                    </div>
-                    <div className="flex justify-between text-[var(--color-muted-light)]">
-                      <span>2. Insured Crating & Freight:</span>
-                      <span className="font-semibold text-[var(--color-ink)]">
-                        {matchedOrder.deliveryFeeRupees === 0 ? "Complimentary" : formatPrice(matchedOrder.deliveryFeeRupees)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between pt-2 border-t border-[var(--color-decorative-border)]/60 text-sm font-semibold text-[var(--color-ink)]">
-                      <span>Total Transaction Value:</span>
-                      <span>{formatPrice(matchedOrder.totalAmountRupees)}</span>
-                    </div>
-                    {matchedOrder.status === "CANCELLED" || matchedOrder.status === "REFUNDED" ? (
-                      <>
-                        <div className="flex justify-between pt-1 border-t border-[var(--color-decorative-border)]/60 text-rose-800 font-semibold">
-                          <span>100% Refund Issued:</span>
-                          <span>{formatPrice(matchedOrder.refund?.amountRupees ?? matchedOrder.amountPaidRupees)}</span>
-                        </div>
-                        <div className="flex justify-between text-[var(--color-muted-light)]">
-                          <span>Outstanding Balance:</span>
-                          <span>₹0 (Cancelled & Reconciled)</span>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="flex justify-between pt-1 border-t border-[var(--color-decorative-border)]/60 text-emerald-800 font-semibold">
-                          <span>Verified Amount Paid:</span>
-                          <span>{formatPrice(matchedOrder.amountPaidRupees)}</span>
-                        </div>
-                        {matchedOrder.balanceDueRupees > 0 && (
-                          <div className="flex justify-between text-[var(--color-bronze)] font-semibold">
-                            <span>Balance Due Before Dispatch (75%):</span>
-                            <span>{formatPrice(matchedOrder.balanceDueRupees)}</span>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {matchedOrder.qcImages.map((img, idx) => (
+                          <div key={idx} className="aspect-square rounded-xl overflow-hidden border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]">
+                            <img src={img} alt={`QC Photo ${idx + 1}`} className="w-full h-full object-cover" />
                           </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-
-                  {/* DAY 1 ENABLED 75% BALANCE PAYMENT ACTION */}
-                  {matchedOrder.balanceDueRupees > 0 &&
-                    matchedOrder.status !== "CANCELLED" &&
-                    matchedOrder.status !== "REFUNDED" && (
-                    <div className="rounded-xl border border-amber-300 bg-amber-50/80 p-5 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] uppercase font-bold tracking-wider text-amber-900">
-                          Balance Settlement (Day 1 Enabled)
-                        </span>
-                        <span className="text-xs font-bold text-amber-900">
-                          {formatPrice(matchedOrder.balanceDueRupees)}
-                        </span>
+                        ))}
                       </div>
-                      <p className="text-[11px] text-amber-800 leading-relaxed">
-                        You may clear your remaining balance now or after reviewing workshop QC photos. Under studio policy, 100% payment must be verified before crating and courier handover.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={handlePayBalance}
-                        disabled={payingBalance}
-                        className="w-full rounded-full bg-emerald-800 py-3 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50"
-                      >
-                        {payingBalance ? "Verifying PhonePe Gateway..." : `Pay Remaining Balance (${formatPrice(matchedOrder.balanceDueRupees)})`}
-                      </button>
+                      {matchedOrder.qcNotes && (
+                        <p className="text-xs text-[var(--color-muted-light)] italic mt-2">
+                          Craftsman Notes: &ldquo;{matchedOrder.qcNotes}&rdquo;
+                        </p>
+                      )}
                     </div>
                   )}
 
-                  {/* Actions */}
-                  <div className="space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => window.print()}
-                      className="w-full rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] py-3 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors"
-                    >
-                      Print Official Invoice & Receipt
-                    </button>
-                    <Link
-                      href={`/contact?subject=Order%20Support%20(${matchedOrder.id})&message=Inquiring%20regarding%20Order%20${matchedOrder.id}%20for%20${encodeURIComponent(matchedOrder.customerName)}.`}
-                      className="block text-center w-full rounded-full bg-[var(--color-ink)] py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
-                    >
-                      Contact Client Desk
-                    </Link>
+                  {/* Ordered Pieces */}
+                  <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-6 space-y-4">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] block">
+                      Consignment Pieces ({matchedOrder.items.length})
+                    </span>
+                    <div className="divide-y divide-[var(--color-decorative-border)]">
+                      {matchedOrder.items.map((item, idx) => (
+                        <div key={idx} className="py-3 flex items-center justify-between text-xs">
+                          <div>
+                            <span className="font-semibold text-[var(--color-ink)] block">
+                              {item.name}
+                            </span>
+                            <span className="text-[11px] text-[var(--color-muted-light)]">
+                              Quantity: {item.quantity}
+                            </span>
+                          </div>
+                          <span className="font-mono font-semibold text-[var(--color-ink)]">
+                            {formatPrice((item.pricePaise / 100) * item.quantity)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right: Payment Ledger & Settled Balance (Col 5) */}
+                <div className="lg:col-span-5 space-y-6">
+                  {/* Ledger Breakdown Card */}
+                  <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-6 space-y-4">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] block">
+                      Payment Ledger
+                    </span>
+
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between text-[var(--color-muted-light)]">
+                        <span>Items Subtotal:</span>
+                        <span>{formatPrice(matchedOrder.itemsSubtotalRupees)}</span>
+                      </div>
+                      <div className="flex justify-between text-[var(--color-muted-light)]">
+                        <span>Crating &amp; Delivery Freight:</span>
+                        <span>{formatPrice(matchedOrder.deliveryFeeRupees)}</span>
+                      </div>
+                      <div className="flex justify-between font-semibold text-[var(--color-ink)] pt-2 border-t border-[var(--color-decorative-border)]">
+                        <span>Total Committed Value:</span>
+                        <span>{formatPrice(matchedOrder.totalAmountRupees)}</span>
+                      </div>
+                      <div className="flex justify-between text-emerald-800 font-semibold pt-1">
+                        <span>Verified Paid Amount:</span>
+                        <span>{formatPrice(matchedOrder.amountPaidRupees)}</span>
+                      </div>
+                      {matchedOrder.balanceDueRupees > 0 && (
+                        <div className="flex justify-between text-[var(--color-bronze)] font-semibold">
+                          <span>Balance Due at Dispatch:</span>
+                          <span>{formatPrice(matchedOrder.balanceDueRupees)}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Day 1 Enabled Balance Payment */}
+                    {matchedOrder.balanceDueRupees > 0 &&
+                      matchedOrder.status !== "CANCELLED" &&
+                      matchedOrder.status !== "REFUNDED" && (
+                        <div className="rounded-xl border border-amber-300 bg-amber-50/80 p-4 space-y-3 pt-4 mt-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] uppercase font-bold tracking-wider text-amber-900">
+                              Balance Settlement (Day 1 Enabled)
+                            </span>
+                            <span className="text-xs font-bold text-amber-900">
+                              {formatPrice(matchedOrder.balanceDueRupees)}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-amber-800 leading-relaxed">
+                            Under studio policy, 100% payment must be verified before crating and courier handover.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={handlePayBalance}
+                            disabled={payingBalance}
+                            className="w-full rounded-full bg-emerald-800 py-3 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50"
+                          >
+                            {payingBalance
+                              ? "Verifying PhonePe Gateway..."
+                              : `Pay Remaining Balance (${formatPrice(matchedOrder.balanceDueRupees)})`}
+                          </button>
+                        </div>
+                      )}
+
+                    {/* Action Links */}
+                    <div className="pt-2 space-y-2">
+                      <Link
+                        href={`/contact?intent=support&order=${encodeURIComponent(matchedOrder.id)}&subject=${encodeURIComponent(`Assistance for Order ${matchedOrder.id}`)}`}
+                        className="block text-center w-full rounded-full bg-[var(--color-ink)] py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
+                      >
+                        Contact Client Desk / Raise Ticket
+                      </Link>
+                    </div>
+                  </div>
+
+                  {/* Destination Information */}
+                  <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-6 space-y-2 text-xs">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-muted-light)] block">
+                      Destination &amp; Freight Courier
+                    </span>
+                    <p className="font-semibold text-[var(--color-ink)]">{matchedOrder.customerName}</p>
+                    <p className="text-[var(--color-muted-light)]">{matchedOrder.addressLine1}</p>
+                    <p className="text-[var(--color-muted-light)]">
+                      {matchedOrder.city}, {matchedOrder.state} — {matchedOrder.destinationPin}
+                    </p>
+                    <div className="pt-2 border-t border-[var(--color-decorative-border)]/60 text-[11px]">
+                      <span className="text-[var(--color-muted-light)]">Assigned Courier: </span>
+                      <strong className="text-[var(--color-ink)]">{matchedOrder.carrierName}</strong>
+                      {matchedOrder.awbNumber && (
+                        <p className="font-mono mt-0.5">
+                          AWB: <strong className="text-[var(--color-bronze)]">{matchedOrder.awbNumber}</strong>
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -651,7 +784,7 @@ function TrackOrderContent() {
                 No Record Located
               </span>
               <p className="text-xs text-[var(--color-muted-light)] max-w-md mx-auto">
-                We could not locate an active studio order matching reference <strong className="font-mono text-[var(--color-ink)]">{orderId}</strong> with the provided contact information.
+                We could not locate an active studio order matching reference <strong className="font-mono text-[var(--color-ink)]">{referenceId}</strong> with the provided contact information.
               </p>
               <p className="text-[11px] text-[var(--color-muted-light)]">
                 Please double-check your Order Confirmation SMS/Email or contact our studio desk for direct assistance.
