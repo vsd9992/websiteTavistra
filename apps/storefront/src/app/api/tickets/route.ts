@@ -235,8 +235,25 @@ export async function POST(req: NextRequest) {
         : null;
 
     const currentYear = new Date().getFullYear();
-    const count = await prisma.supportTicket.count();
-    const ticketNumber = `TCK-${currentYear}-${(count + 101).toString().padStart(4, "0")}`;
+    const prefix = `TCK-${currentYear}-`;
+    const allTickets = await prisma.supportTicket.findMany({
+      where: { ticketNumber: { startsWith: prefix } },
+      select: { ticketNumber: true },
+    });
+    let maxNum = 100;
+    for (const t of allTickets) {
+      const parts = t.ticketNumber.split("-");
+      const num = parseInt(parts[2], 10);
+      if (!isNaN(num) && num > maxNum) {
+        maxNum = num;
+      }
+    }
+    let nextSeq = maxNum + 1;
+    let ticketNumber = `${prefix}${String(nextSeq).padStart(4, "0")}`;
+    while (allTickets.some((t) => t.ticketNumber === ticketNumber)) {
+      nextSeq++;
+      ticketNumber = `${prefix}${String(nextSeq).padStart(4, "0")}`;
+    }
 
     const normalizedEmail = emailVal.normalizedEmail || email.toLowerCase().trim();
     const normalizedPhone = phoneVal.normalizedPhone || phone.trim();

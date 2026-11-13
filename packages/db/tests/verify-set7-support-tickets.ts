@@ -494,10 +494,12 @@ async function run() {
     `Status: ${resInboundSupport.status}, Ticket: ${dataInboundSupport.ticketNumber}, Priority: ${dataInboundSupport.priority}`
   );
 
-  const dbInboundTicket = await prisma.supportTicket.findUnique({
-    where: { ticketNumber: dataInboundSupport.ticketNumber },
-    include: { messages: true },
-  });
+  const dbInboundTicket = dataInboundSupport?.ticketNumber
+    ? await prisma.supportTicket.findUnique({
+        where: { ticketNumber: dataInboundSupport.ticketNumber },
+        include: { messages: true },
+      })
+    : null;
   assert(
     Boolean(
       dbInboundTicket &&
@@ -541,9 +543,11 @@ async function run() {
     `Status: ${resInboundConcierge.status}, Inquiry: ${dataInboundConcierge.inquiryNumber}`
   );
 
-  const dbInboundInquiry = await prisma.bulkInquiry.findUnique({
-    where: { inquiryNumber: dataInboundConcierge.inquiryNumber },
-  });
+  const dbInboundInquiry = dataInboundConcierge?.inquiryNumber
+    ? await prisma.bulkInquiry.findUnique({
+        where: { inquiryNumber: dataInboundConcierge.inquiryNumber },
+      })
+    : null;
   assert(
     Boolean(dbInboundInquiry && dbInboundInquiry.email === inboundConciergeEmail),
     "Inbound general inquiry saved in PostgreSQL BulkInquiry table",

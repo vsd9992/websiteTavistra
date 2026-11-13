@@ -10,22 +10,28 @@ async function generateNextTicketNumber(): Promise<string> {
   const currentYear = new Date().getFullYear();
   const prefix = `TCK-${currentYear}-`;
 
-  const latest = await prisma.supportTicket.findFirst({
+  const allTickets = await prisma.supportTicket.findMany({
     where: { ticketNumber: { startsWith: prefix } },
-    orderBy: { ticketNumber: "desc" },
     select: { ticketNumber: true },
   });
 
-  let nextSequence = 1001;
-  if (latest && latest.ticketNumber) {
-    const parts = latest.ticketNumber.split("-");
+  let maxNum = 100;
+  for (const t of allTickets) {
+    const parts = t.ticketNumber.split("-");
     const num = parseInt(parts[2], 10);
-    if (!isNaN(num)) {
-      nextSequence = num + 1;
+    if (!isNaN(num) && num > maxNum) {
+      maxNum = num;
     }
   }
 
-  return `${prefix}${String(nextSequence).padStart(4, "0")}`;
+  let nextSequence = maxNum + 1;
+  let candidate = `${prefix}${String(nextSequence).padStart(4, "0")}`;
+  while (allTickets.some((t) => t.ticketNumber === candidate)) {
+    nextSequence++;
+    candidate = `${prefix}${String(nextSequence).padStart(4, "0")}`;
+  }
+
+  return candidate;
 }
 
 /**
@@ -35,22 +41,28 @@ async function generateNextInquiryNumber(): Promise<string> {
   const currentYear = new Date().getFullYear();
   const prefix = `INQ-${currentYear}-`;
 
-  const latest = await prisma.bulkInquiry.findFirst({
+  const allInquiries = await prisma.bulkInquiry.findMany({
     where: { inquiryNumber: { startsWith: prefix } },
-    orderBy: { inquiryNumber: "desc" },
     select: { inquiryNumber: true },
   });
 
-  let nextSequence = 1001;
-  if (latest && latest.inquiryNumber) {
-    const parts = latest.inquiryNumber.split("-");
+  let maxNum = 1000;
+  for (const inq of allInquiries) {
+    const parts = inq.inquiryNumber.split("-");
     const num = parseInt(parts[2], 10);
-    if (!isNaN(num)) {
-      nextSequence = num + 1;
+    if (!isNaN(num) && num > maxNum) {
+      maxNum = num;
     }
   }
 
-  return `${prefix}${String(nextSequence).padStart(4, "0")}`;
+  let nextSequence = maxNum + 1;
+  let candidate = `${prefix}${String(nextSequence).padStart(4, "0")}`;
+  while (allInquiries.some((inq) => inq.inquiryNumber === candidate)) {
+    nextSequence++;
+    candidate = `${prefix}${String(nextSequence).padStart(4, "0")}`;
+  }
+
+  return candidate;
 }
 
 /**
