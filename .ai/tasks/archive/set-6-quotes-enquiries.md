@@ -32,11 +32,18 @@
 6. **Expired Quote Gate (QOT-08)**:
    - Quotes past 30 days auto-transition to `EXPIRED` with 0 days remaining; revisions and acceptances blocked with 400.
 
-## Verification
-- Verified live on `devMachine` (`Storefront :3001`, `Admin :3002`, `Mailpit :8025`):
-  - `test:set6`: 23/23 PASSED (0 FAILED)
-  - `test:set5`: 21/21 PASSED (0 FAILED)
-  - `test:set4`: 20/20 PASSED (0 FAILED)
-  - `test:set3`: 54/54 PASSED (0 FAILED)
-  - `test:set2`: 68/68 PASSED (0 FAILED)
+34: 7. **Bidirectional Linkage, Cancellation Email & Inquiry Sync**:
+35:    - `Order` schema extended with `quoteNumber String?` (@index), linking accepted orders directly to originating quotes.
+36:    - `BulkInquiry` status synchronizes across entire lifecycle: `NEW` -> `QUOTE_ISSUED` -> `ORDER_CONFIRMED` -> `ORDER_CANCELLED`.
+37:    - Admin Inquiries table displays linked Quote reference and converted Order reference with live order status badge (`CANCELLED & REFUNDED`, `CONFIRMED`, etc.).
+38:    - Admin Proposals table displays converted Order reference with live status badge and one-click inspect modal.
+39:    - Order cancellation dispatches formal `sendOrderCancelledRefundEmail` with Tavistra luxury styling, order/quote references, 100% pre-production refund amount, and bank UTR/refund reference.
+40: 
+41: ## Verification
+42: - Verified live on `devMachine` (`Storefront :3001`, `Admin :3002`, `Mailpit :8025`):
+43:   - `test:set6`: 23/23 PASSED (0 FAILED)
+44:   - `test:set5`: 23/23 PASSED (0 FAILED)
+45:   - `test:set4`: 20/20 PASSED (0 FAILED)
+46:   - `test:set3`: 54/54 PASSED (0 FAILED)
+47:   - `test:set2`: 68/68 PASSED (0 FAILED)
 

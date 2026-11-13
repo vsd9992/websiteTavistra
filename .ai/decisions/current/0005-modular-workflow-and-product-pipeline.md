@@ -1,7 +1,7 @@
 # Decision 0005: Modular Workflow Phasing Strategy & Product Content Pipeline Architecture
 
-**Status:** APPROVED (2026-11-12)  
-modified: 2026-11-12  
+**Status:** APPROVED (2026-11-13)  
+modified: 2026-11-13  
 **Context:** Following preliminary manual review of the pre-live acceptance runbook, full end-to-end UAT was split into isolated, strictly dependency-ordered functional sets (Sets 0 through 8) verified independently on `devMachine` (`192.168.1.100`).
 
 ## Decisions
@@ -13,7 +13,7 @@ modified: 2026-11-12
 - **Set 3 (Completed & Verified — 54/54):** Customer Identity, Hardened Email/Phone/Password/GSTIN Validation, Email & TOTP MFA, Password Change, Addresses, Privacy Isolation & Tavistra Branding.
 - **Set 4 (Completed & Verified — 20/20):** Cart Governance (Cumulative 10-Unit/10-Line Bulk Boundary), Variant-Isolated Cart (`variantId || sku || id`), Zero-Fallback DB Shipping, Maintenance Gate, Server Pricing/Stock Atomic Checkout & Ready Stock (`100%`) / MTO (`25%/75%`).
 - **Set 5 (Completed & Verified — 23/23):** Order Tracking & Account History Accuracy (`ACC-04`), 7-Day IST Grace Release Cutoff, Real QC Photo Upload (`/uploads/qc/...`), Hard 100% Dispatch Lockout, 75% Balance Gate, Delivery Completion, Site-Wide Order Cancellation & Refund Tracking (Customer Account, `/track`, Admin UTR/Gateway Ledger, Net Revenue & Refund Reporting) & `/orders/[id]` Guard (`SEC-03`).
-- **Set 6 (Completed & Verified — 23/23):** 30-Day Architectural Quotes & Bulk Enquiry Lifecycle (Multi-Line Items, 25% Advance Calculation, N+1 Revisions with 30-Day Clock Preservation, Exact-Version MTO Acceptance & Expiry Gates).
+- **Set 6 (Completed & Verified — 23/23):** 30-Day Architectural Quotes & Bulk Enquiry Lifecycle (Multi-Line Items, 25% Advance Calculation, N+1 Revisions with 30-Day Clock Preservation, Exact-Version MTO Acceptance, Bidirectional Inquiry ↔ Quote ↔ Order Linkage, Order Cancellation & 100% Pre-Production Statutory Refund Email Dispatch & Inquiry Status Synchronization).
 - **Set 7 (Next — Pending Approval):** Support Ticket Desk, Threaded Messaging & Client Concierge.
 - **Set 8 (Pending):** Staff Authentication, RBAC & Final Acceptance Runbook Sweep.
 
