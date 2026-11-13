@@ -54,12 +54,13 @@ export async function GET(
           { status: 401 }
         );
       }
-      const cleanContact = contact.trim().toLowerCase().replace(/[\s\-()]/g, "");
+      const cleanContact = contact.trim().toLowerCase();
       const emailMatches = ticket.email.toLowerCase() === cleanContact;
       const cleanPhone = ticket.phone.replace(/[\s\-()]/g, "");
+      const cleanContactPhone = cleanContact.replace(/[\s\-()]/g, "");
       const phoneMatches =
-        cleanContact.length >= 6 &&
-        (cleanPhone.includes(cleanContact) || cleanContact.includes(cleanPhone));
+        cleanContactPhone.length >= 6 &&
+        (cleanPhone.includes(cleanContactPhone) || cleanContactPhone.includes(cleanPhone));
 
       if (!emailMatches && !phoneMatches) {
         return NextResponse.json(

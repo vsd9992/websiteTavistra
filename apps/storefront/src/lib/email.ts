@@ -437,7 +437,7 @@ export async function sendTicketEmail(params: {
 
   return sendTavistraMail({
     to: customerEmail,
-    subject: `[Tavistra] ${isStaffReply ? "Update regarding" : "Support Ticket Registered"} — ${ticketNumber}: ${subject}`,
+    subject: `[Tavistra] ${isStaffReply ? "Official Studio Response" : "Support Ticket Registered"} — ${ticketNumber}: ${subject}`,
     html,
   });
 }
