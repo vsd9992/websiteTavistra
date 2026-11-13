@@ -1,12 +1,12 @@
 # Project Index
 
 Project: Tavistra (`websiteTavistra`)
-Phase: Phase 2 — Execution (Sets 0–6 Complete; Set 7 Next)
+Phase: Phase 2 — Execution (Sets 0–7 Complete Locally; Set 8 Next)
 Milestone: Modular Hardening & Verification
-Status: Sets 0–6 verified live on `devMachine` (188/188 checks); quote-order linkage, cancellation/refund emails & inquiry sync active; ready for Set 7.
+Status: Sets 0–6 verified live on `devMachine` (188/188 checks); Set 7 implemented locally & verified with 0-error builds; awaiting cloud sync resumption for devMachine live verification.
 
 ## Active Tasks
-- [.ai/tasks/active/set-7-support-tickets.md](tasks/active/set-7-support-tickets.md) — Set 7: Support Tickets, Threaded Messaging & Client Concierge Desk (Pending approval)
+- [.ai/tasks/active/set-7-support-tickets.md](tasks/active/set-7-support-tickets.md) — Set 7: Support Tickets, Threaded Messaging & Concierge Desk (Completed locally)
 
 ## Document Map
 - [AGENTS.md](../AGENTS.md) — Operating rules & memory policy
