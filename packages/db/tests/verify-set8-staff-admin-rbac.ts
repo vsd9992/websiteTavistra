@@ -429,20 +429,39 @@ async function run() {
 
   // ADM-08: Markdown Catalogue Importer
   const sampleMarkdown = `---
-title: "Bespoke Sculptural Credenza Edition"
-sku: "TAV-CRD-SET8-001"
-primary_mode: "MADE_TO_ORDER"
-category: "Furniture & Architectural Objects"
-lead_time_days: 28
-weight_grams: 45000
-price_inr: 85000
-dimensions: "180cm x 45cm x 75cm"
-materials: "Smoked Oak, Antiqued Brass hardware"
+sku: TAV-CRD-SET8-001
+slug: bespoke-sculptural-credenza-set8
+title: Bespoke Sculptural Credenza Edition
+category: lighting-ambience
+subcategory: Architectural Objects
+productType: Credenzas
+primaryMode: MADE_TO_ORDER
+taxInclusivePrice: 85000.00
+gstRate: 0.18
+weightGrams: 45000
+dimensions: 1800mm × 450mm × 750mm
+lengthMm: 1800
+widthMm: 450
+heightMm: 750
+isReturnable: false
+returnWindowDays: null
+materialDescription: Smoked Oak, Antiqued Brass hardware
+isPublished: true
+
+variants:
+  - sku: TAV-CRD-SET8-001-OAK
+    title: Smoked Oak & Brass
+    materialFinish: Hand-rubbed Oil Smoked Oak
+    taxInclusivePrice: 85000.00
+    initialStock: 2
 ---
 
 # Bespoke Sculptural Credenza
 
-Hand-finished architectural storage piece.`;
+Hand-finished architectural storage piece.
+
+## Full Description
+Masterfully joined solid smoked oak with patinated solid brass hardware.`;
 
   const resImport = await fetch(`${STOREFRONT_URL}/api/admin/catalogue/import`, {
     method: "POST",
