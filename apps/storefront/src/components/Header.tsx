@@ -173,9 +173,14 @@ export function Header() {
                         onClick={() => setIsShopOpen(false)}
                         className="group rounded-xl p-3 transition-colors hover:bg-[var(--color-ivory)]"
                       >
-                        <h4 className="text-xs font-semibold text-[var(--color-ink)] group-hover:text-[var(--color-bronze)] transition-colors">
+                        <h4 className="text-xs font-semibold text-[var(--color-ink)] group-hover:text-[var(--color-bronze)] transition-colors mb-1">
                           {cat.name}
                         </h4>
+                        {cat.description && (
+                          <p className="text-[11px] text-[var(--color-muted-light)] line-clamp-1">
+                            {cat.description}
+                          </p>
+                        )}
                       </Link>
                     ))}
                   </div>
