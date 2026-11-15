@@ -32,6 +32,7 @@ async function SearchPageContent({ searchParams }: SearchPageProps) {
 
   return (
     <SearchResultsView
+      key={`${q}-${category}-${mode}-${sort}`}
       initialQuery={q}
       initialCategory={category}
       initialMode={mode}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { MockProduct } from "@/lib/products";
@@ -25,10 +25,11 @@ export function SearchResultsView({
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [query, setQuery] = useState(initialQuery);
-  const [selectedCategory, setSelectedCategory] = useState(initialCategory);
-  const [selectedMode, setSelectedMode] = useState(initialMode);
-  const [selectedSort, setSelectedSort] = useState(initialSort);
+  // Read single source of truth directly from searchParams (fallback to initial props)
+  const query = searchParams.get("q") ?? initialQuery;
+  const selectedCategory = searchParams.get("category") ?? initialCategory;
+  const selectedMode = searchParams.get("mode") ?? initialMode;
+  const selectedSort = searchParams.get("sort") ?? initialSort;
 
   // Synchronize URL query params
   const updateUrl = (newQ: string, newCat: string, newMode: string, newSort: string) => {
@@ -41,30 +42,19 @@ export function SearchResultsView({
     router.push(`/search?${params.toString()}`);
   };
 
-  const handleQuerySubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    updateUrl(query, selectedCategory, selectedMode, selectedSort);
-  };
-
   const handleCategoryChange = (cat: string) => {
-    setSelectedCategory(cat);
     updateUrl(query, cat, selectedMode, selectedSort);
   };
 
   const handleModeChange = (mode: string) => {
-    setSelectedMode(mode);
     updateUrl(query, selectedCategory, mode, selectedSort);
   };
 
   const handleSortChange = (sort: string) => {
-    setSelectedSort(sort);
     updateUrl(query, selectedCategory, selectedMode, sort);
   };
 
   const clearAllFilters = () => {
-    setSelectedCategory("all");
-    setSelectedMode("all");
-    setSelectedSort("relevance");
     updateUrl(query, "all", "all", "relevance");
   };
 
@@ -72,7 +62,7 @@ export function SearchResultsView({
   const { filteredProducts, pricedProducts, unpricedProducts, isPriceSorted } = useMemo(() => {
     const qLower = query.trim().toLowerCase();
 
-    // 1. Text Query Matching
+    // 1. Text Query Matching across searchable fields
     let matched = allProducts.filter((p) => {
       if (!qLower) return true;
 
@@ -124,7 +114,6 @@ export function SearchResultsView({
         return 0;
       });
     } else if (selectedSort === "newest") {
-      // Newest
       matched.sort((a, b) => (b.id > a.id ? 1 : -1));
     }
 
@@ -163,7 +152,8 @@ export function SearchResultsView({
     };
   }, [allProducts, query, selectedCategory, selectedMode, selectedSort]);
 
-  const hasActiveFilters = selectedCategory !== "all" || selectedMode !== "all" || selectedSort !== "relevance";
+  const hasActiveFilters =
+    selectedCategory !== "all" || selectedMode !== "all" || selectedSort !== "relevance";
 
   const modeLabels: Record<string, string> = {
     READY_STOCK: "Ready Stock",
@@ -173,12 +163,12 @@ export function SearchResultsView({
 
   return (
     <div className="space-y-8">
-      {/* 1. Header & Live Search Input */}
-      <div className="border-b border-[var(--color-decorative-border)] pb-8">
+      {/* 1. Header (Clean & Minimalist without redundant search input) */}
+      <div className="border-b border-[var(--color-decorative-border)] pb-6">
         <p className="text-xs uppercase tracking-widest text-[var(--color-bronze)] font-semibold mb-2">
           Catalogue Search
         </p>
-        <h1 className="font-editorial text-3xl sm:text-4xl text-[var(--color-ink)] mb-4">
+        <h1 className="font-editorial text-3xl sm:text-4xl text-[var(--color-ink)] mb-3">
           {query.trim() ? (
             <>
               Results for &ldquo;{query.trim()}&rdquo;
@@ -187,49 +177,9 @@ export function SearchResultsView({
             "Explore All Editions"
           )}
         </h1>
-        <p className="text-xs text-[var(--color-muted-light)] mb-6">
+        <p className="text-xs text-[var(--color-muted-light)]">
           Showing {filteredProducts.length} {filteredProducts.length === 1 ? "piece" : "pieces"} matching your criteria.
         </p>
-
-        {/* Refined Search Form */}
-        <form onSubmit={handleQuerySubmit} className="max-w-xl">
-          <div className="relative flex items-center rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] shadow-sm focus-within:border-[var(--color-ink)] focus-within:ring-1 focus-within:ring-[var(--color-ink)]">
-            <svg
-              className="h-4 w-4 ml-4 text-[var(--color-muted-light)] flex-shrink-0"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-            </svg>
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search objects, materials, styles..."
-              className="w-full bg-transparent px-3 py-3 text-sm text-[var(--color-ink)] placeholder-[var(--color-muted-light)] focus:outline-none"
-            />
-            {query && (
-              <button
-                type="button"
-                onClick={() => {
-                  setQuery("");
-                  updateUrl("", selectedCategory, selectedMode, selectedSort);
-                }}
-                className="mr-2 text-xs text-[var(--color-muted-light)] hover:text-[var(--color-ink)] px-2 py-1"
-              >
-                Clear
-              </button>
-            )}
-            <button
-              type="submit"
-              className="mr-2 rounded-lg bg-[var(--color-ink)] px-4 py-2 text-xs font-semibold text-[var(--color-canvas)] transition-opacity hover:opacity-90"
-            >
-              Search
-            </button>
-          </div>
-        </form>
       </div>
 
       {/* 2. Minimal Launch Filters (WEB-040A) & Sorting (WEB-040B) */}
@@ -352,7 +302,7 @@ export function SearchResultsView({
             No matching pieces found
           </p>
           <p className="text-xs text-[var(--color-muted-light)] max-w-md mx-auto mb-6">
-            We couldn&rsquo;t find any objects matching your search criteria. Try adjusting your search term, clearing active filters, or exploring our curated categories.
+            We couldn&rsquo;t find any objects matching your search criteria. Try adjusting your search term via the search icon above, clearing active filters, or exploring our curated categories.
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             {hasActiveFilters && (
