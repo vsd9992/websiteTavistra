@@ -26,10 +26,14 @@ function CheckoutContent() {
 
   const { readyStockItems, mtoItems, clearCart } = useCart();
   const { saveOrder } = useOrders();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, addAddress } = useAuth();
   const activeItems = modeParam === "READY_STOCK" ? readyStockItems : mtoItems;
   const didAutofillRef = useRef(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [addressSelectionMode, setAddressSelectionMode] = useState<"saved" | "new">("saved");
+  const [saveAddressToProfile, setSaveAddressToProfile] = useState(true);
+  const [newAddressLabel, setNewAddressLabel] = useState("");
+  const [setAsDefaultAddress, setSetAsDefaultAddress] = useState(false);
 
   // Form State
   const [customer, setCustomer] = useState({
@@ -100,37 +104,68 @@ function CheckoutContent() {
   useEffect(() => {
     if (!isAuthenticated || !user || didAutofillRef.current) return;
     didAutofillRef.current = true;
-    const defaultAddr =
-      user.addresses.find((a) => a.isDefault) || user.addresses[0] || null;
-    if (defaultAddr) {
-      setSelectedAddressId(defaultAddr.id);
+    if (user.addresses && user.addresses.length > 0) {
+      setAddressSelectionMode("saved");
+      const defaultAddr =
+        user.addresses.find((a) => a.isDefault) || user.addresses[0] || null;
+      if (defaultAddr) {
+        setSelectedAddressId(defaultAddr.id);
+        setCustomer((prev) => ({
+          ...prev,
+          fullName: defaultAddr.fullName || user.name || prev.fullName,
+          email: prev.email || user.email || "",
+          phone: defaultAddr.phone || user.phone || prev.phone,
+          gstin: prev.gstin || user.gstin || "",
+          address1: defaultAddr.addressLine1,
+          address2: defaultAddr.addressLine2 || "",
+          city: defaultAddr.city,
+          state: defaultAddr.state,
+          pincode: defaultAddr.pincode,
+        }));
+      }
+    } else {
+      setAddressSelectionMode("new");
+      setCustomer((prev) => ({
+        ...prev,
+        fullName: prev.fullName || user.name || "",
+        email: prev.email || user.email || "",
+        phone: prev.phone || user.phone || "",
+        gstin: prev.gstin || user.gstin || "",
+      }));
     }
-    setCustomer((prev) => ({
-      ...prev,
-      fullName: prev.fullName || defaultAddr?.fullName || user.name || "",
-      email: prev.email || user.email || "",
-      phone: prev.phone || defaultAddr?.phone || user.phone || "",
-      gstin: prev.gstin || user.gstin || "",
-      address1: prev.address1 || defaultAddr?.addressLine1 || "",
-      address2: prev.address2 || defaultAddr?.addressLine2 || "",
-      city: prev.city || defaultAddr?.city || "",
-      state: defaultAddr?.state || prev.state,
-      pincode: prev.pincode || defaultAddr?.pincode || "",
-    }));
   }, [isAuthenticated, user]);
 
   const applySavedAddress = (addr: SavedAddress) => {
     setSelectedAddressId(addr.id);
+    setAddressSelectionMode("saved");
     setCustomer((prev) => ({
       ...prev,
-      fullName: addr.fullName || prev.fullName,
-      phone: addr.phone || prev.phone,
+      fullName: addr.fullName || prev.fullName || user?.name || "",
+      phone: addr.phone || prev.phone || user?.phone || "",
       address1: addr.addressLine1,
       address2: addr.addressLine2 || "",
       city: addr.city,
       state: addr.state,
       pincode: addr.pincode,
     }));
+    if (pinError) setPinError(null);
+  };
+
+  const handleStartNewAddress = () => {
+    setAddressSelectionMode("new");
+    setSelectedAddressId("new");
+    setCustomer((prev) => ({
+      ...prev,
+      fullName: user?.name || prev.fullName,
+      phone: user?.phone || prev.phone,
+      address1: "",
+      address2: "",
+      city: "",
+      state: "Delhi",
+      pincode: "",
+    }));
+    setShippingResult(null);
+    setPinError(null);
   };
 
   // Live Contact & Address Validations
@@ -354,6 +389,29 @@ function CheckoutContent() {
     }
 
     setIsProcessing(true);
+
+    // Save newly entered address to profile if requested by authenticated customer (like Amazon)
+    if (
+      isAuthenticated &&
+      (addressSelectionMode === "new" || selectedAddressId === "new") &&
+      saveAddressToProfile
+    ) {
+      try {
+        await addAddress({
+          label: newAddressLabel.trim() || "Delivery Location",
+          fullName: customer.fullName.trim(),
+          phone: mobileValidation.normalizedPhone || customer.phone.trim(),
+          addressLine1: customer.address1.trim(),
+          addressLine2: customer.address2.trim() || undefined,
+          city: customer.city.trim(),
+          state: customer.state.trim(),
+          pincode: customer.pincode.trim(),
+          isDefault: setAsDefaultAddress,
+        });
+      } catch (err) {
+        console.warn("Could not save address to customer profile:", err);
+      }
+    }
 
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const provisionalOrderId =
@@ -643,258 +701,465 @@ function CheckoutContent() {
           </div>
 
           <form id="checkout-form" onSubmit={handleSubmitOrder} className="space-y-6">
-            {isAuthenticated && user && user.addresses.length > 0 && (
-              <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/80 p-4 space-y-3">
+            {/* Guest Sign-in Suggestion Banner */}
+            {!isAuthenticated && (
+              <div className="flex items-center justify-between rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/70 px-4 py-3 text-xs">
+                <span className="text-[var(--color-muted-light)]">
+                  Have a Tavistra account?
+                </span>
+                <Link
+                  href={`/account/login?next=${encodeURIComponent(
+                    `/checkout?mode=${modeParam === "READY_STOCK" ? "ready_stock" : "made_to_order"}`
+                  )}`}
+                  className="font-semibold text-[var(--color-bronze)] hover:underline"
+                >
+                  Sign in to use saved addresses →
+                </Link>
+              </div>
+            )}
+
+            {/* Saved Addresses Section (Authenticated Users) */}
+            {isAuthenticated && user && user.addresses && user.addresses.length > 0 && (
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-ink)]">
-                    Saved Delivery Locations ({user.name})
-                  </span>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
+                    Saved Delivery Addresses ({user.name})
+                  </h3>
                   <Link
                     href="/account/addresses"
                     className="text-[11px] font-semibold text-[var(--color-bronze)] hover:underline"
                   >
-                    Manage Addresses
+                    Manage Address Book
                   </Link>
                 </div>
-                <div className="flex flex-wrap gap-2">
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {user.addresses.map((addr) => {
-                    const active = selectedAddressId === addr.id;
+                    const isSelected = addressSelectionMode === "saved" && selectedAddressId === addr.id;
                     return (
-                      <button
+                      <div
                         key={addr.id}
-                        type="button"
                         onClick={() => applySavedAddress(addr)}
-                        className={`rounded-xl border px-3.5 py-2 text-left text-xs transition-colors ${
-                          active
-                            ? "border-[var(--color-ink)] bg-[var(--color-ink)] text-[var(--color-canvas)]"
-                            : "border-[var(--color-control-border)] bg-[var(--color-canvas)] text-[var(--color-ink)] hover:bg-[var(--color-stone)]"
+                        className={`relative flex flex-col justify-between rounded-2xl border p-4 cursor-pointer transition-all ${
+                          isSelected
+                            ? "border-[var(--color-ink)] bg-[var(--color-ivory)] shadow-sm ring-1 ring-[var(--color-ink)]"
+                            : "border-[var(--color-decorative-border)] bg-[var(--color-canvas)] hover:border-[var(--color-control-border)] hover:bg-[var(--color-ivory)]/40"
                         }`}
                       >
-                        <div className="font-semibold">
-                          {addr.label} · {addr.pincode}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="radio"
+                                name="selectedDeliveryAddress"
+                                checked={isSelected}
+                                onChange={() => applySavedAddress(addr)}
+                                className="h-4 w-4 accent-[var(--color-ink)] cursor-pointer"
+                              />
+                              <span className="text-xs font-semibold text-[var(--color-ink)]">
+                                {addr.fullName || user.name}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="rounded bg-[var(--color-stone)] px-2 py-0.5 text-[10px] font-medium text-[var(--color-ink)]">
+                                {addr.label}
+                              </span>
+                              {addr.isDefault && (
+                                <span className="rounded bg-emerald-100 text-emerald-800 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider">
+                                  Default
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <p className="text-xs text-[var(--color-muted-light)] leading-relaxed pl-6">
+                            {addr.addressLine1}
+                            {addr.addressLine2 ? `, ${addr.addressLine2}` : ""}
+                            <br />
+                            {addr.city}, {addr.state} — <span className="font-mono text-[var(--color-ink)] font-medium">{addr.pincode}</span>
+                          </p>
+                          <p className="text-[11px] text-[var(--color-muted-light)] pl-6">
+                            Phone: <span className="font-mono text-[var(--color-ink)]">{addr.phone || user.phone}</span>
+                          </p>
                         </div>
-                        <div
-                          className={`text-[10px] ${
-                            active ? "text-[var(--color-canvas)]/80" : "text-[var(--color-muted-light)]"
-                          }`}
-                        >
-                          {addr.city}, {addr.state}
-                        </div>
-                      </button>
+                      </div>
                     );
                   })}
+
+                  {/* Add New Address Card Option */}
+                  <div
+                    onClick={handleStartNewAddress}
+                    className={`flex flex-col items-center justify-center rounded-2xl border border-dashed p-6 cursor-pointer transition-all min-h-[110px] text-center ${
+                      addressSelectionMode === "new"
+                        ? "border-[var(--color-ink)] bg-[var(--color-ivory)] ring-1 ring-[var(--color-ink)]"
+                        : "border-[var(--color-control-border)] bg-[var(--color-canvas)] hover:border-[var(--color-ink)] hover:bg-[var(--color-ivory)]/40"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 text-xs font-semibold text-[var(--color-ink)]">
+                      <span className="text-base font-bold leading-none">+</span>
+                      <span>Add a new delivery address</span>
+                    </div>
+                    <p className="text-[11px] text-[var(--color-muted-light)] mt-1">
+                      Deliver to a different site, studio, or residence
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Contact Details */}
-            <div className="space-y-4">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
-                Contact Information
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
-                    Full Legal Name *
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    value={customer.fullName}
-                    onBlur={() => handleBlur("fullName")}
-                    onChange={(e) => {
-                      setCustomer({ ...customer, fullName: e.target.value });
-                      if (touched.fullName && e.target.value.trim().length >= 2) {
-                        setFieldErrors((prev) => ({ ...prev, fullName: undefined }));
-                      }
-                    }}
-                    placeholder="e.g. Ar. Vikramaditya Sharma"
-                    className={`w-full rounded-xl border ${
-                      touched.fullName && fieldErrors.fullName
-                        ? "border-red-400 bg-red-50/20"
-                        : "border-[var(--color-control-border)] bg-[var(--color-canvas)]"
-                    } px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]`}
-                  />
-                  {touched.fullName && fieldErrors.fullName && (
-                    <p className="text-[10px] text-red-600 font-medium mt-1">⚠ {fieldErrors.fullName}</p>
-                  )}
+            {/* When Saved Address is Active: Clean summary + contact verification */}
+            {addressSelectionMode === "saved" && selectedAddressId && (
+              <div className="space-y-4 pt-2">
+                <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/70 p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-bronze)]">
+                      Active Delivery Destination
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleStartNewAddress}
+                      className="text-xs font-semibold text-[var(--color-bronze)] hover:underline"
+                    >
+                      + Add New Address
+                    </button>
+                  </div>
+                  <div className="text-xs text-[var(--color-ink)] space-y-1">
+                    <p className="font-semibold">
+                      {customer.fullName} · <span className="font-mono font-normal text-[var(--color-muted-light)]">{customer.phone}</span>
+                    </p>
+                    <p className="text-[var(--color-muted-light)]">
+                      {customer.address1}
+                      {customer.address2 ? `, ${customer.address2}` : ""}, {customer.city}, {customer.state} — <strong className="font-mono text-[var(--color-ink)]">{customer.pincode}</strong>
+                    </p>
+                    {shippingResult && (
+                      <p className="text-[11px] text-emerald-800 font-medium pt-1">
+                        ✓ Insured Transit Hub: {shippingResult.zone.name} ({shippingResult.transitDaysEstimate})
+                      </p>
+                    )}
+                    {pinError && (
+                      <p className="text-xs text-red-700 font-medium pt-1">
+                        ⚠ {pinError}
+                      </p>
+                    )}
+                  </div>
                 </div>
+
+                {/* Email for Invoicing in Saved Mode */}
                 <div>
                   <div className="flex justify-between items-center mb-1.5">
                     <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)]">
-                      Mobile Number (For Dispatch Updates) *
+                      Email Address (For Tax Invoices & Order Receipts) *
                     </label>
-                    {mobileValidation.isValid && (
+                    {emailValidation.isValid && (
                       <span className="text-[10px] text-emerald-700 font-semibold">
-                        ✓ Valid Indian Mobile
+                        ✓ Direct Permanent Email
                       </span>
                     )}
                   </div>
                   <input
                     required
-                    type="tel"
-                    value={customer.phone}
-                    onBlur={() => handleBlur("phone")}
-                    onChange={(e) => handlePhoneChange(e.target.value)}
-                    placeholder="+91 98765 43210"
+                    type="email"
+                    value={customer.email}
+                    onBlur={() => handleBlur("email")}
+                    onChange={(e) => handleEmailChange(e.target.value)}
+                    placeholder="vikram@studio.in"
                     className={`w-full rounded-xl border ${
-                      touched.phone && fieldErrors.phone
+                      touched.email && fieldErrors.email
                         ? "border-red-400 bg-red-50/20"
                         : "border-[var(--color-control-border)] bg-[var(--color-canvas)]"
-                    } px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono`}
+                    } px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]`}
                   />
-                  {touched.phone && fieldErrors.phone ? (
-                    <p className="text-[10px] text-red-600 font-medium mt-1">⚠ {fieldErrors.phone}</p>
-                  ) : (
-                    <p className="text-[10px] text-[var(--color-muted-light)] mt-1">
-                      10-digit Indian mobile (starts with 6–9) required for courier dispatch OTP.
-                    </p>
+                  {touched.email && fieldErrors.email && (
+                    <div className="mt-1.5 p-2 rounded-lg text-[11px] font-medium leading-relaxed text-red-600">
+                      ⚠ {fieldErrors.email}
+                    </div>
                   )}
                 </div>
               </div>
-              <div>
-                <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)]">
-                    Email Address (For Tax Invoices & Order Receipts) *
-                  </label>
-                  {emailValidation.isValid && (
-                    <span className="text-[10px] text-emerald-700 font-semibold">
-                      ✓ Direct Permanent Email
-                    </span>
+            )}
+
+            {/* When New Address Mode is Active (or Guest, or No Saved Addresses) */}
+            {addressSelectionMode === "new" && (
+              <div className="space-y-6 pt-2">
+                <div className="flex items-center justify-between border-b border-[var(--color-decorative-border)] pb-3">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
+                    {isAuthenticated && user?.addresses && user.addresses.length > 0
+                      ? "Add New Delivery Address"
+                      : "Delivery Destination & Contact Details"}
+                  </h3>
+                  {isAuthenticated && user?.addresses && user.addresses.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const def = user.addresses.find((a) => a.isDefault) || user.addresses[0];
+                        if (def) applySavedAddress(def);
+                      }}
+                      className="text-xs font-semibold text-[var(--color-bronze)] hover:underline"
+                    >
+                      ← Use a saved address
+                    </button>
                   )}
                 </div>
-                <input
-                  required
-                  type="email"
-                  value={customer.email}
-                  onBlur={() => handleBlur("email")}
-                  onChange={(e) => handleEmailChange(e.target.value)}
-                  placeholder="vikram@studio.in"
-                  className={`w-full rounded-xl border ${
-                    touched.email && fieldErrors.email
-                      ? "border-red-400 bg-red-50/20"
-                      : "border-[var(--color-control-border)] bg-[var(--color-canvas)]"
-                  } px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]`}
-                />
-                {touched.email && fieldErrors.email ? (
-                  <div className={`mt-1.5 p-2 rounded-lg text-[11px] font-medium leading-relaxed ${
-                    emailValidation.isRelayBanned ? "bg-amber-50 text-amber-900 border border-amber-200" : "text-red-600"
-                  }`}>
-                    ⚠ {fieldErrors.email}
+
+                {/* Contact Details */}
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
+                        Full Legal Name *
+                      </label>
+                      <input
+                        required
+                        type="text"
+                        value={customer.fullName}
+                        onBlur={() => handleBlur("fullName")}
+                        onChange={(e) => {
+                          setCustomer({ ...customer, fullName: e.target.value });
+                          if (touched.fullName && e.target.value.trim().length >= 2) {
+                            setFieldErrors((prev) => ({ ...prev, fullName: undefined }));
+                          }
+                        }}
+                        placeholder="e.g. Ar. Vikramaditya Sharma"
+                        className={`w-full rounded-xl border ${
+                          touched.fullName && fieldErrors.fullName
+                            ? "border-red-400 bg-red-50/20"
+                            : "border-[var(--color-control-border)] bg-[var(--color-canvas)]"
+                        } px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]`}
+                      />
+                      {touched.fullName && fieldErrors.fullName && (
+                        <p className="text-[10px] text-red-600 font-medium mt-1">⚠ {fieldErrors.fullName}</p>
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex justify-between items-center mb-1.5">
+                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)]">
+                          Mobile Number (For Dispatch Updates) *
+                        </label>
+                        {mobileValidation.isValid && (
+                          <span className="text-[10px] text-emerald-700 font-semibold">
+                            ✓ Valid Indian Mobile
+                          </span>
+                        )}
+                      </div>
+                      <input
+                        required
+                        type="tel"
+                        value={customer.phone}
+                        onBlur={() => handleBlur("phone")}
+                        onChange={(e) => handlePhoneChange(e.target.value)}
+                        placeholder="+91 98765 43210"
+                        className={`w-full rounded-xl border ${
+                          touched.phone && fieldErrors.phone
+                            ? "border-red-400 bg-red-50/20"
+                            : "border-[var(--color-control-border)] bg-[var(--color-canvas)]"
+                        } px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono`}
+                      />
+                      {touched.phone && fieldErrors.phone ? (
+                        <p className="text-[10px] text-red-600 font-medium mt-1">⚠ {fieldErrors.phone}</p>
+                      ) : (
+                        <p className="text-[10px] text-[var(--color-muted-light)] mt-1">
+                          10-digit Indian mobile (starts with 6–9) required for courier dispatch OTP.
+                        </p>
+                      )}
+                    </div>
                   </div>
-                ) : (
-                  <p className="text-[10px] text-[var(--color-muted-light)] mt-1">
-                    Permanent email required for GST invoicing. Anonymous forwarding relays (e.g. @duck.com, @mozmail.com) are banned.
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Shipping Address */}
-            <div className="space-y-4 pt-4 border-t border-[var(--color-decorative-border)]">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
-                  Shipping Address
-                </h3>
-                {shippingResult && customer.city && (
-                  <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                    ✓ Serviceable Hub ({customer.city}, {customer.state})
-                  </span>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
-                  6-Digit Indian PIN Code *
-                </label>
-                <input
-                  required
-                  type="text"
-                  maxLength={6}
-                  value={customer.pincode}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, "");
-                    setCustomer({ ...customer, pincode: val });
-                    if (pinError) setPinError(null);
-                  }}
-                  placeholder="Enter 6-digit PIN code (e.g. 110001, 560001, 400001)"
-                  className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono"
-                />
-                {pinError && (
-                  <div className="mt-2 rounded-xl bg-red-50 p-3 border border-red-200 text-xs text-red-700 font-medium leading-relaxed">
-                    ⚠ {pinError}
+                  <div>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)]">
+                        Email Address (For Tax Invoices & Order Receipts) *
+                      </label>
+                      {emailValidation.isValid && (
+                        <span className="text-[10px] text-emerald-700 font-semibold">
+                          ✓ Direct Permanent Email
+                        </span>
+                      )}
+                    </div>
+                    <input
+                      required
+                      type="email"
+                      value={customer.email}
+                      onBlur={() => handleBlur("email")}
+                      onChange={(e) => handleEmailChange(e.target.value)}
+                      placeholder="vikram@studio.in"
+                      className={`w-full rounded-xl border ${
+                        touched.email && fieldErrors.email
+                          ? "border-red-400 bg-red-50/20"
+                          : "border-[var(--color-control-border)] bg-[var(--color-canvas)]"
+                      } px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]`}
+                    />
+                    {touched.email && fieldErrors.email ? (
+                      <div className={`mt-1.5 p-2 rounded-lg text-[11px] font-medium leading-relaxed ${
+                        emailValidation.isRelayBanned ? "bg-amber-50 text-amber-900 border border-amber-200" : "text-red-600"
+                      }`}>
+                        ⚠ {fieldErrors.email}
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-[var(--color-muted-light)] mt-1">
+                        Permanent email required for GST invoicing. Anonymous forwarding relays (e.g. @duck.com, @mozmail.com) are banned.
+                      </p>
+                    )}
                   </div>
-                )}
-              </div>
+                </div>
 
-              <div>
-                <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
-                  Address Line 1 (Building, Suite, Street) *
-                </label>
-                <input
-                  required
-                  type="text"
-                  value={customer.address1}
-                  onBlur={() => handleBlur("address1")}
-                  onChange={(e) => {
-                    setCustomer({ ...customer, address1: e.target.value });
-                    if (touched.address1 && e.target.value.trim().length >= 5) {
-                      setFieldErrors((prev) => ({ ...prev, address1: undefined }));
-                    }
-                  }}
-                  placeholder="e.g. Penthouse 4B, Signature Towers"
-                  className={`w-full rounded-xl border ${
-                    touched.address1 && fieldErrors.address1
-                      ? "border-red-400 bg-red-50/20"
-                      : "border-[var(--color-control-border)] bg-[var(--color-canvas)]"
-                  } px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]`}
-                />
-                {touched.address1 && fieldErrors.address1 && (
-                  <p className="text-[10px] text-red-600 font-medium mt-1">⚠ {fieldErrors.address1}</p>
-                )}
-              </div>
+                {/* Shipping Address Inputs */}
+                <div className="space-y-4 pt-4 border-t border-[var(--color-decorative-border)]">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)]">
+                      Shipping Address
+                    </h3>
+                    {shippingResult && customer.city && (
+                      <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                        ✓ Serviceable Hub ({customer.city}, {customer.state})
+                      </span>
+                    )}
+                  </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
-                    Address Line 2 (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={customer.address2}
-                    onChange={(e) => setCustomer({ ...customer, address2: e.target.value })}
-                    placeholder="e.g. Near Golf Course Road"
-                    className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
-                    City (Auto-Filled) *
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    value={customer.city}
-                    onChange={(e) => setCustomer({ ...customer, city: e.target.value })}
-                    placeholder="City will auto-fill"
-                    className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-medium"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
-                    State (Auto-Filled) *
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    value={customer.state}
-                    onChange={(e) => setCustomer({ ...customer, state: e.target.value })}
-                    placeholder="State will auto-fill"
-                    className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-medium"
-                  />
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
+                      6-Digit Indian PIN Code *
+                    </label>
+                    <input
+                      required
+                      type="text"
+                      maxLength={6}
+                      value={customer.pincode}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "");
+                        setCustomer({ ...customer, pincode: val });
+                        if (pinError) setPinError(null);
+                      }}
+                      placeholder="Enter 6-digit PIN code (e.g. 110001, 560001, 400001)"
+                      className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono"
+                    />
+                    {pinError && (
+                      <div className="mt-2 rounded-xl bg-red-50 p-3 border border-red-200 text-xs text-red-700 font-medium leading-relaxed">
+                        ⚠ {pinError}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
+                      Address Line 1 (Building, Suite, Street) *
+                    </label>
+                    <input
+                      required
+                      type="text"
+                      value={customer.address1}
+                      onBlur={() => handleBlur("address1")}
+                      onChange={(e) => {
+                        setCustomer({ ...customer, address1: e.target.value });
+                        if (touched.address1 && e.target.value.trim().length >= 5) {
+                          setFieldErrors((prev) => ({ ...prev, address1: undefined }));
+                        }
+                      }}
+                      placeholder="e.g. Penthouse 4B, Signature Towers"
+                      className={`w-full rounded-xl border ${
+                        touched.address1 && fieldErrors.address1
+                          ? "border-red-400 bg-red-50/20"
+                          : "border-[var(--color-control-border)] bg-[var(--color-canvas)]"
+                      } px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]`}
+                    />
+                    {touched.address1 && fieldErrors.address1 && (
+                      <p className="text-[10px] text-red-600 font-medium mt-1">⚠ {fieldErrors.address1}</p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
+                        Address Line 2 (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={customer.address2}
+                        onChange={(e) => setCustomer({ ...customer, address2: e.target.value })}
+                        placeholder="e.g. Near Golf Course Road"
+                        className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
+                        City (Auto-Filled) *
+                      </label>
+                      <input
+                        required
+                        type="text"
+                        value={customer.city}
+                        onChange={(e) => setCustomer({ ...customer, city: e.target.value })}
+                        placeholder="City will auto-fill"
+                        className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-medium"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
+                        State (Auto-Filled) *
+                      </label>
+                      <input
+                        required
+                        type="text"
+                        value={customer.state}
+                        onChange={(e) => setCustomer({ ...customer, state: e.target.value })}
+                        placeholder="State will auto-fill"
+                        className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Amazon-style Save to Profile Option (Authenticated Users) */}
+                  {isAuthenticated && (
+                    <div className="rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/70 p-4 space-y-3 mt-4">
+                      <label className="flex items-start gap-2.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={saveAddressToProfile}
+                          onChange={(e) => setSaveAddressToProfile(e.target.checked)}
+                          className="mt-0.5 h-4 w-4 rounded accent-[var(--color-ink)] cursor-pointer"
+                        />
+                        <div>
+                          <span className="text-xs font-semibold text-[var(--color-ink)] block">
+                            Save this address to your address book
+                          </span>
+                          <span className="text-[11px] text-[var(--color-muted-light)] block">
+                            Easily select this address for your future orders.
+                          </span>
+                        </div>
+                      </label>
+
+                      {saveAddressToProfile && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 pl-6">
+                          <div>
+                            <label className="block text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1">
+                              Address Label
+                            </label>
+                            <input
+                              type="text"
+                              value={newAddressLabel}
+                              onChange={(e) => setNewAddressLabel(e.target.value)}
+                              placeholder="e.g. Studio, Residence, Site Office"
+                              className="w-full rounded-lg border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-3 py-1.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                            />
+                          </div>
+                          <div className="flex items-center pt-3 sm:pt-4">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={setAsDefaultAddress}
+                                onChange={(e) => setSetAsDefaultAddress(e.target.checked)}
+                                className="h-3.5 w-3.5 rounded accent-[var(--color-ink)] cursor-pointer"
+                              />
+                              <span className="text-xs text-[var(--color-ink)]">
+                                Set as default delivery address
+                              </span>
+                            </label>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Optional GSTIN for corporate architects */}
             <div className="pt-4 border-t border-[var(--color-decorative-border)]">
