@@ -12,14 +12,16 @@ export function Header() {
   const [isShopOpen, setIsShopOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [systemNotice, setSystemNotice] = useState<{
     maintenanceMode: boolean;
     studioHiatus: boolean;
     announcementBanner: string;
   } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const accountDropdownRef = useRef<HTMLDivElement>(null);
   const { totalItemCount } = useCart();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
 
   // Load system notices & hiatus announcements
   useEffect(() => {
@@ -42,10 +44,17 @@ export function Header() {
       ) {
         setIsShopOpen(false);
       }
+      if (
+        accountDropdownRef.current &&
+        !accountDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsAccountOpen(false);
+      }
     }
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         setIsShopOpen(false);
+        setIsAccountOpen(false);
         setIsMobileMenuOpen(false);
       }
     }
@@ -247,38 +256,210 @@ export function Header() {
             </svg>
           </button>
 
-          {/* Account Icon */}
-          <Link
-            href={isAuthenticated ? "/account" : "/account/login"}
-            className="relative flex items-center gap-1.5 p-1.5 text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
-            aria-label={isAuthenticated && user ? `Signed in as ${user.name}` : "Sign in to client account"}
-            title={isAuthenticated && user ? `Account: ${user.name}` : "Sign In"}
+          {/* Account Icon with Hover Menu */}
+          <div
+            className="relative"
+            ref={accountDropdownRef}
+            onMouseEnter={() => setIsAccountOpen(true)}
+            onMouseLeave={() => setIsAccountOpen(false)}
           >
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.5}
+            <Link
+              href={isAuthenticated ? "/account" : "/account/login"}
+              onClick={() => setIsAccountOpen(false)}
+              className="relative flex items-center gap-1.5 p-1.5 text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
+              aria-label={isAuthenticated && user ? `Signed in as ${user.name}` : "Sign in to client account"}
+              title={isAuthenticated && user ? `Account: ${user.name}` : "Sign In"}
+              aria-expanded={isAccountOpen}
+              aria-haspopup="menu"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-              />
-            </svg>
-            {isAuthenticated && user && (
-              <span
-                className="hidden sm:inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--color-ink)] px-1.5 text-[10px] font-semibold uppercase text-[var(--color-canvas)]"
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.5}
               >
-                {user.name
-                  .split(/\s+/)
-                  .slice(0, 2)
-                  .map((p) => p[0] || "")
-                  .join("") || "U"}
-              </span>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
+                />
+              </svg>
+              {isAuthenticated && user && (
+                <span
+                  className="hidden sm:inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--color-ink)] px-1.5 text-[10px] font-semibold uppercase text-[var(--color-canvas)]"
+                >
+                  {user.name
+                    .split(/\s+/)
+                    .slice(0, 2)
+                    .map((p) => p[0] || "")
+                    .join("") || "U"}
+                </span>
+              )}
+            </Link>
+
+            {/* Hover Menu Panel */}
+            {isAccountOpen && (
+              <div className="absolute right-0 top-full pt-2 w-64 sm:w-72 z-50">
+                <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-4 shadow-xl text-xs">
+                  {isAuthenticated && user ? (
+                    /* Set 1: Authenticated User Menu */
+                    <div>
+                      {/* Identity Header */}
+                      <div className="pb-3 mb-2 border-b border-[var(--color-decorative-border)]">
+                        <p className="font-semibold text-sm text-[var(--color-ink)] truncate">
+                          {user.name}
+                        </p>
+                        <p className="text-[11px] text-[var(--color-muted-light)] truncate">
+                          {user.email}
+                        </p>
+                        {user.practiceOrStudio && (
+                          <span className="inline-block mt-1 text-[10px] uppercase tracking-wider text-[var(--color-bronze)] font-medium">
+                            {user.practiceOrStudio}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Primary Navigation */}
+                      <div className="space-y-1 py-1">
+                        <Link
+                          href="/account"
+                          onClick={() => setIsAccountOpen(false)}
+                          className="flex items-center justify-between rounded-lg px-2.5 py-2 text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
+                        >
+                          <span>Overview Dashboard</span>
+                          <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                        </Link>
+                        <Link
+                          href="/account/orders"
+                          onClick={() => setIsAccountOpen(false)}
+                          className="flex items-center justify-between rounded-lg px-2.5 py-2 text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
+                        >
+                          <span>Orders &amp; Quotations</span>
+                          <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                        </Link>
+                        <Link
+                          href="/account/tickets"
+                          onClick={() => setIsAccountOpen(false)}
+                          className="flex items-center justify-between rounded-lg px-2.5 py-2 text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
+                        >
+                          <span>Support Tickets</span>
+                          <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                        </Link>
+                        <Link
+                          href="/account/addresses"
+                          onClick={() => setIsAccountOpen(false)}
+                          className="flex items-center justify-between rounded-lg px-2.5 py-2 text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
+                        >
+                          <span>Saved Addresses</span>
+                          <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                        </Link>
+                        <Link
+                          href="/account/profile"
+                          onClick={() => setIsAccountOpen(false)}
+                          className="flex items-center justify-between rounded-lg px-2.5 py-2 text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
+                        >
+                          <span>Profile &amp; Security</span>
+                          <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                        </Link>
+                      </div>
+
+                      {/* Guest Tools */}
+                      <div className="pt-2 mt-1 border-t border-[var(--color-decorative-border)] space-y-1">
+                        <Link
+                          href="/track"
+                          onClick={() => setIsAccountOpen(false)}
+                          className="block rounded-lg px-2.5 py-1.5 text-[11px] text-[var(--color-muted-light)] hover:text-[var(--color-ink)] hover:bg-[var(--color-ivory)] transition-colors"
+                        >
+                          Track Order Milestones
+                        </Link>
+                        <Link
+                          href="/track-ticket"
+                          onClick={() => setIsAccountOpen(false)}
+                          className="block rounded-lg px-2.5 py-1.5 text-[11px] text-[var(--color-muted-light)] hover:text-[var(--color-ink)] hover:bg-[var(--color-ivory)] transition-colors"
+                        >
+                          Track Support Ticket
+                        </Link>
+                      </div>
+
+                      {/* Sign Out */}
+                      <div className="pt-2 mt-2 border-t border-[var(--color-decorative-border)]">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            setIsAccountOpen(false);
+                            await logout();
+                          }}
+                          className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-xs font-semibold text-[var(--color-error)] hover:bg-[var(--color-ivory)] transition-colors"
+                        >
+                          <span>Sign Out</span>
+                          <span>⎋</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Set 2: Guest / Not Logged In Menu */
+                    <div>
+                      <div className="pb-3 mb-3 border-b border-[var(--color-decorative-border)]">
+                        <p className="font-semibold text-sm text-[var(--color-ink)]">
+                          Client Account
+                        </p>
+                        <p className="text-[11px] text-[var(--color-muted-light)] mt-0.5 leading-relaxed">
+                          Sign in to access your orders, active quotations, and studio concierge desk.
+                        </p>
+                        <div className="mt-3 flex gap-2">
+                          <Link
+                            href="/account/login"
+                            onClick={() => setIsAccountOpen(false)}
+                            className="flex-1 rounded-lg bg-[var(--color-ink)] py-2 text-center text-xs font-semibold text-[var(--color-canvas)] transition-opacity hover:opacity-90"
+                          >
+                            Sign In
+                          </Link>
+                          <Link
+                            href="/account/register"
+                            onClick={() => setIsAccountOpen(false)}
+                            className="flex-1 rounded-lg border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] py-2 text-center text-xs font-semibold text-[var(--color-ink)] transition-colors hover:border-[var(--color-control-border)]"
+                          >
+                            Register
+                          </Link>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-bronze)] block px-2.5 py-1">
+                          Client Services
+                        </span>
+                        <Link
+                          href="/track"
+                          onClick={() => setIsAccountOpen(false)}
+                          className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors"
+                        >
+                          <span>Track Order Milestones</span>
+                          <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                        </Link>
+                        <Link
+                          href="/track-ticket"
+                          onClick={() => setIsAccountOpen(false)}
+                          className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors"
+                        >
+                          <span>Track Support Ticket</span>
+                          <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                        </Link>
+                        <Link
+                          href="/contact"
+                          onClick={() => setIsAccountOpen(false)}
+                          className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors"
+                        >
+                          <span>Contact Studio Concierge</span>
+                          <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
-          </Link>
+          </div>
 
           {/* Cart Icon */}
           <Link
@@ -374,35 +555,96 @@ export function Header() {
             </ul>
           </div>
 
-          <div className="pt-6 border-t border-[var(--color-decorative-border)] space-y-2 text-xs">
-            <Link
-              href="/track"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="block font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)]"
-            >
-              Track Order Milestones
-            </Link>
-            <Link
-              href="/account"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="block font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)]"
-            >
-              Client Account &amp; Addresses
-            </Link>
-            <Link
-              href="/contact"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="block text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
-            >
-              Contact Studio
-            </Link>
-            <Link
-              href="/privacy"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="block text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
-            >
-              Privacy & Cookies
-            </Link>
+          <div className="pt-6 border-t border-[var(--color-decorative-border)] space-y-3 text-xs">
+            {isAuthenticated && user ? (
+              <div className="space-y-2">
+                <div className="pb-2 border-b border-[var(--color-decorative-border)]/50">
+                  <span className="text-[10px] uppercase tracking-wider text-[var(--color-bronze)] font-semibold block">
+                    Signed in client
+                  </span>
+                  <span className="font-semibold text-sm text-[var(--color-ink)] block">{user.name}</span>
+                </div>
+                <Link
+                  href="/account"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="block font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)]"
+                >
+                  Client Account Dashboard
+                </Link>
+                <Link
+                  href="/account/orders"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="block text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
+                >
+                  Orders &amp; Quotations
+                </Link>
+                <Link
+                  href="/account/tickets"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="block text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
+                >
+                  Support Tickets
+                </Link>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setIsMobileMenuOpen(false);
+                    await logout();
+                  }}
+                  className="block pt-1 text-[var(--color-error)] text-left font-medium"
+                >
+                  Sign Out ⎋
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Link
+                  href="/account/login"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="block font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)]"
+                >
+                  Sign In to Client Account
+                </Link>
+                <Link
+                  href="/account/register"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="block text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
+                >
+                  Create Client Account
+                </Link>
+              </div>
+            )}
+
+            <div className="pt-3 border-t border-[var(--color-decorative-border)]/50 space-y-2">
+              <Link
+                href="/track"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="block font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)]"
+              >
+                Track Order Milestones
+              </Link>
+              <Link
+                href="/track-ticket"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="block font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)]"
+              >
+                Track Support Ticket
+              </Link>
+              <Link
+                href="/contact"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="block text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
+              >
+                Contact Studio
+              </Link>
+              <Link
+                href="/privacy"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="block text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
+              >
+                Privacy & Cookies
+              </Link>
+            </div>
           </div>
         </div>
       )}
