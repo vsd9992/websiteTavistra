@@ -57,6 +57,26 @@ export function Header() {
     };
   }, []);
 
+  // Global search shortcut (/ or Cmd/Ctrl+K)
+  useEffect(() => {
+    function handleGlobalKeyDown(e: KeyboardEvent) {
+      if (e.key === "/" || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k")) {
+        const target = e.target as HTMLElement | null;
+        const isInput =
+          target &&
+          (target.tagName === "INPUT" ||
+            target.tagName === "TEXTAREA" ||
+            target.isContentEditable);
+        if (!isInput) {
+          e.preventDefault();
+          setIsSearchOpen((prev) => !prev);
+        }
+      }
+    }
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, []);
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-[var(--color-decorative-border)] bg-[var(--color-canvas)]/95 backdrop-blur-md">
       {systemNotice && (systemNotice.maintenanceMode || systemNotice.studioHiatus) && (
@@ -201,10 +221,16 @@ export function Header() {
           {/* Search Button (WEB-037 Compact Search Overlay) */}
           <button
             type="button"
-            onClick={() => setIsSearchOpen(true)}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsSearchOpen(true);
+            }}
+            aria-haspopup="dialog"
+            aria-expanded={isSearchOpen}
             className="p-1.5 text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
             aria-label="Search catalogue"
-            title="Search"
+            title="Search (or press /)"
           >
             <svg
               className="h-5 w-5"

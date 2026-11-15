@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { APPROVED_CATEGORIES } from "@/lib/taxonomy";
@@ -31,6 +32,7 @@ interface SearchOverlayProps {
 
 export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const [query, setQuery] = useState("");
   const [categories, setCategories] = useState<SearchCategoryMatch[]>([]);
   const [products, setProducts] = useState<SearchProductMatch[]>([]);
@@ -41,13 +43,18 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
+  // Ensure client mounting before portaling
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // Flattened active suggestions list for arrow-key navigation
   const flatSuggestions = [
     ...categories.map((c) => ({ type: "category" as const, item: c, url: c.url })),
     ...products.map((p) => ({ type: "product" as const, item: p, url: `/product/${p.slug}` })),
   ];
 
-  // Reset state when overlay opens/closes
+  // Reset state and handle autofocus / body scroll when overlay opens/closes
   useEffect(() => {
     if (isOpen) {
       setQuery("");
@@ -55,11 +62,9 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
       setProducts([]);
       setTotalCount(0);
       setSelectedIndex(-1);
-      // Autofocus input
       setTimeout(() => {
         inputRef.current?.focus();
-      }, 50);
-      // Prevent background scrolling
+      }, 60);
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
@@ -151,7 +156,7 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const modeBadgeText: Record<string, string> = {
     READY_STOCK: "Ready Stock",
@@ -159,12 +164,22 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
     QUOTE_ONLY: "Quote Only",
   };
 
-  return (
+  // Portal directly into document.body to prevent containing-block clipping from sticky/backdrop-blur headers
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-label="Catalogue Search"
-      className="fixed inset-0 z-[100] flex flex-col justify-start items-center bg-black/50 backdrop-blur-sm p-4 sm:p-6 md:p-8 animate-in fade-in duration-150"
+      className="fixed inset-0 z-[99999] flex flex-col justify-start items-center bg-black/60 backdrop-blur-md p-4 sm:p-6 md:p-8"
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: "100vw",
+        height: "100vh",
+      }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -222,7 +237,7 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] px-2 py-1 text-[11px] font-medium text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
+              className="rounded-lg border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] px-2.5 py-1 text-[11px] font-medium text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)] hover:border-[var(--color-control-border)]"
               aria-label="Close search"
             >
               Esc
@@ -398,6 +413,7 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
