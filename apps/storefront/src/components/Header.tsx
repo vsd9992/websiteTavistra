@@ -148,63 +148,39 @@ export function Header() {
             {/* Curated Mega-Menu Panel */}
             {isShopOpen && (
               <div
-                className="absolute -left-12 top-full pt-2 w-[720px]"
+                className="absolute left-0 top-full pt-2 w-[520px]"
               >
-                <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-8 shadow-xl grid grid-cols-12 gap-8">
-                  {/* Left: 6 Approved Categories in 2 Columns */}
-                  <div className="col-span-8">
-                    <div className="flex items-center justify-between border-b border-[var(--color-decorative-border)]/60 pb-3 mb-4">
-                      <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--color-bronze)]">
-                        Catalogue Taxonomy
-                      </span>
-                      <Link
-                        href="/shop"
-                        onClick={() => setIsShopOpen(false)}
-                        className="text-xs font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)] hover:underline"
-                      >
-                        View All Collections →
-                      </Link>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      {APPROVED_CATEGORIES.map((cat) => (
-                        <Link
-                          key={cat.slug}
-                          href={`/category/${cat.slug}`}
-                          onClick={() => setIsShopOpen(false)}
-                          className="group rounded-xl p-3 transition-colors hover:bg-[var(--color-ivory)]"
-                        >
-                          <h4 className="text-xs font-semibold text-[var(--color-ink)] group-hover:text-[var(--color-bronze)] transition-colors mb-1">
-                            {cat.name}
-                          </h4>
-                          <p className="text-[11px] text-[var(--color-muted-light)] line-clamp-1">
-                            {cat.subcategories.slice(0, 2).join(", ")}...
-                          </p>
-                        </Link>
-                      ))}
-                    </div>
+                <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-6 shadow-xl">
+                  {/* 6 Approved Categories in 2 Columns */}
+                  <div className="flex items-center justify-between border-b border-[var(--color-decorative-border)]/60 pb-3 mb-4">
+                    <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--color-bronze)]">
+                      Catalogue Taxonomy
+                    </span>
+                    <Link
+                      href="/shop"
+                      onClick={() => setIsShopOpen(false)}
+                      className="text-xs font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)] hover:underline"
+                    >
+                      View All Collections →
+                    </Link>
                   </div>
 
-                  {/* Right: Curated Editorial Feature Card (Mandated by WEB-035) */}
-                  <div className="col-span-4 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-5 flex flex-col justify-between">
-                    <div>
-                      <span className="inline-block rounded-md bg-[var(--color-stone)] px-2 py-0.5 text-[10px] font-semibold text-[var(--color-ink)] uppercase tracking-wider mb-3">
-                        Featured Batch
-                      </span>
-                      <h4 className="font-editorial text-lg text-[var(--color-ink)] leading-snug mb-2">
-                        Architectural Lighting & Décor
-                      </h4>
-                      <p className="text-[11px] text-[var(--color-muted-light)] leading-relaxed">
-                        Handcrafted brass sconces and kinetic desk lamps with 2700K optical warmth.
-                      </p>
-                    </div>
-                    <Link
-                      href="/category/lighting-ambience"
-                      onClick={() => setIsShopOpen(false)}
-                      className="mt-4 text-xs font-semibold text-[var(--color-bronze)] hover:underline"
-                    >
-                      Explore Lighting →
-                    </Link>
+                  <div className="grid grid-cols-2 gap-3">
+                    {APPROVED_CATEGORIES.map((cat) => (
+                      <Link
+                        key={cat.slug}
+                        href={`/category/${cat.slug}`}
+                        onClick={() => setIsShopOpen(false)}
+                        className="group rounded-xl p-3 transition-colors hover:bg-[var(--color-ivory)]"
+                      >
+                        <h4 className="text-xs font-semibold text-[var(--color-ink)] group-hover:text-[var(--color-bronze)] transition-colors mb-1">
+                          {cat.name}
+                        </h4>
+                        <p className="text-[11px] text-[var(--color-muted-light)] line-clamp-1">
+                          {cat.subcategories.slice(0, 2).join(", ")}...
+                        </p>
+                      </Link>
+                    ))}
                   </div>
                 </div>
               </div>
