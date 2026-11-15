@@ -62,6 +62,50 @@ export default function AccountOrdersPage() {
   const [ordersError, setOrdersError] = useState("");
   const [payingOrderId, setPayingOrderId] = useState<string | null>(null);
   const [balanceNotice, setBalanceNotice] = useState<string | null>(null);
+  const [orderToCancel, setOrderToCancel] = useState<AccountOrder | null>(null);
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [cancelSuccessMessage, setCancelSuccessMessage] = useState<string | null>(null);
+  const [cancellationReason, setCancellationReason] = useState("");
+
+  const isOrderCancellable = (order: AccountOrder) => {
+    if (order.status === "CANCELLED" || order.status === "REFUNDED") return false;
+    if (order.status === "DISPATCHED" || order.status === "DELIVERED") return false;
+    if (order.mode === "MADE_TO_ORDER") {
+      return Boolean(
+        order.isGraceActive &&
+        order.status !== "IN_PRODUCTION" &&
+        order.status !== "PRODUCTION_COMPLETED" &&
+        order.status !== "AWAITING_DISPATCH"
+      );
+    }
+    return true;
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!orderToCancel) return;
+    setCancellingOrderId(orderToCancel.orderNumber);
+    setCancelError(null);
+    try {
+      const res = await fetch(`/api/account/orders/${encodeURIComponent(orderToCancel.orderNumber)}/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: cancellationReason || "Client portal cancellation request" }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Unable to cancel order.");
+      }
+      setCancelSuccessMessage(data.message || `Order ${orderToCancel.orderNumber} successfully cancelled.`);
+      setOrderToCancel(null);
+      setCancellationReason("");
+      await loadOrders();
+    } catch (err) {
+      setCancelError(err instanceof Error ? err.message : "Failed to cancel order.");
+    } finally {
+      setCancellingOrderId(null);
+    }
+  };
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -155,6 +199,12 @@ export default function AccountOrdersPage() {
               {balanceNotice && (
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-800 font-medium">
                   ✓ {balanceNotice}
+                </div>
+              )}
+
+              {cancelSuccessMessage && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-800 font-medium">
+                  ✓ {cancelSuccessMessage}
                 </div>
               )}
 
@@ -356,6 +406,21 @@ export default function AccountOrdersPage() {
                               </svg>
                               Raise Support Ticket
                             </Link>
+
+                            {isOrderCancellable(order) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCancelError(null);
+                                  setCancelSuccessMessage(null);
+                                  setCancellationReason("");
+                                  setOrderToCancel(order);
+                                }}
+                                className="rounded-full border border-rose-300 bg-rose-50/70 px-4 py-2.5 text-xs font-semibold text-rose-800 hover:bg-rose-100 hover:border-rose-400 transition-colors shadow-sm"
+                              >
+                                Request Cancellation &amp; Refund
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -363,6 +428,81 @@ export default function AccountOrdersPage() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+        {/* Cancellation Confirmation Modal */}
+        {orderToCancel && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="w-full max-w-lg rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-6 sm:p-8 space-y-6 shadow-2xl">
+              <div className="space-y-2 border-b border-[var(--color-decorative-border)] pb-4">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-rose-700">
+                  Order Cancellation &amp; Refund Request
+                </span>
+                <h3 className="font-editorial text-2xl text-[var(--color-ink)]">
+                  Cancel Order #{orderToCancel.orderNumber}?
+                </h3>
+              </div>
+
+              {cancelError && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+                  ⚠ {cancelError}
+                </div>
+              )}
+
+              <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-4 space-y-2 text-xs">
+                <div className="flex items-center justify-between font-semibold text-rose-900">
+                  <span>100% Pre-Dispatch Statutory Refund:</span>
+                  <span className="font-mono text-sm">
+                    {formatPrice(orderToCancel.amountPaidRupees)}
+                  </span>
+                </div>
+                <p className="text-[11px] text-rose-800 leading-relaxed">
+                  {orderToCancel.mode === "MADE_TO_ORDER"
+                    ? `This piece is within its 7-calendar-day confirmation grace period (${orderToCancel.graceDaysRemaining ?? 7} day(s) remaining). Workshop crafting has not commenced. Your entire advance of ${formatPrice(orderToCancel.amountPaidRupees)} will be refunded 100% to your original payment method.`
+                    : `This Ready Stock order has not been dispatched. Your payment of ${formatPrice(orderToCancel.amountPaidRupees)} will be refunded 100% to your original payment method.`}
+                </p>
+                <p className="text-[10px] text-rose-700 font-medium">
+                  Gateway processing typically takes 5–7 business days to reflect in your account.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)]">
+                  Cancellation Reason (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={cancellationReason}
+                  onChange={(e) => setCancellationReason(e.target.value)}
+                  placeholder="e.g. Project timeline changed, specification revision needed..."
+                  className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-3.5 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                />
+              </div>
+
+              <div className="flex flex-col-reverse sm:flex-row gap-3 pt-2">
+                <button
+                  type="button"
+                  disabled={cancellingOrderId === orderToCancel.orderNumber}
+                  onClick={() => {
+                    setOrderToCancel(null);
+                    setCancelError(null);
+                  }}
+                  className="flex-1 rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] py-3 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors text-center disabled:opacity-50"
+                >
+                  Keep My Order
+                </button>
+                <button
+                  type="button"
+                  disabled={cancellingOrderId === orderToCancel.orderNumber}
+                  onClick={handleConfirmCancel}
+                  className="flex-1 rounded-full bg-rose-800 py-3 text-xs font-semibold text-white hover:bg-rose-900 transition-colors text-center shadow-sm disabled:opacity-50"
+                >
+                  {cancellingOrderId === orderToCancel.orderNumber
+                    ? "Processing Refund..."
+                    : "Confirm Cancellation & Refund"}
+                </button>
+              </div>
             </div>
           </div>
         )}

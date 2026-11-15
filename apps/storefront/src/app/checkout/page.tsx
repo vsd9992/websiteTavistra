@@ -30,7 +30,7 @@ function CheckoutContent() {
   const activeItems = modeParam === "READY_STOCK" ? readyStockItems : mtoItems;
   const didAutofillRef = useRef(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
-  const [addressSelectionMode, setAddressSelectionMode] = useState<"saved" | "new">("saved");
+  const [addressSelectionMode, setAddressSelectionMode] = useState<"saved" | "new">("new");
   const [saveAddressToProfile, setSaveAddressToProfile] = useState(true);
   const [newAddressLabel, setNewAddressLabel] = useState("");
   const [setAsDefaultAddress, setSetAsDefaultAddress] = useState(false);
@@ -703,17 +703,17 @@ function CheckoutContent() {
           <form id="checkout-form" onSubmit={handleSubmitOrder} className="space-y-6">
             {/* Guest Sign-in Suggestion Banner */}
             {!isAuthenticated && (
-              <div className="flex items-center justify-between rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/70 px-4 py-3 text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/70 px-4 py-3 text-xs">
                 <span className="text-[var(--color-muted-light)]">
-                  Have a Tavistra account?
+                  Have a saved address? Sign in to select from your address book, or continue below to check out as guest.
                 </span>
                 <Link
                   href={`/account/login?next=${encodeURIComponent(
                     `/checkout?mode=${modeParam === "READY_STOCK" ? "ready_stock" : "made_to_order"}`
                   )}`}
-                  className="font-semibold text-[var(--color-bronze)] hover:underline"
+                  className="font-semibold text-[var(--color-bronze)] hover:underline whitespace-nowrap"
                 >
-                  Sign in to use saved addresses →
+                  Sign in →
                 </Link>
               </div>
             )}

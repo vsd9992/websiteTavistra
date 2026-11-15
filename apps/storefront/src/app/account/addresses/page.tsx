@@ -269,15 +269,22 @@ export default function AccountAddressesPage() {
                         <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-1">
                           Address Label *
                         </label>
-                        <select
+                        <input
+                          type="text"
+                          required
+                          list="address-label-suggestions"
                           value={formData.label}
                           onChange={(e) => setFormData({ ...formData, label: e.target.value })}
-                          className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-3.5 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
-                        >
-                          <option value="Studio / Office">Studio / Office</option>
-                          <option value="Home / Residence">Home / Residence</option>
-                          <option value="Client Project Site">Client Project Site</option>
-                        </select>
+                          placeholder="e.g. Studio, Home, Penthouse, Project Site"
+                          className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-3.5 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-medium"
+                        />
+                        <datalist id="address-label-suggestions">
+                          <option value="Studio / Office" />
+                          <option value="Home / Residence" />
+                          <option value="Client Project Site" />
+                          <option value="Workshop" />
+                          <option value="Site Office" />
+                        </datalist>
                       </div>
                       <div>
                         <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] mb-1">

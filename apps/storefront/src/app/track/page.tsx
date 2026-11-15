@@ -431,6 +431,53 @@ function TrackOrderContent() {
                     </div>
                   </div>
 
+                  {/* Guest Cancellation & Statutory Refund Guidance */}
+                  {matchedOrder.status !== "CANCELLED" &&
+                    matchedOrder.status !== "REFUNDED" &&
+                    matchedOrder.status !== "DISPATCHED" &&
+                    matchedOrder.status !== "DELIVERED" &&
+                    (matchedOrder.mode === "MADE_TO_ORDER"
+                      ? Boolean(
+                          matchedOrder.isGraceActive &&
+                          matchedOrder.status !== "IN_PRODUCTION" &&
+                          matchedOrder.status !== "PRODUCTION_COMPLETED" &&
+                          matchedOrder.status !== "AWAITING_DISPATCH"
+                        )
+                      : true) && (
+                      <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/90 p-6 space-y-3 shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-bronze)]">
+                            Order Cancellation &amp; Refund
+                          </span>
+                          <span className="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider">
+                            100% Refund Eligible
+                          </span>
+                        </div>
+                        <p className="text-xs text-[var(--color-ink)] leading-relaxed">
+                          {matchedOrder.mode === "MADE_TO_ORDER"
+                            ? `This Made-to-Order piece is within its 7-calendar-day confirmation grace period (${matchedOrder.graceDaysRemaining ?? 7} day(s) remaining). Machining has not commenced. 100% refund is guaranteed.`
+                            : "This Ready Stock order has not been dispatched. 100% refund is guaranteed prior to carrier handover."}
+                        </p>
+                        <p className="text-[11px] text-[var(--color-muted-light)] leading-relaxed">
+                          To request cancellation as a guest customer, please submit a cancellation support ticket or email our concierge desk. We will process your 100% refund within 24 hours.
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+                          <Link
+                            href={`/contact?intent=support&category=CANCELLATION&order=${encodeURIComponent(matchedOrder.id)}`}
+                            className="flex-1 rounded-full bg-[var(--color-ink)] py-2.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors text-center shadow-sm"
+                          >
+                            Submit Cancellation Ticket →
+                          </Link>
+                          <a
+                            href={`mailto:support@tavistra.com?subject=${encodeURIComponent(`Cancellation Request for Order #${matchedOrder.id}`)}&body=${encodeURIComponent(`Hello Tavistra Concierge Desk,\n\nI would like to request the cancellation and 100% refund for Order #${matchedOrder.id}.\n\nClient Name: ${matchedOrder.customerName}\nPhone: ${matchedOrder.phone}\n\nThank you.`)}`}
+                            className="flex-1 rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] py-2.5 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors text-center"
+                          >
+                            Email Concierge
+                          </a>
+                        </div>
+                      </div>
+                    )}
+
                   {/* Destination Information */}
                   <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-6 space-y-2 text-xs">
                     <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-muted-light)] block">

@@ -21,10 +21,11 @@ function ContactFormContent() {
   const itemsParam = searchParams.get("items") || "";
   const orderParam = searchParams.get("order") || searchParams.get("orderNumber") || "";
   const ticketParam = searchParams.get("ticket") || "";
+  const categoryParam = searchParams.get("category") || "";
 
   // Explicit mode: GENERAL_INQUIRY vs SUPPORT_TICKET
   const initialMode =
-    intentParam === "support" || orderParam || ticketParam
+    intentParam === "support" || orderParam || ticketParam || categoryParam
       ? "SUPPORT_TICKET"
       : "GENERAL_INQUIRY";
 
@@ -58,13 +59,19 @@ function ContactFormContent() {
     name: "",
     email: "",
     phone: "",
-    category: "ORDER_INQUIRY",
+    category: categoryParam || "ORDER_INQUIRY",
     orderNumber: orderParam,
     subject:
-      orderParam
+      categoryParam === "CANCELLATION" && orderParam
+        ? `Cancellation & 100% Refund Request for Order #${orderParam}`
+        : orderParam
         ? `Support Inquiry for Order ${orderParam}`
         : searchParams.get("subject") || "Client Desk Assistance",
-    message: messageParam || "",
+    message:
+      messageParam ||
+      (categoryParam === "CANCELLATION" && orderParam
+        ? `I am requesting the cancellation and 100% refund for Order #${orderParam}. Please process the refund to my original payment method.`
+        : ""),
   });
 
   const [submitted, setSubmitted] = useState(false);
@@ -93,17 +100,27 @@ function ContactFormContent() {
 
   // Synchronize when query parameters change
   useEffect(() => {
-    if (intentParam === "support" || orderParam) {
+    if (intentParam === "support" || orderParam || categoryParam) {
       setContactMode("SUPPORT_TICKET");
-      if (orderParam) {
+      if (orderParam || categoryParam) {
         setTicketData((prev) => ({
           ...prev,
-          orderNumber: orderParam,
-          subject: prev.subject.includes("Order") ? prev.subject : `Support Inquiry for Order ${orderParam}`,
+          orderNumber: orderParam || prev.orderNumber,
+          category: categoryParam || prev.category,
+          subject:
+            categoryParam === "CANCELLATION" && (orderParam || prev.orderNumber)
+              ? `Cancellation & 100% Refund Request for Order #${orderParam || prev.orderNumber}`
+              : orderParam
+              ? (prev.subject.includes("Order") ? prev.subject : `Support Inquiry for Order ${orderParam}`)
+              : prev.subject,
+          message:
+            categoryParam === "CANCELLATION" && !prev.message
+              ? `I am requesting the cancellation and 100% refund for Order #${orderParam || prev.orderNumber}. Please process the refund to my original payment method.`
+              : prev.message,
         }));
       }
     }
-  }, [intentParam, orderParam]);
+  }, [intentParam, orderParam, categoryParam]);
 
   // Field validations
   const activeEmail = contactMode === "SUPPORT_TICKET" ? ticketData.email : generalData.email;
