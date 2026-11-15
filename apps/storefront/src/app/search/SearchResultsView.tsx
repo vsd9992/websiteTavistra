@@ -10,6 +10,7 @@ import { ProductCard } from "@/components/ProductCard";
 interface SearchResultsViewProps {
   initialQuery: string;
   initialCategory?: string;
+  initialSubcategory?: string;
   initialMode?: string;
   initialSort?: string;
   allProducts: MockProduct[];
@@ -18,6 +19,7 @@ interface SearchResultsViewProps {
 export function SearchResultsView({
   initialQuery,
   initialCategory = "all",
+  initialSubcategory = "all",
   initialMode = "all",
   initialSort = "relevance",
   allProducts,
@@ -28,14 +30,38 @@ export function SearchResultsView({
   // Read single source of truth directly from searchParams (fallback to initial props)
   const query = searchParams.get("q") ?? initialQuery;
   const selectedCategory = searchParams.get("category") ?? initialCategory;
+  const selectedSubcategory = searchParams.get("sub") ?? initialSubcategory;
   const selectedMode = searchParams.get("mode") ?? initialMode;
   const selectedSort = searchParams.get("sort") ?? initialSort;
 
+  // Dynamically extract available subcategories from products (sorted alphabetically A-Z)
+  const availableSubcategories = useMemo(() => {
+    const source =
+      selectedCategory === "all"
+        ? allProducts
+        : allProducts.filter((p) => p.categorySlug === selectedCategory);
+
+    const subs = new Set<string>();
+    for (const p of source) {
+      if (p.subcategory && p.subcategory.trim()) {
+        subs.add(p.subcategory.trim());
+      }
+    }
+    return Array.from(subs).sort((a, b) => a.localeCompare(b));
+  }, [allProducts, selectedCategory]);
+
   // Synchronize URL query params
-  const updateUrl = (newQ: string, newCat: string, newMode: string, newSort: string) => {
+  const updateUrl = (
+    newQ: string,
+    newCat: string,
+    newSub: string,
+    newMode: string,
+    newSort: string
+  ) => {
     const params = new URLSearchParams();
     if (newQ.trim()) params.set("q", newQ.trim());
     if (newCat && newCat !== "all") params.set("category", newCat);
+    if (newSub && newSub !== "all") params.set("sub", newSub);
     if (newMode && newMode !== "all") params.set("mode", newMode);
     if (newSort && newSort !== "relevance") params.set("sort", newSort);
 
@@ -43,19 +69,24 @@ export function SearchResultsView({
   };
 
   const handleCategoryChange = (cat: string) => {
-    updateUrl(query, cat, selectedMode, selectedSort);
+    // Reset subcategory when switching category
+    updateUrl(query, cat, "all", selectedMode, selectedSort);
+  };
+
+  const handleSubcategoryChange = (sub: string) => {
+    updateUrl(query, selectedCategory, sub, selectedMode, selectedSort);
   };
 
   const handleModeChange = (mode: string) => {
-    updateUrl(query, selectedCategory, mode, selectedSort);
+    updateUrl(query, selectedCategory, selectedSubcategory, mode, selectedSort);
   };
 
   const handleSortChange = (sort: string) => {
-    updateUrl(query, selectedCategory, selectedMode, sort);
+    updateUrl(query, selectedCategory, selectedSubcategory, selectedMode, sort);
   };
 
   const clearAllFilters = () => {
-    updateUrl(query, "all", "all", "relevance");
+    updateUrl(query, "all", "all", "all", "relevance");
   };
 
   // Filter and Rank products according to WEB-040, WEB-040A, WEB-040B, WEB-040C
@@ -92,9 +123,12 @@ export function SearchResultsView({
       return false;
     });
 
-    // 2. Minimal Launch Filters (WEB-040A: Category + Purchase Mode)
+    // 2. Minimal Launch Filters (WEB-040A: Category + Subcategory + Purchase Mode)
     if (selectedCategory !== "all") {
       matched = matched.filter((p) => p.categorySlug === selectedCategory);
+    }
+    if (selectedSubcategory !== "all") {
+      matched = matched.filter((p) => p.subcategory === selectedSubcategory);
     }
     if (selectedMode !== "all") {
       matched = matched.filter((p) => p.mode === selectedMode);
@@ -150,10 +184,13 @@ export function SearchResultsView({
       unpricedProducts: [],
       isPriceSorted: false,
     };
-  }, [allProducts, query, selectedCategory, selectedMode, selectedSort]);
+  }, [allProducts, query, selectedCategory, selectedSubcategory, selectedMode, selectedSort]);
 
   const hasActiveFilters =
-    selectedCategory !== "all" || selectedMode !== "all" || selectedSort !== "relevance";
+    selectedCategory !== "all" ||
+    selectedSubcategory !== "all" ||
+    selectedMode !== "all" ||
+    selectedSort !== "relevance";
 
   const modeLabels: Record<string, string> = {
     READY_STOCK: "Ready Stock",
@@ -204,6 +241,28 @@ export function SearchResultsView({
               ))}
             </select>
           </div>
+
+          {/* Subcategory Filter (Dynamic from available products, sorted A-Z) */}
+          {availableSubcategories.length > 0 && (
+            <div className="flex items-center gap-1.5 text-xs">
+              <label htmlFor="filter-subcategory" className="font-semibold text-[var(--color-muted-light)]">
+                Subcategory:
+              </label>
+              <select
+                id="filter-subcategory"
+                value={selectedSubcategory}
+                onChange={(e) => handleSubcategoryChange(e.target.value)}
+                className="rounded-lg border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] px-3 py-1.5 text-xs font-medium text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+              >
+                <option value="all">All Subcategories</option>
+                {availableSubcategories.map((sub) => (
+                  <option key={sub} value={sub}>
+                    {sub}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Purchase Mode Filter */}
           <div className="flex items-center gap-1.5 text-xs">
@@ -257,6 +316,17 @@ export function SearchResultsView({
               className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-3 py-1 text-xs text-[var(--color-ink)] transition-colors hover:bg-[var(--color-stone)]"
             >
               <span>Category: {APPROVED_CATEGORIES.find((c) => c.slug === selectedCategory)?.name || selectedCategory}</span>
+              <span className="text-[10px]">✕</span>
+            </button>
+          )}
+
+          {selectedSubcategory !== "all" && (
+            <button
+              type="button"
+              onClick={() => handleSubcategoryChange("all")}
+              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-3 py-1 text-xs text-[var(--color-ink)] transition-colors hover:bg-[var(--color-stone)]"
+            >
+              <span>Subcategory: {selectedSubcategory}</span>
               <span className="text-[10px]">✕</span>
             </button>
           )}

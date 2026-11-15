@@ -223,9 +223,11 @@ export default function Home() {
                   <h3 className="text-lg font-semibold text-[var(--color-ink)] group-hover:text-[var(--color-bronze)] transition-colors mb-2">
                     {cat.name}
                   </h3>
-                  <p className="text-xs text-[var(--color-muted-light)] line-clamp-2">
-                    {cat.subcategories.join(" · ")}
-                  </p>
+                  {cat.description && (
+                    <p className="text-xs text-[var(--color-muted-light)] line-clamp-2">
+                      {cat.description}
+                    </p>
+                  )}
                 </Link>
               ))}
             </div>

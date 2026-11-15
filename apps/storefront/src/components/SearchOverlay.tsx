@@ -266,13 +266,10 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
                     key={cat.slug}
                     href={`/category/${cat.slug}`}
                     onClick={onClose}
-                    className="flex flex-col rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/60 p-3 transition-colors hover:bg-[var(--color-ivory)] hover:border-[var(--color-control-border)]"
+                    className="flex items-center rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/60 p-3 transition-colors hover:bg-[var(--color-ivory)] hover:border-[var(--color-control-border)]"
                   >
                     <span className="text-xs font-semibold text-[var(--color-ink)] line-clamp-1">
                       {cat.name}
-                    </span>
-                    <span className="text-[10px] text-[var(--color-muted-light)] line-clamp-1 mt-0.5">
-                      {cat.subcategories.slice(0, 2).join(", ")}
                     </span>
                   </Link>
                 ))}

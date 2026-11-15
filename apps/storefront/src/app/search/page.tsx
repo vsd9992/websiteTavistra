@@ -15,6 +15,7 @@ interface SearchPageProps {
   searchParams: Promise<{
     q?: string;
     category?: string;
+    sub?: string;
     mode?: string;
     sort?: string;
   }>;
@@ -25,6 +26,7 @@ async function SearchPageContent({ searchParams }: SearchPageProps) {
   const params = await searchParams;
   const q = params.q || "";
   const category = params.category || "all";
+  const subcategory = params.sub || "all";
   const mode = params.mode || "all";
   const sort = params.sort || "relevance";
 
@@ -32,9 +34,10 @@ async function SearchPageContent({ searchParams }: SearchPageProps) {
 
   return (
     <SearchResultsView
-      key={`${q}-${category}-${mode}-${sort}`}
+      key={`${q}-${category}-${subcategory}-${mode}-${sort}`}
       initialQuery={q}
       initialCategory={category}
+      initialSubcategory={subcategory}
       initialMode={mode}
       initialSort={sort}
       allProducts={allProducts}

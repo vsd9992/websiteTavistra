@@ -165,7 +165,7 @@ export function Header() {
                     </Link>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-2.5">
                     {APPROVED_CATEGORIES.map((cat) => (
                       <Link
                         key={cat.slug}
@@ -173,12 +173,9 @@ export function Header() {
                         onClick={() => setIsShopOpen(false)}
                         className="group rounded-xl p-3 transition-colors hover:bg-[var(--color-ivory)]"
                       >
-                        <h4 className="text-xs font-semibold text-[var(--color-ink)] group-hover:text-[var(--color-bronze)] transition-colors mb-1">
+                        <h4 className="text-xs font-semibold text-[var(--color-ink)] group-hover:text-[var(--color-bronze)] transition-colors">
                           {cat.name}
                         </h4>
-                        <p className="text-[11px] text-[var(--color-muted-light)] line-clamp-1">
-                          {cat.subcategories.slice(0, 2).join(", ")}...
-                        </p>
                       </Link>
                     ))}
                   </div>

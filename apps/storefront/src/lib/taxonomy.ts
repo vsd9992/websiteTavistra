@@ -1,39 +1,39 @@
 export interface CategoryNav {
   slug: string;
   name: string;
-  subcategories: string[];
+  description?: string;
+  subcategories?: string[];
 }
 
 export const APPROVED_CATEGORIES: CategoryNav[] = [
   {
     slug: "personal-accessories",
     name: "Personal Accessories",
-    subcategories: ["Key Accessories", "Personal Carry", "Wearable & Personal Objects"],
+    description: "Refined pocket items, key architecture, and personal carry objects.",
   },
   {
     slug: "home-decor-objects",
     name: "Home Décor & Objects",
-    subcategories: ["Clocks", "Mirrors", "Wall Décor", "Organisation & Storage", "Vases & Planters"],
+    description: "Minimalist clocks, sculptural mirrors, and functional vessels.",
   },
   {
     slug: "desk-workspace",
     name: "Desk & Workspace",
-    subcategories: ["Desk Organisation", "Stands & Holders", "Desk Décor & Objects"],
+    description: "Precision desk trays, organisation systems, and tactile objects.",
   },
   {
     slug: "lighting-ambience",
     name: "Lighting & Ambience",
-    subcategories: ["Table & Desk Lighting", "Floor Lighting", "Wall Lighting", "Ambient & Decorative Lighting"],
+    description: "Solid brass desk lamps, ambient luminaires, and architectural sconces.",
   },
   {
     slug: "outdoor-balcony",
     name: "Outdoor & Balcony",
-    subcategories: ["Planters & Plant Accessories", "Outdoor Décor"],
+    description: "Weathered planters, architectural fixtures, and exterior editions.",
   },
   {
     slug: "art-collectibles",
     name: "Art & Collectibles",
-    subcategories: ["Sculptures & Art Objects", "Wall Art"],
+    description: "Limited studio sculptures, tactile monuments, and artistic objects.",
   },
 ];
-

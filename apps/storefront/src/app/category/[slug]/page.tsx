@@ -34,8 +34,18 @@ async function CategoryContent({
   }
 
   const published = await getPublishedProducts();
-  const categoryProducts = published.filter((p) => {
-    if (p.categorySlug !== category.slug) return false;
+  const allCategoryProducts = published.filter((p) => p.categorySlug === category.slug);
+
+  // Dynamically extract available subcategories from published products in this category (sorted A-Z)
+  const availableSubcategories = Array.from(
+    new Set(
+      allCategoryProducts
+        .map((p) => p.subcategory?.trim())
+        .filter((sub): sub is string => Boolean(sub))
+    )
+  ).sort((a, b) => a.localeCompare(b));
+
+  const categoryProducts = allCategoryProducts.filter((p) => {
     if (activeSubcategory && p.subcategory !== activeSubcategory) return false;
     return true;
   });
@@ -74,38 +84,40 @@ async function CategoryContent({
           {category.name}
         </h1>
 
-        {/* Interactive Subcategory Filter Pills */}
-        <div className="flex flex-wrap items-center gap-2 pt-2">
-          <span className="text-xs font-semibold text-[var(--color-ink)] mr-1">
-            Filter Subcategory:
-          </span>
-          <Link
-            href={`/category/${category.slug}`}
-            className={`rounded-full px-3.5 py-1 text-xs font-medium transition-colors ${
-              !activeSubcategory
-                ? "bg-[var(--color-ink)] text-[var(--color-canvas)] font-semibold"
-                : "border border-[var(--color-control-border)] bg-transparent text-[var(--color-ink)] hover:bg-[var(--color-ivory)]"
-            }`}
-          >
-            All Subcategories
-          </Link>
-          {category.subcategories.map((sub) => {
-            const isSelected = activeSubcategory === sub;
-            return (
-              <Link
-                key={sub}
-                href={`/category/${category.slug}?sub=${encodeURIComponent(sub)}`}
-                className={`rounded-full px-3.5 py-1 text-xs font-medium transition-colors ${
-                  isSelected
-                    ? "bg-[var(--color-ink)] text-[var(--color-canvas)] font-semibold"
-                    : "border border-[var(--color-control-border)] bg-transparent text-[var(--color-ink)] hover:bg-[var(--color-ivory)]"
-                }`}
-              >
-                {sub}
-              </Link>
-            );
-          })}
-        </div>
+        {/* Interactive Subcategory Filter Pills (Dynamic from active products, sorted A-Z) */}
+        {availableSubcategories.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 pt-2">
+            <span className="text-xs font-semibold text-[var(--color-ink)] mr-1">
+              Filter Subcategory:
+            </span>
+            <Link
+              href={`/category/${category.slug}`}
+              className={`rounded-full px-3.5 py-1 text-xs font-medium transition-colors ${
+                !activeSubcategory
+                  ? "bg-[var(--color-ink)] text-[var(--color-canvas)] font-semibold"
+                  : "border border-[var(--color-control-border)] bg-transparent text-[var(--color-ink)] hover:bg-[var(--color-ivory)]"
+              }`}
+            >
+              All Subcategories
+            </Link>
+            {availableSubcategories.map((sub) => {
+              const isSelected = activeSubcategory === sub;
+              return (
+                <Link
+                  key={sub}
+                  href={`/category/${category.slug}?sub=${encodeURIComponent(sub)}`}
+                  className={`rounded-full px-3.5 py-1 text-xs font-medium transition-colors ${
+                    isSelected
+                      ? "bg-[var(--color-ink)] text-[var(--color-canvas)] font-semibold"
+                      : "border border-[var(--color-control-border)] bg-transparent text-[var(--color-ink)] hover:bg-[var(--color-ivory)]"
+                  }`}
+                >
+                  {sub}
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Product Listing Grid */}

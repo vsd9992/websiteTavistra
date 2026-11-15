@@ -17,11 +17,11 @@ export async function GET(request: NextRequest) {
 
     const queryLower = q.toLowerCase();
 
-    // 1. Search taxonomy (Categories & Subcategories)
+    // 1. Search taxonomy (Categories only)
     const matchingTaxonomy: {
       name: string;
       slug: string;
-      type: "category" | "subcategory";
+      type: "category";
       url: string;
     }[] = [];
 
@@ -33,16 +33,6 @@ export async function GET(request: NextRequest) {
           type: "category",
           url: `/category/${cat.slug}`,
         });
-      }
-      for (const sub of cat.subcategories) {
-        if (sub.toLowerCase().includes(queryLower)) {
-          matchingTaxonomy.push({
-            name: `${sub} (${cat.name})`,
-            slug: cat.slug,
-            type: "subcategory",
-            url: `/category/${cat.slug}?sub=${encodeURIComponent(sub)}`,
-          });
-        }
       }
     }
 
