@@ -6,10 +6,12 @@ import { useState, useRef, useEffect } from "react";
 import { APPROVED_CATEGORIES } from "@/lib/taxonomy";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
+import { SearchOverlay } from "@/components/SearchOverlay";
 
 export function Header() {
   const [isShopOpen, setIsShopOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [systemNotice, setSystemNotice] = useState<{
     maintenanceMode: boolean;
     studioHiatus: boolean;
@@ -196,9 +198,10 @@ export function Header() {
 
         {/* Right Utility Navigation (Minimalist Luxury Symbols) */}
         <div className="flex items-center gap-4 sm:gap-5">
-          {/* Search Icon */}
-          <Link
-            href="/shop"
+          {/* Search Button (WEB-037 Compact Search Overlay) */}
+          <button
+            type="button"
+            onClick={() => setIsSearchOpen(true)}
             className="p-1.5 text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
             aria-label="Search catalogue"
             title="Search"
@@ -216,7 +219,7 @@ export function Header() {
                 d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
               />
             </svg>
-          </Link>
+          </button>
 
           {/* Account Icon */}
           <Link
@@ -299,6 +302,24 @@ export function Header() {
       {/* Mobile Drawer (WEB-036) */}
       {isMobileMenuOpen && (
         <div className="lg:hidden border-t border-[var(--color-decorative-border)] bg-[var(--color-canvas)] px-6 py-8 space-y-6">
+          {/* Quick Search Action */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsMobileMenuOpen(false);
+              setIsSearchOpen(true);
+            }}
+            className="flex w-full items-center justify-between rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] px-4 py-3 text-xs font-semibold text-[var(--color-ink)] transition-colors hover:border-[var(--color-control-border)]"
+          >
+            <span className="flex items-center gap-2.5">
+              <svg className="h-4 w-4 text-[var(--color-bronze)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+              </svg>
+              <span>Search Objects &amp; Materials</span>
+            </span>
+            <span className="text-[10px] uppercase tracking-wider text-[var(--color-bronze)]">Search</span>
+          </button>
+
           <div>
             <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--color-bronze)] block mb-3">
               Explore Collections
@@ -359,6 +380,9 @@ export function Header() {
           </div>
         </div>
       )}
+
+      {/* Compact Search Overlay (WEB-037 / WEB-039) */}
+      <SearchOverlay isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
     </header>
   );
 }
