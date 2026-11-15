@@ -432,44 +432,6 @@ export default function CartPage() {
                       {isMtoTab ? "Made to Order Summary" : "Ready Stock Summary"}
                     </h3>
 
-                    <div className="rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-3.5 space-y-2">
-                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-ink)]">
-                        Delivery PIN Code
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          maxLength={6}
-                          value={pincode}
-                          onChange={(e) => {
-                            setPincode(e.target.value.replace(/\D/g, ""));
-                            if (pinError) setPinError(null);
-                          }}
-                          placeholder="Enter 6-digit PIN code"
-                          className="flex-1 rounded-lg border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-3 py-1.5 text-xs text-[var(--color-ink)] focus:outline-none font-mono"
-                        />
-                        <button
-                          type="button"
-                          disabled={checkingPin}
-                          onClick={() => handleEstimateShipping()}
-                          className="rounded-lg bg-[var(--color-ink)] px-3.5 py-1.5 text-xs font-semibold text-[var(--color-canvas)] disabled:opacity-50"
-                        >
-                          {checkingPin ? "..." : "Check"}
-                        </button>
-                      </div>
-                      {pinError && (
-                        <div className="rounded-lg bg-red-50 p-2.5 border border-red-200 text-xs text-red-700 font-medium leading-relaxed">
-                          ⚠ {pinError}
-                        </div>
-                      )}
-                      {shippingResult && (
-                        <p className="text-[11px] text-[var(--color-muted-light)] leading-snug pt-0.5">
-                          ✓ {resolvedLocation && <strong className="text-[var(--color-ink)]">{resolvedLocation} · </strong>}
-                          {shippingResult.zone.name} · Transit: {shippingResult.transitDaysEstimate}
-                        </p>
-                      )}
-                    </div>
-
                     <div className="space-y-3 text-xs border-b border-[var(--color-decorative-border)] pb-4">
                       <div className="flex justify-between">
                         <span className="text-[var(--color-muted-light)]">
@@ -488,7 +450,7 @@ export default function CartPage() {
                             ? shippingResult.totalDeliveryFeeRupees === 0
                               ? "Complimentary"
                               : formatPrice(deliveryFeePaise)
-                            : "Enter PIN Code above"}
+                            : "Enter PIN Code below"}
                         </span>
                       </div>
                       {isMtoTab && (
@@ -552,6 +514,45 @@ export default function CartPage() {
                         </p>
                       </div>
                     )}
+
+                    {/* Delivery PIN Code Estimation (Under Checkout Button) */}
+                    <div className="rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-3.5 space-y-2">
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-ink)]">
+                        Delivery PIN Code
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          maxLength={6}
+                          value={pincode}
+                          onChange={(e) => {
+                            setPincode(e.target.value.replace(/\D/g, ""));
+                            if (pinError) setPinError(null);
+                          }}
+                          placeholder="Enter 6-digit PIN code"
+                          className="flex-1 rounded-lg border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-3 py-1.5 text-xs text-[var(--color-ink)] focus:outline-none font-mono"
+                        />
+                        <button
+                          type="button"
+                          disabled={checkingPin}
+                          onClick={() => handleEstimateShipping()}
+                          className="rounded-lg bg-[var(--color-ink)] px-3.5 py-1.5 text-xs font-semibold text-[var(--color-canvas)] disabled:opacity-50"
+                        >
+                          {checkingPin ? "..." : "Check"}
+                        </button>
+                      </div>
+                      {pinError && (
+                        <div className="rounded-lg bg-red-50 p-2.5 border border-red-200 text-xs text-red-700 font-medium leading-relaxed">
+                          ⚠ {pinError}
+                        </div>
+                      )}
+                      {shippingResult && (
+                        <p className="text-[11px] text-[var(--color-muted-light)] leading-snug pt-0.5">
+                          ✓ {resolvedLocation && <strong className="text-[var(--color-ink)]">{resolvedLocation} · </strong>}
+                          {shippingResult.zone.name} · Transit: {shippingResult.transitDaysEstimate}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
