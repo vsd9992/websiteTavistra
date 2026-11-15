@@ -26,35 +26,61 @@ export function CustomCursor() {
 
     setEnabled(true);
 
+    const checkIsClickableOrInput = (el: HTMLElement | null): boolean => {
+      if (!el) return false;
+
+      // 1. Check interactive tag names and attributes
+      if (
+        el.closest(
+          'a, button, [role="button"], select, summary, input, textarea, label, [tabindex]:not([tabindex="-1"]), .cursor-pointer'
+        )
+      ) {
+        return true;
+      }
+
+      // 2. Check computed CSS cursor property
+      try {
+        const cursor = window.getComputedStyle(el).cursor;
+        if (cursor === "pointer" || cursor === "text" || cursor === "grab" || cursor === "grabbing") {
+          return true;
+        }
+      } catch {
+        // Ignore style access error on detached elements
+      }
+
+      return false;
+    };
+
     const handleMouseMove = (e: MouseEvent) => {
       targetPos.current = { x: e.clientX, y: e.clientY };
       if (!isVisible) setIsVisible(true);
+
+      const target = e.target as HTMLElement | null;
+      const isClickable = checkIsClickableOrInput(target);
+      setIsHoveringClickable(isClickable);
 
       // Instantly position the ball point dot
       if (dotRef.current) {
         dotRef.current.style.transform = `translate3d(${e.clientX}px, ${e.clientY}px, 0) translate(-50%, -50%)`;
       }
 
-      // Check if hovering over any clickable element
-      const target = e.target as HTMLElement | null;
-      if (target) {
-        const isClickable = Boolean(
-          target.closest(
-            'a, button, [role="button"], select, summary, input[type="button"], input[type="submit"], input[type="reset"], input[type="checkbox"], input[type="radio"], label[for], .cursor-pointer'
-          )
-        );
-        setIsHoveringClickable(isClickable);
+      // If over clickable, sync trail position so it doesn't fly across when exiting
+      if (isClickable) {
+        trailPos.current = { x: e.clientX, y: e.clientY };
       }
     };
 
     const handleMouseDown = () => setIsMouseDown(true);
     const handleMouseUp = () => setIsMouseDown(false);
-    const handleMouseLeave = () => setIsVisible(false);
+    const handleMouseLeave = () => {
+      setIsVisible(false);
+      setIsHoveringClickable(false);
+    };
     const handleMouseEnter = () => setIsVisible(true);
 
     // Smooth Lerp Animation Loop for the trailing follower
     const renderLoop = () => {
-      const lerp = 0.16; // Smoothness factor
+      const lerp = 0.18; // Smooth liquid follow
       trailPos.current.x += (targetPos.current.x - trailPos.current.x) * lerp;
       trailPos.current.y += (targetPos.current.y - trailPos.current.y) * lerp;
 
@@ -85,16 +111,18 @@ export function CustomCursor() {
 
   if (!enabled) return null;
 
+  // When hovering a clickable or input, the ball point and trailing animation completely vanish,
+  // letting the native hand pointer (cursor: pointer) take over cleanly.
+  const shouldHide = !isVisible || isHoveringClickable;
+
   return (
     <>
-      {/* 1. Sharp Ball Point (Instant Pointer) */}
+      {/* 1. Sharp Ball Point (Lead Pointer) - Disappears completely over clickables */}
       <div
         ref={dotRef}
         aria-hidden="true"
-        className={`pointer-events-none fixed top-0 left-0 z-[9999] rounded-full transition-opacity duration-200 ${
-          isVisible ? "opacity-100" : "opacity-0"
-        } ${
-          isHoveringClickable ? "scale-75 opacity-60" : "scale-100 opacity-100"
+        className={`pointer-events-none fixed top-0 left-0 z-[9999] rounded-full transition-all duration-150 ease-out ${
+          shouldHide ? "opacity-0 scale-0 pointer-events-none" : "opacity-100 scale-100"
         }`}
         style={{
           width: "7px",
@@ -105,23 +133,18 @@ export function CustomCursor() {
         }}
       />
 
-      {/* 2. Trailing Follower Ring (Smooth Fluid Momentum) */}
+      {/* 2. Trailing Follower Ring (Smooth Momentum) - Disappears completely over clickables */}
       <div
         ref={trailRef}
         aria-hidden="true"
-        className={`pointer-events-none fixed top-0 left-0 z-[9998] rounded-full transition-all duration-300 ease-out ${
-          isVisible ? "opacity-100" : "opacity-0"
+        className={`pointer-events-none fixed top-0 left-0 z-[9998] rounded-full transition-all duration-150 ease-out ${
+          shouldHide ? "opacity-0 scale-0 pointer-events-none" : "opacity-100 scale-100"
         }`}
         style={{
-          width: isHoveringClickable ? "50px" : isMouseDown ? "26px" : "34px",
-          height: isHoveringClickable ? "50px" : isMouseDown ? "26px" : "34px",
-          border: isHoveringClickable
-            ? "1.5px solid rgba(128, 103, 79, 0.85)"
-            : "1.5px solid rgba(128, 103, 79, 0.45)",
-          backgroundColor: isHoveringClickable
-            ? "rgba(128, 103, 79, 0.08)"
-            : "rgba(128, 103, 79, 0.02)",
-          backdropFilter: isHoveringClickable ? "blur(1px)" : "none",
+          width: isMouseDown ? "26px" : "34px",
+          height: isMouseDown ? "26px" : "34px",
+          border: "1.5px solid rgba(128, 103, 79, 0.55)",
+          backgroundColor: "rgba(128, 103, 79, 0.03)",
           willChange: "transform, width, height",
         }}
       />
