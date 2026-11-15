@@ -50,3 +50,51 @@ body {
 .font-editorial {
   font-family: var(--font-editorial), Georgia, serif;
 }
+
+/* -------------------------------------------------------------
+ * CURSOR GOVERNANCE & CLICKABLE POINTER (HAND)
+ * ------------------------------------------------------------- */
+
+/* Universal Pointer (Hand) for Clickables & Buttons */
+button,
+[role="button"],
+a,
+select,
+summary,
+input[type="button"],
+input[type="submit"],
+input[type="reset"],
+input[type="checkbox"],
+input[type="radio"],
+label[for],
+.cursor-pointer {
+  cursor: pointer !important;
+}
+
+/* Accessible text inputs retain standard text I-beam */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="tel"],
+input[type="number"],
+input[type="search"],
+textarea {
+  cursor: text !important;
+}
+
+/* Disabled controls retain not-allowed cursor */
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled,
+.cursor-not-allowed {
+  cursor: not-allowed !important;
+}
+
+/* Custom Ball Point Cursor on Desktop: Hide standard arrow pointer on general body */
+@media (pointer: fine) {
+  body {
+    cursor: none;
+  }
+}
+
