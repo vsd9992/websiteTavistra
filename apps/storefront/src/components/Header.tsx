@@ -389,6 +389,7 @@ export function Header() {
                           onClick={async () => {
                             setIsAccountOpen(false);
                             await logout();
+                            window.location.assign("/account/login");
                           }}
                           className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-xs font-semibold text-[var(--color-error)] hover:bg-[var(--color-ivory)] transition-colors"
                         >
@@ -590,6 +591,7 @@ export function Header() {
                   onClick={async () => {
                     setIsMobileMenuOpen(false);
                     await logout();
+                    window.location.assign("/account/login");
                   }}
                   className="block pt-1 text-[var(--color-error)] text-left font-medium"
                 >

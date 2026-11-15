@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import AccountNav from "@/components/AccountNav";
@@ -15,6 +16,7 @@ import {
 } from "@tavistra/shared";
 
 export default function AccountProfilePage() {
+  const router = useRouter();
   const {
     user,
     isAuthenticated,
@@ -27,6 +29,13 @@ export default function AccountProfilePage() {
     verifyEmailMfaSetup,
     disableMfa,
   } = useAuth();
+
+  // Redirect to login if unauthenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.replace("/account/login?next=/account/profile");
+    }
+  }, [authLoading, isAuthenticated, router]);
 
   // Profile form state
   const [name, setName] = useState("");
@@ -230,32 +239,9 @@ export default function AccountProfilePage() {
       <Header />
 
       <main className="flex-1 mx-auto w-full max-w-7xl px-6 py-12 lg:py-16">
-        {authLoading ? (
+        {authLoading || !isAuthenticated ? (
           <div className="py-24 text-center text-xs text-[var(--color-muted-light)]">
             Loading your Tavistra client profile...
-          </div>
-        ) : !isAuthenticated ? (
-          <div className="mx-auto max-w-md text-center space-y-6 py-16">
-            <h1 className="text-3xl font-serif font-light text-[var(--color-ink)]">
-              Sign in to manage your profile
-            </h1>
-            <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
-              Sign in to manage your contact details, GSTIN invoicing credentials, password, and two-factor authentication.
-            </p>
-            <div className="flex justify-center gap-4">
-              <Link
-                href="/account/login?next=/account/profile"
-                className="rounded-full bg-[var(--color-ink)] px-8 py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)]"
-              >
-                Sign In
-              </Link>
-              <Link
-                href="/account/register"
-                className="rounded-full border border-[var(--color-control-border)] px-8 py-3 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)]"
-              >
-                Create Account
-              </Link>
-            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-10">

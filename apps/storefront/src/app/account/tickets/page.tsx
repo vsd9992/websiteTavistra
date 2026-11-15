@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import AccountNav from "@/components/AccountNav";
@@ -41,6 +42,7 @@ interface AccountTicket {
 }
 
 export default function AccountTicketsPage() {
+  const router = useRouter();
   const { user, isAuthenticated, authLoading } = useAuth();
   const [tickets, setTickets] = useState<AccountTicket[]>([]);
   const [loading, setLoading] = useState(false);
@@ -50,6 +52,12 @@ export default function AccountTicketsPage() {
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.replace("/account/login?next=/account/tickets");
+    }
+  }, [authLoading, isAuthenticated, router]);
 
   const loadTickets = async () => {
     setLoading(true);
@@ -120,26 +128,9 @@ export default function AccountTicketsPage() {
       <Header />
 
       <main className="flex-1 mx-auto w-full max-w-7xl px-6 py-12 lg:py-16">
-        {authLoading ? (
+        {authLoading || !isAuthenticated ? (
           <div className="py-24 text-center text-xs text-[var(--color-muted-light)]">
             Verifying your client session...
-          </div>
-        ) : !isAuthenticated ? (
-          <div className="mx-auto max-w-md rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-8 text-center space-y-4">
-            <h1 className="font-serif text-2xl text-[var(--color-ink)]">
-              Client Portal Sign In
-            </h1>
-            <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
-              Please sign in to access your registered support tickets and concierge correspondence.
-            </p>
-            <div className="pt-2">
-              <Link
-                href="/account/login?redirect=/account/tickets"
-                className="inline-block rounded-full bg-[var(--color-ink)] px-6 py-2.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors"
-              >
-                Sign In to Account
-              </Link>
-            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">

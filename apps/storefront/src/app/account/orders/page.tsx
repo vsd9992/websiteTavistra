@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import AccountNav from "@/components/AccountNav";
@@ -54,12 +55,19 @@ interface AccountOrder {
 }
 
 export default function AccountOrdersPage() {
+  const router = useRouter();
   const { isAuthenticated, authLoading } = useAuth();
   const [orders, setOrders] = useState<AccountOrder[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [ordersError, setOrdersError] = useState("");
   const [payingOrderId, setPayingOrderId] = useState<string | null>(null);
   const [balanceNotice, setBalanceNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.replace("/account/login?next=/account/orders");
+    }
+  }, [authLoading, isAuthenticated, router]);
 
   const loadOrders = async () => {
     setLoadingOrders(true);
@@ -124,32 +132,9 @@ export default function AccountOrdersPage() {
       <Header />
 
       <main className="flex-1 mx-auto w-full max-w-7xl px-6 py-12 lg:py-16">
-        {authLoading ? (
+        {authLoading || !isAuthenticated ? (
           <div className="py-24 text-center text-xs text-[var(--color-muted-light)]">
             Verifying your client session...
-          </div>
-        ) : !isAuthenticated ? (
-          <div className="mx-auto max-w-md text-center space-y-6 py-16">
-            <h1 className="text-3xl font-serif font-light text-[var(--color-ink)]">
-              Sign in to view your orders
-            </h1>
-            <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
-              Your authenticated order history and production milestones are protected behind your Tavistra account.
-            </p>
-            <div className="flex justify-center gap-4">
-              <Link
-                href="/account/login?next=/account/orders"
-                className="rounded-full bg-[var(--color-ink)] px-8 py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)]"
-              >
-                Sign In
-              </Link>
-              <Link
-                href="/track"
-                className="rounded-full border border-[var(--color-control-border)] px-8 py-3 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)]"
-              >
-                Track Guest Order
-              </Link>
-            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-10">

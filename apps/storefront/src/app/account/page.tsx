@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import AccountNav from "@/components/AccountNav";
@@ -51,11 +52,18 @@ interface AccountTicketSummary {
 }
 
 export default function AccountOverviewPage() {
+  const router = useRouter();
   const { user, isAuthenticated, authLoading } = useAuth();
   const [orders, setOrders] = useState<AccountOrder[]>([]);
   const [quotes, setQuotes] = useState<AccountQuote[]>([]);
   const [tickets, setTickets] = useState<AccountTicketSummary[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.replace("/account/login?next=/account");
+    }
+  }, [authLoading, isAuthenticated, router]);
 
   useEffect(() => {
     if (!isAuthenticated || !user?.email) {
@@ -111,41 +119,9 @@ export default function AccountOverviewPage() {
       <Header />
 
       <main className="flex-1 mx-auto w-full max-w-7xl px-6 py-12 lg:py-16">
-        {authLoading ? (
+        {authLoading || !isAuthenticated ? (
           <div className="py-24 text-center text-xs text-[var(--color-muted-light)]">
             Verifying your client session...
-          </div>
-        ) : !isAuthenticated ? (
-          <div className="mx-auto max-w-md text-center space-y-6 py-16">
-            <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--color-muted-light)]">
-              Tavistra Client Account
-            </span>
-            <h1 className="text-3xl font-serif font-light text-[var(--color-ink)]">
-              Sign in to view your account
-            </h1>
-            <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
-              Access your authenticated order history, production milestones, GSTIN profile, and saved delivery addresses.
-            </p>
-            <div className="flex justify-center gap-4">
-              <Link
-                href="/account/login?next=/account"
-                className="rounded-full bg-[var(--color-ink)] px-8 py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)]"
-              >
-                Sign In
-              </Link>
-              <Link
-                href="/account/register"
-                className="rounded-full border border-[var(--color-control-border)] px-8 py-3 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)]"
-              >
-                Create Account
-              </Link>
-            </div>
-            <p className="text-[11px] text-[var(--color-muted-light)]">
-              Checked out as a guest?{" "}
-              <Link href="/track" className="text-[var(--color-bronze)] font-semibold hover:underline">
-                Track Guest Order
-              </Link>
-            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-10">
