@@ -14,6 +14,9 @@ import {
   validateIndianMobile,
   validateStrongPassword,
 } from "@tavistra/shared";
+import { HoneypotField } from "@/components/HoneypotField";
+import { TermsConsentCheckbox } from "@/components/TermsConsentCheckbox";
+import { RecaptchaWidget } from "@/components/RecaptchaWidget";
 
 export default function RegisterPage() {
   const { isAuthenticated, authLoading, registerAccount, verifyRegistrationEmail } = useAuth();
@@ -37,6 +40,12 @@ export default function RegisterPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
+
+  // Security, Consent & Bot Protection State
+  const [hpWebsite, setHpWebsite] = useState("");
+  const [hpTimestamp, setHpTimestamp] = useState<number>(0);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
 
   const resetRegisterState = useCallback(() => {
     setStep("details");
@@ -96,6 +105,11 @@ export default function RegisterPage() {
       return;
     }
 
+    if (!termsAccepted) {
+      setError("Please accept Tavistra's Terms of Service and Privacy Policy to create an account.");
+      return;
+    }
+
     setBusy(true);
     const result = await registerAccount({
       name: name.trim(),
@@ -104,6 +118,10 @@ export default function RegisterPage() {
       password,
       gstin: gstinVal.normalizedGstin || undefined,
       practiceOrStudio: practiceOrStudio.trim() || undefined,
+      _hp_website: hpWebsite,
+      _hp_timestamp: hpTimestamp,
+      termsAccepted,
+      recaptchaToken: recaptchaToken || undefined,
     });
     setBusy(false);
 
@@ -351,10 +369,28 @@ export default function RegisterPage() {
                 )}
               </div>
 
+              {/* Bot Trap, Consent & reCAPTCHA */}
+              <HoneypotField
+                value={hpWebsite}
+                onChange={setHpWebsite}
+                onTimestampChange={setHpTimestamp}
+              />
+
+              <TermsConsentCheckbox
+                checked={termsAccepted}
+                onChange={setTermsAccepted}
+                labelContext="account creation and client communications"
+              />
+
+              <RecaptchaWidget
+                onVerify={(tok) => setRecaptchaToken(tok)}
+                onExpire={() => setRecaptchaToken(null)}
+              />
+
               <button
                 type="submit"
-                disabled={busy}
-                className="w-full rounded-full bg-[var(--color-ink)] py-3.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] disabled:opacity-60 transition-colors shadow-sm"
+                disabled={busy || !termsAccepted}
+                className="w-full rounded-full bg-[var(--color-ink)] py-3.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] disabled:opacity-60 disabled:cursor-not-allowed transition-colors shadow-sm"
               >
                 {busy ? "Creating Account..." : "Continue & Verify Email"}
               </button>

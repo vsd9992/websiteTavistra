@@ -123,6 +123,19 @@ export function Footer() {
                 </Link>
               </li>
               <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (typeof window !== "undefined") {
+                      window.dispatchEvent(new CustomEvent("open-cookie-settings"));
+                    }
+                  }}
+                  className="text-left text-xs hover:text-[var(--color-canvas)] transition-colors cursor-pointer"
+                >
+                  Cookie Preferences
+                </button>
+              </li>
+              <li>
                 <Link href="/cart" className="hover:text-[var(--color-canvas)] transition-colors">
                   Review Cart
                 </Link>

@@ -8,6 +8,9 @@ import { Footer } from "@/components/Footer";
 import { useCart, getCartLineKey } from "@/context/CartContext";
 import { useOrders, OrderRecord } from "@/context/OrderContext";
 import { useAuth, SavedAddress } from "@/context/AuthContext";
+import { HoneypotField } from "@/components/HoneypotField";
+import { TermsConsentCheckbox } from "@/components/TermsConsentCheckbox";
+import { RecaptchaWidget } from "@/components/RecaptchaWidget";
 import {
   checkBulkOrderCeiling,
   validateIndianMobile,
@@ -34,6 +37,12 @@ function CheckoutContent() {
   const [saveAddressToProfile, setSaveAddressToProfile] = useState(true);
   const [newAddressLabel, setNewAddressLabel] = useState("");
   const [setAsDefaultAddress, setSetAsDefaultAddress] = useState(false);
+
+  // Security, Consent & Bot Protection State
+  const [hpWebsite, setHpWebsite] = useState("");
+  const [hpTimestamp, setHpTimestamp] = useState<number>(0);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
 
   // Form State
   const [customer, setCustomer] = useState({
@@ -202,6 +211,7 @@ function CheckoutContent() {
     isStateValid &&
     isPinValid &&
     isGstinValid &&
+    termsAccepted &&
     !bulkCheck.isBulkEnquiryRequired;
 
   const handleBlur = (field: "fullName" | "phone" | "email" | "address1") => {
@@ -461,6 +471,10 @@ function CheckoutContent() {
         month: "long",
         year: "numeric",
       }),
+      _hp_website: hpWebsite,
+      _hp_timestamp: hpTimestamp,
+      termsAccepted,
+      recaptchaToken: recaptchaToken || undefined,
     };
 
     const saveRes = await saveOrder(orderRecord);
@@ -1191,6 +1205,24 @@ function CheckoutContent() {
                 </p>
               )}
             </div>
+
+            {/* Bot Trap, Consent & reCAPTCHA */}
+            <HoneypotField
+              value={hpWebsite}
+              onChange={setHpWebsite}
+              onTimestampChange={setHpTimestamp}
+            />
+
+            <TermsConsentCheckbox
+              checked={termsAccepted}
+              onChange={setTermsAccepted}
+              labelContext="order confirmation, insured crating, and white-glove delivery"
+            />
+
+            <RecaptchaWidget
+              onVerify={(tok) => setRecaptchaToken(tok)}
+              onExpire={() => setRecaptchaToken(null)}
+            />
           </form>
         </div>
 
@@ -1365,6 +1397,7 @@ function CheckoutContent() {
                       <li>{gstinValidation.error || "Correct the 15-character GSTIN or clear the field"}</li>
                     )}
                     {!isAddressValid && <li>Enter delivery address line 1 (building, suite, street)</li>}
+                    {!termsAccepted && <li>Accept Tavistra&apos;s Terms of Service and Privacy Policy</li>}
                   </ul>
                 </div>
               ) : (

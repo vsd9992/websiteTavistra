@@ -11,6 +11,8 @@ import {
   PASSWORD_MAX_LENGTH,
   validateStrongPassword,
 } from "@tavistra/shared";
+import { HoneypotField } from "@/components/HoneypotField";
+import { RecaptchaWidget } from "@/components/RecaptchaWidget";
 
 type LoginMode =
   | "password"
@@ -49,6 +51,11 @@ function LoginContent() {
   const [error, setError] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
 
+  // Security & Bot Trap State
+  const [hpWebsite, setHpWebsite] = useState("");
+  const [hpTimestamp, setHpTimestamp] = useState<number>(0);
+  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
+
   const resetLoginState = useCallback(() => {
     setMode("password");
     setEmail("");
@@ -85,7 +92,11 @@ function LoginContent() {
     }
 
     setBusy(true);
-    const result = await loginWithPassword(email.trim(), password);
+    const result = await loginWithPassword(email.trim(), password, {
+      _hp_website: hpWebsite,
+      _hp_timestamp: hpTimestamp,
+      recaptchaToken: recaptchaToken || undefined,
+    });
     setBusy(false);
 
     if (result.requiresVerification) {
@@ -286,7 +297,7 @@ function LoginContent() {
               className="h-6 w-auto mx-auto object-contain mb-2"
             />
             <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--color-muted-light)] block">
-              Tavistra Client Concierge
+              Tavistra Client Support
             </span>
             <h1 className="text-3xl font-serif font-light tracking-tight text-[var(--color-ink)]">
               {mode === "forgot_request" || mode === "forgot_reset"
@@ -390,6 +401,13 @@ function LoginContent() {
                   className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-sm text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
                 />
               </div>
+
+              {/* Bot Trap */}
+              <HoneypotField
+                value={hpWebsite}
+                onChange={setHpWebsite}
+                onTimestampChange={setHpTimestamp}
+              />
 
               <button
                 type="submit"

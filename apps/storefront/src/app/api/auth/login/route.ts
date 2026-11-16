@@ -12,10 +12,22 @@ import {
 } from "@/lib/auth";
 import { sendCustomerOtpEmail } from "@/lib/email";
 import { verifyTotpCode } from "@/lib/totp";
+import { validateFormSubmissionSecurity } from "@/lib/botProtection";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+
+    // Security Gate: Honeypot & Timing
+    const security = await validateFormSubmissionSecurity(body, {
+      requireTerms: false,
+      requireRecaptcha: false,
+      checkHoneypot: true,
+    });
+    if (!security.isValid) {
+      return NextResponse.json({ error: security.error }, { status: 400 });
+    }
+
     const {
       mode = "password",
       email,

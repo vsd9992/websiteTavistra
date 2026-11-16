@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@tavistra/db";
 import { validateEmail, validateIndianMobile, lookupPincode, parseInquiryLineItems, type QuoteLineItem } from "@tavistra/shared";
 import { sendBulkInquiryAckEmail } from "@/lib/email";
+import { validateFormSubmissionSecurity } from "@/lib/botProtection";
 
 export async function GET() {
   try {
@@ -93,6 +94,17 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+
+    // Security Gate: Honeypot, Timing, Terms Consent & reCAPTCHA
+    const security = await validateFormSubmissionSecurity(body, {
+      requireTerms: true,
+      requireRecaptcha: true,
+      checkHoneypot: true,
+    });
+    if (!security.isValid) {
+      return NextResponse.json({ error: security.error }, { status: 400 });
+    }
+
     const {
       name,
       practiceOrStudio,

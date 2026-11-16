@@ -7,6 +7,9 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { useAuth } from "@/context/AuthContext";
 import { lookupPincode, validateEmail, validateIndianMobile } from "@tavistra/shared";
+import { HoneypotField } from "@/components/HoneypotField";
+import { TermsConsentCheckbox } from "@/components/TermsConsentCheckbox";
+import { RecaptchaWidget } from "@/components/RecaptchaWidget";
 
 function ContactFormContent() {
   const { user } = useAuth();
@@ -79,6 +82,12 @@ function ContactFormContent() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [referenceNumber, setReferenceNumber] = useState<string | null>(null);
 
+  // Security, Consent & Bot Protection State
+  const [hpWebsite, setHpWebsite] = useState("");
+  const [hpTimestamp, setHpTimestamp] = useState<number>(0);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
+
   const hasQueryParams = Boolean(
     intentParam || orderParam || ticketParam || categoryParam || productParam || skuParam || messageParam || itemsParam
   );
@@ -87,6 +96,9 @@ function ContactFormContent() {
     setSubmitted(false);
     setReferenceNumber(null);
     setSubmitError(null);
+    setTermsAccepted(false);
+    setRecaptchaToken(null);
+    setHpWebsite("");
     setGeneralData({
       name: user?.name || "",
       practiceOrStudio: user?.practiceOrStudio || "",
@@ -176,6 +188,11 @@ function ContactFormContent() {
       return;
     }
 
+    if (!termsAccepted) {
+      setSubmitError("Please confirm your acceptance of Tavistra's Terms of Service and Privacy Policy.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       if (contactMode === "SUPPORT_TICKET") {
@@ -190,6 +207,10 @@ function ContactFormContent() {
             orderNumber: ticketData.orderNumber.trim() || undefined,
             subject: ticketData.subject.trim() || "Client Desk Assistance",
             message: ticketData.message.trim(),
+            _hp_website: hpWebsite,
+            _hp_timestamp: hpTimestamp,
+            termsAccepted,
+            recaptchaToken: recaptchaToken || undefined,
           }),
         });
         const data = await res.json();
@@ -198,6 +219,8 @@ function ContactFormContent() {
         }
         setReferenceNumber(data.ticketNumber || null);
         setSubmitted(true);
+        setTermsAccepted(false);
+        setRecaptchaToken(null);
         setTicketData({
           name: user?.name || "",
           email: user?.email || "",
@@ -247,6 +270,10 @@ function ContactFormContent() {
             quantity: Math.max(1, parseInt(generalData.quantity || "10", 10) || 10),
             message: generalData.message.trim(),
             lineItems: structuredLineItems && structuredLineItems.length > 0 ? structuredLineItems : undefined,
+            _hp_website: hpWebsite,
+            _hp_timestamp: hpTimestamp,
+            termsAccepted,
+            recaptchaToken: recaptchaToken || undefined,
           }),
         });
         const data = await res.json();
@@ -255,6 +282,8 @@ function ContactFormContent() {
         }
         setReferenceNumber(data.inquiryNumber || null);
         setSubmitted(true);
+        setTermsAccepted(false);
+        setRecaptchaToken(null);
         setGeneralData({
           name: user?.name || "",
           practiceOrStudio: user?.practiceOrStudio || "",
@@ -555,9 +584,27 @@ function ContactFormContent() {
                   />
                 </div>
 
+                {/* Bot Trap, Consent & reCAPTCHA */}
+                <HoneypotField
+                  value={hpWebsite}
+                  onChange={setHpWebsite}
+                  onTimestampChange={setHpTimestamp}
+                />
+
+                <TermsConsentCheckbox
+                  checked={termsAccepted}
+                  onChange={setTermsAccepted}
+                  labelContext="support ticket registration"
+                />
+
+                <RecaptchaWidget
+                  onVerify={(tok) => setRecaptchaToken(tok)}
+                  onExpire={() => setRecaptchaToken(null)}
+                />
+
                 <button
                   type="submit"
-                  disabled={submitting || !emailVal.isValid || !mobileVal.isValid || !ticketData.name.trim() || !ticketData.message.trim()}
+                  disabled={submitting || !emailVal.isValid || !mobileVal.isValid || !ticketData.name.trim() || !ticketData.message.trim() || !termsAccepted}
                   className="w-full rounded-full bg-[var(--color-ink)] py-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
                 >
                   {submitting ? "Registering Support Ticket..." : "Submit Support Ticket"}
@@ -696,9 +743,27 @@ function ContactFormContent() {
                   />
                 </div>
 
+                {/* Bot Trap, Consent & reCAPTCHA */}
+                <HoneypotField
+                  value={hpWebsite}
+                  onChange={setHpWebsite}
+                  onTimestampChange={setHpTimestamp}
+                />
+
+                <TermsConsentCheckbox
+                  checked={termsAccepted}
+                  onChange={setTermsAccepted}
+                  labelContext="studio inquiries and design proposals"
+                />
+
+                <RecaptchaWidget
+                  onVerify={(tok) => setRecaptchaToken(tok)}
+                  onExpire={() => setRecaptchaToken(null)}
+                />
+
                 <button
                   type="submit"
-                  disabled={submitting || !emailVal.isValid || !mobileVal.isValid || !generalData.name.trim() || !generalData.message.trim()}
+                  disabled={submitting || !emailVal.isValid || !mobileVal.isValid || !generalData.name.trim() || !generalData.message.trim() || !termsAccepted}
                   className="w-full rounded-full bg-[var(--color-ink)] py-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
                 >
                   {submitting ? "Transmitting to Studio..." : "Send Studio Inquiry"}

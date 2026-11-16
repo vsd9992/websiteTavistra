@@ -3,6 +3,7 @@ import { prisma } from "@tavistra/db";
 import { validateEmail, validateIndianMobile } from "@tavistra/shared";
 import { sendTicketEmail } from "@/lib/email";
 import { getAuthenticatedUser } from "@/lib/auth";
+import { validateFormSubmissionSecurity } from "@/lib/botProtection";
 
 const ALLOWED_CATEGORIES = [
   "ORDER_INQUIRY",
@@ -191,6 +192,17 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+
+    // Security Gate: Honeypot, Timing, Terms Consent & reCAPTCHA
+    const security = await validateFormSubmissionSecurity(body, {
+      requireTerms: true,
+      requireRecaptcha: true,
+      checkHoneypot: true,
+    });
+    if (!security.isValid) {
+      return NextResponse.json({ error: security.error }, { status: 400 });
+    }
+
     const { name, email, phone, subject, category, message, orderNumber, priority } = body;
 
     if (!name || typeof name !== "string" || !name.trim()) {

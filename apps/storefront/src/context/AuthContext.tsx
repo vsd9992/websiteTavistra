@@ -52,7 +52,11 @@ interface AuthContextType {
   authLoading: boolean;
   isAuthenticated: boolean;
   refreshAccount: () => Promise<void>;
-  loginWithPassword: (email: string, password: string) => Promise<AuthActionResult>;
+  loginWithPassword: (
+    email: string,
+    password: string,
+    security?: { _hp_website?: string; _hp_timestamp?: number | string; recaptchaToken?: string }
+  ) => Promise<AuthActionResult>;
   requestLoginOtp: (email: string) => Promise<AuthActionResult>;
   verifyLoginOtp: (email: string, code: string) => Promise<AuthActionResult>;
   registerAccount: (data: {
@@ -62,6 +66,10 @@ interface AuthContextType {
     password: string;
     gstin?: string;
     practiceOrStudio?: string;
+    _hp_website?: string;
+    _hp_timestamp?: number | string;
+    termsAccepted?: boolean;
+    recaptchaToken?: string;
   }) => Promise<AuthActionResult>;
   verifyRegistrationEmail: (email: string, code: string) => Promise<AuthActionResult>;
   requestPasswordReset: (email: string) => Promise<AuthActionResult>;
@@ -120,13 +128,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void refreshAccount();
   }, [refreshAccount]);
 
-  const loginWithPassword = async (email: string, password: string): Promise<AuthActionResult> => {
+  const loginWithPassword = async (
+    email: string,
+    password: string,
+    security?: { _hp_website?: string; _hp_timestamp?: number | string; recaptchaToken?: string }
+  ): Promise<AuthActionResult> => {
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ mode: "password", email, password }),
+        body: JSON.stringify({ mode: "password", email, password, ...security }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -201,6 +213,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string;
     gstin?: string;
     practiceOrStudio?: string;
+    _hp_website?: string;
+    _hp_timestamp?: number | string;
+    termsAccepted?: boolean;
+    recaptchaToken?: string;
   }): Promise<AuthActionResult> => {
     try {
       const res = await fetch("/api/auth/register", {

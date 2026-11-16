@@ -235,7 +235,7 @@ export default function AccountTicketsPage() {
                     {statusFilter === "ALL" ? "No support tickets found" : `No ${statusFilter.toLowerCase().replace("_", " ")} tickets found`}
                   </h3>
                   <p className="text-xs text-[var(--color-muted-light)] max-w-md mx-auto leading-relaxed">
-                    Need assistance with a recent order, finish alteration, or delivery schedule? Our client concierge desk is at your service.
+                    Need assistance with a recent order, finish alteration, or delivery schedule? Our customer support team is at your service.
                   </p>
                   <div className="pt-2">
                     <Link

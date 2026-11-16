@@ -3,10 +3,22 @@ import { prisma } from "@tavistra/db";
 import { validateEmail, validateIndianMobile, validateStrongPassword } from "@tavistra/shared";
 import { hashPassword, issueEmailOtp, validateGstinFormat } from "@/lib/auth";
 import { sendCustomerOtpEmail } from "@/lib/email";
+import { validateFormSubmissionSecurity } from "@/lib/botProtection";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+
+    // Security Gate: Honeypot, Timing, Terms Consent & reCAPTCHA
+    const security = await validateFormSubmissionSecurity(body, {
+      requireTerms: true,
+      requireRecaptcha: true,
+      checkHoneypot: true,
+    });
+    if (!security.isValid) {
+      return NextResponse.json({ error: security.error }, { status: 400 });
+    }
+
     const {
       name,
       email,

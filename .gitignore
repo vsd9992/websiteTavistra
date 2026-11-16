@@ -24,6 +24,12 @@ pnpm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
+*.tsbuildinfo
+
+# Credentials and tags (protected)
+.reCAPTCHA
+.htmlTag_Pinterest
+.gConsoleTag
 
 # Database
 *.sqlite

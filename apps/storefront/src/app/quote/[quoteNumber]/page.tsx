@@ -182,13 +182,13 @@ function QuoteContent({ params }: ProposalPageProps) {
               <h2 className="font-editorial text-3xl text-[var(--color-ink)]">Proposal Not Found</h2>
               <p className="text-xs text-[var(--color-muted-light)] max-w-md mx-auto leading-relaxed">
                 We could not locate an active architectural proposal matching reference{" "}
-                <strong className="font-mono text-[var(--color-ink)]">{quoteNumber}</strong>. Please verify the quotation link from your official notice or request assistance from our concierge desk.
+                <strong className="font-mono text-[var(--color-ink)]">{quoteNumber}</strong>. Please verify the quotation link from your official notice or request assistance from our customer support team.
               </p>
               <Link
                 href="/contact"
                 className="inline-block mt-3 px-6 py-2.5 rounded-full bg-[var(--color-ink)] text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors"
               >
-                Contact Studio Concierge
+                Contact Customer Support
               </Link>
             </div>
           ) : (
@@ -443,7 +443,7 @@ function QuoteContent({ params }: ProposalPageProps) {
                       <div className="text-center p-6 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs space-y-2">
                         <strong className="block text-sm">30-Day Offer Period Has Elapsed</strong>
                         <p>
-                          Under studio policy (TAV-07), initial material allocation and artisanal pricing are held for exactly 30 calendar days. Please contact our client concierge to obtain a refreshed quotation.
+                          Under studio policy (TAV-07), initial material allocation and artisanal pricing are held for exactly 30 calendar days. Please contact customer support to obtain a refreshed quotation.
                         </p>
                         <div className="pt-2">
                           <Link

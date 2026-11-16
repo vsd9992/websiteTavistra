@@ -354,7 +354,7 @@ export default function AccountOverviewPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <h2 className="text-xl font-serif font-light text-[var(--color-ink)]">
-                        Support Tickets &amp; Concierge Desk
+                        Support Tickets &amp; Client Assistance
                       </h2>
                       <p className="text-xs text-[var(--color-muted-light)]">
                         Track open alteration requests, order assistance, and official studio correspondence.

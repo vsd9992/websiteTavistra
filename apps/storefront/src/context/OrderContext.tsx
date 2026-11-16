@@ -68,6 +68,10 @@ export interface OrderRecord {
   refund?: OrderRefundRecord | null;
   cancelledAt?: string | null;
   createdAt: string;
+  _hp_website?: string;
+  _hp_timestamp?: number | string;
+  termsAccepted?: boolean;
+  recaptchaToken?: string;
 }
 
 export interface SaveOrderResult {

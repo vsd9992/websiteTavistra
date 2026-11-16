@@ -91,7 +91,7 @@ function TrackTicketContent() {
       setTicket(null);
       setSearched(true);
       setLoading(false);
-      setErrorMessage("Unable to connect to the concierge desk. Please check your network and retry.");
+      setErrorMessage("Unable to connect to customer support. Please check your network and retry.");
     }
   };
 
@@ -129,7 +129,7 @@ function TrackTicketContent() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to post message to the concierge desk.");
+        throw new Error(data.error || "Failed to post message to support.");
       }
 
       setTicket((prev) => {
@@ -142,7 +142,7 @@ function TrackTicketContent() {
       });
 
       setReplyText("");
-      setReplySuccess("Your response has been dispatched to the studio concierge desk.");
+      setReplySuccess("Your response has been dispatched to customer support.");
     } catch (err) {
       setReplyError((err as Error).message || "Failed to post reply.");
     } finally {
@@ -212,7 +212,7 @@ function TrackTicketContent() {
             disabled={loading}
             className="w-full rounded-full bg-[var(--color-ink)] py-3.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm disabled:opacity-50 uppercase tracking-wider"
           >
-            {loading ? "Searching Concierge Desk Records..." : "Locate Support Ticket"}
+            {loading ? "Searching Ticket Records..." : "Locate Support Ticket"}
           </button>
         </form>
 
@@ -282,7 +282,7 @@ function TrackTicketContent() {
               {/* Conversation Thread */}
               <div className="space-y-4">
                 <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-light)] block">
-                  Concierge Conversation History ({ticket.messages.length} notes)
+                  Support Conversation History ({ticket.messages.length} notes)
                 </span>
 
                 <div className="space-y-4">

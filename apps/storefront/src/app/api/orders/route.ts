@@ -13,6 +13,7 @@ import {
 } from "@/lib/logisticsEngine";
 import { getAuthenticatedUser } from "@/lib/auth";
 import { deriveOrderStatusPresentation, safeParseQcImages } from "@/lib/orderStatus";
+import { validateFormSubmissionSecurity } from "@/lib/botProtection";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -286,6 +287,19 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
+
+    // Security Gate: Honeypot, Timing, Terms Consent & reCAPTCHA
+    const security = await validateFormSubmissionSecurity(body, {
+      requireTerms: true,
+      requireRecaptcha: true,
+      checkHoneypot: true,
+    });
+    if (!security.isValid) {
+      return NextResponse.json(
+        { success: false, error: security.error },
+        { status: 400 }
+      );
+    }
 
     const {
       id,
