@@ -555,22 +555,13 @@ function ContactFormContent() {
                   />
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                  <button
-                    type="submit"
-                    disabled={submitting || !emailVal.isValid || !mobileVal.isValid || !ticketData.name.trim() || !ticketData.message.trim()}
-                    className="flex-1 rounded-full bg-[var(--color-ink)] py-3.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
-                  >
-                    {submitting ? "Registering Support Ticket..." : "Submit Support Ticket"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleResetForm}
-                    className="rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-6 py-3.5 text-xs font-semibold text-[var(--color-muted-light)] hover:text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors text-center"
-                  >
-                    Reset Form
-                  </button>
-                </div>
+                <button
+                  type="submit"
+                  disabled={submitting || !emailVal.isValid || !mobileVal.isValid || !ticketData.name.trim() || !ticketData.message.trim()}
+                  className="w-full rounded-full bg-[var(--color-ink)] py-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+                >
+                  {submitting ? "Registering Support Ticket..." : "Submit Support Ticket"}
+                </button>
               </>
             ) : (
               /* MODE 2: GENERAL STUDIO & COMMERCIAL INQUIRY */
@@ -705,22 +696,13 @@ function ContactFormContent() {
                   />
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                  <button
-                    type="submit"
-                    disabled={submitting || !emailVal.isValid || !mobileVal.isValid || !generalData.name.trim() || !generalData.message.trim()}
-                    className="flex-1 rounded-full bg-[var(--color-ink)] py-3.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
-                  >
-                    {submitting ? "Transmitting to Studio..." : "Send Studio Inquiry"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleResetForm}
-                    className="rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-6 py-3.5 text-xs font-semibold text-[var(--color-muted-light)] hover:text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors text-center"
-                  >
-                    Reset Form
-                  </button>
-                </div>
+                <button
+                  type="submit"
+                  disabled={submitting || !emailVal.isValid || !mobileVal.isValid || !generalData.name.trim() || !generalData.message.trim()}
+                  className="w-full rounded-full bg-[var(--color-ink)] py-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+                >
+                  {submitting ? "Transmitting to Studio..." : "Send Studio Inquiry"}
+                </button>
               </>
             )}
           </form>
