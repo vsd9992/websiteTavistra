@@ -9,8 +9,8 @@ import { useCart, getCartLineKey } from "@/context/CartContext";
 import { useOrders, OrderRecord } from "@/context/OrderContext";
 import { useAuth, SavedAddress } from "@/context/AuthContext";
 import { HoneypotField } from "@/components/HoneypotField";
-import { TermsConsentCheckbox } from "@/components/TermsConsentCheckbox";
 import { RecaptchaWidget } from "@/components/RecaptchaWidget";
+import { executeRecaptcha } from "@/lib/recaptchaClient";
 import {
   checkBulkOrderCeiling,
   validateIndianMobile,
@@ -38,11 +38,9 @@ function CheckoutContent() {
   const [newAddressLabel, setNewAddressLabel] = useState("");
   const [setAsDefaultAddress, setSetAsDefaultAddress] = useState(false);
 
-  // Security, Consent & Bot Protection State
+  // Security & Bot Protection State
   const [hpWebsite, setHpWebsite] = useState("");
   const [hpTimestamp, setHpTimestamp] = useState<number>(0);
-  const [termsAccepted, setTermsAccepted] = useState(false);
-  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
 
   // Form State
   const [customer, setCustomer] = useState({
@@ -211,7 +209,6 @@ function CheckoutContent() {
     isStateValid &&
     isPinValid &&
     isGstinValid &&
-    termsAccepted &&
     !bulkCheck.isBulkEnquiryRequired;
 
   const handleBlur = (field: "fullName" | "phone" | "email" | "address1") => {
@@ -429,6 +426,8 @@ function CheckoutContent() {
         ? `TAV-RS-${new Date().getFullYear()}-${randomSuffix}`
         : `TAV-MTO-${new Date().getFullYear()}-${randomSuffix}`;
 
+    const v3Token = await executeRecaptcha("checkout_order");
+
     const orderRecord: OrderRecord = {
       id: provisionalOrderId,
       mode: modeParam,
@@ -473,8 +472,8 @@ function CheckoutContent() {
       }),
       _hp_website: hpWebsite,
       _hp_timestamp: hpTimestamp,
-      termsAccepted,
-      recaptchaToken: recaptchaToken || undefined,
+      termsAccepted: true,
+      recaptchaToken: v3Token || undefined,
     };
 
     const saveRes = await saveOrder(orderRecord);
@@ -1206,22 +1205,11 @@ function CheckoutContent() {
               )}
             </div>
 
-            {/* Bot Trap, Consent & reCAPTCHA */}
+            {/* Bot Trap */}
             <HoneypotField
               value={hpWebsite}
               onChange={setHpWebsite}
               onTimestampChange={setHpTimestamp}
-            />
-
-            <TermsConsentCheckbox
-              checked={termsAccepted}
-              onChange={setTermsAccepted}
-              labelContext="order confirmation, insured crating, and white-glove delivery"
-            />
-
-            <RecaptchaWidget
-              onVerify={(tok) => setRecaptchaToken(tok)}
-              onExpire={() => setRecaptchaToken(null)}
             />
           </form>
         </div>
@@ -1397,7 +1385,6 @@ function CheckoutContent() {
                       <li>{gstinValidation.error || "Correct the 15-character GSTIN or clear the field"}</li>
                     )}
                     {!isAddressValid && <li>Enter delivery address line 1 (building, suite, street)</li>}
-                    {!termsAccepted && <li>Accept Tavistra&apos;s Terms of Service and Privacy Policy</li>}
                   </ul>
                 </div>
               ) : (
@@ -1408,6 +1395,36 @@ function CheckoutContent() {
                   All mandatory fields verified · Ready for electronic checkout
                 </p>
               )}
+
+              <p className="text-[11px] text-center text-[var(--color-muted-light)] leading-relaxed px-1">
+                By placing your order, you agree to Tavistra&apos;s{" "}
+                <Link
+                  href="/terms"
+                  target="_blank"
+                  className="font-medium text-[var(--color-bronze)] underline hover:text-[var(--color-ink)]"
+                >
+                  Terms of Service
+                </Link>
+                ,{" "}
+                <Link
+                  href="/shipping"
+                  target="_blank"
+                  className="font-medium text-[var(--color-bronze)] underline hover:text-[var(--color-ink)]"
+                >
+                  Delivery Policy
+                </Link>
+                , and{" "}
+                <Link
+                  href="/privacy"
+                  target="_blank"
+                  className="font-medium text-[var(--color-bronze)] underline hover:text-[var(--color-ink)]"
+                >
+                  Privacy Policy
+                </Link>
+                .
+              </p>
+
+              <RecaptchaWidget className="text-center" />
 
               <p className="text-[10px] text-center text-[var(--color-muted-light)] mt-2">
                 Protected by 256-bit electronic encryption · Compliant with GST & TAV-03 transparency

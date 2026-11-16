@@ -17,6 +17,7 @@ import {
 import { HoneypotField } from "@/components/HoneypotField";
 import { TermsConsentCheckbox } from "@/components/TermsConsentCheckbox";
 import { RecaptchaWidget } from "@/components/RecaptchaWidget";
+import { executeRecaptcha } from "@/lib/recaptchaClient";
 
 export default function RegisterPage() {
   const { isAuthenticated, authLoading, registerAccount, verifyRegistrationEmail } = useAuth();
@@ -45,7 +46,6 @@ export default function RegisterPage() {
   const [hpWebsite, setHpWebsite] = useState("");
   const [hpTimestamp, setHpTimestamp] = useState<number>(0);
   const [termsAccepted, setTermsAccepted] = useState(false);
-  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
 
   const resetRegisterState = useCallback(() => {
     setStep("details");
@@ -111,6 +111,7 @@ export default function RegisterPage() {
     }
 
     setBusy(true);
+    const v3Token = await executeRecaptcha("account_register");
     const result = await registerAccount({
       name: name.trim(),
       email: emailVal.normalizedEmail || email.trim(),
@@ -121,7 +122,7 @@ export default function RegisterPage() {
       _hp_website: hpWebsite,
       _hp_timestamp: hpTimestamp,
       termsAccepted,
-      recaptchaToken: recaptchaToken || undefined,
+      recaptchaToken: v3Token || undefined,
     });
     setBusy(false);
 
@@ -382,10 +383,7 @@ export default function RegisterPage() {
                 labelContext="account creation and client communications"
               />
 
-              <RecaptchaWidget
-                onVerify={(tok) => setRecaptchaToken(tok)}
-                onExpire={() => setRecaptchaToken(null)}
-              />
+              <RecaptchaWidget className="text-center" />
 
               <button
                 type="submit"

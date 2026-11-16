@@ -107,3 +107,9 @@ textarea:disabled,
   }
 }
 
+/* reCAPTCHA v3 Invisible Badge (Official attribution provided in form footers) */
+.grecaptcha-badge {
+  visibility: hidden !important;
+}
+
+

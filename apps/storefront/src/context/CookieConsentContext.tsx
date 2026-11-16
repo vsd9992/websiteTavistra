@@ -25,6 +25,7 @@ interface CookieConsentContextType {
   saveCustomPreferences: (prefs: { analytics: boolean; marketing: boolean }) => void;
   openSettingsModal: () => void;
   closeSettingsModal: () => void;
+  closeBanner: () => void;
 }
 
 const STORAGE_KEY = "tavistra_cookie_consent_v1";
@@ -45,6 +46,7 @@ const CookieConsentContext = createContext<CookieConsentContextType>({
   saveCustomPreferences: () => {},
   openSettingsModal: () => {},
   closeSettingsModal: () => {},
+  closeBanner: () => {},
 });
 
 export function CookieConsentProvider({ children }: { children: React.ReactNode }) {
@@ -135,11 +137,16 @@ export function CookieConsentProvider({ children }: { children: React.ReactNode 
   };
 
   const openSettingsModal = () => {
+    setIsBannerOpen(false);
     setIsSettingsModalOpen(true);
   };
 
   const closeSettingsModal = () => {
     setIsSettingsModalOpen(false);
+  };
+
+  const closeBanner = () => {
+    setIsBannerOpen(false);
   };
 
   return (
@@ -154,6 +161,7 @@ export function CookieConsentProvider({ children }: { children: React.ReactNode 
         saveCustomPreferences,
         openSettingsModal,
         closeSettingsModal,
+        closeBanner,
       }}
     >
       {children}

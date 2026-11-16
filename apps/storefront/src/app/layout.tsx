@@ -201,6 +201,11 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
+        <script
+          src={`https://www.google.com/recaptcha/api.js?render=${process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || "6Ld7wxkuAAAAAHX2z5sIxV3FuXGrqBT-CZ7BtA2N"}`}
+          async
+          defer
+        />
       </head>
       <body className="min-h-full flex flex-col bg-[var(--color-canvas)] text-[var(--color-ink)] font-[family-name:var(--font-ui)]">
         <CookieConsentProvider>

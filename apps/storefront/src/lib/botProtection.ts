@@ -48,18 +48,19 @@ export function validateHoneypot(
 }
 
 /**
- * Validates Google reCAPTCHA token against Google's verification API.
+ * Validates Google reCAPTCHA v3 token against Google's verification API.
  */
 export async function verifyRecaptcha(
-  token?: string | null
-): Promise<{ success: boolean; error?: string }> {
+  token?: string | null,
+  options?: { minScore?: number; expectedAction?: string }
+): Promise<{ success: boolean; score?: number; error?: string }> {
   const secretKey = process.env.RECAPTCHA_SECRET_KEY;
 
   // Development / Test bypass fallback if keys are not yet configured on a test runner
   if (!secretKey) {
     if (process.env.NODE_ENV !== "production") {
-      console.warn("[reCAPTCHA] RECAPTCHA_SECRET_KEY not set. Bypassing in development mode.");
-      return { success: true };
+      console.warn("[reCAPTCHA v3] RECAPTCHA_SECRET_KEY not set. Bypassing in development mode.");
+      return { success: true, score: 1.0 };
     }
     return { success: false, error: "reCAPTCHA server configuration missing." };
   }
@@ -67,14 +68,14 @@ export async function verifyRecaptcha(
   if (!token || typeof token !== "string" || !token.trim()) {
     // If running in development and token is empty, permit to prevent blocking local DX
     if (process.env.NODE_ENV !== "production") {
-      return { success: true };
+      return { success: true, score: 1.0 };
     }
-    return { success: false, error: "Please complete the reCAPTCHA security verification." };
+    return { success: false, error: "Security validation token missing. Please refresh and retry." };
   }
 
   // Allow QA test token
   if (token === "QA_TEST_BYPASS_TOKEN" && process.env.NODE_ENV !== "production") {
-    return { success: true };
+    return { success: true, score: 1.0 };
   }
 
   try {
@@ -98,7 +99,16 @@ export async function verifyRecaptcha(
     const data = await response.json();
 
     if (data.success) {
-      return { success: true };
+      // reCAPTCHA v3 score verification (1.0 = very likely a human, 0.0 = very likely a bot)
+      const minScore = options?.minScore ?? 0.4;
+      if (typeof data.score === "number" && data.score < minScore) {
+        return {
+          success: false,
+          score: data.score,
+          error: "Submission flagged by bot protection. Please retry or contact support directly.",
+        };
+      }
+      return { success: true, score: data.score };
     }
 
     const errorCodes = Array.isArray(data["error-codes"]) ? data["error-codes"].join(", ") : "Invalid challenge";
@@ -107,10 +117,10 @@ export async function verifyRecaptcha(
       error: `Security verification failed (${errorCodes}). Please retry.`,
     };
   } catch (error) {
-    console.error("[reCAPTCHA] Verification network error:", error);
+    console.error("[reCAPTCHA v3] Verification network error:", error);
     // In dev, fail open; in production, fail closed
     if (process.env.NODE_ENV !== "production") {
-      return { success: true };
+      return { success: true, score: 1.0 };
     }
     return { success: false, error: "Network error validating security challenge. Please try again." };
   }

@@ -14,6 +14,7 @@ export function CookieConsentBanner() {
     saveCustomPreferences,
     openSettingsModal,
     closeSettingsModal,
+    closeBanner,
   } = useCookieConsent();
 
   // Local draft states for modal
@@ -33,67 +34,120 @@ export function CookieConsentBanner() {
     });
   };
 
+  const handleAcceptAllFromModal = () => {
+    setAnalyticsDraft(true);
+    setMarketingDraft(true);
+    acceptAll();
+  };
+
+  const handleRejectAllFromModal = () => {
+    setAnalyticsDraft(false);
+    setMarketingDraft(false);
+    rejectNonEssential();
+  };
+
   return (
     <>
-      {/* 1. First-Visit Cookie Banner */}
-      {isBannerOpen && (
-        <div className="fixed bottom-0 inset-x-0 z-50 p-4 sm:p-6 bg-black/30 backdrop-blur-md animate-fade-in pointer-events-auto">
-          <div className="mx-auto max-w-5xl rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-5 sm:p-6 shadow-2xl space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="space-y-1.5 flex-1 pr-0 md:pr-6">
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-[var(--color-bronze)] animate-pulse" />
-                  <span className="text-xs uppercase font-bold tracking-wider text-[var(--color-ink)]">
-                    Cookie &amp; Privacy Preferences
-                  </span>
-                </div>
-                <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
-                  We use cookies to maintain your shopping cart, secure authentication, and verify fraud protection.
-                  With your consent, we also use performance cookies (Google Analytics) and marketing tags (Pinterest) to measure site interaction. Trackers remain inactive until you choose to accept.
-                </p>
-                <div className="pt-1 text-[11px] text-[var(--color-muted-light)]">
-                  Read our full{" "}
-                  <Link href="/privacy" className="font-medium underline hover:text-[var(--color-ink)]">
-                    Privacy Policy
-                  </Link>{" "}
-                  and{" "}
-                  <Link href="/terms" className="font-medium underline hover:text-[var(--color-ink)]">
-                    Terms of Service
-                  </Link>
-                  .
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={handleOpenModal}
-                  className="rounded-full border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-4 py-2.5 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors text-center"
-                >
-                  Cookie Settings
-                </button>
-                <button
-                  type="button"
-                  onClick={rejectNonEssential}
-                  className="rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2.5 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors text-center"
-                >
-                  Reject Non-Essential
-                </button>
-                <button
-                  type="button"
-                  onClick={acceptAll}
-                  className="rounded-full bg-[var(--color-ink)] px-5 py-2.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm text-center"
-                >
-                  Accept All
-                </button>
-              </div>
+      {/* 1. Initial Floating Popup Card (Bottom-Left) */}
+      {isBannerOpen && !isSettingsModalOpen && (
+        <aside
+          role="dialog"
+          aria-label="Cookie & Privacy Choices"
+          className="fixed bottom-5 left-5 z-50 w-[calc(100vw-2.5rem)] sm:w-[420px] rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)]/98 p-5 shadow-2xl backdrop-blur-md animate-fade-in space-y-3.5 pointer-events-auto"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-[var(--color-bronze)] animate-pulse" />
+              <span className="text-xs uppercase font-bold tracking-wider text-[var(--color-ink)]">
+                Cookie &amp; Privacy Choices
+              </span>
             </div>
+            <button
+              type="button"
+              onClick={closeBanner}
+              className="text-[var(--color-muted-light)] hover:text-[var(--color-ink)] p-1 rounded transition-colors text-sm"
+              title="Dismiss for now"
+              aria-label="Dismiss banner"
+            >
+              ✕
+            </button>
           </div>
-        </div>
+
+          <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
+            We use essential cookies to secure your shopping cart and enable checkout. With your consent, we also use performance and marketing cookies to measure interactions and refine our offerings. Trackers remain inactive until you choose to accept.
+          </p>
+
+          <div className="text-[11px] text-[var(--color-muted-light)]">
+            Read our{" "}
+            <Link href="/privacy" className="font-medium underline hover:text-[var(--color-ink)]">
+              Privacy Policy
+            </Link>{" "}
+            and{" "}
+            <Link href="/terms" className="font-medium underline hover:text-[var(--color-ink)]">
+              Terms of Service
+            </Link>
+            .
+          </div>
+
+          {/* Quick Buttons */}
+          <div className="space-y-2 pt-1">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={rejectNonEssential}
+                className="rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-3 py-2 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors text-center"
+              >
+                Reject Non-Essential
+              </button>
+              <button
+                type="button"
+                onClick={acceptAll}
+                className="rounded-full bg-[var(--color-ink)] px-3 py-2 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm text-center"
+              >
+                Accept All
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={handleOpenModal}
+              className="w-full text-center py-1.5 text-[11px] font-semibold text-[var(--color-bronze)] hover:text-[var(--color-ink)] underline transition-colors"
+            >
+              Customize Preferences &amp; Details →
+            </button>
+          </div>
+        </aside>
       )}
 
-      {/* 2. Detailed Cookie Preference Settings Modal */}
+      {/* 2. Persistent Floating Trigger Button (Bottom-Left) */}
+      {!isBannerOpen && !isSettingsModalOpen && (
+        <button
+          type="button"
+          onClick={handleOpenModal}
+          className="fixed bottom-5 left-5 z-40 flex items-center gap-2 rounded-full border border-[var(--color-decorative-border)] bg-[var(--color-canvas)]/95 px-3 py-2 text-xs font-medium text-[var(--color-ink)] shadow-lg backdrop-blur-md hover:bg-[var(--color-ivory)] hover:border-[var(--color-ink)] transition-all group cursor-pointer"
+          title="Cookie & Privacy Settings"
+          aria-label="Cookie & Privacy Settings"
+        >
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-stone)] text-[var(--color-bronze)] group-hover:bg-[var(--color-bronze)] group-hover:text-[var(--color-canvas)] transition-colors">
+            <svg
+              className="w-3.5 h-3.5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </span>
+          <span className="hidden sm:inline text-[11px] font-semibold tracking-wide text-[var(--color-ink)]">
+            Cookie Preferences
+          </span>
+        </button>
+      )}
+
+      {/* 3. Detailed Cookie Preference Settings Modal */}
       {isSettingsModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-2xl rounded-3xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-6 sm:p-8 space-y-6 shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -118,7 +172,7 @@ export function CookieConsentBanner() {
 
             <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
               Tailor your cookie settings below. Essential cookies are required for core storefront operation,
-              while analytics and marketing cookies help us optimize our catalogue and understand customer preferences.
+              while performance and marketing cookies help us optimize our catalogue and understand customer preferences.
             </p>
 
             {/* Category Cards */}
@@ -137,7 +191,7 @@ export function CookieConsentBanner() {
                   <span className="text-[11px] font-semibold text-emerald-700">Required</span>
                 </div>
                 <p className="text-[11px] text-[var(--color-muted-light)] leading-relaxed">
-                  Essential for website security, CSRF validation, shopping bag persistence, delivery address handling, and client authentication. Cannot be switched off.
+                  Essential for website security, bot prevention, shopping bag persistence, delivery estimation, and client authentication. Cannot be switched off.
                 </p>
               </div>
 
@@ -146,10 +200,10 @@ export function CookieConsentBanner() {
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-xs font-semibold text-[var(--color-ink)] block">
-                      Analytics &amp; Performance (Google Analytics / GTM)
+                      Performance &amp; Analytics Cookies
                     </span>
                     <span className="text-[10px] text-[var(--color-muted-light)]">
-                      Measures traffic volume, page load performance, and popular catalogue items.
+                      Collects anonymous traffic metrics, page load speeds, and popular catalogue interactions to optimize performance.
                     </span>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer shrink-0">
@@ -164,15 +218,15 @@ export function CookieConsentBanner() {
                 </div>
               </div>
 
-              {/* Category 3: Marketing & Social */}
+              {/* Category 3: Marketing & Personalization */}
               <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-xs font-semibold text-[var(--color-ink)] block">
-                      Marketing &amp; Social Pixels (Pinterest)
+                      Marketing &amp; Personalization Cookies
                     </span>
                     <span className="text-[10px] text-[var(--color-muted-light)]">
-                      Connects domain verification and visual board engagement with Pinterest.
+                      Enables personalized recommendations, visual inspiration features, and external campaign attribution.
                     </span>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer shrink-0">
@@ -192,17 +246,24 @@ export function CookieConsentBanner() {
             <div className="flex flex-col sm:flex-row gap-3 pt-3 border-t border-[var(--color-decorative-border)]">
               <button
                 type="button"
-                onClick={closeSettingsModal}
+                onClick={handleRejectAllFromModal}
                 className="flex-1 rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] py-3 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors text-center"
               >
-                Cancel
+                Reject Non-Essential
+              </button>
+              <button
+                type="button"
+                onClick={handleAcceptAllFromModal}
+                className="flex-1 rounded-full border border-[var(--color-control-border)] bg-[var(--color-ivory)] py-3 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors text-center"
+              >
+                Accept All
               </button>
               <button
                 type="button"
                 onClick={handleSaveModal}
                 className="flex-1 rounded-full bg-[var(--color-ink)] py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors text-center shadow-sm"
               >
-                Save My Preferences
+                Save Preferences
               </button>
             </div>
           </div>

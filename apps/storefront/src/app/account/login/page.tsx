@@ -13,6 +13,7 @@ import {
 } from "@tavistra/shared";
 import { HoneypotField } from "@/components/HoneypotField";
 import { RecaptchaWidget } from "@/components/RecaptchaWidget";
+import { executeRecaptcha } from "@/lib/recaptchaClient";
 
 type LoginMode =
   | "password"
@@ -54,7 +55,6 @@ function LoginContent() {
   // Security & Bot Trap State
   const [hpWebsite, setHpWebsite] = useState("");
   const [hpTimestamp, setHpTimestamp] = useState<number>(0);
-  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
 
   const resetLoginState = useCallback(() => {
     setMode("password");
@@ -92,10 +92,11 @@ function LoginContent() {
     }
 
     setBusy(true);
+    const v3Token = await executeRecaptcha("account_login");
     const result = await loginWithPassword(email.trim(), password, {
       _hp_website: hpWebsite,
       _hp_timestamp: hpTimestamp,
-      recaptchaToken: recaptchaToken || undefined,
+      recaptchaToken: v3Token || undefined,
     });
     setBusy(false);
 
@@ -416,6 +417,7 @@ function LoginContent() {
               >
                 {busy ? "Signing In..." : "Sign In"}
               </button>
+              <RecaptchaWidget className="text-center pt-1" />
             </form>
           )}
 

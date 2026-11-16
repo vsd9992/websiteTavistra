@@ -10,6 +10,7 @@ import { lookupPincode, validateEmail, validateIndianMobile } from "@tavistra/sh
 import { HoneypotField } from "@/components/HoneypotField";
 import { TermsConsentCheckbox } from "@/components/TermsConsentCheckbox";
 import { RecaptchaWidget } from "@/components/RecaptchaWidget";
+import { executeRecaptcha } from "@/lib/recaptchaClient";
 
 function ContactFormContent() {
   const { user } = useAuth();
@@ -86,7 +87,6 @@ function ContactFormContent() {
   const [hpWebsite, setHpWebsite] = useState("");
   const [hpTimestamp, setHpTimestamp] = useState<number>(0);
   const [termsAccepted, setTermsAccepted] = useState(false);
-  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
 
   const hasQueryParams = Boolean(
     intentParam || orderParam || ticketParam || categoryParam || productParam || skuParam || messageParam || itemsParam
@@ -97,7 +97,6 @@ function ContactFormContent() {
     setReferenceNumber(null);
     setSubmitError(null);
     setTermsAccepted(false);
-    setRecaptchaToken(null);
     setHpWebsite("");
     setGeneralData({
       name: user?.name || "",
@@ -196,6 +195,7 @@ function ContactFormContent() {
     setSubmitting(true);
     try {
       if (contactMode === "SUPPORT_TICKET") {
+        const v3Token = await executeRecaptcha("submit_ticket");
         const res = await fetch("/api/tickets", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -210,7 +210,7 @@ function ContactFormContent() {
             _hp_website: hpWebsite,
             _hp_timestamp: hpTimestamp,
             termsAccepted,
-            recaptchaToken: recaptchaToken || undefined,
+            recaptchaToken: v3Token || undefined,
           }),
         });
         const data = await res.json();
@@ -220,7 +220,6 @@ function ContactFormContent() {
         setReferenceNumber(data.ticketNumber || null);
         setSubmitted(true);
         setTermsAccepted(false);
-        setRecaptchaToken(null);
         setTicketData({
           name: user?.name || "",
           email: user?.email || "",
@@ -256,6 +255,7 @@ function ContactFormContent() {
           }
         }
 
+        const v3Token = await executeRecaptcha("submit_inquiry");
         const res = await fetch("/api/inquiries", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -273,7 +273,7 @@ function ContactFormContent() {
             _hp_website: hpWebsite,
             _hp_timestamp: hpTimestamp,
             termsAccepted,
-            recaptchaToken: recaptchaToken || undefined,
+            recaptchaToken: v3Token || undefined,
           }),
         });
         const data = await res.json();
@@ -283,7 +283,6 @@ function ContactFormContent() {
         setReferenceNumber(data.inquiryNumber || null);
         setSubmitted(true);
         setTermsAccepted(false);
-        setRecaptchaToken(null);
         setGeneralData({
           name: user?.name || "",
           practiceOrStudio: user?.practiceOrStudio || "",
@@ -597,10 +596,7 @@ function ContactFormContent() {
                   labelContext="support ticket registration"
                 />
 
-                <RecaptchaWidget
-                  onVerify={(tok) => setRecaptchaToken(tok)}
-                  onExpire={() => setRecaptchaToken(null)}
-                />
+                <RecaptchaWidget className="text-center" />
 
                 <button
                   type="submit"
@@ -756,10 +752,7 @@ function ContactFormContent() {
                   labelContext="studio inquiries and design proposals"
                 />
 
-                <RecaptchaWidget
-                  onVerify={(tok) => setRecaptchaToken(tok)}
-                  onExpire={() => setRecaptchaToken(null)}
-                />
+                <RecaptchaWidget className="text-center" />
 
                 <button
                   type="submit"

@@ -288,9 +288,9 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
 
-    // Security Gate: Honeypot, Timing, Terms Consent & reCAPTCHA
+    // Security Gate: Honeypot, Timing & reCAPTCHA v3
     const security = await validateFormSubmissionSecurity(body, {
-      requireTerms: true,
+      requireTerms: false,
       requireRecaptcha: true,
       checkHoneypot: true,
     });
