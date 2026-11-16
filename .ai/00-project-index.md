@@ -2,8 +2,8 @@
 
 Project: Tavistra (`websiteTavistra`)
 Phase: Phase 2 — Execution (Sets 0–8 Complete & Verified Live)
-Milestone: Modular Hardening, Bot Protection & Security Suite Complete
-Status: Sets 0–8 verified live on `devMachine` (268/268 checks passing); All Runbook Phases (1–8) verified. Bot protection, reCAPTCHA v2, Terms Consent, Cookie Consent & Preference Center, and SEO/AEO/GEO schemas deployed live.
+Milestone: reCAPTCHA v3, Floating Cookie Preferences & Checkout Security Suite Verified Live
+Status: Sets 0–8 verified live on `devMachine` (268/268 checks passing); All Runbook Phases (1–8) verified. Bot protection (reCAPTCHA v3 invisible execution + honeypot traps), terms consent, floating Cookie Preferences popup & persistent bottom-left gear trigger, vendor-neutral privacy categories, and SEO/AEO/GEO schemas deployed and verified live on ports 3001 and 3002.
 
 ## Active Tasks
 - None (All Sets 0–8 archived and verified live).
