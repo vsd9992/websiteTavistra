@@ -2,8 +2,8 @@
 
 Project: Tavistra (`websiteTavistra`)
 Phase: Phase 2 — Execution (Sets 0–8 Complete & Verified Live)
-Milestone: Modular Hardening & Verification Complete (Ready for Final Acceptance Review)
-Status: Sets 0–8 verified live on `devMachine` (268/268 checks passing); All Runbook Phases (1–8) verified.
+Milestone: Modular Hardening, Bot Protection & Security Suite Complete
+Status: Sets 0–8 verified live on `devMachine` (268/268 checks passing); All Runbook Phases (1–8) verified. Bot protection, reCAPTCHA v2, Terms Consent, Cookie Consent & Preference Center, and SEO/AEO/GEO schemas deployed live.
 
 ## Active Tasks
 - None (All Sets 0–8 archived and verified live).
