@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
           totalAmountRupees: Number(order.totalAmount),
           amountPaidRupees: Number(order.amountPaid),
           balanceDueRupees: Number(order.balanceAmount),
-          carrierName: order.carrierName || "Pending Carrier Assignment",
+          carrierName: order.carrierName || "To be assigned prior to dispatch",
           awbNumber: order.trackingNumber || undefined,
           transitEstimate: "3–6 business days",
           status: order.status,

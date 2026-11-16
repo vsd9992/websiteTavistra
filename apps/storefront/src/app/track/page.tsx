@@ -210,7 +210,7 @@ function TrackOrderContent() {
             disabled={loading}
             className="w-full rounded-full bg-[var(--color-ink)] py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm disabled:opacity-50"
           >
-            {loading ? "Searching Authoritative Records..." : "Locate Consignment & Production Record"}
+            {loading ? "Searching Authoritative Records..." : "Find Order & Delivery Status"}
           </button>
         </form>
 
@@ -333,7 +333,7 @@ function TrackOrderContent() {
                   {/* Ordered Pieces */}
                   <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-6 space-y-4">
                     <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink)] block">
-                      Consignment Pieces ({matchedOrder.items.length})
+                      Order Items ({matchedOrder.items.length})
                     </span>
                     <div className="divide-y divide-[var(--color-decorative-border)]">
                       {matchedOrder.items.map((item, idx) => (
@@ -431,7 +431,7 @@ function TrackOrderContent() {
                     </div>
                   </div>
 
-                  {/* Guest Cancellation & Statutory Refund Guidance */}
+                  {/* Guest Cancellation & Refund Guidance */}
                   {matchedOrder.status !== "CANCELLED" &&
                     matchedOrder.status !== "REFUNDED" &&
                     matchedOrder.status !== "DISPATCHED" &&
@@ -455,24 +455,24 @@ function TrackOrderContent() {
                         </div>
                         <p className="text-xs text-[var(--color-ink)] leading-relaxed">
                           {matchedOrder.mode === "MADE_TO_ORDER"
-                            ? `This Made-to-Order piece is within its 7-calendar-day confirmation grace period (${matchedOrder.graceDaysRemaining ?? 7} day(s) remaining). Machining has not commenced. 100% refund is guaranteed.`
-                            : "This Ready Stock order has not been dispatched. 100% refund is guaranteed prior to carrier handover."}
+                            ? `This Made-to-Order piece is within its 7-calendar-day confirmation grace period (${matchedOrder.graceDaysRemaining ?? 7} day(s) remaining). Production has not started. 100% refund is guaranteed.`
+                            : "This Ready Stock order has not been dispatched. 100% refund is guaranteed prior to courier handover."}
                         </p>
                         <p className="text-[11px] text-[var(--color-muted-light)] leading-relaxed">
-                          To request cancellation as a guest customer, please submit a cancellation support ticket or email our concierge desk. We will process your 100% refund within 24 hours.
+                          To request cancellation as a guest customer, please submit a cancellation support ticket or email our support team. We will process your 100% refund within 24 hours.
                         </p>
-                        <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+                        <div className="flex flex-col gap-2.5 pt-2">
                           <Link
                             href={`/contact?intent=support&category=CANCELLATION&order=${encodeURIComponent(matchedOrder.id)}`}
-                            className="flex-1 rounded-full bg-[var(--color-ink)] py-2.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors text-center shadow-sm"
+                            className="w-full rounded-full bg-[var(--color-ink)] py-2.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors text-center shadow-sm"
                           >
                             Submit Cancellation Ticket →
                           </Link>
                           <a
-                            href={`mailto:support@tavistra.com?subject=${encodeURIComponent(`Cancellation Request for Order #${matchedOrder.id}`)}&body=${encodeURIComponent(`Hello Tavistra Concierge Desk,\n\nI would like to request the cancellation and 100% refund for Order #${matchedOrder.id}.\n\nClient Name: ${matchedOrder.customerName}\nPhone: ${matchedOrder.phone}\n\nThank you.`)}`}
-                            className="flex-1 rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] py-2.5 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors text-center"
+                            href={`mailto:support@tavistra.com?subject=${encodeURIComponent(`Cancellation Request for Order #${matchedOrder.id}`)}&body=${encodeURIComponent(`Hello Tavistra Support,\n\nI would like to request the cancellation and 100% refund for Order #${matchedOrder.id}.\n\nClient Name: ${matchedOrder.customerName}\nPhone: ${matchedOrder.phone}\n\nThank you.`)}`}
+                            className="w-full rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] py-2.5 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors text-center"
                           >
-                            Email Concierge
+                            Email Support
                           </a>
                         </div>
                       </div>
@@ -481,7 +481,7 @@ function TrackOrderContent() {
                   {/* Destination Information */}
                   <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-6 space-y-2 text-xs">
                     <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-muted-light)] block">
-                      Destination &amp; Freight Courier
+                      Delivery Destination &amp; Courier
                     </span>
                     <p className="font-semibold text-[var(--color-ink)]">{matchedOrder.customerName}</p>
                     <p className="text-[var(--color-muted-light)]">{matchedOrder.addressLine1}</p>
@@ -490,7 +490,13 @@ function TrackOrderContent() {
                     </p>
                     <div className="pt-2 border-t border-[var(--color-decorative-border)]/60 text-[11px]">
                       <span className="text-[var(--color-muted-light)]">Assigned Courier: </span>
-                      <strong className="text-[var(--color-ink)]">{matchedOrder.carrierName}</strong>
+                      {matchedOrder.carrierName &&
+                      matchedOrder.carrierName !== "Pending Carrier Assignment" &&
+                      matchedOrder.carrierName !== "To be assigned prior to dispatch" ? (
+                        <strong className="text-[var(--color-ink)]">{matchedOrder.carrierName}</strong>
+                      ) : (
+                        <span className="text-[var(--color-muted-light)] italic">To be assigned prior to dispatch</span>
+                      )}
                       {matchedOrder.awbNumber && (
                         <p className="font-mono mt-0.5">
                           AWB: <strong className="text-[var(--color-bronze)]">{matchedOrder.awbNumber}</strong>
@@ -504,10 +510,10 @@ function TrackOrderContent() {
           ) : (
             <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-12 text-center space-y-4">
               <span className="font-editorial text-2xl text-[var(--color-ink)] block">
-                No Consignment Located
+                No Order Found
               </span>
               <p className="text-xs text-[var(--color-muted-light)] max-w-md mx-auto">
-                We could not locate an active studio order matching reference <strong className="font-mono text-[var(--color-ink)]">{orderId}</strong> with the provided contact information.
+                We could not locate an active order matching reference <strong className="font-mono text-[var(--color-ink)]">{orderId}</strong> with the provided contact information.
               </p>
               <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
                 <Link

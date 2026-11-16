@@ -143,7 +143,7 @@ export default function AccountTicketsPage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--color-decorative-border)] pb-6">
                 <div>
                   <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--color-bronze)]">
-                    Concierge &amp; Resolution Desk
+                    Customer Support &amp; Help Desk
                   </p>
                   <h1 className="font-serif text-2xl sm:text-3xl text-[var(--color-ink)] mt-1">
                     Support Tickets &amp; Inquiries
@@ -319,7 +319,7 @@ export default function AccountTicketsPage() {
                           {ticket.latestMessage && (
                             <div className="rounded-xl bg-[var(--color-stone)]/50 p-3 text-xs text-[var(--color-muted-light)] border border-[var(--color-decorative-border)]/40 line-clamp-2">
                               <span className="font-semibold text-[var(--color-ink)]">
-                                {ticket.latestMessage.sender === "STAFF" ? "Studio Concierge" : "You"}:{" "}
+                                {ticket.latestMessage.sender === "STAFF" ? "Support Team" : "You"}:{" "}
                               </span>
                               {ticket.latestMessage.text}
                             </div>
@@ -405,14 +405,14 @@ export default function AccountTicketsPage() {
                               </label>
                               {isResolved && (
                                 <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
-                                  ℹ This ticket is currently marked as <strong>Resolved</strong>. Sending a new follow-up will automatically reopen it to <strong>In Progress</strong> with our concierge desk.
+                                  ℹ This ticket is currently marked as <strong>Resolved</strong>. Sending a new follow-up will automatically reopen it to <strong>In Progress</strong> with our support team.
                                 </p>
                               )}
                               <textarea
                                 rows={3}
                                 value={replyText}
                                 onChange={(e) => setReplyText(e.target.value)}
-                                placeholder="Type your note, alteration request, or question for the concierge desk..."
+                                placeholder="Type your message, query, or update for our support team..."
                                 className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] p-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] leading-relaxed"
                               />
 

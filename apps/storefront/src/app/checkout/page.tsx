@@ -444,7 +444,7 @@ function CheckoutContent() {
       totalAmountRupees: totalOrderPaise / 100,
       amountPaidRupees: amountPayableNowPaise / 100,
       balanceDueRupees: balanceDueLaterPaise / 100,
-      carrierName: shippingResult.carrierName,
+      carrierName: "To be assigned prior to dispatch",
       transitEstimate: shippingResult.transitDaysEstimate,
       status: modeParam === "MADE_TO_ORDER" ? "GRACE_PERIOD_ACTIVE" : "PAYMENT_CONFIRMED",
       statusLabel:

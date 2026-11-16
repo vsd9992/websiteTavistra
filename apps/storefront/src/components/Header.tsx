@@ -154,7 +154,7 @@ export function Header() {
                   {/* 6 Approved Categories in 2 Columns */}
                   <div className="flex items-center justify-between border-b border-[var(--color-decorative-border)]/60 pb-3 mb-4">
                     <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--color-bronze)]">
-                      Catalogue Taxonomy
+                      Product Categories
                     </span>
                     <Link
                       href="/shop"
@@ -384,7 +384,7 @@ export function Header() {
                           Client Account
                         </p>
                         <p className="text-[11px] text-[var(--color-muted-light)] mt-0.5 leading-relaxed">
-                          Sign in to access your orders, active quotations, and studio concierge desk.
+                          Sign in to access your orders, active quotations, and customer support.
                         </p>
                         <div className="mt-3 flex gap-2">
                           <Link
@@ -413,7 +413,7 @@ export function Header() {
                           onClick={() => setIsAccountOpen(false)}
                           className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors"
                         >
-                          <span>Track Order Milestones</span>
+                          <span>Track Order Status</span>
                           <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
                         </Link>
                         <Link
@@ -429,7 +429,7 @@ export function Header() {
                           onClick={() => setIsAccountOpen(false)}
                           className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors"
                         >
-                          <span>Contact Studio Concierge</span>
+                          <span>Contact Customer Support</span>
                           <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
                         </Link>
                       </div>

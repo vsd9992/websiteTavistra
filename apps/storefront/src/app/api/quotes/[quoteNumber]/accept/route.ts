@@ -176,7 +176,7 @@ export async function POST(
           amountPaid: new Prisma.Decimal(advancePaid),
           balanceAmount: new Prisma.Decimal(balanceDue),
           confirmedAt: now,
-          carrierName: "Blue Dart Fragile Surface",
+          carrierName: null,
           items: {
             create: [
               {

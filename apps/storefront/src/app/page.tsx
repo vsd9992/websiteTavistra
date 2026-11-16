@@ -199,7 +199,7 @@ export default function Home() {
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-12">
               <div>
                 <h2 className="text-xs uppercase tracking-widest text-[var(--color-bronze)] font-semibold mb-2">
-                  Taxonomy & Collections
+                  Categories &amp; Collections
                 </h2>
                 <p className="font-editorial text-3xl sm:text-4xl text-[var(--color-ink)]">
                   Explore by category

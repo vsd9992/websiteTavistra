@@ -296,7 +296,7 @@ export function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
               {categories.length > 0 && (
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--color-bronze)] mb-2">
-                    Taxonomy &amp; Categories
+                    Categories
                   </p>
                   <div className="space-y-1">
                     {categories.map((cat, idx) => {

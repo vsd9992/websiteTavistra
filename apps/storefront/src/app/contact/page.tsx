@@ -79,6 +79,39 @@ function ContactFormContent() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [referenceNumber, setReferenceNumber] = useState<string | null>(null);
 
+  const hasQueryParams = Boolean(
+    intentParam || orderParam || ticketParam || categoryParam || productParam || skuParam || messageParam || itemsParam
+  );
+
+  const handleResetForm = () => {
+    setSubmitted(false);
+    setReferenceNumber(null);
+    setSubmitError(null);
+    setGeneralData({
+      name: user?.name || "",
+      practiceOrStudio: user?.practiceOrStudio || "",
+      email: user?.email || "",
+      phone: user?.phone || "",
+      subject: "General Studio Inquiry",
+      pincode: "",
+      productName: "",
+      quantity: "10",
+      message: "",
+    });
+    setTicketData({
+      name: user?.name || "",
+      email: user?.email || "",
+      phone: user?.phone || "",
+      category: "ORDER_INQUIRY",
+      orderNumber: "",
+      subject: "General Client Support",
+      message: "",
+    });
+    if (typeof window !== "undefined" && window.location.search) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  };
+
   // Pre-fill authenticated client identity
   useEffect(() => {
     if (user) {
@@ -98,11 +131,11 @@ function ContactFormContent() {
     }
   }, [user]);
 
-  // Synchronize when query parameters change
+  // Synchronize when query parameters change or reset when bare /contact is opened
   useEffect(() => {
-    if (intentParam === "support" || orderParam || categoryParam) {
-      setContactMode("SUPPORT_TICKET");
-      if (orderParam || categoryParam) {
+    if (hasQueryParams) {
+      if (intentParam === "support" || orderParam || categoryParam || ticketParam) {
+        setContactMode("SUPPORT_TICKET");
         setTicketData((prev) => ({
           ...prev,
           orderNumber: orderParam || prev.orderNumber,
@@ -118,9 +151,13 @@ function ContactFormContent() {
               ? `I am requesting the cancellation and 100% refund for Order #${orderParam || prev.orderNumber}. Please process the refund to my original payment method.`
               : prev.message,
         }));
+      } else {
+        setContactMode("GENERAL_INQUIRY");
       }
+    } else {
+      handleResetForm();
     }
-  }, [intentParam, orderParam, categoryParam]);
+  }, [hasQueryParams, intentParam, orderParam, categoryParam, ticketParam, productParam, skuParam, messageParam]);
 
   // Field validations
   const activeEmail = contactMode === "SUPPORT_TICKET" ? ticketData.email : generalData.email;
@@ -161,6 +198,18 @@ function ContactFormContent() {
         }
         setReferenceNumber(data.ticketNumber || null);
         setSubmitted(true);
+        setTicketData({
+          name: user?.name || "",
+          email: user?.email || "",
+          phone: user?.phone || "",
+          category: "ORDER_INQUIRY",
+          orderNumber: "",
+          subject: "General Client Support",
+          message: "",
+        });
+        if (typeof window !== "undefined" && window.location.search) {
+          window.history.replaceState(null, "", window.location.pathname);
+        }
       } else {
         const pinCheck =
           generalData.pincode.trim().length === 6 ? lookupPincode(generalData.pincode.trim()) : null;
@@ -206,6 +255,20 @@ function ContactFormContent() {
         }
         setReferenceNumber(data.inquiryNumber || null);
         setSubmitted(true);
+        setGeneralData({
+          name: user?.name || "",
+          practiceOrStudio: user?.practiceOrStudio || "",
+          email: user?.email || "",
+          phone: user?.phone || "",
+          subject: "General Studio Inquiry",
+          pincode: "",
+          productName: "",
+          quantity: "10",
+          message: "",
+        });
+        if (typeof window !== "undefined" && window.location.search) {
+          window.history.replaceState(null, "", window.location.pathname);
+        }
       }
     } catch (err) {
       setSubmitError((err as Error).message || "Network error transmitting request. Please retry.");
@@ -272,7 +335,7 @@ function ContactFormContent() {
             <p className="text-xs text-[var(--color-muted-light)] leading-relaxed max-w-md mx-auto">
               {contactMode === "SUPPORT_TICKET" ? (
                 <>
-                  Thank you, <strong>{ticketData.name}</strong>. Your ticket has been formally registered with our client concierge desk under reference <strong className="font-mono">{referenceNumber}</strong>. An acknowledgment notice has been emailed to <strong>{ticketData.email}</strong>.
+                  Thank you, <strong>{ticketData.name}</strong>. Your ticket has been formally registered with our customer support team under reference <strong className="font-mono">{referenceNumber}</strong>. An acknowledgment notice has been emailed to <strong>{ticketData.email}</strong>.
                 </>
               ) : (
                 <>
@@ -292,10 +355,7 @@ function ContactFormContent() {
               )}
               <button
                 type="button"
-                onClick={() => {
-                  setSubmitted(false);
-                  setReferenceNumber(null);
-                }}
+                onClick={handleResetForm}
                 className="w-full sm:w-auto inline-block rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-6 py-3 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors"
               >
                 Submit Another Request
@@ -304,6 +364,23 @@ function ContactFormContent() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Header bar with Reset Action */}
+            <div className="flex items-center justify-between border-b border-[var(--color-decorative-border)] pb-2 text-xs">
+              <span className="font-semibold text-[var(--color-ink)] uppercase tracking-wider text-[11px]">
+                {contactMode === "SUPPORT_TICKET" ? "Support Request Details" : "Inquiry Specifications"}
+              </span>
+              <button
+                type="button"
+                onClick={handleResetForm}
+                className="text-[11px] text-[var(--color-muted-light)] hover:text-rose-700 transition-colors inline-flex items-center gap-1 font-medium"
+              >
+                <svg className="w-3.5 h-3.5 text-stone-400 hover:text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>Reset / Clear Form</span>
+              </button>
+            </div>
+
             {/* Context Notice / Header info */}
             {contactMode === "SUPPORT_TICKET" ? (
               <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -312,7 +389,7 @@ function ContactFormContent() {
                     <svg className="w-3.5 h-3.5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
-                    Client Concierge Desk Support
+                    Customer Support &amp; Assistance
                   </span>
                   <p className="text-xs text-[var(--color-ink)]">
                     For existing orders, 7-day pre-production grace alterations, transit reports, or refunds.
@@ -478,13 +555,22 @@ function ContactFormContent() {
                   />
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={submitting || !emailVal.isValid || !mobileVal.isValid || !ticketData.name.trim() || !ticketData.message.trim()}
-                  className="w-full rounded-full bg-[var(--color-ink)] py-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
-                >
-                  {submitting ? "Registering Support Ticket..." : "Submit Support Ticket"}
-                </button>
+                <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                  <button
+                    type="submit"
+                    disabled={submitting || !emailVal.isValid || !mobileVal.isValid || !ticketData.name.trim() || !ticketData.message.trim()}
+                    className="flex-1 rounded-full bg-[var(--color-ink)] py-3.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+                  >
+                    {submitting ? "Registering Support Ticket..." : "Submit Support Ticket"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetForm}
+                    className="rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-6 py-3.5 text-xs font-semibold text-[var(--color-muted-light)] hover:text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors text-center"
+                  >
+                    Reset Form
+                  </button>
+                </div>
               </>
             ) : (
               /* MODE 2: GENERAL STUDIO & COMMERCIAL INQUIRY */
@@ -619,13 +705,22 @@ function ContactFormContent() {
                   />
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={submitting || !emailVal.isValid || !mobileVal.isValid || !generalData.name.trim() || !generalData.message.trim()}
-                  className="w-full rounded-full bg-[var(--color-ink)] py-4 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
-                >
-                  {submitting ? "Transmitting to Studio..." : "Send Studio Inquiry"}
-                </button>
+                <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                  <button
+                    type="submit"
+                    disabled={submitting || !emailVal.isValid || !mobileVal.isValid || !generalData.name.trim() || !generalData.message.trim()}
+                    className="flex-1 rounded-full bg-[var(--color-ink)] py-3.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+                  >
+                    {submitting ? "Transmitting to Studio..." : "Send Studio Inquiry"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetForm}
+                    className="rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-6 py-3.5 text-xs font-semibold text-[var(--color-muted-light)] hover:text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors text-center"
+                  >
+                    Reset Form
+                  </button>
+                </div>
               </>
             )}
           </form>
@@ -644,7 +739,7 @@ export default function ContactPage() {
           {/* Header */}
           <div className="border-b border-[var(--color-decorative-border)] pb-8 mb-10">
             <p className="text-xs uppercase tracking-widest text-[var(--color-bronze)] font-semibold mb-2">
-              Tavistra Studio &amp; Concierge Desk
+              Tavistra Customer Support
             </p>
             <h1 className="font-editorial text-4xl sm:text-5xl text-[var(--color-ink)] mb-3">
               Connect with Tavistra

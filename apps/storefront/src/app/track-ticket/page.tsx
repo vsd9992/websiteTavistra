@@ -155,7 +155,7 @@ function TrackTicketContent() {
       {/* Header */}
       <div className="text-center space-y-3 max-w-xl mx-auto">
         <span className="text-xs uppercase tracking-widest text-[var(--color-bronze)] font-semibold block">
-          Tavistra Client Concierge Desk
+          Tavistra Customer Support Desk
         </span>
         <h1 className="font-editorial text-4xl sm:text-5xl text-[var(--color-ink)]">
           Track Support Ticket
@@ -246,9 +246,9 @@ function TrackTicketContent() {
                       }`}
                     >
                       {ticket.status === "OPEN"
-                        ? "Open · Awaiting Concierge Review"
+                        ? "Open · Awaiting Support Review"
                         : ticket.status === "IN_PROGRESS"
-                        ? "In Progress · Concierge Active"
+                        ? "In Progress · Support Active"
                         : "✓ Resolved"}
                     </span>
                     <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-[var(--color-stone)] text-[var(--color-ink)]">
@@ -306,7 +306,7 @@ function TrackTicketContent() {
                                   : "bg-[var(--color-stone)] text-[var(--color-ink)]"
                               }`}
                             >
-                              {isStaff ? "Studio Concierge" : "Client"}
+                              {isStaff ? "Support Team" : "Client"}
                             </span>
                             <span className="font-semibold text-[var(--color-ink)]">
                               {msg.authorName}
@@ -347,13 +347,13 @@ function TrackTicketContent() {
                     rows={4}
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
-                    placeholder="Type your follow-up note, spec detail, or query for the concierge desk..."
+                    placeholder="Type your follow-up message, question, or detail for our support team..."
                     className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-3 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono leading-relaxed"
                   />
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <span className="text-[11px] text-[var(--color-muted-light)]">
                       {ticket.status === "RESOLVED"
-                        ? "Note: Replying will automatically re-open this ticket for concierge review."
+                        ? "Note: Replying will automatically re-open this ticket for support review."
                         : "Messages are delivered directly to the assigned studio desk staff."}
                     </span>
                     <button

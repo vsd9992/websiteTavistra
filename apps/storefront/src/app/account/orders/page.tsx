@@ -189,10 +189,10 @@ export default function AccountOrdersPage() {
             <div className="lg:col-span-3 space-y-8">
               <div className="space-y-1 border-b border-[var(--color-decorative-border)] pb-5">
                 <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--color-muted-light)]">
-                  Fulfilment & Fabrication
+                  Order History
                 </span>
                 <h1 className="text-3xl font-serif font-light text-[var(--color-ink)]">
-                  My Orders & Production Milestones
+                  My Orders &amp; Production Status
                 </h1>
               </div>
 
@@ -298,7 +298,7 @@ export default function AccountOrdersPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                         <div className="space-y-2 text-xs">
                           <p className="font-semibold uppercase tracking-wider text-[var(--color-ink)] text-[11px]">
-                            Architectural Editions
+                            Order Items
                           </p>
                           <ul className="space-y-1.5">
                             {order.items.map((item, idx) => (
@@ -320,7 +320,7 @@ export default function AccountOrdersPage() {
                             <div className="rounded-xl border border-rose-200 bg-rose-50/80 p-3.5 space-y-1 text-xs text-rose-950 mt-3">
                               <div className="flex items-center justify-between">
                                 <strong className="text-rose-900 font-semibold flex items-center gap-1.5">
-                                  <span>✓</span> 100% Pre-Production Statutory Refund
+                                  <span>✓</span> 100% Full Refund Issued
                                 </strong>
                                 <span className="font-mono font-bold text-rose-800">
                                   ₹{(order.refund?.amountRupees ?? order.amountPaidRupees).toLocaleString("en-IN")}
@@ -376,7 +376,8 @@ export default function AccountOrdersPage() {
                             )}
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-3">
+                          <div className="space-y-2.5 pt-1">
+                            {/* Urgent/Primary CTA: Pay Balance (Full Width) */}
                             {order.balanceDueRupees > 0 &&
                               order.status !== "CANCELLED" &&
                               order.status !== "REFUNDED" && (
@@ -384,29 +385,34 @@ export default function AccountOrdersPage() {
                                   type="button"
                                   onClick={() => handlePayRemainingBalance(order.orderNumber)}
                                   disabled={payingOrderId === order.orderNumber}
-                                  className="flex-1 text-center rounded-full bg-emerald-800 px-4 py-2.5 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50"
+                                  className="w-full text-center rounded-full bg-emerald-800 py-2.5 px-4 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50"
                                 >
                                   {payingOrderId === order.orderNumber
-                                    ? "Verifying..."
+                                    ? "Verifying Payment..."
                                     : `Pay Balance (${formatPrice(order.balanceDueRupees)})`}
                                 </button>
                               )}
-                            <Link
-                              href={`/track?orderId=${order.id}`}
-                              className="flex-1 text-center rounded-full bg-[var(--color-ink)] py-2.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
-                            >
-                              Track Full Milestones
-                            </Link>
-                            <Link
-                              href={`/contact?intent=support&order=${encodeURIComponent(order.orderNumber || order.id)}&subject=${encodeURIComponent(`Assistance for Order ${order.orderNumber || order.id}`)}`}
-                              className="rounded-full border border-[var(--color-bronze)]/60 bg-[var(--color-ivory)] px-4 py-2.5 text-xs font-semibold text-[var(--color-ink)] hover:border-[var(--color-ink)] transition-colors inline-flex items-center justify-center gap-1.5 shadow-sm"
-                            >
-                              <svg className="w-3.5 h-3.5 text-[var(--color-bronze)] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
-                              </svg>
-                              Raise Support Ticket
-                            </Link>
 
+                            {/* Balanced 2-Column Grid for Order Actions */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                              <Link
+                                href={`/track?orderId=${order.id}`}
+                                className="text-center rounded-full bg-[var(--color-ink)] py-2.5 px-4 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm block"
+                              >
+                                Track Order Status
+                              </Link>
+                              <Link
+                                href={`/contact?intent=support&order=${encodeURIComponent(order.orderNumber || order.id)}&subject=${encodeURIComponent(`Assistance for Order ${order.orderNumber || order.id}`)}`}
+                                className="text-center rounded-full border border-[var(--color-bronze)]/60 bg-[var(--color-ivory)] py-2.5 px-4 text-xs font-semibold text-[var(--color-ink)] hover:border-[var(--color-ink)] transition-colors inline-flex items-center justify-center gap-1.5 shadow-sm"
+                              >
+                                <svg className="w-3.5 h-3.5 text-[var(--color-bronze)] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+                                </svg>
+                                Raise Support Ticket
+                              </Link>
+                            </div>
+
+                            {/* Full-Width Cancellation Action */}
                             {isOrderCancellable(order) && (
                               <button
                                 type="button"
@@ -416,7 +422,7 @@ export default function AccountOrdersPage() {
                                   setCancellationReason("");
                                   setOrderToCancel(order);
                                 }}
-                                className="rounded-full border border-rose-300 bg-rose-50/70 px-4 py-2.5 text-xs font-semibold text-rose-800 hover:bg-rose-100 hover:border-rose-400 transition-colors shadow-sm"
+                                className="w-full text-center rounded-full border border-rose-300 bg-rose-50/70 py-2.5 px-4 text-xs font-semibold text-rose-800 hover:bg-rose-100 hover:border-rose-400 transition-colors shadow-sm block"
                               >
                                 Request Cancellation &amp; Refund
                               </button>
@@ -452,14 +458,14 @@ export default function AccountOrdersPage() {
 
               <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-4 space-y-2 text-xs">
                 <div className="flex items-center justify-between font-semibold text-rose-900">
-                  <span>100% Pre-Dispatch Statutory Refund:</span>
+                  <span>100% Full Refund Amount:</span>
                   <span className="font-mono text-sm">
                     {formatPrice(orderToCancel.amountPaidRupees)}
                   </span>
                 </div>
                 <p className="text-[11px] text-rose-800 leading-relaxed">
                   {orderToCancel.mode === "MADE_TO_ORDER"
-                    ? `This piece is within its 7-calendar-day confirmation grace period (${orderToCancel.graceDaysRemaining ?? 7} day(s) remaining). Workshop crafting has not commenced. Your entire advance of ${formatPrice(orderToCancel.amountPaidRupees)} will be refunded 100% to your original payment method.`
+                    ? `This piece is within its 7-calendar-day confirmation grace period (${orderToCancel.graceDaysRemaining ?? 7} day(s) remaining). Workshop production has not started. Your entire payment of ${formatPrice(orderToCancel.amountPaidRupees)} will be refunded 100% to your original payment method.`
                     : `This Ready Stock order has not been dispatched. Your payment of ${formatPrice(orderToCancel.amountPaidRupees)} will be refunded 100% to your original payment method.`}
                 </p>
                 <p className="text-[10px] text-rose-700 font-medium">
