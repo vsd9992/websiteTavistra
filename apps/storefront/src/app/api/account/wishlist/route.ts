@@ -4,7 +4,7 @@ import { getAuthenticatedUser } from "@/lib/auth";
 
 /**
  * Strict authenticated Wishlist API (Tavistra Client Portal)
- * Allows registered clients to save and manage architectural editions.
+ * Allows registered clients to save and manage architectural editions & specific finish variants.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -30,23 +30,35 @@ export async function GET(req: NextRequest) {
             },
           },
         },
+        variant: true,
       },
       orderBy: { createdAt: "desc" },
     });
 
     return NextResponse.json({
       wishlist: items.map((item) => {
-        const defaultVariant = item.product.variants[0];
-        const defaultImage = defaultVariant?.imageUrl || item.product.images[0]?.url || "/comingSoon_1.webp";
-        const pricePaise = defaultVariant?.taxInclusivePrice
-          ? Math.round(Number(defaultVariant.taxInclusivePrice) * 100)
+        const effectiveVariant =
+          item.variant ||
+          item.product.variants.find((v) => v.id === item.variantId) ||
+          item.product.variants[0];
+
+        const defaultImage =
+          effectiveVariant?.imageUrl ||
+          item.product.images[0]?.url ||
+          "/comingSoon_1.webp";
+
+        const pricePaise = effectiveVariant?.taxInclusivePrice
+          ? Math.round(Number(effectiveVariant.taxInclusivePrice) * 100)
           : 0;
 
         return {
           id: item.id,
           productId: item.product.id,
+          variantId: effectiveVariant?.id || null,
+          variantTitle: effectiveVariant?.title || null,
+          materialFinish: effectiveVariant?.materialFinish || null,
           slug: item.product.slug,
-          sku: defaultVariant?.sku || item.product.sku,
+          sku: effectiveVariant?.sku || item.product.sku,
           title: item.product.title,
           pricePaise,
           imageUrl: defaultImage,
@@ -75,35 +87,70 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { productId, slug } = body as { productId?: string; slug?: string };
+    const { productId, slug, variantId, sku } = body as {
+      productId?: string;
+      slug?: string;
+      variantId?: string;
+      sku?: string;
+    };
 
-    if (!productId && !slug) {
+    if (!productId && !slug && !variantId && !sku) {
       return NextResponse.json(
-        { error: "Product ID or slug is required to update wishlist." },
+        { error: "Product ID, slug, variant ID, or SKU is required to update wishlist." },
         { status: 400 }
       );
     }
 
+    // Resolve variant first if specific variantId or sku provided
+    let matchedVariant = null;
+    if (variantId || sku) {
+      matchedVariant = await prisma.productVariant.findFirst({
+        where: {
+          OR: [{ id: variantId || undefined }, { sku: sku || undefined }],
+        },
+      });
+    }
+
+    const effectiveProductId = matchedVariant?.productId || productId;
+
+    // Resolve product with its variants
     const product = await prisma.product.findFirst({
       where: {
-        OR: [{ id: productId || undefined }, { slug: slug || undefined }],
+        OR: [{ id: effectiveProductId || undefined }, { slug: slug || undefined }],
       },
-      select: { id: true, title: true, slug: true },
+      include: {
+        variants: {
+          where: { isPublished: true },
+          orderBy: { taxInclusivePrice: "asc" },
+        },
+      },
     });
 
     if (!product) {
       return NextResponse.json({ error: "Architectural edition not found." }, { status: 404 });
     }
 
-    // Toggle wishlist item
-    const existing = await prisma.wishlistItem.findUnique({
+    // Determine target variant (matched variant > variantId match > product first variant)
+    const resolvedVariant =
+      matchedVariant ||
+      (variantId ? product.variants.find((v) => v.id === variantId) : null) ||
+      product.variants[0] ||
+      null;
+
+    const targetVariantId = resolvedVariant?.id || null;
+
+    // Toggle specific variant wishlist item
+    const existing = await prisma.wishlistItem.findFirst({
       where: {
-        userId_productId: {
-          userId: authUser.id,
-          productId: product.id,
-        },
+        userId: authUser.id,
+        productId: product.id,
+        variantId: targetVariantId,
       },
     });
+
+    const displayTitle = resolvedVariant?.title
+      ? `${product.title} (${resolvedVariant.title})`
+      : product.title;
 
     if (existing) {
       await prisma.wishlistItem.delete({
@@ -114,8 +161,10 @@ export async function POST(req: NextRequest) {
         success: true,
         inWishlist: false,
         productId: product.id,
+        variantId: targetVariantId,
+        sku: resolvedVariant?.sku || product.sku,
         slug: product.slug,
-        message: `${product.title} removed from your wishlist.`,
+        message: `${displayTitle} removed from your wishlist.`,
       });
     }
 
@@ -123,6 +172,7 @@ export async function POST(req: NextRequest) {
       data: {
         userId: authUser.id,
         productId: product.id,
+        variantId: targetVariantId,
       },
     });
 
@@ -131,8 +181,10 @@ export async function POST(req: NextRequest) {
       inWishlist: true,
       wishlistItemId: created.id,
       productId: product.id,
+      variantId: targetVariantId,
+      sku: resolvedVariant?.sku || product.sku,
       slug: product.slug,
-      message: `${product.title} saved to your Studio Wishlist.`,
+      message: `${displayTitle} saved to your Studio Wishlist.`,
     });
   } catch (error) {
     console.error("POST /api/account/wishlist error:", error);

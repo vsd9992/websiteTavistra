@@ -27,12 +27,14 @@ export default function AccountWishlistPage() {
   }, [authLoading, isAuthenticated, router]);
 
   const handleMoveToBag = async (item: WishlistProduct) => {
-    setMovingId(item.productId);
+    setMovingId(item.id);
     try {
       const mockProduct: MockProduct = {
         id: item.productId,
         slug: item.slug,
         sku: item.sku,
+        variantId: item.variantId || undefined,
+        variantTitle: item.variantTitle || undefined,
         name: item.title,
         categorySlug: "hardware",
         categoryName: "Architectural Hardware",
@@ -40,8 +42,8 @@ export default function AccountWishlistPage() {
         mode: item.mode,
         pricePaise: item.pricePaise,
         primaryImageUrl: item.imageUrl,
-        shortDescription: item.title,
-        materials: [],
+        shortDescription: item.variantTitle ? `${item.title} — ${item.variantTitle}` : item.title,
+        materials: item.materialFinish ? [item.materialFinish] : [],
         dimensions: "",
         weightGrams: 0,
         lengthMm: 0,
@@ -53,16 +55,16 @@ export default function AccountWishlistPage() {
       };
 
       addToCart(mockProduct);
-      await removeFromWishlist(item.productId);
+      await removeFromWishlist(item.id);
     } finally {
       setMovingId(null);
     }
   };
 
-  const handleRemove = async (productId: string) => {
-    setRemovingId(productId);
+  const handleRemove = async (wishlistItemId: string) => {
+    setRemovingId(wishlistItemId);
     try {
-      await removeFromWishlist(productId);
+      await removeFromWishlist(wishlistItemId);
     } finally {
       setRemovingId(null);
     }
@@ -161,8 +163,8 @@ export default function AccountWishlistPage() {
                         ? `₹${(item.pricePaise / 100).toLocaleString("en-IN")}`
                         : "Price on Request";
 
-                    const isMoving = movingId === item.productId;
-                    const isRemoving = removingId === item.productId;
+                    const isMoving = movingId === item.id;
+                    const isRemoving = removingId === item.id;
 
                     return (
                       <div
@@ -175,7 +177,7 @@ export default function AccountWishlistPage() {
                             <Link href={`/product/${item.slug}`}>
                               <Image
                                 src={item.imageUrl || "/comingSoon_1.webp"}
-                                alt={item.title}
+                                alt={item.variantTitle ? `${item.title} — ${item.variantTitle}` : item.title}
                                 fill
                                 className="object-cover object-center group-hover:scale-105 transition-transform duration-500"
                                 sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
@@ -204,9 +206,9 @@ export default function AccountWishlistPage() {
                             {/* Remove button overlay */}
                             <button
                               type="button"
-                              onClick={() => handleRemove(item.productId)}
+                              onClick={() => handleRemove(item.id)}
                               disabled={isRemoving}
-                              title="Remove from wishlist"
+                              title="Remove this edition from wishlist"
                               className="absolute top-3 right-3 p-1.5 rounded-full bg-[var(--color-ivory)]/90 hover:bg-white text-[var(--color-muted-light)] hover:text-rose-600 transition-colors shadow-sm backdrop-blur-sm border border-[var(--color-decorative-border)]/60"
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -217,14 +219,26 @@ export default function AccountWishlistPage() {
 
                           {/* Edition Details */}
                           <div className="space-y-1.5">
-                            {item.sku && (
-                              <p className="text-[10px] font-mono uppercase tracking-wider text-[var(--color-muted-light)]">
-                                {item.sku}
-                              </p>
-                            )}
+                            <div className="flex items-center justify-between gap-2">
+                              {item.sku && (
+                                <p className="text-[10px] font-mono uppercase tracking-wider text-[var(--color-muted-light)]">
+                                  {item.sku}
+                                </p>
+                              )}
+                              {item.variantTitle && (
+                                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--color-stone)] text-[var(--color-bronze)]">
+                                  {item.variantTitle}
+                                </span>
+                              )}
+                            </div>
                             <h2 className="text-base font-serif font-medium text-[var(--color-ink)] hover:text-[var(--color-bronze)] transition-colors line-clamp-1">
                               <Link href={`/product/${item.slug}`}>{item.title}</Link>
                             </h2>
+                            {item.materialFinish && (
+                              <p className="text-[11px] text-[var(--color-muted-light)] italic line-clamp-1">
+                                Finish: {item.materialFinish}
+                              </p>
+                            )}
                             <p className="text-sm font-semibold text-[var(--color-ink)]">
                               {priceFormatted}
                             </p>
@@ -260,7 +274,7 @@ export default function AccountWishlistPage() {
                             </Link>
                             <button
                               type="button"
-                              onClick={() => handleRemove(item.productId)}
+                              onClick={() => handleRemove(item.id)}
                               disabled={isRemoving}
                               className="text-xs text-[var(--color-muted-light)] hover:text-rose-600 transition-colors"
                             >

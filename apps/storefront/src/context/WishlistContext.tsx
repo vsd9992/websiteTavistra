@@ -7,6 +7,9 @@ import { useAuth } from "./AuthContext";
 export interface WishlistProduct {
   id: string;
   productId: string;
+  variantId?: string | null;
+  variantTitle?: string | null;
+  materialFinish?: string | null;
   slug: string;
   sku: string;
   title: string;
@@ -20,11 +23,14 @@ interface WishlistContextType {
   wishlistItems: WishlistProduct[];
   wishlistCount: number;
   loading: boolean;
-  isInWishlist: (productIdOrSlug: string) => boolean;
-  toggleWishlist: (product: {
+  isInWishlist: (targetIdOrKey: string) => boolean;
+  toggleWishlist: (item: {
     id: string;
     slug: string;
     title: string;
+    variantId?: string;
+    variantTitle?: string;
+    sku?: string;
   }) => Promise<{ success: boolean; inWishlist: boolean }>;
   removeFromWishlist: (productIdOrWishlistId: string) => Promise<boolean>;
   refreshWishlist: () => Promise<void>;
@@ -67,8 +73,14 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         setWishlistItems(items);
         const ids = new Set<string>();
         for (const item of items) {
+          ids.add(item.id);
           ids.add(item.productId);
           ids.add(item.slug);
+          if (item.variantId) {
+            ids.add(item.variantId);
+            ids.add(`${item.productId}_${item.variantId}`);
+          }
+          if (item.sku) ids.add(item.sku);
         }
         setWishlistIds(ids);
       }
@@ -84,9 +96,9 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
   }, [refreshWishlist, user?.id]);
 
   const isInWishlist = useCallback(
-    (productIdOrSlug: string) => {
-      if (!productIdOrSlug) return false;
-      return wishlistIds.has(productIdOrSlug);
+    (targetIdOrKey: string) => {
+      if (!targetIdOrKey) return false;
+      return wishlistIds.has(targetIdOrKey);
     },
     [wishlistIds]
   );
@@ -96,13 +108,16 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     setGuestPromptOpen(true);
   };
 
-  const toggleWishlist = async (product: {
+  const toggleWishlist = async (item: {
     id: string;
     slug: string;
     title: string;
+    variantId?: string;
+    variantTitle?: string;
+    sku?: string;
   }): Promise<{ success: boolean; inWishlist: boolean }> => {
     if (!isAuthenticated) {
-      promptGuestSignIn(`/product/${product.slug}`);
+      promptGuestSignIn(`/product/${item.slug}`);
       return { success: false, inWishlist: false };
     }
 
@@ -111,7 +126,12 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ productId: product.id, slug: product.slug }),
+        body: JSON.stringify({
+          productId: item.id,
+          slug: item.slug,
+          variantId: item.variantId,
+          sku: item.sku,
+        }),
       });
 
       const data = await res.json();
@@ -120,17 +140,32 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
       }
 
       const inWishlist = Boolean(data.inWishlist);
-      showToast(inWishlist ? `Saved to your Studio Wishlist` : `Removed from Wishlist`);
+      const pieceLabel = item.variantTitle
+        ? `${item.title} (${item.variantTitle})`
+        : item.title;
+
+      showToast(
+        inWishlist
+          ? `Saved ${pieceLabel} to Studio Wishlist`
+          : `Removed ${pieceLabel} from Wishlist`
+      );
 
       // Optimistically update set
       setWishlistIds((prev) => {
         const next = new Set(prev);
-        if (inWishlist) {
-          next.add(product.id);
-          next.add(product.slug);
-        } else {
-          next.delete(product.id);
-          next.delete(product.slug);
+        const keys = [
+          item.id,
+          item.slug,
+          ...(item.variantId ? [item.variantId, `${item.id}_${item.variantId}`] : []),
+          ...(item.sku ? [item.sku] : []),
+        ];
+
+        for (const k of keys) {
+          if (inWishlist) {
+            next.add(k);
+          } else {
+            next.delete(k);
+          }
         }
         return next;
       });
@@ -140,7 +175,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error("toggleWishlist error:", err);
       showToast((err as Error).message || "Could not update wishlist.");
-      return { success: false, inWishlist: isInWishlist(product.id) };
+      return { success: false, inWishlist: isInWishlist(item.variantId || item.id) };
     }
   };
 

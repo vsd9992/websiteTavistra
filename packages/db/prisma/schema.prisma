@@ -227,8 +227,8 @@ model Product {
   images                ProductImage[]
   collections           ProductCollection[]
   orderItems            OrderItem[]
-  deliveryOverrides     ProductDeliveryOverride[]
   wishlistItems         WishlistItem[]
+  deliveryOverrides     ProductDeliveryOverride[]
 
   @@index([slug])
   @@index([categoryId])
@@ -236,16 +236,19 @@ model Product {
 }
 
 model WishlistItem {
-  id        String   @id @default(cuid())
+  id        String          @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   productId String
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  product   Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId String?
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  createdAt DateTime        @default(now())
 
-  @@unique([userId, productId])
+  @@unique([userId, productId, variantId])
   @@index([userId])
   @@index([productId])
+  @@index([variantId])
 }
 
 model ProductCollection {
@@ -284,6 +287,7 @@ model ProductVariant {
   product               Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
   inventoryLedger       InventoryLedger?
   orderItems            OrderItem[]
+  wishlistItems         WishlistItem[]
 
   @@index([productId])
   @@index([sku])

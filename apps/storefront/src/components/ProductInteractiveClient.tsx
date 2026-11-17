@@ -96,6 +96,21 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
     selectedVariant?.materialFinish ||
     (product.materials && product.materials.length > 0 ? product.materials.join(" · ") : "");
 
+  // Variant-specific wishlist checking & toggling
+  const currentVariantKey = selectedVariant?.id || currentSku;
+  const isCurrentVariantInWishlist = isInWishlist(currentVariantKey);
+
+  const handleToggleCurrentVariantWishlist = () => {
+    toggleWishlist({
+      id: product.id,
+      slug: product.slug,
+      title: product.name,
+      variantId: selectedVariant?.id,
+      variantTitle: selectedVariant?.title,
+      sku: currentSku,
+    });
+  };
+
   const formattedPrice = new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
@@ -274,17 +289,21 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
           <div className="pt-2 flex flex-wrap items-center gap-2.5">
             <button
               type="button"
-              onClick={() => toggleWishlist({ id: product.id, slug: product.slug, title: product.name })}
+              onClick={handleToggleCurrentVariantWishlist}
               className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-medium transition-all ${
-                isInWishlist(product.id)
+                isCurrentVariantInWishlist
                   ? "border-[var(--color-bronze)] bg-[var(--color-bronze)]/10 text-[var(--color-bronze)] font-semibold shadow-sm"
                   : "border-[var(--color-control-border)] bg-[var(--color-canvas)] text-[var(--color-ink)] hover:border-[var(--color-bronze)] hover:bg-[var(--color-ivory)]"
               }`}
-              title={isInWishlist(product.id) ? "Saved in your Studio Wishlist" : "Save piece to client wishlist"}
+              title={
+                isCurrentVariantInWishlist
+                  ? `Saved finish (${currentSku}) in your Studio Wishlist`
+                  : `Save this finish (${currentSku}) to client wishlist`
+              }
             >
               <svg
                 className={`w-4 h-4 transition-transform active:scale-125 ${
-                  isInWishlist(product.id)
+                  isCurrentVariantInWishlist
                     ? "fill-[var(--color-bronze)] text-[var(--color-bronze)]"
                     : "fill-none text-current"
                 }`}
@@ -298,7 +317,7 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
                   d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
                 />
               </svg>
-              <span>{isInWishlist(product.id) ? "Saved in Studio Wishlist" : "Save to Wishlist"}</span>
+              <span>{isCurrentVariantInWishlist ? "Saved Finish in Wishlist" : "Save this Finish to Wishlist"}</span>
             </button>
 
             <button
@@ -492,6 +511,11 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
               <p className="text-xs font-serif font-medium text-[var(--color-ink)] truncate max-w-[130px] sm:max-w-[200px]">
                 {product.name}
               </p>
+              {selectedVariant?.title && (
+                <p className="text-[10px] text-[var(--color-muted-light)] truncate max-w-[130px] sm:max-w-[200px]">
+                  {selectedVariant.title}
+                </p>
+              )}
               <p className="text-xs font-semibold text-[var(--color-bronze)]">
                 {product.mode === "QUOTE_ONLY" ? "On Proposal" : formattedPrice}
               </p>
@@ -501,17 +525,21 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
-              onClick={() => toggleWishlist({ id: product.id, slug: product.slug, title: product.name })}
+              onClick={handleToggleCurrentVariantWishlist}
               className={`p-2.5 rounded-full border transition-all ${
-                isInWishlist(product.id)
+                isCurrentVariantInWishlist
                   ? "border-[var(--color-bronze)] bg-[var(--color-bronze)]/10 text-[var(--color-bronze)]"
                   : "border-[var(--color-control-border)] bg-[var(--color-canvas)] text-[var(--color-ink)]"
               }`}
-              title={isInWishlist(product.id) ? "Saved in Studio Wishlist" : "Save to Wishlist"}
-              aria-label="Save to Wishlist"
+              title={
+                isCurrentVariantInWishlist
+                  ? "Saved finish in Studio Wishlist"
+                  : "Save this finish to Wishlist"
+              }
+              aria-label="Save this finish to Wishlist"
             >
               <svg
-                className={`w-4 h-4 ${isInWishlist(product.id) ? "fill-[var(--color-bronze)]" : "fill-none"}`}
+                className={`w-4 h-4 ${isCurrentVariantInWishlist ? "fill-[var(--color-bronze)]" : "fill-none"}`}
                 stroke="currentColor"
                 viewBox="0 0 24 24"
               >

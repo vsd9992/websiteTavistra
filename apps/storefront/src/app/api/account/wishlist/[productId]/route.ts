@@ -22,11 +22,11 @@ export async function DELETE(
       return NextResponse.json({ error: "Product ID is required." }, { status: 400 });
     }
 
-    // Try finding by wishlistItem id OR by productId
+    // Try finding by wishlistItem id OR by variantId OR by productId
     const item = await prisma.wishlistItem.findFirst({
       where: {
         userId: authUser.id,
-        OR: [{ id: cleanId }, { productId: cleanId }],
+        OR: [{ id: cleanId }, { variantId: cleanId }, { productId: cleanId }],
       },
     });
 
