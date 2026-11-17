@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { APPROVED_CATEGORIES } from "@/lib/taxonomy";
 import { useCart } from "@/context/CartContext";
@@ -14,8 +14,10 @@ export function Header() {
   const [mounted, setMounted] = useState(false);
   const [isShopOpen, setIsShopOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobileMenuClosing, setIsMobileMenuClosing] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
+  const [isAccountClosing, setIsAccountClosing] = useState(false);
   const [systemNotice, setSystemNotice] = useState<{
     maintenanceMode: boolean;
     studioHiatus: boolean;
@@ -33,6 +35,34 @@ export function Header() {
     setMounted(true);
   }, []);
 
+  const closeMobileMenu = useCallback(() => {
+    if (isMobileMenuClosing) return;
+    setIsMobileMenuClosing(true);
+    setTimeout(() => {
+      setIsMobileMenuOpen(false);
+      setIsMobileMenuClosing(false);
+    }, 240);
+  }, [isMobileMenuClosing]);
+
+  const openMobileMenu = useCallback(() => {
+    setIsMobileMenuClosing(false);
+    setIsMobileMenuOpen(true);
+  }, []);
+
+  const closeAccountModal = useCallback(() => {
+    if (isAccountClosing) return;
+    setIsAccountClosing(true);
+    setTimeout(() => {
+      setIsAccountOpen(false);
+      setIsAccountClosing(false);
+    }, 240);
+  }, [isAccountClosing]);
+
+  const openAccountModal = useCallback(() => {
+    setIsAccountClosing(false);
+    setIsAccountOpen(true);
+  }, []);
+
   // Track header height for mobile navigation drawer positioning
   useEffect(() => {
     const updateHeaderHeight = () => {
@@ -47,7 +77,11 @@ export function Header() {
 
   // Prevent background scroll when mobile navigation or mobile client portal is active
   useEffect(() => {
-    if (isMobileMenuOpen || (isAccountOpen && typeof window !== "undefined" && window.innerWidth < 1024)) {
+    const isMobileModalActive =
+      (isMobileMenuOpen || isMobileMenuClosing) ||
+      ((isAccountOpen || isAccountClosing) && typeof window !== "undefined" && window.innerWidth < 1024);
+
+    if (isMobileModalActive) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
@@ -55,7 +89,7 @@ export function Header() {
     return () => {
       document.body.style.overflow = "";
     };
-  }, [isMobileMenuOpen, isAccountOpen]);
+  }, [isMobileMenuOpen, isMobileMenuClosing, isAccountOpen, isAccountClosing]);
 
   // Load system notices & hiatus announcements
   useEffect(() => {
@@ -89,8 +123,12 @@ export function Header() {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         setIsShopOpen(false);
-        setIsAccountOpen(false);
-        setIsMobileMenuOpen(false);
+        if (window.innerWidth >= 1024) {
+          setIsAccountOpen(false);
+        } else {
+          closeAccountModal();
+        }
+        closeMobileMenu();
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -99,7 +137,7 @@ export function Header() {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, []);
+  }, [closeAccountModal, closeMobileMenu]);
 
   // Global search shortcut (/ or Cmd/Ctrl+K)
   useEffect(() => {
@@ -315,7 +353,13 @@ export function Header() {
             {/* Mobile User Icon Toggle (opens portalled bottom sheet) */}
             <button
               type="button"
-              onClick={() => setIsAccountOpen((prev) => !prev)}
+              onClick={() => {
+                if (isAccountOpen) {
+                  closeAccountModal();
+                } else {
+                  openAccountModal();
+                }
+              }}
               className="lg:hidden relative flex items-center gap-1.5 p-1.5 text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)] cursor-pointer"
               aria-label={isAuthenticated && user ? `Signed in as ${user.name}` : "Sign in to client account"}
               title={isAuthenticated && user ? `Account: ${user.name}` : "Sign In / Client Portal"}
@@ -541,12 +585,18 @@ export function Header() {
           {/* Mobile Hamburger Toggle */}
           <button
             type="button"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            onClick={() => {
+              if (isMobileMenuOpen) {
+                closeMobileMenu();
+              } else {
+                openMobileMenu();
+              }
+            }}
             className="lg:hidden p-2 text-[var(--color-ink)]"
             aria-label="Toggle navigation menu"
           >
             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              {isMobileMenuOpen ? (
+              {isMobileMenuOpen && !isMobileMenuClosing ? (
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               ) : (
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -557,17 +607,21 @@ export function Header() {
       </div>
 
       {/* Mobile Navigation Overlay Menu (WEB-036) — App-Style Overlay portalled to document.body */}
-      {mounted && isMobileMenuOpen && createPortal(
+      {mounted && (isMobileMenuOpen || isMobileMenuClosing) && createPortal(
         <div
           role="dialog"
           aria-modal="true"
           aria-label="Navigation Menu"
           style={{ top: `${headerHeight}px` }}
-          className="fixed inset-x-0 bottom-0 z-40 lg:hidden flex justify-end bg-black/50 backdrop-blur-sm animate-fade-in"
-          onClick={() => setIsMobileMenuOpen(false)}
+          className={`fixed inset-x-0 bottom-0 z-40 lg:hidden flex justify-end bg-black/50 backdrop-blur-sm ${
+            isMobileMenuClosing ? "animate-fade-out" : "animate-fade-in"
+          }`}
+          onClick={closeMobileMenu}
         >
           <div
-            className="w-full h-full max-w-sm bg-[var(--color-canvas)] p-6 shadow-2xl flex flex-col overflow-y-auto text-left animate-slide-left border-l border-[var(--color-decorative-border)]"
+            className={`w-full h-full max-w-sm bg-[var(--color-canvas)] p-6 shadow-2xl flex flex-col overflow-y-auto text-left border-l border-[var(--color-decorative-border)] ${
+              isMobileMenuClosing ? "animate-slide-right" : "animate-slide-left"
+            }`}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header of Overlay (without duplicate logo; header remains fully visible above) */}
@@ -582,7 +636,7 @@ export function Header() {
               </div>
               <button
                 type="button"
-                onClick={() => setIsMobileMenuOpen(false)}
+                onClick={closeMobileMenu}
                 className="p-1.5 rounded-full text-[var(--color-muted-light)] hover:text-[var(--color-ink)] hover:bg-[var(--color-ivory)] transition-colors cursor-pointer"
                 aria-label="Close navigation menu"
               >
@@ -597,7 +651,7 @@ export function Header() {
               <button
                 type="button"
                 onClick={() => {
-                  setIsMobileMenuOpen(false);
+                  closeMobileMenu();
                   setIsSearchOpen(true);
                 }}
                 className="flex w-full items-center justify-between rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] px-4 py-2.5 text-xs text-[var(--color-muted-light)] hover:text-[var(--color-ink)] transition-colors cursor-pointer"
@@ -622,7 +676,7 @@ export function Header() {
                   <li>
                     <Link
                       href="/shop"
-                      onClick={() => setIsMobileMenuOpen(false)}
+                      onClick={closeMobileMenu}
                       className="font-editorial text-lg text-[var(--color-ink)] block hover:text-[var(--color-bronze)] transition-colors"
                     >
                       All Works (Shop All)
@@ -632,7 +686,7 @@ export function Header() {
                     <li key={cat.slug}>
                       <Link
                         href={`/category/${cat.slug}`}
-                        onClick={() => setIsMobileMenuOpen(false)}
+                        onClick={closeMobileMenu}
                         className="text-xs text-[var(--color-muted-light)] hover:text-[var(--color-ink)] block py-0.5 transition-colors"
                       >
                         {cat.name}
@@ -650,7 +704,7 @@ export function Header() {
                   <li>
                     <Link
                       href="/our-story"
-                      onClick={() => setIsMobileMenuOpen(false)}
+                      onClick={closeMobileMenu}
                       className="text-[var(--color-ink)] hover:text-[var(--color-bronze)] font-medium block transition-colors"
                     >
                       Our Story &amp; Philosophy
@@ -659,7 +713,7 @@ export function Header() {
                   <li>
                     <Link
                       href="/contact"
-                      onClick={() => setIsMobileMenuOpen(false)}
+                      onClick={closeMobileMenu}
                       className="text-[var(--color-ink)] hover:text-[var(--color-bronze)] font-medium block transition-colors"
                     >
                       Contact Concierge &amp; Studio
@@ -668,7 +722,7 @@ export function Header() {
                   <li>
                     <Link
                       href="/shipping"
-                      onClick={() => setIsMobileMenuOpen(false)}
+                      onClick={closeMobileMenu}
                       className="text-[var(--color-muted-light)] hover:text-[var(--color-ink)] block transition-colors"
                     >
                       Shipping &amp; Delivery Band Policy
@@ -677,7 +731,7 @@ export function Header() {
                   <li>
                     <Link
                       href="/returns-refunds"
-                      onClick={() => setIsMobileMenuOpen(false)}
+                      onClick={closeMobileMenu}
                       className="text-[var(--color-muted-light)] hover:text-[var(--color-ink)] block transition-colors"
                     >
                       Returns &amp; Cancellations
@@ -697,16 +751,20 @@ export function Header() {
       )}
 
       {/* Mobile Client Portal Bottom Sheet Modal portalled to document.body */}
-      {mounted && isAccountOpen && createPortal(
+      {mounted && (isAccountOpen || isAccountClosing) && createPortal(
         <div
           role="dialog"
           aria-modal="true"
           aria-label="Client Portal"
-          className="fixed inset-0 z-[70] flex flex-col justify-end bg-black/60 backdrop-blur-sm lg:hidden text-left animate-fade-in"
-          onClick={() => setIsAccountOpen(false)}
+          className={`fixed inset-0 z-[70] flex flex-col justify-end bg-black/60 backdrop-blur-sm lg:hidden text-left ${
+            isAccountClosing ? "animate-fade-out" : "animate-fade-in"
+          }`}
+          onClick={closeAccountModal}
         >
           <div
-            className="w-full max-h-[85vh] rounded-t-3xl border-t border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-6 shadow-2xl flex flex-col overflow-y-auto text-left animate-slide-up"
+            className={`w-full max-h-[85vh] rounded-t-3xl border-t border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-6 shadow-2xl flex flex-col overflow-y-auto text-left ${
+              isAccountClosing ? "animate-slide-down" : "animate-slide-up"
+            }`}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Top Touch Handle */}
@@ -724,7 +782,7 @@ export function Header() {
               </div>
               <button
                 type="button"
-                onClick={() => setIsAccountOpen(false)}
+                onClick={closeAccountModal}
                 className="p-1.5 rounded-full text-[var(--color-muted-light)] hover:text-[var(--color-ink)] hover:bg-[var(--color-ivory)] transition-colors cursor-pointer"
                 aria-label="Close client portal"
               >
@@ -757,7 +815,7 @@ export function Header() {
                   <div className="space-y-1 py-1">
                     <Link
                       href="/account"
-                      onClick={() => setIsAccountOpen(false)}
+                      onClick={closeAccountModal}
                       className="flex items-center justify-between rounded-lg px-2.5 py-2.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
                     >
                       <span>Overview Dashboard</span>
@@ -765,7 +823,7 @@ export function Header() {
                     </Link>
                     <Link
                       href="/account/orders"
-                      onClick={() => setIsAccountOpen(false)}
+                      onClick={closeAccountModal}
                       className="flex items-center justify-between rounded-lg px-2.5 py-2.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
                     >
                       <span>Orders &amp; Quotations</span>
@@ -773,7 +831,7 @@ export function Header() {
                     </Link>
                     <Link
                       href="/account/wishlist"
-                      onClick={() => setIsAccountOpen(false)}
+                      onClick={closeAccountModal}
                       className="flex items-center justify-between rounded-lg px-2.5 py-2.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
                     >
                       <span className="flex items-center gap-1.5">
@@ -788,7 +846,7 @@ export function Header() {
                     </Link>
                     <Link
                       href="/account/tickets"
-                      onClick={() => setIsAccountOpen(false)}
+                      onClick={closeAccountModal}
                       className="flex items-center justify-between rounded-lg px-2.5 py-2.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
                     >
                       <span>Support Tickets</span>
@@ -796,7 +854,7 @@ export function Header() {
                     </Link>
                     <Link
                       href="/account/addresses"
-                      onClick={() => setIsAccountOpen(false)}
+                      onClick={closeAccountModal}
                       className="flex items-center justify-between rounded-lg px-2.5 py-2.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
                     >
                       <span>Saved Addresses</span>
@@ -804,7 +862,7 @@ export function Header() {
                     </Link>
                     <Link
                       href="/account/profile"
-                      onClick={() => setIsAccountOpen(false)}
+                      onClick={closeAccountModal}
                       className="flex items-center justify-between rounded-lg px-2.5 py-2.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
                     >
                       <span>Profile &amp; Security</span>
@@ -816,7 +874,7 @@ export function Header() {
                   <div className="pt-2 mt-1 border-t border-[var(--color-decorative-border)]">
                     <Link
                       href="/track"
-                      onClick={() => setIsAccountOpen(false)}
+                      onClick={closeAccountModal}
                       className="block rounded-lg px-2.5 py-2 text-xs text-[var(--color-muted-light)] hover:text-[var(--color-ink)] hover:bg-[var(--color-ivory)] transition-colors"
                     >
                       Track Order Milestones
@@ -828,7 +886,7 @@ export function Header() {
                     <button
                       type="button"
                       onClick={async () => {
-                        setIsAccountOpen(false);
+                        closeAccountModal();
                         await logout();
                         window.location.assign("/account/login");
                       }}
@@ -852,14 +910,14 @@ export function Header() {
                     <div className="mt-4 flex gap-2">
                       <Link
                         href="/account/login"
-                        onClick={() => setIsAccountOpen(false)}
+                        onClick={closeAccountModal}
                         className="flex-1 rounded-xl bg-[var(--color-ink)] py-2.5 text-center text-xs font-semibold text-[var(--color-canvas)] transition-opacity hover:opacity-90 shadow-sm"
                       >
                         Sign In
                       </Link>
                       <Link
                         href="/account/register"
-                        onClick={() => setIsAccountOpen(false)}
+                        onClick={closeAccountModal}
                         className="flex-1 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] py-2.5 text-center text-xs font-semibold text-[var(--color-ink)] transition-colors hover:border-[var(--color-control-border)]"
                       >
                         Register
@@ -873,7 +931,7 @@ export function Header() {
                     </span>
                     <Link
                       href="/track"
-                      onClick={() => setIsAccountOpen(false)}
+                      onClick={closeAccountModal}
                       className="flex items-center justify-between rounded-lg px-2.5 py-2 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors"
                     >
                       <span>Track Order Status</span>
@@ -881,7 +939,7 @@ export function Header() {
                     </Link>
                     <Link
                       href="/track-ticket"
-                      onClick={() => setIsAccountOpen(false)}
+                      onClick={closeAccountModal}
                       className="flex items-center justify-between rounded-lg px-2.5 py-2 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors"
                     >
                       <span>Track Support Ticket</span>
@@ -889,7 +947,7 @@ export function Header() {
                     </Link>
                     <Link
                       href="/contact"
-                      onClick={() => setIsAccountOpen(false)}
+                      onClick={closeAccountModal}
                       className="flex items-center justify-between rounded-lg px-2.5 py-2 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors"
                     >
                       <span>Contact Customer Support</span>

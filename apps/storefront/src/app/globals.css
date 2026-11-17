@@ -113,7 +113,7 @@ textarea:disabled,
 }
 
 /* -------------------------------------------------------------
- * NATIVE-FEEL APP ANIMATIONS (SLIDE UP, SLIDE LEFT, FADE IN)
+ * NATIVE-FEEL APP ANIMATIONS (SLIDE UP, SLIDE LEFT, FADE IN & EXITS)
  * ------------------------------------------------------------- */
 @keyframes slideUp {
   from {
@@ -123,6 +123,17 @@ textarea:disabled,
   to {
     transform: translateY(0);
     opacity: 1;
+  }
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(100%);
+    opacity: 0.9;
   }
 }
 
@@ -137,6 +148,17 @@ textarea:disabled,
   }
 }
 
+@keyframes slideRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0.9;
+  }
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -146,16 +168,37 @@ textarea:disabled,
   }
 }
 
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
 .animate-slide-up {
   animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-down {
+  animation: slideDown 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .animate-slide-left {
   animation: slideLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+.animate-slide-right {
+  animation: slideRight 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 .animate-fade-in {
   animation: fadeIn 0.25s ease-out forwards;
+}
+
+.animate-fade-out {
+  animation: fadeOut 0.22s ease-in forwards;
 }
 
 
