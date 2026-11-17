@@ -713,19 +713,19 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
   return (
     <div className="space-y-6">
       {/* Header & Sub-Navigation */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#2e2e34] pb-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#38332c] pb-4">
         <div>
           <h2 className="text-base font-semibold text-white">Logistics, Nested PIN Governance &amp; 12-Slab Engine</h2>
-          <p className="text-xs text-[#9e9ea8]">
+          <p className="text-xs text-[#a8a093]">
             Manage 3-tier hierarchical PIN rules (Region Prefix → District Hub → Exact 6-Digit PIN), the DB-backed 12-slab ladder, and product overrides.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 bg-[#18181c] p-1 rounded-xl border border-[#2e2e34]">
+        <div className="flex items-center gap-2 bg-[#1e1c19] p-1 rounded-xl border border-[#38332c]">
           <button
             onClick={() => setSubTab("PINS")}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-              subTab === "PINS" ? "bg-[#c59b6d] text-[#121214]" : "text-[#9e9ea8] hover:text-white"
+              subTab === "PINS" ? "bg-[#c59b6d] text-[#181715]" : "text-[#a8a093] hover:text-white"
             }`}
           >
             PIN Hierarchy ({pincodes.length})
@@ -733,7 +733,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
           <button
             onClick={() => setSubTab("SLABS_ZONES")}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-              subTab === "SLABS_ZONES" ? "bg-[#c59b6d] text-[#121214]" : "text-[#9e9ea8] hover:text-white"
+              subTab === "SLABS_ZONES" ? "bg-[#c59b6d] text-[#181715]" : "text-[#a8a093] hover:text-white"
             }`}
           >
             12 Slabs &amp; Zone Matrix
@@ -741,7 +741,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
           <button
             onClick={() => setSubTab("PRODUCT_OVERRIDES")}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-              subTab === "PRODUCT_OVERRIDES" ? "bg-[#c59b6d] text-[#121214]" : "text-[#9e9ea8] hover:text-white"
+              subTab === "PRODUCT_OVERRIDES" ? "bg-[#c59b6d] text-[#181715]" : "text-[#a8a093] hover:text-white"
             }`}
           >
             Product Zone Overrides
@@ -768,30 +768,30 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
         <div className="space-y-6">
           {/* Stats & Origin Bar */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-3.5 rounded-xl bg-[#1c1c20] border border-[#2e2e34]">
-              <span className="text-[10px] uppercase tracking-wider text-[#9e9ea8] block">Region Prefixes (2–4 digit)</span>
+            <div className="p-3.5 rounded-xl bg-[#24211d] border border-[#38332c]">
+              <span className="text-[10px] uppercase tracking-wider text-[#a8a093] block">Region Prefixes (2–4 digit)</span>
               <span className="text-lg font-bold text-white font-mono">{prefixCount}</span>
             </div>
-            <div className="p-3.5 rounded-xl bg-[#1c1c20] border border-[#2e2e34]">
-              <span className="text-[10px] uppercase tracking-wider text-[#9e9ea8] block">Exact 6-Digit PINs</span>
+            <div className="p-3.5 rounded-xl bg-[#24211d] border border-[#38332c]">
+              <span className="text-[10px] uppercase tracking-wider text-[#a8a093] block">Exact 6-Digit PINs</span>
               <span className="text-lg font-bold text-[#c59b6d] font-mono">{exactPinCount}</span>
             </div>
-            <div className="p-3.5 rounded-xl bg-[#1c1c20] border border-[#2e2e34]">
-              <span className="text-[10px] uppercase tracking-wider text-[#9e9ea8] block">Suspended Rules</span>
+            <div className="p-3.5 rounded-xl bg-[#24211d] border border-[#38332c]">
+              <span className="text-[10px] uppercase tracking-wider text-[#a8a093] block">Suspended Rules</span>
               <span className="text-lg font-bold text-rose-400 font-mono">{suspendedCount}</span>
             </div>
-            <div className="p-3.5 rounded-xl bg-[#1c1c20] border border-[#2e2e34]">
-              <span className="text-[10px] uppercase tracking-wider text-[#9e9ea8] block">Approved Origins</span>
+            <div className="p-3.5 rounded-xl bg-[#24211d] border border-[#38332c]">
+              <span className="text-[10px] uppercase tracking-wider text-[#a8a093] block">Approved Origins</span>
               <span className="text-xs font-mono font-semibold text-emerald-400 mt-1 block">110062, 110019, 110074</span>
             </div>
           </div>
 
           {/* Live 6-Digit Resolution Simulator */}
-          <div className="p-5 rounded-2xl bg-[#1c1c20] border border-[#2e2e34] space-y-4">
+          <div className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-semibold text-white">Live Nested PIN Resolution Simulator</h3>
-                <p className="text-xs text-[#9e9ea8]">
+                <p className="text-xs text-[#a8a093]">
                   Test any 6-digit Indian PIN code (e.g. <span className="font-mono text-white">110043</span>, <span className="font-mono text-white">560103</span>, <span className="font-mono text-white">194101</span>) to see which parent prefix or exact override governs it, and create an override in 1 click.
                 </p>
               </div>
@@ -803,12 +803,12 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                   value={simPin}
                   onChange={(e) => setSimPin(e.target.value.replace(/\D/g, ""))}
                   onKeyDown={(e) => e.key === "Enter" && handleSimulatePin()}
-                  className="rounded-lg border border-[#3e3e46] bg-[#16161a] px-3 py-1.5 text-xs text-white font-mono w-36 focus:border-[#c59b6d] focus:outline-none"
+                  className="rounded-lg border border-[#464037] bg-[#16161a] px-3 py-1.5 text-xs text-white font-mono w-36 focus:border-[#c59b6d] focus:outline-none"
                 />
                 <button
                   onClick={handleSimulatePin}
                   disabled={simLoading}
-                  className="px-4 py-1.5 rounded-lg bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors"
+                  className="px-4 py-1.5 rounded-lg bg-[#c59b6d] text-[#181715] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors"
                 >
                   {simLoading ? "Testing..." : "Simulate"}
                 </button>
@@ -816,7 +816,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
             </div>
 
             {simResult && (
-              <div className="p-4 rounded-xl bg-[#16161a] border border-[#2e2e34] flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
+              <div className="p-4 rounded-xl bg-[#16161a] border border-[#38332c] flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="font-mono font-bold text-sm text-white">{simResult.pincode}</span>
@@ -829,12 +829,12 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                     >
                       {simResult.isServiceable ? "SERVICEABLE" : "SUSPENDED / BLOCKED"}
                     </span>
-                    <span className="px-2 py-0.5 rounded bg-[#24242a] text-[#c59b6d] text-[10px] font-mono">
+                    <span className="px-2 py-0.5 rounded bg-[#2a2722] text-[#c59b6d] text-[10px] font-mono">
                       Resolution: {simResult.resolutionType}
                       {simResult.matchedRulePrefix ? ` (Matched Rule: ${simResult.matchedRulePrefix})` : ""}
                     </span>
                   </div>
-                  <p className="text-[#9e9ea8]">
+                  <p className="text-[#a8a093]">
                     Destination: <strong className="text-white">{simResult.city || "Unknown"}, {simResult.state}</strong> · Assigned Zone: <strong className="text-white">{simResult.zoneName}</strong> ({simResult.transitDaysEstimate})
                   </p>
                   {simResult.unserviceableReason && (
@@ -854,7 +854,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                         unserviceableReason: "",
                       })
                     }
-                    className="px-3.5 py-2 rounded-lg bg-[#c59b6d] text-[#121214] hover:bg-[#d6aa7c] text-xs font-semibold transition-colors"
+                    className="px-3.5 py-2 rounded-lg bg-[#c59b6d] text-[#181715] hover:bg-[#d6aa7c] text-xs font-semibold transition-colors"
                   >
                     {simResult.resolutionType === "EXACT_6_DIGIT"
                       ? `Edit PIN ${simResult.pincode}`
@@ -863,7 +863,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                   {simResult.pincode?.length === 6 && (
                     <button
                       onClick={() => openRegionDetail(simResult.pincode.slice(0, 2), simResult.pincode)}
-                      className="px-3 py-2 rounded-lg bg-[#24242a] border border-[#3e3e46] text-white hover:border-[#c59b6d] text-xs font-semibold transition-colors"
+                      className="px-3 py-2 rounded-lg bg-[#2a2722] border border-[#464037] text-white hover:border-[#c59b6d] text-xs font-semibold transition-colors"
                     >
                       Open Region {simResult.pincode.slice(0, 2)} →
                     </button>
@@ -883,13 +883,13 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     onClick={() => openModalForPin()}
-                    className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors"
+                    className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#181715] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors"
                   >
                     + Add PIN or Region
                   </button>
                   <button
                     onClick={handleImportUrban884}
-                    className="px-4 py-2 rounded-xl bg-[#24242a] border border-[#3e3e46] text-white font-semibold text-xs hover:border-[#c59b6d] transition-colors"
+                    className="px-4 py-2 rounded-xl bg-[#2a2722] border border-[#464037] text-white font-semibold text-xs hover:border-[#c59b6d] transition-colors"
                   >
                     Sync {urbanCandidateCount} Urban Hub PINs to DB
                   </button>
@@ -901,12 +901,12 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                     placeholder="Search 2-digit region, state, city, or 6-digit PIN..."
                     value={pinSearch}
                     onChange={(e) => setPinSearch(e.target.value)}
-                    className="rounded-xl border border-[#3e3e46] bg-[#1c1c20] px-3 py-1.5 text-xs text-white placeholder-[#6e6e76] w-64 focus:border-[#c59b6d] focus:outline-none"
+                    className="rounded-xl border border-[#464037] bg-[#24211d] px-3 py-1.5 text-xs text-white placeholder-[#787165] w-64 focus:border-[#c59b6d] focus:outline-none"
                   />
                   <select
                     value={filterZone}
                     onChange={(e) => setFilterZone(e.target.value)}
-                    className="rounded-xl border border-[#3e3e46] bg-[#1c1c20] px-3 py-1.5 text-xs text-white focus:outline-none"
+                    className="rounded-xl border border-[#464037] bg-[#24211d] px-3 py-1.5 text-xs text-white focus:outline-none"
                   >
                     <option value="ALL">All Zones</option>
                     {zones.map((z) => (
@@ -916,7 +916,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                   <select
                     value={filterStatus}
                     onChange={(e) => setFilterStatus(e.target.value)}
-                    className="rounded-xl border border-[#3e3e46] bg-[#1c1c20] px-3 py-1.5 text-xs text-white focus:outline-none"
+                    className="rounded-xl border border-[#464037] bg-[#24211d] px-3 py-1.5 text-xs text-white focus:outline-none"
                   >
                     <option value="ALL">All Regions</option>
                     <option value="ACTIVE">Active Regions</option>
@@ -933,7 +933,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                 const parentGroup = regionGroups.find((g) => g.prefix2 === p2);
 
                 return (
-                  <div className="p-3.5 rounded-xl bg-[#18181c] border border-[#c59b6d]/50 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="p-3.5 rounded-xl bg-[#1e1c19] border border-[#c59b6d]/50 flex flex-wrap items-center justify-between gap-3 text-xs">
                     {exactMatch ? (
                       <>
                         <div>
@@ -945,7 +945,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                         </div>
                         <button
                           onClick={() => openRegionDetail(p2, q)}
-                          className="px-3 py-1.5 rounded-lg bg-[#c59b6d] text-[#121214] font-semibold"
+                          className="px-3 py-1.5 rounded-lg bg-[#c59b6d] text-[#181715] font-semibold"
                         >
                           Manage {q} in Region {p2} →
                         </button>
@@ -954,7 +954,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                       <>
                         <div>
                           <span className="text-amber-400 font-semibold">PIN {q} is NOT in the verified system directory</span>{" "}
-                          <span className="text-[#9e9ea8]">(Storefront treats unlisted PINs as Not Serviceable).</span>
+                          <span className="text-[#a8a093]">(Storefront treats unlisted PINs as Not Serviceable).</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <button
@@ -967,14 +967,14 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                                 isServiceable: true,
                               })
                             }
-                            className="px-3 py-1.5 rounded-lg bg-[#c59b6d] text-[#121214] font-semibold"
+                            className="px-3 py-1.5 rounded-lg bg-[#c59b6d] text-[#181715] font-semibold"
                           >
                             + Add &amp; Enable {q}
                           </button>
                           {parentGroup && (
                             <button
                               onClick={() => openRegionDetail(p2)}
-                              className="px-3 py-1.5 rounded-lg bg-[#24242a] text-white border border-[#3e3e46]"
+                              className="px-3 py-1.5 rounded-lg bg-[#2a2722] text-white border border-[#464037]"
                             >
                               Open Region {p2} →
                             </button>
@@ -987,9 +987,9 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
               })()}
 
               {/* Main Region List (2-Digit Prefixes) */}
-              <div className="rounded-2xl border border-[#2e2e34] bg-[#1c1c20] overflow-x-auto">
+              <div className="rounded-2xl border border-[#38332c] bg-[#24211d] overflow-x-auto">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-[#18181c] border-b border-[#2e2e34] text-[11px] uppercase tracking-wider text-[#9e9ea8]">
+                  <thead className="bg-[#1e1c19] border-b border-[#38332c] text-[11px] uppercase tracking-wider text-[#a8a093]">
                     <tr>
                       <th className="py-3 px-4">2-Digit Prefix</th>
                       <th className="py-3 px-4">Main Region / State</th>
@@ -999,33 +999,33 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                       <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#2e2e34]">
+                  <tbody className="divide-y divide-[#38332c]">
                     {loading ? (
                       <tr>
-                        <td colSpan={6} className="py-10 text-center text-[#9e9ea8]">Loading regional PIN directory...</td>
+                        <td colSpan={6} className="py-10 text-center text-[#a8a093]">Loading regional PIN directory...</td>
                       </tr>
                     ) : filteredRegions.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="py-10 text-center text-[#9e9ea8]">No matching regions found.</td>
+                        <td colSpan={6} className="py-10 text-center text-[#a8a093]">No matching regions found.</td>
                       </tr>
                     ) : (
                       filteredRegions.map((group) => (
                         <tr
                           key={group.prefix2}
                           onClick={() => openRegionDetail(group.prefix2)}
-                          className="hover:bg-[#222228]/70 cursor-pointer transition-colors"
+                          className="hover:bg-[#2a2722]/70 cursor-pointer transition-colors"
                         >
                           <td className="py-3.5 px-4">
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-[#24242a] border border-[#3e3e46] font-mono font-bold text-[#c59b6d] text-sm">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-[#2a2722] border border-[#464037] font-mono font-bold text-[#c59b6d] text-sm">
                               {group.prefix2}xxxx
                             </span>
                           </td>
                           <td className="py-3.5 px-4">
                             <div className="text-white font-semibold">{group.regionName}</div>
-                            <div className="text-[11px] text-[#9e9ea8]">{group.stateName}</div>
+                            <div className="text-[11px] text-[#a8a093]">{group.stateName}</div>
                           </td>
                           <td className="py-3.5 px-4">
-                            <span className="px-2 py-0.5 rounded bg-[#24242a] text-[#c59b6d] text-[11px] font-semibold">
+                            <span className="px-2 py-0.5 rounded bg-[#2a2722] text-[#c59b6d] text-[11px] font-semibold">
                               {group.zoneCode}
                             </span>
                           </td>
@@ -1067,7 +1067,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                           >
                             <button
                               onClick={() => openRegionDetail(group.prefix2)}
-                              className="px-3 py-1 rounded-lg bg-[#c59b6d] text-[#121214] font-semibold text-[11px] hover:bg-[#d6aa7c]"
+                              className="px-3 py-1 rounded-lg bg-[#c59b6d] text-[#181715] font-semibold text-[11px] hover:bg-[#d6aa7c]"
                             >
                               View PINs ({group.exactPins.length}) →
                             </button>
@@ -1097,25 +1097,25 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
           {activeRegionGroup && (
             <div className="space-y-5">
               {/* Region Header & Controls */}
-              <div className="p-5 rounded-2xl bg-[#1c1c20] border border-[#3e3e46] space-y-4">
+              <div className="p-5 rounded-2xl bg-[#24211d] border border-[#464037] space-y-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => setSelectedRegionPrefix(null)}
-                      className="px-3 py-1.5 rounded-xl bg-[#24242a] border border-[#3e3e46] text-xs font-semibold text-white hover:border-[#c59b6d]"
+                      className="px-3 py-1.5 rounded-xl bg-[#2a2722] border border-[#464037] text-xs font-semibold text-white hover:border-[#c59b6d]"
                     >
                       ← All Regions
                     </button>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded bg-[#24242a] font-mono font-bold text-[#c59b6d] text-xs">
+                        <span className="px-2 py-0.5 rounded bg-[#2a2722] font-mono font-bold text-[#c59b6d] text-xs">
                           {activeRegionGroup.prefix2}xxxx
                         </span>
                         <h3 className="text-sm font-semibold text-white">
                           {activeRegionGroup.regionName} ({activeRegionGroup.stateName})
                         </h3>
                       </div>
-                      <p className="text-[11px] text-[#9e9ea8] mt-0.5">
+                      <p className="text-[11px] text-[#a8a093] mt-0.5">
                         {activeRegionGroup.activeCount} serviceable PINs · {activeRegionGroup.disabledCount} disabled PINs
                       </p>
                     </div>
@@ -1132,7 +1132,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                           isServiceable: true,
                         })
                       }
-                      className="px-3.5 py-1.5 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c]"
+                      className="px-3.5 py-1.5 rounded-xl bg-[#c59b6d] text-[#181715] font-semibold text-xs hover:bg-[#d6aa7c]"
                     >
                       + Add PIN to Region {activeRegionGroup.prefix2}
                     </button>
@@ -1140,7 +1140,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                       onClick={() => handleToggleRegionPause(activeRegionGroup)}
                       className={`px-3 py-1.5 rounded-xl text-xs font-semibold border ${
                         activeRegionGroup.isRegionActive
-                          ? "bg-[#24242a] border-[#3e3e46] text-rose-400 hover:border-rose-600"
+                          ? "bg-[#2a2722] border-[#464037] text-rose-400 hover:border-rose-600"
                           : "bg-emerald-950 border-emerald-700 text-emerald-300"
                       }`}
                     >
@@ -1150,21 +1150,21 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                 </div>
 
                 {/* Region Commercial Zone & Coverage Mode Controls */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3 border-t border-[#2e2e34] text-xs">
-                  <div className="flex items-center justify-between gap-3 bg-[#16161a] px-3.5 py-2.5 rounded-xl border border-[#2e2e34]">
-                    <span className="text-[#9e9ea8]">Default Region Zone:</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3 border-t border-[#38332c] text-xs">
+                  <div className="flex items-center justify-between gap-3 bg-[#16161a] px-3.5 py-2.5 rounded-xl border border-[#38332c]">
+                    <span className="text-[#a8a093]">Default Region Zone:</span>
                     <select
                       value={activeRegionGroup.zoneCode}
                       onChange={(e) => handleUpdateRegionPolicy(activeRegionGroup, { zoneCode: e.target.value })}
-                      className="rounded-lg bg-[#24242a] border border-[#3e3e46] px-2.5 py-1 text-xs text-[#c59b6d] font-semibold focus:outline-none"
+                      className="rounded-lg bg-[#2a2722] border border-[#464037] px-2.5 py-1 text-xs text-[#c59b6d] font-semibold focus:outline-none"
                     >
                       {zones.map((z) => (
                         <option key={z.code} value={z.code}>{z.name}</option>
                       ))}
                     </select>
                   </div>
-                  <div className="flex items-center justify-between gap-3 bg-[#16161a] px-3.5 py-2.5 rounded-xl border border-[#2e2e34]">
-                    <span className="text-[#9e9ea8]">Unlisted PIN Policy:</span>
+                  <div className="flex items-center justify-between gap-3 bg-[#16161a] px-3.5 py-2.5 rounded-xl border border-[#38332c]">
+                    <span className="text-[#a8a093]">Unlisted PIN Policy:</span>
                     <select
                       value={activeRegionGroup.coverageMode}
                       onChange={(e) =>
@@ -1172,7 +1172,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                           coverageMode: e.target.value as "STRICT_WHITELIST" | "ALLOW_ALL_IN_PREFIX",
                         })
                       }
-                      className="rounded-lg bg-[#24242a] border border-[#3e3e46] px-2.5 py-1 text-xs text-white font-semibold focus:outline-none"
+                      className="rounded-lg bg-[#2a2722] border border-[#464037] px-2.5 py-1 text-xs text-white font-semibold focus:outline-none"
                     >
                       <option value="STRICT_WHITELIST">Strict 6-Digit Whitelist Only (Recommended)</option>
                       <option value="ALLOW_ALL_IN_PREFIX">Allow All {activeRegionGroup.prefix2}xxxx PINs</option>
@@ -1183,7 +1183,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
 
               {/* Sub-Prefix Exceptions inside this Region (3-digit / 4-digit, e.g. 194 Leh) */}
               {activeRegionGroup.subPrefixes.length > 0 && (
-                <div className="p-4 rounded-2xl bg-[#18181c] border border-[#2e2e34] space-y-2">
+                <div className="p-4 rounded-2xl bg-[#1e1c19] border border-[#38332c] space-y-2">
                   <h4 className="text-[11px] uppercase tracking-wider font-semibold text-[#c59b6d]">
                     Sub-Prefix Exceptions inside {activeRegionGroup.prefix2}xxxx (3–4 Digit Hubs)
                   </h4>
@@ -1191,10 +1191,10 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                     {activeRegionGroup.subPrefixes.map((sp) => (
                       <div
                         key={sp.id}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#1c1c20] border border-[#3e3e46] text-xs"
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#24211d] border border-[#464037] text-xs"
                       >
                         <span className="font-mono font-bold text-white">{sp.pincode}*</span>
-                        <span className="text-[#9e9ea8]">{sp.city}</span>
+                        <span className="text-[#a8a093]">{sp.city}</span>
                         <span
                           className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
                             sp.isServiceable ? "bg-emerald-950 text-emerald-300" : "bg-rose-950 text-rose-300"
@@ -1210,7 +1210,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                         </button>
                         <button
                           onClick={() => handleDeleteRule(sp)}
-                          className="text-[11px] text-[#9e9ea8] hover:text-rose-400"
+                          className="text-[11px] text-[#a8a093] hover:text-rose-400"
                           title="Delete sub-prefix rule"
                         >
                           ✕
@@ -1228,13 +1228,13 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                   placeholder={`Search 6-digit PIN or locality in ${activeRegionGroup.prefix2}xxxx...`}
                   value={regionChildSearch}
                   onChange={(e) => setRegionChildSearch(e.target.value)}
-                  className="rounded-xl border border-[#3e3e46] bg-[#1c1c20] px-3.5 py-2 text-xs text-white placeholder-[#6e6e76] w-full sm:w-80 focus:border-[#c59b6d] focus:outline-none"
+                  className="rounded-xl border border-[#464037] bg-[#24211d] px-3.5 py-2 text-xs text-white placeholder-[#787165] w-full sm:w-80 focus:border-[#c59b6d] focus:outline-none"
                 />
                 <div className="flex items-center gap-2">
                   <select
                     value={regionChildStatus}
                     onChange={(e) => setRegionChildStatus(e.target.value)}
-                    className="rounded-xl border border-[#3e3e46] bg-[#1c1c20] px-3 py-2 text-xs text-white focus:outline-none"
+                    className="rounded-xl border border-[#464037] bg-[#24211d] px-3 py-2 text-xs text-white focus:outline-none"
                   >
                     <option value="ALL">All Status ({activeRegionGroup.exactPins.length})</option>
                     <option value="ACTIVE">Serviceable ({activeRegionGroup.activeCount})</option>
@@ -1244,9 +1244,9 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
               </div>
 
               {/* Scoped 6-Digit PIN Table */}
-              <div className="rounded-2xl border border-[#2e2e34] bg-[#1c1c20] overflow-x-auto">
+              <div className="rounded-2xl border border-[#38332c] bg-[#24211d] overflow-x-auto">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-[#18181c] border-b border-[#2e2e34] text-[11px] uppercase tracking-wider text-[#9e9ea8]">
+                  <thead className="bg-[#1e1c19] border-b border-[#38332c] text-[11px] uppercase tracking-wider text-[#a8a093]">
                     <tr>
                       <th className="py-3 px-4">6-Digit PIN</th>
                       <th className="py-3 px-4">City / Locality</th>
@@ -1256,11 +1256,11 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                       <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#2e2e34]">
+                  <tbody className="divide-y divide-[#38332c]">
                     {pagedRegionPins.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="py-10 text-center space-y-3">
-                          <div className="text-[#9e9ea8]">
+                          <div className="text-[#a8a093]">
                             No 6-digit PINs match{" "}
                             {regionChildSearch ? `"${regionChildSearch}"` : `Region ${activeRegionGroup.prefix2}`}.
                           </div>
@@ -1275,7 +1275,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                                   isServiceable: true,
                                 })
                               }
-                              className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c]"
+                              className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#181715] font-semibold text-xs hover:bg-[#d6aa7c]"
                             >
                               + Add &amp; Enable PIN {regionChildSearch.trim()} in Region {activeRegionGroup.prefix2}
                             </button>
@@ -1284,11 +1284,11 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                       </tr>
                     ) : (
                       pagedRegionPins.map((pin) => (
-                        <tr key={pin.id} className="hover:bg-[#222228]/40 transition-colors">
+                        <tr key={pin.id} className="hover:bg-[#2a2722]/40 transition-colors">
                           <td className="py-3 px-4 font-mono font-bold text-white text-sm">{pin.pincode}</td>
                           <td className="py-3 px-4 text-white">
                             <div>{pin.city}</div>
-                            {pin.locality && <div className="text-[10px] text-[#9e9ea8]">{pin.locality}</div>}
+                            {pin.locality && <div className="text-[10px] text-[#a8a093]">{pin.locality}</div>}
                             {!pin.isServiceable && pin.unserviceableReason && (
                               <div className="text-[10px] text-rose-400 truncate max-w-xs">{pin.unserviceableReason}</div>
                             )}
@@ -1297,7 +1297,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                             <select
                               value={pin.zoneCode}
                               onChange={(e) => handleChangePinZone(pin, e.target.value)}
-                              className="rounded-lg bg-[#24242a] border border-[#3e3e46] px-2 py-1 text-[11px] text-[#c59b6d] font-semibold focus:outline-none"
+                              className="rounded-lg bg-[#2a2722] border border-[#464037] px-2 py-1 text-[11px] text-[#c59b6d] font-semibold focus:outline-none"
                             >
                               {zones.map((z) => (
                                 <option key={z.code} value={z.code}>{z.code}</option>
@@ -1305,7 +1305,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                             </select>
                           </td>
                           <td className="py-3 px-4">
-                            <span className="px-2 py-0.5 rounded bg-[#24242a] text-[#9e9ea8] text-[10px] font-mono">
+                            <span className="px-2 py-0.5 rounded bg-[#2a2722] text-[#a8a093] text-[10px] font-mono">
                               {pin.source || "URBAN_884"}
                             </span>
                           </td>
@@ -1342,13 +1342,13 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                                   unserviceableReason: pin.unserviceableReason || "",
                                 })
                               }
-                              className="px-2.5 py-1 rounded-lg bg-[#24242a] text-white text-[11px] hover:bg-[#32323a]"
+                              className="px-2.5 py-1 rounded-lg bg-[#2a2722] text-white text-[11px] hover:bg-[#32323a]"
                             >
                               Edit
                             </button>
                             <button
                               onClick={() => handleDeleteRule(pin)}
-                              className="px-2 py-1 rounded-lg bg-[#24242a] text-[#9e9ea8] hover:text-rose-400 text-[11px]"
+                              className="px-2 py-1 rounded-lg bg-[#2a2722] text-[#a8a093] hover:text-rose-400 text-[11px]"
                               title="Remove PIN from directory"
                             >
                               ✕
@@ -1362,7 +1362,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
 
                 {/* Pagination Footer */}
                 {totalPages > 1 && (
-                  <div className="flex items-center justify-between px-4 py-3 bg-[#18181c] border-t border-[#2e2e34] text-xs text-[#9e9ea8]">
+                  <div className="flex items-center justify-between px-4 py-3 bg-[#1e1c19] border-t border-[#38332c] text-xs text-[#a8a093]">
                     <span>
                       Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredRegionExactPins.length)} of {filteredRegionExactPins.length} PINs in Region {activeRegionGroup.prefix2}
                     </span>
@@ -1370,7 +1370,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                       <button
                         disabled={page === 1}
                         onClick={() => setPage((p) => Math.max(1, p - 1))}
-                        className="px-3 py-1 rounded bg-[#24242a] text-white disabled:opacity-40"
+                        className="px-3 py-1 rounded bg-[#2a2722] text-white disabled:opacity-40"
                       >
                         Prev
                       </button>
@@ -1380,7 +1380,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                       <button
                         disabled={page === totalPages}
                         onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                        className="px-3 py-1 rounded bg-[#24242a] text-white disabled:opacity-40"
+                        className="px-3 py-1 rounded bg-[#2a2722] text-white disabled:opacity-40"
                       >
                         Next
                       </button>
@@ -1399,17 +1399,17 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
       {subTab === "SLABS_ZONES" && (
         <div className="space-y-6">
           {/* Card 1: 12 Approved Slabs Editor */}
-          <div className="p-6 rounded-2xl bg-[#1c1c20] border border-[#2e2e34] space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#2e2e34] pb-3">
+          <div className="p-6 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#38332c] pb-3">
               <div>
                 <h3 className="text-sm font-semibold text-white">Approved 12 Delivery Fee Slabs (DB-Backed)</h3>
-                <p className="text-xs text-[#9e9ea8]">
+                <p className="text-xs text-[#a8a093]">
                   Tax-inclusive customer-payable fee ladder (INR). All rate matrix cells and product overrides select exclusively from these 12 slabs.
                 </p>
               </div>
               <button
                 onClick={handleSaveSlabs}
-                className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors shrink-0"
+                className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#181715] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors shrink-0"
               >
                 Save 12-Slab Ladder
               </button>
@@ -1418,9 +1418,9 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
             <div className="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-12 gap-2.5">
               {editingSlabs.map((val, idx) => (
                 <div key={idx} className="space-y-1">
-                  <label className="text-[10px] text-[#9e9ea8] font-mono block">Slab {idx + 1}</label>
+                  <label className="text-[10px] text-[#a8a093] font-mono block">Slab {idx + 1}</label>
                   <div className="relative">
-                    <span className="absolute left-2 top-1.5 text-xs text-[#6e6e76]">₹</span>
+                    <span className="absolute left-2 top-1.5 text-xs text-[#787165]">₹</span>
                     <input
                       type="number"
                       min={0}
@@ -1430,7 +1430,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                         next[idx] = e.target.value;
                         setEditingSlabs(next);
                       }}
-                      className="w-full rounded-lg border border-[#3e3e46] bg-[#16161a] pl-5 pr-2 py-1.5 text-xs font-mono text-white focus:border-[#c59b6d] focus:outline-none"
+                      className="w-full rounded-lg border border-[#464037] bg-[#16161a] pl-5 pr-2 py-1.5 text-xs font-mono text-white focus:border-[#c59b6d] focus:outline-none"
                     />
                   </div>
                 </div>
@@ -1439,42 +1439,42 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
           </div>
 
           {/* Card 2: Weight/Volumetric Tier x Distance Zone Matrix */}
-          <div className="p-6 rounded-2xl bg-[#1c1c20] border border-[#2e2e34] space-y-4">
+          <div className="p-6 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4">
             <div>
               <h3 className="text-sm font-semibold text-white">Weight &amp; Volumetric Bracket × Distance Zone Matrix</h3>
-              <p className="text-xs text-[#9e9ea8]">
+              <p className="text-xs text-[#a8a093]">
                 Adjusting any cell updates delivery pricing across all matching products in `.md` files immediately—no need to edit individual product files.
               </p>
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-[#2e2e34]">
+            <div className="overflow-x-auto rounded-xl border border-[#38332c]">
               <table className="w-full text-left text-xs">
-                <thead className="bg-[#18181c] border-b border-[#2e2e34] text-[11px] uppercase tracking-wider text-[#9e9ea8]">
+                <thead className="bg-[#1e1c19] border-b border-[#38332c] text-[11px] uppercase tracking-wider text-[#a8a093]">
                   <tr>
                     <th className="py-3 px-4">Weight Bracket &amp; Carrier</th>
                     {zones.map((z) => (
                       <th key={z.code} className="py-3 px-3 text-center">
                         <div className="text-white">{z.code}</div>
-                        <div className="text-[10px] font-normal normal-case text-[#9e9ea8]">
+                        <div className="text-[10px] font-normal normal-case text-[#a8a093]">
                           {z.estimatedDaysMin}–{z.estimatedDaysMax} days
                         </div>
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#2e2e34]">
+                <tbody className="divide-y divide-[#38332c]">
                   {matrixTiers.map((tier) => (
-                    <tr key={tier.tierCode} className="hover:bg-[#222228]/40">
+                    <tr key={tier.tierCode} className="hover:bg-[#2a2722]/40">
                       <td className="py-3.5 px-4">
                         <div className="font-semibold text-white">{tier.tierLabel}</div>
-                        <div className="text-[10px] text-[#9e9ea8]">{tier.carrierName}</div>
+                        <div className="text-[10px] text-[#a8a093]">{tier.carrierName}</div>
                       </td>
                       {zones.map((z) => (
                         <td key={z.code} className="py-3 px-2 text-center">
                           <select
                             value={tier.byZone[z.code] ?? 500}
                             onChange={(e) => handleUpdateMatrixCell(tier.tierCode, z.code, Number(e.target.value))}
-                            className="rounded-lg bg-[#16161a] border border-[#3e3e46] px-2.5 py-1.5 text-xs font-mono text-[#c59b6d] font-semibold focus:border-[#c59b6d] focus:outline-none"
+                            className="rounded-lg bg-[#16161a] border border-[#464037] px-2.5 py-1.5 text-xs font-mono text-[#c59b6d] font-semibold focus:border-[#c59b6d] focus:outline-none"
                           >
                             {feeSlabs.map((slab) => (
                               <option key={slab} value={slab}>
@@ -1492,26 +1492,26 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
           </div>
 
           {/* Card 3: Distance Zone Configuration (Transit Windows) */}
-          <div className="p-6 rounded-2xl bg-[#1c1c20] border border-[#2e2e34] space-y-4">
+          <div className="p-6 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4">
             <div>
               <h3 className="text-sm font-semibold text-white">5 Commercial Distance Zones (Ex-Delhi NCR Hub)</h3>
-              <p className="text-xs text-[#9e9ea8]">Configure zone descriptions and estimated transit days shown to customers.</p>
+              <p className="text-xs text-[#a8a093]">Configure zone descriptions and estimated transit days shown to customers.</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {zones.map((z) => (
-                <div key={z.code} className="p-4 rounded-xl bg-[#16161a] border border-[#2e2e34] space-y-2 text-xs">
+                <div key={z.code} className="p-4 rounded-xl bg-[#16161a] border border-[#38332c] space-y-2 text-xs">
                   <div className="flex items-center justify-between">
                     <span className="font-mono font-bold text-[#c59b6d]">{z.code}</span>
                     <button
                       onClick={() => setEditingZone(z)}
-                      className="text-[11px] text-white bg-[#24242a] px-2.5 py-1 rounded-lg hover:bg-[#32323a]"
+                      className="text-[11px] text-white bg-[#2a2722] px-2.5 py-1 rounded-lg hover:bg-[#32323a]"
                     >
                       Edit Zone
                     </button>
                   </div>
                   <div className="font-semibold text-white">{z.name}</div>
-                  <p className="text-[11px] text-[#9e9ea8]">{z.description}</p>
+                  <p className="text-[11px] text-[#a8a093]">{z.description}</p>
                   <div className="text-[11px] text-emerald-400 font-mono">
                     Transit: {z.estimatedDaysMin}–{z.estimatedDaysMax} business days
                   </div>
@@ -1528,11 +1528,11 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
       {subTab === "PRODUCT_OVERRIDES" && (
         <div className="space-y-6">
           {/* Live Shipping Fee Previewer */}
-          <div className="p-5 rounded-2xl bg-[#1c1c20] border border-[#2e2e34] space-y-4">
+          <div className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-semibold text-white">Authoritative Delivery Fee Previewer</h3>
-                <p className="text-xs text-[#9e9ea8]">
+                <p className="text-xs text-[#a8a093]">
                   Test what a customer sees for any product + PIN combination under live DB slabs &amp; overrides.
                 </p>
               </div>
@@ -1540,7 +1540,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                 <select
                   value={calcProductId}
                   onChange={(e) => setCalcProductId(e.target.value)}
-                  className="rounded-lg border border-[#3e3e46] bg-[#16161a] px-3 py-1.5 text-xs text-white focus:outline-none"
+                  className="rounded-lg border border-[#464037] bg-[#16161a] px-3 py-1.5 text-xs text-white focus:outline-none"
                 >
                   {products.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -1554,11 +1554,11 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                   value={calcPin}
                   onChange={(e) => setCalcPin(e.target.value.replace(/\D/g, ""))}
                   placeholder="PIN (e.g. 560001)"
-                  className="rounded-lg border border-[#3e3e46] bg-[#16161a] px-3 py-1.5 text-xs font-mono text-white w-28"
+                  className="rounded-lg border border-[#464037] bg-[#16161a] px-3 py-1.5 text-xs font-mono text-white w-28"
                 />
                 <button
                   onClick={handleCalculatePreview}
-                  className="px-4 py-1.5 rounded-lg bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c]"
+                  className="px-4 py-1.5 rounded-lg bg-[#c59b6d] text-[#181715] font-semibold text-xs hover:bg-[#d6aa7c]"
                 >
                   Calculate
                 </button>
@@ -1566,30 +1566,30 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
             </div>
 
             {calcResult && (
-              <div className="p-4 rounded-xl bg-[#16161a] border border-[#2e2e34] grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+              <div className="p-4 rounded-xl bg-[#16161a] border border-[#38332c] grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
                 <div>
-                  <span className="text-[10px] uppercase text-[#9e9ea8] block">Destination</span>
+                  <span className="text-[10px] uppercase text-[#a8a093] block">Destination</span>
                   <span className="font-semibold text-white">
                     {calcResult.pincodeResult.city}, {calcResult.pincodeResult.state}
                   </span>
                   <span className="text-[10px] text-[#c59b6d] block">{calcResult.pincodeResult.zoneCode}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase text-[#9e9ea8] block">Billable Weight</span>
+                  <span className="text-[10px] uppercase text-[#a8a093] block">Billable Weight</span>
                   <span className="font-semibold text-white font-mono">
                     {calcResult.billableWeightKg} kg
                   </span>
-                  <span className="text-[10px] text-[#9e9ea8] block">
+                  <span className="text-[10px] text-[#a8a093] block">
                     (Actual: {calcResult.actualWeightKg} kg / Vol: {calcResult.volumetricWeightKg} kg)
                   </span>
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase text-[#9e9ea8] block">Rule Source</span>
+                  <span className="text-[10px] uppercase text-[#a8a093] block">Rule Source</span>
                   <span className="font-semibold text-amber-300">{calcResult.ruleSource}</span>
-                  <span className="text-[10px] text-[#9e9ea8] block">{calcResult.carrierName}</span>
+                  <span className="text-[10px] text-[#a8a093] block">{calcResult.carrierName}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase text-[#9e9ea8] block">Customer Fee (Tax Incl.)</span>
+                  <span className="text-[10px] uppercase text-[#a8a093] block">Customer Fee (Tax Incl.)</span>
                   <span className="font-bold text-lg text-emerald-400 font-mono">
                     ₹{calcResult.totalDeliveryFeeRupees.toLocaleString("en-IN")}
                   </span>
@@ -1599,9 +1599,9 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
           </div>
 
           {/* Product-by-Zone Override Table */}
-          <div className="rounded-2xl border border-[#2e2e34] bg-[#1c1c20] overflow-x-auto">
+          <div className="rounded-2xl border border-[#38332c] bg-[#24211d] overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-[#18181c] border-b border-[#2e2e34] text-[11px] uppercase tracking-wider text-[#9e9ea8]">
+              <thead className="bg-[#1e1c19] border-b border-[#38332c] text-[11px] uppercase tracking-wider text-[#a8a093]">
                 <tr>
                   <th className="py-3 px-4">Product (from .md)</th>
                   <th className="py-3 px-3">Specs</th>
@@ -1610,14 +1610,14 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#2e2e34]">
+              <tbody className="divide-y divide-[#38332c]">
                 {products.map((prod) => (
-                  <tr key={prod.id} className="hover:bg-[#222228]/40">
+                  <tr key={prod.id} className="hover:bg-[#2a2722]/40">
                     <td className="py-3.5 px-4">
                       <div className="font-semibold text-white">{prod.title}</div>
-                      <div className="text-[10px] font-mono text-[#9e9ea8]">{prod.sku}</div>
+                      <div className="text-[10px] font-mono text-[#a8a093]">{prod.sku}</div>
                     </td>
-                    <td className="py-3.5 px-3 text-[11px] font-mono text-[#9e9ea8]">
+                    <td className="py-3.5 px-3 text-[11px] font-mono text-[#a8a093]">
                       {(prod.weightGrams / 1000).toFixed(2)} kg
                     </td>
                     {zones.map((z) => {
@@ -1632,7 +1632,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                             className={`rounded-lg border px-2 py-1 text-xs font-mono focus:outline-none ${
                               ov
                                 ? "bg-amber-950/60 border-amber-700 text-amber-200 font-semibold"
-                                : "bg-[#16161a] border-[#3e3e46] text-[#9e9ea8]"
+                                : "bg-[#16161a] border-[#464037] text-[#a8a093]"
                             }`}
                           >
                             <option value="AUTO">Auto (Matrix)</option>
@@ -1660,14 +1660,14 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
           <form
             onSubmit={handleSavePinRule}
-            className="w-full max-w-md rounded-2xl bg-[#1c1c20] border border-[#3e3e46] p-6 space-y-4 shadow-2xl"
+            className="w-full max-w-md rounded-2xl bg-[#24211d] border border-[#464037] p-6 space-y-4 shadow-2xl"
           >
-            <div className="flex items-center justify-between border-b border-[#2e2e34] pb-3">
+            <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
               <h3 className="text-sm font-semibold text-white">Configure PIN or Prefix Rule</h3>
               <button
                 type="button"
                 onClick={() => setShowRuleModal(false)}
-                className="text-xs text-[#9e9ea8] hover:text-white"
+                className="text-xs text-[#a8a093] hover:text-white"
               >
                 ✕
               </button>
@@ -1675,7 +1675,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="text-[#9e9ea8] block mb-1">
+                <label className="text-[#a8a093] block mb-1">
                   PIN Code or Region Prefix (2, 3, 4, or 6 digits)
                 </label>
                 <input
@@ -1685,41 +1685,41 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                   value={ruleForm.pincodePrefix}
                   onChange={(e) => setRuleForm((p) => ({ ...p, pincodePrefix: e.target.value.replace(/\D/g, "") }))}
                   placeholder="e.g. 11 (Delhi), 110 (Core), or 110043 (Exact)"
-                  className="w-full rounded-xl border border-[#3e3e46] bg-[#16161a] px-3 py-2 text-white font-mono focus:border-[#c59b6d] focus:outline-none"
+                  className="w-full rounded-xl border border-[#464037] bg-[#16161a] px-3 py-2 text-white font-mono focus:border-[#c59b6d] focus:outline-none"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[#9e9ea8] block mb-1">City / Hub Label</label>
+                  <label className="text-[#a8a093] block mb-1">City / Hub Label</label>
                   <input
                     type="text"
                     required
                     value={ruleForm.cityLabel}
                     onChange={(e) => setRuleForm((p) => ({ ...p, cityLabel: e.target.value }))}
                     placeholder="e.g. South Delhi"
-                    className="w-full rounded-xl border border-[#3e3e46] bg-[#16161a] px-3 py-2 text-white focus:border-[#c59b6d] focus:outline-none"
+                    className="w-full rounded-xl border border-[#464037] bg-[#16161a] px-3 py-2 text-white focus:border-[#c59b6d] focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="text-[#9e9ea8] block mb-1">State / UT</label>
+                  <label className="text-[#a8a093] block mb-1">State / UT</label>
                   <input
                     type="text"
                     required
                     value={ruleForm.stateName}
                     onChange={(e) => setRuleForm((p) => ({ ...p, stateName: e.target.value }))}
                     placeholder="e.g. Delhi"
-                    className="w-full rounded-xl border border-[#3e3e46] bg-[#16161a] px-3 py-2 text-white focus:border-[#c59b6d] focus:outline-none"
+                    className="w-full rounded-xl border border-[#464037] bg-[#16161a] px-3 py-2 text-white focus:border-[#c59b6d] focus:outline-none"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-[#9e9ea8] block mb-1">Assigned Commercial Zone</label>
+                <label className="text-[#a8a093] block mb-1">Assigned Commercial Zone</label>
                 <select
                   value={ruleForm.zoneCode}
                   onChange={(e) => setRuleForm((p) => ({ ...p, zoneCode: e.target.value }))}
-                  className="w-full rounded-xl border border-[#3e3e46] bg-[#16161a] px-3 py-2 text-white focus:border-[#c59b6d] focus:outline-none"
+                  className="w-full rounded-xl border border-[#464037] bg-[#16161a] px-3 py-2 text-white focus:border-[#c59b6d] focus:outline-none"
                 >
                   {zones.map((z) => (
                     <option key={z.code} value={z.code}>{z.name}</option>
@@ -1744,29 +1744,29 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
 
               {!ruleForm.isServiceable && (
                 <div>
-                  <label className="text-[#9e9ea8] block mb-1">Custom Notice to Customer</label>
+                  <label className="text-[#a8a093] block mb-1">Custom Notice to Customer</label>
                   <input
                     type="text"
                     value={ruleForm.unserviceableReason}
                     onChange={(e) => setRuleForm((p) => ({ ...p, unserviceableReason: e.target.value }))}
                     placeholder="e.g. Fragile pallet route temporarily paused."
-                    className="w-full rounded-xl border border-[#3e3e46] bg-[#16161a] px-3 py-2 text-white focus:border-[#c59b6d] focus:outline-none"
+                    className="w-full rounded-xl border border-[#464037] bg-[#16161a] px-3 py-2 text-white focus:border-[#c59b6d] focus:outline-none"
                   />
                 </div>
               )}
             </div>
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-[#2e2e34]">
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#38332c]">
               <button
                 type="button"
                 onClick={() => setShowRuleModal(false)}
-                className="px-4 py-2 rounded-xl bg-[#24242a] text-xs text-white hover:bg-[#32323a]"
+                className="px-4 py-2 rounded-xl bg-[#2a2722] text-xs text-white hover:bg-[#32323a]"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c]"
+                className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#181715] font-semibold text-xs hover:bg-[#d6aa7c]"
               >
                 Save PIN Rule
               </button>
@@ -1782,63 +1782,63 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
           <form
             onSubmit={handleSaveZone}
-            className="w-full max-w-md rounded-2xl bg-[#1c1c20] border border-[#3e3e46] p-6 space-y-4 shadow-2xl text-xs"
+            className="w-full max-w-md rounded-2xl bg-[#24211d] border border-[#464037] p-6 space-y-4 shadow-2xl text-xs"
           >
-            <div className="flex items-center justify-between border-b border-[#2e2e34] pb-3">
+            <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
               <h3 className="text-sm font-semibold text-white">Edit Shipping Zone: {editingZone.code}</h3>
-              <button type="button" onClick={() => setEditingZone(null)} className="text-[#9e9ea8]">✕</button>
+              <button type="button" onClick={() => setEditingZone(null)} className="text-[#a8a093]">✕</button>
             </div>
 
             <div className="space-y-3">
               <div>
-                <label className="text-[#9e9ea8] block mb-1">Zone Display Name</label>
+                <label className="text-[#a8a093] block mb-1">Zone Display Name</label>
                 <input
                   type="text"
                   required
                   value={editingZone.name}
                   onChange={(e) => setEditingZone({ ...editingZone, name: e.target.value })}
-                  className="w-full rounded-xl border border-[#3e3e46] bg-[#16161a] px-3 py-2 text-white"
+                  className="w-full rounded-xl border border-[#464037] bg-[#16161a] px-3 py-2 text-white"
                 />
               </div>
               <div>
-                <label className="text-[#9e9ea8] block mb-1">Coverage Description</label>
+                <label className="text-[#a8a093] block mb-1">Coverage Description</label>
                 <textarea
                   rows={2}
                   required
                   value={editingZone.description}
                   onChange={(e) => setEditingZone({ ...editingZone, description: e.target.value })}
-                  className="w-full rounded-xl border border-[#3e3e46] bg-[#16161a] px-3 py-2 text-white"
+                  className="w-full rounded-xl border border-[#464037] bg-[#16161a] px-3 py-2 text-white"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[#9e9ea8] block mb-1">Min Transit Days</label>
+                  <label className="text-[#a8a093] block mb-1">Min Transit Days</label>
                   <input
                     type="number"
                     min={1}
                     value={editingZone.estimatedDaysMin}
                     onChange={(e) => setEditingZone({ ...editingZone, estimatedDaysMin: Number(e.target.value) })}
-                    className="w-full rounded-xl border border-[#3e3e46] bg-[#16161a] px-3 py-2 text-white font-mono"
+                    className="w-full rounded-xl border border-[#464037] bg-[#16161a] px-3 py-2 text-white font-mono"
                   />
                 </div>
                 <div>
-                  <label className="text-[#9e9ea8] block mb-1">Max Transit Days</label>
+                  <label className="text-[#a8a093] block mb-1">Max Transit Days</label>
                   <input
                     type="number"
                     min={1}
                     value={editingZone.estimatedDaysMax}
                     onChange={(e) => setEditingZone({ ...editingZone, estimatedDaysMax: Number(e.target.value) })}
-                    className="w-full rounded-xl border border-[#3e3e46] bg-[#16161a] px-3 py-2 text-white font-mono"
+                    className="w-full rounded-xl border border-[#464037] bg-[#16161a] px-3 py-2 text-white font-mono"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-[#2e2e34]">
-              <button type="button" onClick={() => setEditingZone(null)} className="px-4 py-2 rounded-xl bg-[#24242a] text-white">
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#38332c]">
+              <button type="button" onClick={() => setEditingZone(null)} className="px-4 py-2 rounded-xl bg-[#2a2722] text-white">
                 Cancel
               </button>
-              <button type="submit" className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold">
+              <button type="submit" className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#181715] font-semibold">
                 Save Zone
               </button>
             </div>
