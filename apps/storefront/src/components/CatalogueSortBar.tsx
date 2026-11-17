@@ -40,6 +40,16 @@ export function CatalogueSortBar({
   if (currentMode && currentMode.toLowerCase() !== "all") activeFilterCount++;
   if (activeSubcategory && activeSubcategory !== "all") activeFilterCount++;
 
+  const handleClearAllFilters = () => {
+    const params = new URLSearchParams();
+    if (currentSort && currentSort !== "featured") {
+      params.set("sort", currentSort);
+    }
+    const query = params.toString();
+    router.push(`${basePath}${query ? `?${query}` : ""}`);
+    setIsFilterDrawerOpen(false);
+  };
+
   const handleUpdate = (mode: string, sort: string) => {
     const params = new URLSearchParams();
 
@@ -125,6 +135,17 @@ export function CatalogueSortBar({
 
         {/* Counter & Sort Selector on Desktop */}
         <div className="flex items-center gap-4 shrink-0">
+          {activeFilterCount > 0 && (
+            <button
+              type="button"
+              onClick={handleClearAllFilters}
+              className="text-xs text-[var(--color-muted-light)] hover:text-[var(--color-ink)] underline cursor-pointer transition-colors"
+              title="Clear all active filters"
+            >
+              Clear filters
+            </button>
+          )}
+
           <span className="text-[11px] font-mono text-[var(--color-muted-light)]">
             {totalCount} {totalCount === 1 ? "piece" : "pieces"}
           </span>
@@ -153,11 +174,23 @@ export function CatalogueSortBar({
           MOBILE APP-STYLE TOOLBAR (sm:hidden): Clean single bar with Filter & Sort
          ========================================================================= */}
       <div className="flex sm:hidden items-center justify-between gap-3 pb-4 mb-6 border-b border-[var(--color-decorative-border)]/60 text-xs">
-        <span className="text-xs font-mono text-[var(--color-muted-light)]">
-          {totalCount} {totalCount === 1 ? "piece" : "pieces"}
-        </span>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-xs font-mono text-[var(--color-muted-light)] shrink-0">
+            {totalCount} {totalCount === 1 ? "piece" : "pieces"}
+          </span>
+          {activeFilterCount > 0 && (
+            <button
+              type="button"
+              onClick={handleClearAllFilters}
+              className="text-[11px] text-[var(--color-muted-light)] hover:text-[var(--color-ink)] underline cursor-pointer font-medium transition-colors whitespace-nowrap"
+              title="Clear active filters"
+            >
+              Clear
+            </button>
+          )}
+        </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {/* App-Style Filter Button right next to Sort */}
           <button
             type="button"
@@ -167,7 +200,7 @@ export function CatalogueSortBar({
                 ? "border-[var(--color-bronze)] bg-[var(--color-bronze)]/10 text-[var(--color-bronze)] font-semibold"
                 : "border-[var(--color-control-border)] bg-[var(--color-canvas)] text-[var(--color-ink)] hover:border-[var(--color-ink)]"
             }`}
-            aria-label="Open catalogue filters"
+            aria-label={`Open catalogue filters${activeFilterCount > 0 ? `, ${activeFilterCount} active` : ""}`}
           >
             <svg className="w-3.5 h-3.5 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -179,7 +212,7 @@ export function CatalogueSortBar({
             </svg>
             <span>Filters</span>
             {activeFilterCount > 0 && (
-              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[var(--color-bronze)] text-[10px] text-white font-bold">
+              <span className="flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-[var(--color-bronze)] text-[10px] text-white font-bold leading-none">
                 {activeFilterCount}
               </span>
             )}
@@ -233,13 +266,10 @@ export function CatalogueSortBar({
                 {activeFilterCount > 0 && (
                   <button
                     type="button"
-                    onClick={() => {
-                      handleUpdate("all", currentSort);
-                      setIsFilterDrawerOpen(false);
-                    }}
-                    className="text-xs text-[var(--color-bronze)] hover:underline font-medium"
+                    onClick={handleClearAllFilters}
+                    className="text-xs text-[var(--color-bronze)] hover:underline font-semibold cursor-pointer"
                   >
-                    Reset All
+                    Clear All ({activeFilterCount})
                   </button>
                 )}
                 <button

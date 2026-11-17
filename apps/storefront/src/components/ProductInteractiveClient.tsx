@@ -323,42 +323,6 @@ export function ProductInteractiveClient({
             ))}
           </div>
         )}
-
-        {/* Dimension & Weight Specs Grid — Dynamically updates with Variant Selection */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl bg-[var(--color-ivory)] border border-[var(--color-decorative-border)] text-center text-xs">
-          <div>
-            <span className="text-[10px] uppercase tracking-wider text-[var(--color-muted-light)] block mb-1">
-              Dimensions
-            </span>
-            <span className="font-semibold text-[var(--color-ink)] transition-all">
-              {currentDimensions}
-            </span>
-          </div>
-          <div>
-            <span className="text-[10px] uppercase tracking-wider text-[var(--color-muted-light)] block mb-1">
-              Net Weight
-            </span>
-            <span className="font-semibold text-[var(--color-ink)] transition-all">
-              {(currentWeightGrams / 1000).toFixed(2)} kg
-            </span>
-          </div>
-          <div>
-            <span className="text-[10px] uppercase tracking-wider text-[var(--color-muted-light)] block mb-1">
-              Lead Time
-            </span>
-            <span className="font-semibold text-[var(--color-ink)]">
-              {product.estimatedLeadTime}
-            </span>
-          </div>
-          <div>
-            <span className="text-[10px] uppercase tracking-wider text-[var(--color-muted-light)] block mb-1">
-              Policy
-            </span>
-            <span className="font-semibold text-[var(--color-ink)]">
-              {product.returnPolicyText}
-            </span>
-          </div>
-        </div>
       </div>
 
       {/* Right Column: Commercial & Action Pane (5 cols) */}
@@ -460,10 +424,45 @@ export function ProductInteractiveClient({
           )}
         </div>
 
-        {/* Immediate App-Style Primary Action & Delivery Estimator (Directly below Commercial Pane) */}
+        {/* Immediate App-Style Primary Action & Physical Specifications */}
         <div ref={buyBoxRef} className="space-y-4">
           <ProductPurchaseAction product={effectiveProductForCart} formattedAdvance={formattedAdvance} />
-          <DeliveryEstimator product={effectiveProductForCart} />
+
+          {/* Dimension, Net Weight, Lead Time & Policy Card (Directly under Add to Cart button) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-xl bg-[var(--color-ivory)] border border-[var(--color-decorative-border)] text-center text-xs">
+            <div>
+              <span className="text-[10px] uppercase tracking-wider text-[var(--color-muted-light)] block mb-1">
+                Dimensions
+              </span>
+              <span className="font-semibold text-[var(--color-ink)] transition-all">
+                {currentDimensions}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase tracking-wider text-[var(--color-muted-light)] block mb-1">
+                Net Weight
+              </span>
+              <span className="font-semibold text-[var(--color-ink)] transition-all">
+                {(currentWeightGrams / 1000).toFixed(2)} kg
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase tracking-wider text-[var(--color-muted-light)] block mb-1">
+                Lead Time
+              </span>
+              <span className="font-semibold text-[var(--color-ink)]">
+                {product.estimatedLeadTime}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase tracking-wider text-[var(--color-muted-light)] block mb-1">
+                Policy
+              </span>
+              <span className="font-semibold text-[var(--color-ink)]">
+                {product.returnPolicyText}
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* Short Description (Variant-Specific Override or Master Fallback) */}
@@ -522,6 +521,13 @@ export function ProductInteractiveClient({
           <Link href="/returns-refunds" className="hover:text-[var(--color-bronze)] underline">
             Returns & Cancellations
           </Link>
+        </div>
+      </div>
+
+      {/* Farmost Bottom: Delivery & Transit Estimator (Just before footer) */}
+      <div className="lg:col-span-12 pt-10 mt-6 border-t border-[var(--color-decorative-border)]">
+        <div className="max-w-xl mx-auto">
+          <DeliveryEstimator product={effectiveProductForCart} />
         </div>
       </div>
 

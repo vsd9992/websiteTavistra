@@ -243,12 +243,12 @@ export function Header() {
             onMouseEnter={() => setIsAccountOpen(true)}
             onMouseLeave={() => setIsAccountOpen(false)}
           >
-            <Link
-              href={isAuthenticated ? "/account" : "/account/login"}
-              onClick={() => setIsAccountOpen(false)}
-              className="relative flex items-center gap-1.5 p-1.5 text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
+            <button
+              type="button"
+              onClick={() => setIsAccountOpen((prev) => !prev)}
+              className="relative flex items-center gap-1.5 p-1.5 text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)] cursor-pointer"
               aria-label={isAuthenticated && user ? `Signed in as ${user.name}` : "Sign in to client account"}
-              title={isAuthenticated && user ? `Account: ${user.name}` : "Sign In"}
+              title={isAuthenticated && user ? `Account: ${user.name}` : "Sign In / Client Portal"}
               aria-expanded={isAccountOpen}
               aria-haspopup="menu"
             >
@@ -276,11 +276,11 @@ export function Header() {
                     .join("") || "U"}
                 </span>
               )}
-            </Link>
+            </button>
 
-            {/* Hover Menu Panel */}
+            {/* Desktop Hover Menu Panel (hidden on mobile; accessed via bottom sheet on mobile) */}
             {isAccountOpen && (
-              <div className="absolute right-0 top-full pt-2 w-64 sm:w-72 z-50">
+              <div className="hidden sm:block absolute right-0 top-full pt-2 w-64 sm:w-72 z-50">
                 <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-4 shadow-xl text-xs">
                   {isAuthenticated && user ? (
                     /* Set 1: Authenticated User Menu */
@@ -448,6 +448,213 @@ export function Header() {
                 </div>
               </div>
             )}
+
+            {/* Mobile Client Portal Bottom Sheet Modal (sm:hidden) */}
+            {isAccountOpen && (
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="Client Portal"
+                className="fixed inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-sm sm:hidden animate-fade-in text-left"
+                onClick={() => setIsAccountOpen(false)}
+              >
+                <div
+                  className="w-full max-h-[85vh] rounded-t-3xl border-t border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-6 shadow-2xl flex flex-col overflow-y-auto animate-slide-up text-left"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Top Touch Handle */}
+                  <div className="w-10 h-1 bg-[var(--color-stone)] rounded-full mx-auto mb-4 shrink-0" />
+
+                  {/* Header with Title & Close */}
+                  <div className="flex items-center justify-between pb-4 border-b border-[var(--color-decorative-border)] shrink-0">
+                    <div>
+                      <h3 className="text-base font-serif text-[var(--color-ink)] font-medium">
+                        Tavistra Client Portal
+                      </h3>
+                      <p className="text-[11px] text-[var(--color-muted-light)]">
+                        {isAuthenticated && user ? `Signed in as ${user.name}` : "Access orders, wishlist & concierge"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsAccountOpen(false)}
+                      className="p-1.5 rounded-full text-[var(--color-muted-light)] hover:text-[var(--color-ink)] hover:bg-[var(--color-ivory)] transition-colors cursor-pointer"
+                      aria-label="Close client portal"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Account Content */}
+                  <div className="py-4 space-y-3">
+                    {isAuthenticated && user ? (
+                      <div>
+                        {/* Identity Badge */}
+                        <div className="pb-3 mb-2 border-b border-[var(--color-decorative-border)]/60">
+                          <p className="font-semibold text-sm text-[var(--color-ink)]">
+                            {user.name}
+                          </p>
+                          <p className="text-[11px] text-[var(--color-muted-light)]">
+                            {user.email}
+                          </p>
+                          {user.practiceOrStudio && (
+                            <span className="inline-block mt-1 text-[10px] uppercase tracking-wider text-[var(--color-bronze)] font-medium">
+                              {user.practiceOrStudio}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Navigation Links */}
+                        <div className="space-y-1 py-1">
+                          <Link
+                            href="/account"
+                            onClick={() => setIsAccountOpen(false)}
+                            className="flex items-center justify-between rounded-lg px-2.5 py-2.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
+                          >
+                            <span>Overview Dashboard</span>
+                            <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                          </Link>
+                          <Link
+                            href="/account/orders"
+                            onClick={() => setIsAccountOpen(false)}
+                            className="flex items-center justify-between rounded-lg px-2.5 py-2.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
+                          >
+                            <span>Orders &amp; Quotations</span>
+                            <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                          </Link>
+                          <Link
+                            href="/account/wishlist"
+                            onClick={() => setIsAccountOpen(false)}
+                            className="flex items-center justify-between rounded-lg px-2.5 py-2.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <span>Saved Wishlist</span>
+                              {wishlistCount > 0 && (
+                                <span className="text-[9px] font-mono font-bold bg-[var(--color-stone)] px-1.5 py-0.5 rounded-full text-[var(--color-bronze)]">
+                                  {wishlistCount}
+                                </span>
+                              )}
+                            </span>
+                            <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                          </Link>
+                          <Link
+                            href="/account/tickets"
+                            onClick={() => setIsAccountOpen(false)}
+                            className="flex items-center justify-between rounded-lg px-2.5 py-2.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
+                          >
+                            <span>Support Tickets</span>
+                            <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                          </Link>
+                          <Link
+                            href="/account/addresses"
+                            onClick={() => setIsAccountOpen(false)}
+                            className="flex items-center justify-between rounded-lg px-2.5 py-2.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
+                          >
+                            <span>Saved Addresses</span>
+                            <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                          </Link>
+                          <Link
+                            href="/account/profile"
+                            onClick={() => setIsAccountOpen(false)}
+                            className="flex items-center justify-between rounded-lg px-2.5 py-2.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
+                          >
+                            <span>Profile &amp; Security</span>
+                            <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                          </Link>
+                        </div>
+
+                        {/* Order Tracker */}
+                        <div className="pt-2 mt-1 border-t border-[var(--color-decorative-border)]">
+                          <Link
+                            href="/track"
+                            onClick={() => setIsAccountOpen(false)}
+                            className="block rounded-lg px-2.5 py-2 text-xs text-[var(--color-muted-light)] hover:text-[var(--color-ink)] hover:bg-[var(--color-ivory)] transition-colors"
+                          >
+                            Track Order Milestones
+                          </Link>
+                        </div>
+
+                        {/* Sign Out */}
+                        <div className="pt-3 mt-2 border-t border-[var(--color-decorative-border)]">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              setIsAccountOpen(false);
+                              await logout();
+                              window.location.assign("/account/login");
+                            }}
+                            className="flex w-full items-center justify-between rounded-lg px-2.5 py-2.5 text-xs font-semibold text-[var(--color-error)] hover:bg-[var(--color-ivory)] transition-colors cursor-pointer"
+                          >
+                            <span>Sign Out</span>
+                            <span>⎋</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Guest View */
+                      <div>
+                        <div className="pb-3 mb-3 border-b border-[var(--color-decorative-border)]">
+                          <p className="font-semibold text-sm text-[var(--color-ink)]">
+                            Client Account
+                          </p>
+                          <p className="text-[11px] text-[var(--color-muted-light)] mt-0.5 leading-relaxed">
+                            Sign in to access your orders, active quotations, and customer support.
+                          </p>
+                          <div className="mt-4 flex gap-2">
+                            <Link
+                              href="/account/login"
+                              onClick={() => setIsAccountOpen(false)}
+                              className="flex-1 rounded-xl bg-[var(--color-ink)] py-2.5 text-center text-xs font-semibold text-[var(--color-canvas)] transition-opacity hover:opacity-90 shadow-sm"
+                            >
+                              Sign In
+                            </Link>
+                            <Link
+                              href="/account/register"
+                              onClick={() => setIsAccountOpen(false)}
+                              className="flex-1 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] py-2.5 text-center text-xs font-semibold text-[var(--color-ink)] transition-colors hover:border-[var(--color-control-border)]"
+                            >
+                              Register
+                            </Link>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-bronze)] block px-2.5 py-1">
+                            Client Services
+                          </span>
+                          <Link
+                            href="/track"
+                            onClick={() => setIsAccountOpen(false)}
+                            className="flex items-center justify-between rounded-lg px-2.5 py-2 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors"
+                          >
+                            <span>Track Order Status</span>
+                            <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                          </Link>
+                          <Link
+                            href="/track-ticket"
+                            onClick={() => setIsAccountOpen(false)}
+                            className="flex items-center justify-between rounded-lg px-2.5 py-2 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors"
+                          >
+                            <span>Track Support Ticket</span>
+                            <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                          </Link>
+                          <Link
+                            href="/contact"
+                            onClick={() => setIsAccountOpen(false)}
+                            className="flex items-center justify-between rounded-lg px-2.5 py-2 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors"
+                          >
+                            <span>Contact Customer Support</span>
+                            <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                          </Link>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Cart Icon */}
@@ -495,152 +702,140 @@ export function Header() {
         </div>
       </div>
 
-      {/* Mobile Drawer (WEB-036) */}
+      {/* Mobile Navigation Overlay Menu (WEB-036) — App-Style Overlay, does NOT push page content */}
       {isMobileMenuOpen && (
-        <div className="lg:hidden border-t border-[var(--color-decorative-border)] bg-[var(--color-canvas)] px-6 py-8 space-y-6">
-          {/* Quick Search Action */}
-          <button
-            type="button"
-            onClick={() => {
-              setIsMobileMenuOpen(false);
-              setIsSearchOpen(true);
-            }}
-            className="flex w-full items-center justify-between rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] px-4 py-3 text-xs font-semibold text-[var(--color-ink)] transition-colors hover:border-[var(--color-control-border)]"
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation Menu"
+          className="fixed inset-0 z-50 lg:hidden flex flex-col bg-black/60 backdrop-blur-sm animate-fade-in"
+          onClick={() => setIsMobileMenuOpen(false)}
+        >
+          <div
+            className="w-full h-full max-w-sm ml-auto bg-[var(--color-canvas)] p-6 shadow-2xl flex flex-col overflow-y-auto animate-slide-left text-left"
+            onClick={(e) => e.stopPropagation()}
           >
-            <span className="flex items-center gap-2.5">
-              <svg className="h-4 w-4 text-[var(--color-bronze)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-              </svg>
-              <span>Search Objects &amp; Materials</span>
-            </span>
-            <span className="text-[10px] uppercase tracking-wider text-[var(--color-bronze)]">Search</span>
-          </button>
+            {/* Header of Overlay with Logo & Close Button */}
+            <div className="flex items-center justify-between pb-4 border-b border-[var(--color-decorative-border)] shrink-0">
+              <Link href="/" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center">
+                <Image
+                  src="/logo-mark.png"
+                  alt="Tavistra"
+                  width={36}
+                  height={28}
+                  className="h-7 w-auto object-contain"
+                />
+              </Link>
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="p-1.5 rounded-full text-[var(--color-muted-light)] hover:text-[var(--color-ink)] hover:bg-[var(--color-ivory)] transition-colors cursor-pointer"
+                aria-label="Close navigation menu"
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
 
-          <div>
-            <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--color-bronze)] block mb-3">
-              Explore Collections
-            </span>
-            <ul className="space-y-3">
-              <li>
-                <Link
-                  href="/shop"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="font-semibold text-sm text-[var(--color-ink)] block hover:text-[var(--color-bronze)]"
-                >
-                  All Works (Shop All)
-                </Link>
-              </li>
-              {APPROVED_CATEGORIES.map((cat) => (
-                <li key={cat.slug}>
-                  <Link
-                    href={`/category/${cat.slug}`}
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="text-xs text-[var(--color-muted-light)] block hover:text-[var(--color-ink)]"
-                  >
-                    {cat.name}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
+            {/* Quick Search in Overlay */}
+            <div className="py-4 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  setIsSearchOpen(true);
+                }}
+                className="flex w-full items-center justify-between rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] px-4 py-2.5 text-xs text-[var(--color-muted-light)] hover:text-[var(--color-ink)] transition-colors cursor-pointer"
+              >
+                <span className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-[var(--color-bronze)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                  </svg>
+                  <span>Search collection &amp; materials...</span>
+                </span>
+                <span className="text-[10px] uppercase tracking-wider text-[var(--color-bronze)] font-semibold">Search</span>
+              </button>
+            </div>
 
-          <div className="pt-6 border-t border-[var(--color-decorative-border)] space-y-3 text-xs">
-            {isAuthenticated && user ? (
-              <div className="space-y-2">
-                <div className="pb-2 border-b border-[var(--color-decorative-border)]/50">
-                  <span className="text-[10px] uppercase tracking-wider text-[var(--color-bronze)] font-semibold block">
-                    Signed in client
-                  </span>
-                  <span className="font-semibold text-sm text-[var(--color-ink)] block">{user.name}</span>
-                </div>
-                <Link
-                  href="/account"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="block font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)]"
-                >
-                  Client Account Dashboard
-                </Link>
-                <Link
-                  href="/account/orders"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="block text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
-                >
-                  Orders &amp; Quotations
-                </Link>
-                <Link
-                  href="/account/wishlist"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="block text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
-                >
-                  Saved Wishlist {wishlistCount > 0 ? `(${wishlistCount})` : ""}
-                </Link>
-                <Link
-                  href="/account/tickets"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="block text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
-                >
-                  Support Tickets
-                </Link>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    setIsMobileMenuOpen(false);
-                    await logout();
-                    window.location.assign("/account/login");
-                  }}
-                  className="block pt-1 text-[var(--color-error)] text-left font-medium"
-                >
-                  Sign Out ⎋
-                </button>
+            {/* Pure Brand & Catalogue Navigation (NO Client Portal Duplication) */}
+            <div className="flex-1 py-2 space-y-6">
+              <div>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--color-bronze)] block mb-3">
+                  Studio Editions
+                </span>
+                <ul className="space-y-3">
+                  <li>
+                    <Link
+                      href="/shop"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="font-editorial text-lg text-[var(--color-ink)] block hover:text-[var(--color-bronze)] transition-colors"
+                    >
+                      All Works (Shop All)
+                    </Link>
+                  </li>
+                  {APPROVED_CATEGORIES.map((cat) => (
+                    <li key={cat.slug}>
+                      <Link
+                        href={`/category/${cat.slug}`}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="text-xs text-[var(--color-muted-light)] hover:text-[var(--color-ink)] block py-0.5 transition-colors"
+                      >
+                        {cat.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
               </div>
-            ) : (
-              <div className="space-y-2">
-                <Link
-                  href="/account/login"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="block font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)]"
-                >
-                  Sign In to Client Account
-                </Link>
-                <Link
-                  href="/account/register"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="block text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
-                >
-                  Create Client Account
-                </Link>
-              </div>
-            )}
 
-            <div className="pt-3 border-t border-[var(--color-decorative-border)]/50 space-y-2">
-              <Link
-                href="/track"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="block font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)]"
-              >
-                Track Order Milestones
-              </Link>
-              <Link
-                href="/track-ticket"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="block font-semibold text-[var(--color-ink)] hover:text-[var(--color-bronze)]"
-              >
-                Track Support Ticket
-              </Link>
-              <Link
-                href="/contact"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="block text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
-              >
-                Contact Studio
-              </Link>
-              <Link
-                href="/privacy"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="block text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
-              >
-                Privacy & Cookies
-              </Link>
+              <div className="pt-4 border-t border-[var(--color-decorative-border)]/60">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--color-bronze)] block mb-3">
+                  Studio &amp; Governance
+                </span>
+                <ul className="space-y-2.5 text-xs">
+                  <li>
+                    <Link
+                      href="/our-story"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="text-[var(--color-ink)] hover:text-[var(--color-bronze)] font-medium block transition-colors"
+                    >
+                      Our Story &amp; Philosophy
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="/contact"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="text-[var(--color-ink)] hover:text-[var(--color-bronze)] font-medium block transition-colors"
+                    >
+                      Contact Concierge &amp; Studio
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="/shipping"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="text-[var(--color-muted-light)] hover:text-[var(--color-ink)] block transition-colors"
+                    >
+                      Shipping &amp; Delivery Band Policy
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="/returns-refunds"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="text-[var(--color-muted-light)] hover:text-[var(--color-ink)] block transition-colors"
+                    >
+                      Returns &amp; Cancellations
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Bottom Brand Stamp */}
+            <div className="pt-4 border-t border-[var(--color-decorative-border)] text-[11px] text-[var(--color-muted-light)] shrink-0">
+              <p>© {new Date().getFullYear()} Tavistra · Architectural Lifestyle</p>
             </div>
           </div>
         </div>
