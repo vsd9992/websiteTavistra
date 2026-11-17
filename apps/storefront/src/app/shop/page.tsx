@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { ProductCard } from "@/components/ProductCard";
+import { CatalogueSortBar } from "@/components/CatalogueSortBar";
 import { getPublishedProducts } from "@/lib/catalogueService";
 import { APPROVED_CATEGORIES } from "@/lib/taxonomy";
 
@@ -13,16 +14,45 @@ export const metadata = {
     "Explore our complete range of design-led lifestyle objects, architectural décor, lighting, and workspace editions.",
 };
 
-async function ShopContent() {
+interface ShopPageProps {
+  searchParams: Promise<{
+    mode?: string;
+    sort?: string;
+  }>;
+}
+
+async function ShopContent({ searchParams }: ShopPageProps) {
   await connection();
-  const publishedProducts = await getPublishedProducts();
+  const params = await searchParams;
+  const currentMode = (params.mode || "all").toUpperCase();
+  const currentSort = params.sort || "featured";
+
+  const allPublished = await getPublishedProducts();
+
+  // 1. Filter by Fulfilment Mode
+  let filtered = allPublished.filter((p) => {
+    if (currentMode === "READY_STOCK" && p.mode !== "READY_STOCK") return false;
+    if (currentMode === "MADE_TO_ORDER" && p.mode !== "MADE_TO_ORDER") return false;
+    return true;
+  });
+
+  // 2. Sort by Specified Criterion
+  if (currentSort === "price_asc") {
+    filtered.sort((a, b) => a.pricePaise - b.pricePaise);
+  } else if (currentSort === "price_desc") {
+    filtered.sort((a, b) => b.pricePaise - a.pricePaise);
+  } else if (currentSort === "name_asc") {
+    filtered.sort((a, b) => a.name.localeCompare(b.name));
+  } else if (currentSort === "name_desc") {
+    filtered.sort((a, b) => b.name.localeCompare(a.name));
+  }
 
   return (
     <>
       {/* Header */}
-      <div className="border-b border-[var(--color-decorative-border)] pb-8 mb-12">
+      <div className="border-b border-[var(--color-decorative-border)] pb-8 mb-8">
         <p className="text-xs uppercase tracking-widest text-[var(--color-bronze)] font-semibold mb-2">
-          Studio & Workshop Editions
+          Studio &amp; Workshop Editions
         </p>
         <h1 className="font-editorial text-4xl sm:text-5xl text-[var(--color-ink)] mb-4">
           The Complete Collection
@@ -33,14 +63,14 @@ async function ShopContent() {
         </p>
       </div>
 
-      {/* Category Filter Pills */}
-      <div className="flex flex-wrap items-center gap-2 mb-10 pb-4 border-b border-[var(--color-decorative-border)]/60">
-        <span className="text-xs font-semibold text-[var(--color-ink)] mr-2">Filter Category:</span>
+      {/* Category Filter Navigation */}
+      <div className="flex flex-wrap items-center gap-2 mb-6 pb-4 border-b border-[var(--color-decorative-border)]/60">
+        <span className="text-xs font-semibold text-[var(--color-ink)] mr-2">Category:</span>
         <Link
           href="/shop"
           className="rounded-full bg-[var(--color-ink)] px-4 py-1.5 text-xs font-semibold text-[var(--color-canvas)]"
         >
-          All Pieces ({publishedProducts.length})
+          All Categories ({allPublished.length})
         </Link>
         {APPROVED_CATEGORIES.map((cat) => (
           <Link
@@ -53,17 +83,42 @@ async function ShopContent() {
         ))}
       </div>
 
+      {/* Sort & Mode Control Toolbar */}
+      <CatalogueSortBar
+        currentMode={currentMode}
+        currentSort={currentSort}
+        totalCount={filtered.length}
+        basePath="/shop"
+      />
+
       {/* Product Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-        {publishedProducts.map((product) => (
-          <ProductCard key={product.id} product={product} />
-        ))}
-      </div>
+      {filtered.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+          {filtered.map((product) => (
+            <ProductCard key={product.id} product={product} />
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-12 text-center space-y-4">
+          <h3 className="font-editorial text-2xl text-[var(--color-ink)]">
+            No pieces match this selection
+          </h3>
+          <p className="text-xs text-[var(--color-muted-light)] max-w-md mx-auto">
+            No editions are currently listed under the chosen mode filter.
+          </p>
+          <Link
+            href="/shop"
+            className="inline-block rounded-full bg-[var(--color-ink)] px-6 py-2.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)]"
+          >
+            Reset Filters
+          </Link>
+        </div>
+      )}
     </>
   );
 }
 
-export default function ShopPage() {
+export default function ShopPage({ searchParams }: ShopPageProps) {
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
@@ -77,7 +132,7 @@ export default function ShopPage() {
               </div>
             }
           >
-            <ShopContent />
+            <ShopContent searchParams={searchParams} />
           </Suspense>
         </div>
       </main>

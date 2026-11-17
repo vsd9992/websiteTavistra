@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { ProductCard } from "@/components/ProductCard";
+import { CatalogueSortBar } from "@/components/CatalogueSortBar";
 import { getPublishedProducts } from "@/lib/catalogueService";
 import { APPROVED_CATEGORIES } from "@/lib/taxonomy";
 
@@ -14,7 +15,19 @@ interface CategoryPageProps {
   }>;
   searchParams: Promise<{
     sub?: string;
+    mode?: string;
+    sort?: string;
   }>;
+}
+
+export async function generateMetadata({ params }: CategoryPageProps) {
+  const { slug } = await params;
+  const category = APPROVED_CATEGORIES.find((cat) => cat.slug === slug);
+  if (!category) return { title: "Category — Tavistra" };
+  return {
+    title: `${category.name} — Tavistra`,
+    description: `Explore design-led ${category.name.toLowerCase()} editions master-crafted in India by Tavistra.`,
+  };
 }
 
 async function CategoryContent({
@@ -22,11 +35,15 @@ async function CategoryContent({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ sub?: string }>;
+  searchParams: Promise<{ sub?: string; mode?: string; sort?: string }>;
 }) {
   await connection();
   const { slug } = await params;
-  const { sub: activeSubcategory } = await searchParams;
+  const resolvedParams = await searchParams;
+  const activeSubcategory = resolvedParams.sub;
+  const currentMode = (resolvedParams.mode || "all").toUpperCase();
+  const currentSort = resolvedParams.sort || "featured";
+
   const category = APPROVED_CATEGORIES.find((cat) => cat.slug === slug);
 
   if (!category) {
@@ -45,13 +62,73 @@ async function CategoryContent({
     )
   ).sort((a, b) => a.localeCompare(b));
 
-  const categoryProducts = allCategoryProducts.filter((p) => {
+  // 1. Filter by Subcategory
+  let categoryProducts = allCategoryProducts.filter((p) => {
     if (activeSubcategory && p.subcategory !== activeSubcategory) return false;
     return true;
   });
 
+  // 2. Filter by Fulfilment Mode
+  if (currentMode === "READY_STOCK") {
+    categoryProducts = categoryProducts.filter((p) => p.mode === "READY_STOCK");
+  } else if (currentMode === "MADE_TO_ORDER") {
+    categoryProducts = categoryProducts.filter((p) => p.mode === "MADE_TO_ORDER");
+  }
+
+  // 3. Sort
+  if (currentSort === "price_asc") {
+    categoryProducts.sort((a, b) => a.pricePaise - b.pricePaise);
+  } else if (currentSort === "price_desc") {
+    categoryProducts.sort((a, b) => b.pricePaise - a.pricePaise);
+  } else if (currentSort === "name_asc") {
+    categoryProducts.sort((a, b) => a.name.localeCompare(b.name));
+  } else if (currentSort === "name_desc") {
+    categoryProducts.sort((a, b) => b.name.localeCompare(a.name));
+  }
+
+  // Breadcrumb Schema (AEO/SEO)
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://tavistra.com",
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Shop",
+        "item": "https://tavistra.com/shop",
+      },
+      {
+        "@type": "ListItem",
+        "position": 3,
+        "name": category.name,
+        "item": `https://tavistra.com/category/${category.slug}`,
+      },
+      ...(activeSubcategory
+        ? [
+            {
+              "@type": "ListItem",
+              "position": 4,
+              "name": activeSubcategory,
+              "item": `https://tavistra.com/category/${category.slug}?sub=${encodeURIComponent(activeSubcategory)}`,
+            },
+          ]
+        : []),
+    ],
+  };
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
+
       {/* Breadcrumbs */}
       <nav className="flex items-center gap-2 text-xs text-[var(--color-muted-light)] mb-8">
         <Link href="/" className="hover:text-[var(--color-ink)]">
@@ -76,7 +153,7 @@ async function CategoryContent({
       </nav>
 
       {/* Category Banner */}
-      <div className="border-b border-[var(--color-decorative-border)] pb-8 mb-8">
+      <div className="border-b border-[var(--color-decorative-border)] pb-8 mb-6">
         <p className="text-xs uppercase tracking-widest text-[var(--color-bronze)] font-semibold mb-2">
           Canonical Category
         </p>
@@ -88,13 +165,13 @@ async function CategoryContent({
         {availableSubcategories.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 pt-2">
             <span className="text-xs font-semibold text-[var(--color-ink)] mr-1">
-              Filter Subcategory:
+              Subcategory:
             </span>
             <Link
-              href={`/category/${category.slug}`}
+              href={`/category/${category.slug}${currentMode !== "ALL" ? `?mode=${currentMode.toLowerCase()}` : ""}`}
               className={`rounded-full px-3.5 py-1 text-xs font-medium transition-colors ${
                 !activeSubcategory
-                  ? "bg-[var(--color-ink)] text-[var(--color-canvas)] font-semibold"
+                  ? "bg-[var(--color-ink)] text-[var(--color-canvas)] font-semibold shadow-sm"
                   : "border border-[var(--color-control-border)] bg-transparent text-[var(--color-ink)] hover:bg-[var(--color-ivory)]"
               }`}
             >
@@ -102,13 +179,17 @@ async function CategoryContent({
             </Link>
             {availableSubcategories.map((sub) => {
               const isSelected = activeSubcategory === sub;
+              const subHref = `/category/${category.slug}?sub=${encodeURIComponent(sub)}${
+                currentMode !== "ALL" ? `&mode=${currentMode.toLowerCase()}` : ""
+              }${currentSort !== "featured" ? `&sort=${currentSort}` : ""}`;
+
               return (
                 <Link
                   key={sub}
-                  href={`/category/${category.slug}?sub=${encodeURIComponent(sub)}`}
+                  href={subHref}
                   className={`rounded-full px-3.5 py-1 text-xs font-medium transition-colors ${
                     isSelected
-                      ? "bg-[var(--color-ink)] text-[var(--color-canvas)] font-semibold"
+                      ? "bg-[var(--color-ink)] text-[var(--color-canvas)] font-semibold shadow-sm"
                       : "border border-[var(--color-control-border)] bg-transparent text-[var(--color-ink)] hover:bg-[var(--color-ivory)]"
                   }`}
                 >
@@ -120,6 +201,15 @@ async function CategoryContent({
         )}
       </div>
 
+      {/* Sort & Mode Control Toolbar */}
+      <CatalogueSortBar
+        currentMode={currentMode}
+        currentSort={currentSort}
+        totalCount={categoryProducts.length}
+        basePath={`/category/${category.slug}`}
+        extraParams={{ sub: activeSubcategory }}
+      />
+
       {/* Product Listing Grid */}
       {categoryProducts.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -128,20 +218,16 @@ async function CategoryContent({
           ))}
         </div>
       ) : (
-        <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-12 text-center">
-          <h3 className="font-editorial text-2xl text-[var(--color-ink)] mb-2">
-            New Editions in Fabrication
+        <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] p-12 text-center space-y-4">
+          <h3 className="font-editorial text-2xl text-[var(--color-ink)]">
+            No pieces match this selection
           </h3>
-          <p className="text-sm text-[var(--color-muted-light)] max-w-md mx-auto mb-6">
-            No active pieces currently listed under{" "}
-            <strong className="text-[var(--color-ink)]">
-              {activeSubcategory || category.name}
-            </strong>
-            . Our workshop is preparing upcoming editions.
+          <p className="text-xs text-[var(--color-muted-light)] max-w-md mx-auto">
+            No active pieces are currently listed under this subcategory or fulfilment mode.
           </p>
           <Link
             href={`/category/${category.slug}`}
-            className="inline-block rounded-full bg-[var(--color-ink)] px-6 py-2.5 text-xs font-semibold text-[var(--color-canvas)]"
+            className="inline-block rounded-full bg-[var(--color-ink)] px-6 py-2.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)]"
           >
             Clear Subcategory Filter
           </Link>
@@ -151,15 +237,21 @@ async function CategoryContent({
   );
 }
 
-export default function CategoryPage(props: CategoryPageProps) {
+export default function CategoryPage({ params, searchParams }: CategoryPageProps) {
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
 
       <main className="flex-1 py-16 px-6 bg-[var(--color-canvas)]">
         <div className="mx-auto max-w-7xl">
-          <Suspense fallback={<div className="py-20 text-center text-xs text-[var(--color-muted-light)]">Loading category...</div>}>
-            <CategoryContent params={props.params} searchParams={props.searchParams} />
+          <Suspense
+            fallback={
+              <div className="py-20 text-center text-xs text-[var(--color-muted-light)]">
+                Loading category pieces...
+              </div>
+            }
+          >
+            <CategoryContent params={params} searchParams={searchParams} />
           </Suspense>
         </div>
       </main>

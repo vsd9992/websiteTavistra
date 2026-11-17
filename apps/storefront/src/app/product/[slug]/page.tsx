@@ -4,7 +4,6 @@ import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { MOCK_PRODUCTS } from "@/lib/products";
 import { getPublishedProductBySlug } from "@/lib/catalogueService";
 import { ProductInteractiveClient } from "@/components/ProductInteractiveClient";
 
@@ -12,6 +11,21 @@ interface ProductPageProps {
   params: Promise<{
     slug: string;
   }>;
+}
+
+export async function generateMetadata({ params }: ProductPageProps) {
+  const { slug } = await params;
+  const product = await getPublishedProductBySlug(slug);
+  if (!product) return { title: "Edition Not Found — Tavistra" };
+  return {
+    title: `${product.name} — Tavistra`,
+    description: product.shortDescription,
+    openGraph: {
+      title: `${product.name} — Tavistra`,
+      description: product.shortDescription,
+      images: product.primaryImageUrl ? [{ url: product.primaryImageUrl }] : [],
+    },
+  };
 }
 
 async function ProductDetailContent({ params }: { params: Promise<{ slug: string }> }) {
@@ -23,8 +37,74 @@ async function ProductDetailContent({ params }: { params: Promise<{ slug: string
     notFound();
   }
 
+  // Breadcrumb Schema (AEO/SEO)
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://tavistra.com",
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Shop",
+        "item": "https://tavistra.com/shop",
+      },
+      {
+        "@type": "ListItem",
+        "position": 3,
+        "name": product.categoryName,
+        "item": `https://tavistra.com/category/${product.categorySlug}`,
+      },
+      {
+        "@type": "ListItem",
+        "position": 4,
+        "name": product.name,
+        "item": `https://tavistra.com/product/${product.slug}`,
+      },
+    ],
+  };
+
+  // Product Schema (AEO/SEO Rich Snippet)
+  const productJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    description: product.shortDescription,
+    image: product.primaryImageUrl ? [product.primaryImageUrl] : [],
+    sku: product.sku || product.id,
+    brand: {
+      "@type": "Brand",
+      name: "Tavistra",
+    },
+    offers: {
+      "@type": "Offer",
+      url: `https://tavistra.com/product/${product.slug}`,
+      priceCurrency: "INR",
+      price: (product.pricePaise / 100).toFixed(2),
+      availability:
+        product.mode === "READY_STOCK" && (product.availableStock ?? 1) <= 0
+          ? "https://schema.org/OutOfStock"
+          : "https://schema.org/InStock",
+      itemCondition: "https://schema.org/NewCondition",
+    },
+  };
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+      />
+
       {/* Breadcrumbs */}
       <nav className="flex items-center gap-2 text-xs text-[var(--color-muted-light)] mb-10">
         <Link href="/" className="hover:text-[var(--color-ink)]">
