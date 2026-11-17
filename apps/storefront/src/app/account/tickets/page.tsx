@@ -134,7 +134,7 @@ export default function AccountTicketsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            <div className="lg:col-span-3">
+            <div className="hidden lg:block lg:col-span-3">
               <AccountNav />
             </div>
 

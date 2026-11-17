@@ -182,7 +182,7 @@ export default function AccountOrdersPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-10">
-            <div className="lg:col-span-1">
+            <div className="hidden lg:block lg:col-span-1">
               <AccountNav />
             </div>
 

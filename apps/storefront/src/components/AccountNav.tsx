@@ -26,7 +26,7 @@ export default function AccountNav() {
   };
 
   return (
-    <aside className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/80 p-6 space-y-6 shadow-sm">
+    <aside className="hidden lg:block rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/80 p-6 space-y-6 shadow-sm">
       <div className="space-y-1 pb-4 border-b border-[var(--color-decorative-border)]">
         <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--color-muted-light)]">
           Tavistra Client Portal
