@@ -120,8 +120,8 @@ async function ProductDetailContent({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
       />
 
-      {/* Breadcrumbs */}
-      <nav className="flex items-center gap-2 text-xs text-[var(--color-muted-light)] mb-10">
+      {/* Breadcrumbs (Desktop only; hidden on mobile for clean app-like viewport) */}
+      <nav className="hidden sm:flex items-center gap-2 text-xs text-[var(--color-muted-light)] mb-10">
         <Link href="/" className="hover:text-[var(--color-ink)]">
           Home
         </Link>
@@ -153,7 +153,7 @@ export default function ProductDetailPage({ params, searchParams }: ProductPageP
     <div className="flex min-h-screen flex-col">
       <Header />
 
-      <main className="flex-1 py-16 px-6 bg-[var(--color-canvas)]">
+      <main className="flex-1 py-6 sm:py-16 px-4 sm:px-6 bg-[var(--color-canvas)]">
         <div className="mx-auto max-w-7xl">
           <Suspense
             fallback={

@@ -63,9 +63,9 @@ async function ShopContent({ searchParams }: ShopPageProps) {
         </p>
       </div>
 
-      {/* Category Filter Navigation (Mobile: Smooth horizontal touch rail; Desktop: Wrapped bar) */}
-      <div className="flex sm:flex-wrap items-center gap-2 overflow-x-auto sm:overflow-visible no-scrollbar -mx-6 px-6 sm:mx-0 sm:px-0 py-2 sm:py-0 mb-6 pb-4 border-b border-[var(--color-decorative-border)]/60 scroll-smooth">
-        <span className="hidden sm:inline text-xs font-semibold text-[var(--color-ink)] mr-2 shrink-0">
+      {/* Category Filter Navigation (Desktop only; on mobile accessed via Filter button in sort bar) */}
+      <div className="hidden sm:flex sm:flex-wrap items-center gap-2 mb-6 pb-4 border-b border-[var(--color-decorative-border)]/60">
+        <span className="text-xs font-semibold text-[var(--color-ink)] mr-2 shrink-0">
           Category:
         </span>
         <Link
@@ -91,6 +91,7 @@ async function ShopContent({ searchParams }: ShopPageProps) {
         currentSort={currentSort}
         totalCount={filtered.length}
         basePath="/shop"
+        categories={APPROVED_CATEGORIES}
       />
 
       {/* Product Grid */}
@@ -125,7 +126,7 @@ export default function ShopPage({ searchParams }: ShopPageProps) {
     <div className="flex min-h-screen flex-col">
       <Header />
 
-      <main className="flex-1 py-16 px-6 bg-[var(--color-canvas)]">
+      <main className="flex-1 py-8 sm:py-16 px-4 sm:px-6 bg-[var(--color-canvas)]">
         <div className="mx-auto max-w-7xl">
           <Suspense
             fallback={

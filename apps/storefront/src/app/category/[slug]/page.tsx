@@ -129,8 +129,8 @@ async function CategoryContent({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
 
-      {/* Breadcrumbs */}
-      <nav className="flex items-center gap-2 text-xs text-[var(--color-muted-light)] mb-8">
+      {/* Breadcrumbs (Desktop only; hidden on mobile for clean app-like viewport) */}
+      <nav className="hidden sm:flex items-center gap-2 text-xs text-[var(--color-muted-light)] mb-8">
         <Link href="/" className="hover:text-[var(--color-ink)]">
           Home
         </Link>
@@ -161,10 +161,10 @@ async function CategoryContent({
           {category.name}
         </h1>
 
-        {/* Interactive Subcategory Filter Pills (Mobile: Horizontal touch rail; Desktop: Wrapped bar) */}
+        {/* Interactive Subcategory Filter Pills (Desktop only; on mobile accessed via Filter button in sort bar) */}
         {availableSubcategories.length > 0 && (
-          <div className="flex sm:flex-wrap items-center gap-2 overflow-x-auto sm:overflow-visible no-scrollbar -mx-6 px-6 sm:mx-0 sm:px-0 pt-2 pb-1 scroll-smooth">
-            <span className="hidden sm:inline text-xs font-semibold text-[var(--color-ink)] mr-1 shrink-0">
+          <div className="hidden sm:flex sm:flex-wrap items-center gap-2 pt-2 pb-1">
+            <span className="text-xs font-semibold text-[var(--color-ink)] mr-1 shrink-0">
               Subcategory:
             </span>
             <Link
@@ -208,6 +208,10 @@ async function CategoryContent({
         totalCount={categoryProducts.length}
         basePath={`/category/${category.slug}`}
         extraParams={{ sub: activeSubcategory }}
+        categories={APPROVED_CATEGORIES}
+        activeCategorySlug={category.slug}
+        subcategories={availableSubcategories}
+        activeSubcategory={activeSubcategory}
       />
 
       {/* Product Listing Grid */}
@@ -242,7 +246,7 @@ export default function CategoryPage({ params, searchParams }: CategoryPageProps
     <div className="flex min-h-screen flex-col">
       <Header />
 
-      <main className="flex-1 py-16 px-6 bg-[var(--color-canvas)]">
+      <main className="flex-1 py-8 sm:py-16 px-4 sm:px-6 bg-[var(--color-canvas)]">
         <div className="mx-auto max-w-7xl">
           <Suspense
             fallback={
