@@ -98,6 +98,7 @@ model User {
   auditLogs        AuditLog[]
   sessions         CustomerSession[]
   emailTokens      EmailVerificationToken[]
+  wishlist         WishlistItem[]
 
   @@index([email])
 }
@@ -227,10 +228,24 @@ model Product {
   collections           ProductCollection[]
   orderItems            OrderItem[]
   deliveryOverrides     ProductDeliveryOverride[]
+  wishlistItems         WishlistItem[]
 
   @@index([slug])
   @@index([categoryId])
   @@index([primaryMode])
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
 }
 
 model ProductCollection {

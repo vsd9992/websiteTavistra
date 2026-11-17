@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from "react";
 import { APPROVED_CATEGORIES } from "@/lib/taxonomy";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
+import { useWishlist } from "@/context/WishlistContext";
 import { SearchOverlay } from "@/components/SearchOverlay";
 
 export function Header() {
@@ -22,6 +23,7 @@ export function Header() {
   const accountDropdownRef = useRef<HTMLDivElement>(null);
   const { totalItemCount } = useCart();
   const { user, isAuthenticated, logout } = useAuth();
+  const { wishlistCount } = useWishlist();
 
   // Load system notices & hiatus announcements
   useEffect(() => {
@@ -317,6 +319,21 @@ export function Header() {
                           <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
                         </Link>
                         <Link
+                          href="/account/wishlist"
+                          onClick={() => setIsAccountOpen(false)}
+                          className="flex items-center justify-between rounded-lg px-2.5 py-2 text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <span>Saved Wishlist</span>
+                            {wishlistCount > 0 && (
+                              <span className="text-[9px] font-mono font-bold bg-[var(--color-stone)] px-1.5 py-0.5 rounded-full text-[var(--color-bronze)]">
+                                {wishlistCount}
+                              </span>
+                            )}
+                          </span>
+                          <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                        </Link>
+                        <Link
                           href="/account/tickets"
                           onClick={() => setIsAccountOpen(false)}
                           className="flex items-center justify-between rounded-lg px-2.5 py-2 text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
@@ -549,6 +566,13 @@ export function Header() {
                   className="block text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
                 >
                   Orders &amp; Quotations
+                </Link>
+                <Link
+                  href="/account/wishlist"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="block text-[var(--color-muted-light)] hover:text-[var(--color-ink)]"
+                >
+                  Saved Wishlist {wishlistCount > 0 ? `(${wishlistCount})` : ""}
                 </Link>
                 <Link
                   href="/account/tickets"

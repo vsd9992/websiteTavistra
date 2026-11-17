@@ -7,6 +7,7 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import AccountNav from "@/components/AccountNav";
 import { useAuth } from "@/context/AuthContext";
+import { useWishlist } from "@/context/WishlistContext";
 
 interface AccountOrderItem {
   name: string;
@@ -54,6 +55,7 @@ interface AccountTicketSummary {
 export default function AccountOverviewPage() {
   const router = useRouter();
   const { user, isAuthenticated, authLoading } = useAuth();
+  const { wishlistCount } = useWishlist();
   const [orders, setOrders] = useState<AccountOrder[]>([]);
   const [quotes, setQuotes] = useState<AccountQuote[]>([]);
   const [tickets, setTickets] = useState<AccountTicketSummary[]>([]);
@@ -140,7 +142,7 @@ export default function AccountOverviewPage() {
               </div>
 
               {/* KPI Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/80 p-5 space-y-1">
                   <p className="text-[11px] uppercase tracking-wider text-[var(--color-muted-light)] font-semibold">
                     Account Orders
@@ -155,13 +157,27 @@ export default function AccountOverviewPage() {
 
                 <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/80 p-5 space-y-1">
                   <p className="text-[11px] uppercase tracking-wider text-[var(--color-muted-light)] font-semibold">
+                    Saved Wishlist
+                  </p>
+                  <p className="text-2xl font-serif text-[var(--color-ink)]">
+                    {wishlistCount}
+                  </p>
+                  <p className="text-[11px] text-[var(--color-muted-light)]">
+                    <Link href="/account/wishlist" className="text-[var(--color-bronze)] hover:underline">
+                      View saved pieces →
+                    </Link>
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/80 p-5 space-y-1">
+                  <p className="text-[11px] uppercase tracking-wider text-[var(--color-muted-light)] font-semibold">
                     Pending Balance Due
                   </p>
                   <p className="text-2xl font-serif text-[var(--color-bronze)]">
                     {ordersLoading ? "…" : `₹${totalBalanceDue.toLocaleString("en-IN")}`}
                   </p>
                   <p className="text-[11px] text-[var(--color-muted-light)]">
-                    Due upon QC completion before dispatch
+                    Due upon QC completion
                   </p>
                 </div>
 

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Instrument_Serif, Manrope } from "next/font/google";
 import { CartProvider } from "@/context/CartContext";
 import { AuthProvider } from "@/context/AuthContext";
+import { WishlistProvider } from "@/context/WishlistContext";
 import { OrderProvider } from "@/context/OrderContext";
 import { CookieConsentProvider } from "@/context/CookieConsentContext";
 import { CookieConsentBanner } from "@/components/CookieConsentBanner";
@@ -212,12 +213,14 @@ export default function RootLayout({
           <CustomCursor />
           <SiteLoader />
           <AuthProvider>
-            <OrderProvider>
-              <CartProvider>
-                {children}
-                <CookieConsentBanner />
-              </CartProvider>
-            </OrderProvider>
+            <WishlistProvider>
+              <OrderProvider>
+                <CartProvider>
+                  {children}
+                  <CookieConsentBanner />
+                </CartProvider>
+              </OrderProvider>
+            </WishlistProvider>
           </AuthProvider>
         </CookieConsentProvider>
       </body>

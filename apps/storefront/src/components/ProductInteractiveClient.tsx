@@ -1,20 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { MockProduct, ProductVariantView } from "@/lib/products";
 import { ProductPurchaseAction } from "@/components/ProductPurchaseAction";
 import { DeliveryEstimator } from "@/components/DeliveryEstimator";
+import { ProductLightbox } from "@/components/ProductLightbox";
+import { ProductShareModal } from "@/components/ProductShareModal";
+import { useWishlist } from "@/context/WishlistContext";
+import { useCart } from "@/context/CartContext";
 
 interface ProductInteractiveClientProps {
   product: MockProduct;
 }
 
 export function ProductInteractiveClient({ product }: ProductInteractiveClientProps) {
+  const { isInWishlist, toggleWishlist } = useWishlist();
+  const { addToCart } = useCart();
   const variants = product.variants && product.variants.length > 0 ? product.variants : [];
   const [selectedVariant, setSelectedVariant] = useState<ProductVariantView | null>(
     variants[0] || null
   );
+
+  // Lightbox & Share states
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [showMobileSticky, setShowMobileSticky] = useState(false);
+  const buyBoxRef = useRef<HTMLDivElement>(null);
 
   // Helper to resolve gallery images for a given variant (with fallback to master product gallery)
   const getGalleryForVariant = (v: ProductVariantView | null): string[] => {
@@ -50,6 +63,26 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
     setSelectedVariant(v);
     const newGallery = getGalleryForVariant(v);
     setActiveImage(newGallery[0] || v.imageUrl || null);
+  };
+
+  // Mobile Sticky Bar Trigger (triggers when buy box scrolls past top viewport)
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!buyBoxRef.current) return;
+      const rect = buyBoxRef.current.getBoundingClientRect();
+      setShowMobileSticky(rect.bottom < 80);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // Open Lightbox at specific image
+  const handleOpenLightbox = (imgUrl?: string) => {
+    const targetUrl = imgUrl || activeImage || currentGallery[0];
+    const idx = currentGallery.findIndex((url) => url === targetUrl);
+    setLightboxIndex(idx >= 0 ? idx : 0);
+    setLightboxOpen(true);
   };
 
   // Dynamic values with fallback to master product
@@ -97,12 +130,14 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
       {/* Left Column: Visual Representation & Gallery (7 cols) */}
       <div className="lg:col-span-7 space-y-6">
-        <div className="aspect-[4/3] rounded-2xl bg-[var(--color-ivory)] border border-[var(--color-decorative-border)] flex items-center justify-center relative overflow-hidden shadow-sm">
+        <div className="aspect-[4/3] rounded-2xl bg-[var(--color-ivory)] border border-[var(--color-decorative-border)] flex items-center justify-center relative overflow-hidden shadow-sm group">
           {activeImage ? (
             <img
               src={activeImage}
               alt={product.name}
-              className="h-full w-full object-cover transition-all duration-500"
+              onClick={() => handleOpenLightbox(activeImage)}
+              className="h-full w-full object-cover transition-all duration-500 cursor-zoom-in"
+              title="Click to zoom high-resolution photograph"
             />
           ) : (
             <div className="text-center space-y-3 p-8">
@@ -122,13 +157,28 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
             </div>
           )}
 
-          <span className="absolute top-4 left-4 rounded-md bg-[var(--color-charcoal)]/85 text-[var(--color-canvas)] px-3 py-1 text-[10px] font-semibold tracking-wider uppercase backdrop-blur-sm">
+          <span className="absolute top-4 left-4 rounded-md bg-[var(--color-charcoal)]/85 text-[var(--color-canvas)] px-3 py-1 text-[10px] font-semibold tracking-wider uppercase backdrop-blur-sm pointer-events-none">
             {product.mode === "MADE_TO_ORDER"
               ? "Made to Order"
               : product.mode === "QUOTE_ONLY"
               ? "Quote Only"
               : "Ready Stock"}
           </span>
+
+          {/* Lightbox Trigger Overlay Button */}
+          {activeImage && (
+            <button
+              type="button"
+              onClick={() => handleOpenLightbox(activeImage)}
+              className="absolute bottom-4 right-4 p-2.5 rounded-full bg-[var(--color-ivory)]/90 hover:bg-white text-[var(--color-ink)] shadow-md backdrop-blur-sm border border-[var(--color-decorative-border)] transition-transform hover:scale-105 active:scale-95"
+              title="Expand high-resolution gallery"
+              aria-label="Expand high-resolution gallery"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* Gallery Thumbnails for Selected Variant */}
@@ -218,6 +268,50 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
                 (Tax-inclusive / GST included)
               </span>
             )}
+          </div>
+
+          {/* Client Wishlist & Universal Share Piece Bar */}
+          <div className="pt-2 flex flex-wrap items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => toggleWishlist({ id: product.id, slug: product.slug, title: product.name })}
+              className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-medium transition-all ${
+                isInWishlist(product.id)
+                  ? "border-[var(--color-bronze)] bg-[var(--color-bronze)]/10 text-[var(--color-bronze)] font-semibold shadow-sm"
+                  : "border-[var(--color-control-border)] bg-[var(--color-canvas)] text-[var(--color-ink)] hover:border-[var(--color-bronze)] hover:bg-[var(--color-ivory)]"
+              }`}
+              title={isInWishlist(product.id) ? "Saved in your Studio Wishlist" : "Save piece to client wishlist"}
+            >
+              <svg
+                className={`w-4 h-4 transition-transform active:scale-125 ${
+                  isInWishlist(product.id)
+                    ? "fill-[var(--color-bronze)] text-[var(--color-bronze)]"
+                    : "fill-none text-current"
+                }`}
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
+                />
+              </svg>
+              <span>{isInWishlist(product.id) ? "Saved in Studio Wishlist" : "Save to Wishlist"}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShareModalOpen(true)}
+              className="inline-flex items-center gap-2 rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2 text-xs font-medium text-[var(--color-ink)] hover:border-[var(--color-bronze)] hover:bg-[var(--color-ivory)] transition-all"
+              title="Share piece via WhatsApp, link, or device apps"
+            >
+              <svg className="w-4 h-4 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
+              </svg>
+              <span>Share Piece</span>
+            </button>
           </div>
 
           {/* Multi-Variant Capsule Button Selector (Clean title-only pills, no price repetition) */}
@@ -314,7 +408,7 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
         </div>
 
         {/* Purchase Action (Add to Cart / Request Quote) */}
-        <div className="pt-4 border-t border-[var(--color-decorative-border)] space-y-4">
+        <div ref={buyBoxRef} className="pt-4 border-t border-[var(--color-decorative-border)] space-y-4">
           <ProductPurchaseAction product={effectiveProductForCart} formattedAdvance={formattedAdvance} />
 
           {/* Dynamic Distance-Band Delivery Estimator (Under Add to Cart per User Request 3) */}
@@ -357,6 +451,102 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
           </Link>
         </div>
       </div>
+
+      {/* Lightbox Modal */}
+      <ProductLightbox
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        images={currentGallery}
+        initialIndex={lightboxIndex}
+        productName={product.name}
+      />
+
+      {/* Universal Share Modal */}
+      <ProductShareModal
+        isOpen={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+        product={{
+          title: product.name,
+          slug: product.slug,
+          sku: currentSku,
+          categoryName: product.categoryName,
+        }}
+      />
+
+      {/* PDP Mobile Sticky Action Bar */}
+      {showMobileSticky && (
+        <aside
+          role="region"
+          aria-label="Quick action bar"
+          className="fixed bottom-0 inset-x-0 z-40 md:hidden bg-[var(--color-canvas)]/98 backdrop-blur-md border-t border-[var(--color-decorative-border)] p-3 shadow-2xl flex items-center justify-between gap-3 animate-fade-in"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            {activeImage && (
+              <img
+                src={activeImage}
+                alt={product.name}
+                className="h-11 w-11 rounded-lg object-cover border border-[var(--color-decorative-border)] shrink-0"
+              />
+            )}
+            <div className="min-w-0">
+              <p className="text-xs font-serif font-medium text-[var(--color-ink)] truncate max-w-[130px] sm:max-w-[200px]">
+                {product.name}
+              </p>
+              <p className="text-xs font-semibold text-[var(--color-bronze)]">
+                {product.mode === "QUOTE_ONLY" ? "On Proposal" : formattedPrice}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => toggleWishlist({ id: product.id, slug: product.slug, title: product.name })}
+              className={`p-2.5 rounded-full border transition-all ${
+                isInWishlist(product.id)
+                  ? "border-[var(--color-bronze)] bg-[var(--color-bronze)]/10 text-[var(--color-bronze)]"
+                  : "border-[var(--color-control-border)] bg-[var(--color-canvas)] text-[var(--color-ink)]"
+              }`}
+              title={isInWishlist(product.id) ? "Saved in Studio Wishlist" : "Save to Wishlist"}
+              aria-label="Save to Wishlist"
+            >
+              <svg
+                className={`w-4 h-4 ${isInWishlist(product.id) ? "fill-[var(--color-bronze)]" : "fill-none"}`}
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
+                />
+              </svg>
+            </button>
+
+            {product.mode === "QUOTE_ONLY" ? (
+              <Link
+                href={`/contact?subject=Architectural%20%26%20Bespoke%20Order%20(Quote%20Only)&product=${encodeURIComponent(
+                  product.name
+                )}&sku=${encodeURIComponent(currentSku)}`}
+                className="rounded-full bg-[var(--color-ink)] px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] hover:bg-[var(--color-bronze)] transition-colors"
+              >
+                Quote
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  addToCart(effectiveProductForCart);
+                }}
+                className="rounded-full bg-[var(--color-ink)] px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-canvas)] hover:bg-[var(--color-bronze)] transition-colors shadow-sm active:scale-95"
+              >
+                Add to Bag
+              </button>
+            )}
+          </div>
+        </aside>
+      )}
     </div>
   );
 }

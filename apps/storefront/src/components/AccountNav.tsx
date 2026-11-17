@@ -4,10 +4,12 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { useWishlist } from "@/context/WishlistContext";
 
 const NAV_ITEMS = [
   { href: "/account", label: "Account Overview" },
   { href: "/account/orders", label: "Orders & Production" },
+  { href: "/account/wishlist", label: "Saved Wishlist", badge: true },
   { href: "/account/tickets", label: "Support Tickets" },
   { href: "/account/addresses", label: "Delivery Addresses" },
   { href: "/account/profile", label: "Profile & GSTIN" },
@@ -16,6 +18,7 @@ const NAV_ITEMS = [
 export default function AccountNav() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const { wishlistCount } = useWishlist();
 
   const handleLogout = async () => {
     await logout();
@@ -48,13 +51,24 @@ export default function AccountNav() {
             <Link
               key={item.href}
               href={item.href}
-              className={`block rounded-xl px-4 py-2.5 text-xs font-semibold transition-colors ${
+              className={`flex items-center justify-between rounded-xl px-4 py-2.5 text-xs font-semibold transition-colors ${
                 active
                   ? "bg-[var(--color-ink)] text-[var(--color-canvas)]"
                   : "text-[var(--color-ink)] hover:bg-[var(--color-stone)]"
               }`}
             >
-              {item.label}
+              <span>{item.label}</span>
+              {item.badge && wishlistCount > 0 && (
+                <span
+                  className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                    active
+                      ? "bg-[var(--color-bronze)] text-white"
+                      : "bg-[var(--color-bronze)]/15 text-[var(--color-bronze)]"
+                  }`}
+                >
+                  {wishlistCount}
+                </span>
+              )}
             </Link>
           );
         })}
