@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@tavistra/db";
 import { getAuthenticatedUser } from "@/lib/auth";
 
-export const dynamic = "force-dynamic";
-
 /**
  * GET /api/account/tickets
  * Retrieves all client support tickets associated with the authenticated user session.
