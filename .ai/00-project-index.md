@@ -2,11 +2,11 @@
 
 Project: Tavistra (`websiteTavistra`)
 Phase: Phase 2 — Execution (Sets 0–8 Complete & Verified Live)
-Milestone: reCAPTCHA v3, Floating Cookie Preferences & Checkout Security Suite Verified Live
-Status: Sets 0–8 verified live on `devMachine` (268/268 checks passing); All Runbook Phases (1–8) verified. Bot protection (reCAPTCHA v3 invisible execution + honeypot traps), terms consent, floating Cookie Preferences popup & persistent bottom-left gear trigger, vendor-neutral privacy categories, and SEO/AEO/GEO schemas deployed and verified live on ports 3001 and 3002.
+Milestone: Storefront Usability Batch 1 (Branded 404/Error, Sorting Toolbar, Cart Toast & Breadcrumb Schema) Verified Live
+Status: Sets 0–8 verified live on `devMachine` (268/268 checks passing); All Runbook Phases (1–8) verified. Batch 1 usability suite deployed live: Custom branded `not-found.tsx` and `error.tsx`, catalogue sort & fulfilment mode toolbar on `/shop` and `/category/[slug]`, floating "Added to Cart" toast on PDP, and structured `BreadcrumbList` + `Product` JSON-LD schemas verified on ports 3001 and 3002.
 
 ## Active Tasks
-- None (All Sets 0–8 archived and verified live).
+- None (Batch 1 Complete; Batch 2: GST Tax Invoice Engine queued).
 
 ## Document Map
 - [AGENTS.md](../AGENTS.md) — Operating rules & memory policy
