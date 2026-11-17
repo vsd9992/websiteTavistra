@@ -389,11 +389,11 @@ export default function AccountOrdersPage() {
                                 >
                                   {payingOrderId === order.orderNumber
                                     ? "Verifying Payment..."
-                                    : `Pay Balance (${formatPrice(order.balanceDueRupees)})`}
+                                    : `Pay Remaining Balance (${formatPrice(order.balanceDueRupees)})`}
                                 </button>
                               )}
 
-                            {/* Balanced 2-Column Grid for Order Actions */}
+                            {/* Balanced 2-Column Grid for Order Journey & Statutory Documentation */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                               <Link
                                 href={`/track?orderId=${order.id}`}
@@ -402,15 +402,27 @@ export default function AccountOrdersPage() {
                                 Track Order Status
                               </Link>
                               <Link
-                                href={`/contact?intent=support&order=${encodeURIComponent(order.orderNumber || order.id)}&subject=${encodeURIComponent(`Assistance for Order ${order.orderNumber || order.id}`)}`}
-                                className="text-center rounded-full border border-[var(--color-bronze)]/60 bg-[var(--color-ivory)] py-2.5 px-4 text-xs font-semibold text-[var(--color-ink)] hover:border-[var(--color-ink)] transition-colors inline-flex items-center justify-center gap-1.5 shadow-sm"
+                                href={`/orders/${encodeURIComponent(order.orderNumber || order.id)}/invoice`}
+                                target="_blank"
+                                className="text-center rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] py-2.5 px-4 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors inline-flex items-center justify-center gap-1.5 shadow-sm"
                               >
-                                <svg className="w-3.5 h-3.5 text-[var(--color-bronze)] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+                                <svg className="w-3.5 h-3.5 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
-                                Raise Support Ticket
+                                <span>Tax Invoice (PDF) ↗</span>
                               </Link>
                             </div>
+
+                            {/* Client Assistance CTA */}
+                            <Link
+                              href={`/contact?intent=support&order=${encodeURIComponent(order.orderNumber || order.id)}&subject=${encodeURIComponent(`Assistance for Order ${order.orderNumber || order.id}`)}`}
+                              className="w-full text-center rounded-full border border-[var(--color-bronze)]/60 bg-[var(--color-ivory)] py-2.5 px-4 text-xs font-semibold text-[var(--color-ink)] hover:border-[var(--color-ink)] transition-colors inline-flex items-center justify-center gap-1.5 shadow-sm block"
+                            >
+                              <svg className="w-3.5 h-3.5 text-[var(--color-bronze)] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+                              </svg>
+                              <span>Need Help? Raise Support Ticket</span>
+                            </Link>
 
                             {/* Full-Width Cancellation Action */}
                             {isOrderCancellable(order) && (
