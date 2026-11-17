@@ -70,6 +70,7 @@ export function ProductInteractiveClient({
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [showMobileSticky, setShowMobileSticky] = useState(false);
   const buyBoxRef = useRef<HTMLDivElement>(null);
+  const mobileBuyBoxRef = useRef<HTMLDivElement>(null);
 
   const currentGallery = getGalleryForVariant(selectedVariant);
 
@@ -115,12 +116,14 @@ export function ProductInteractiveClient({
     }
   };
 
-  // Mobile Sticky Bar Trigger (triggers when buy box scrolls past top viewport)
+  // Mobile Sticky Bar Trigger (triggers only after main Add to Cart button scrolls completely out of view)
   useEffect(() => {
     const handleScroll = () => {
-      if (!buyBoxRef.current) return;
-      const rect = buyBoxRef.current.getBoundingClientRect();
-      setShowMobileSticky(rect.bottom < 80);
+      const targetEl = mobileBuyBoxRef.current || buyBoxRef.current;
+      if (!targetEl) return;
+      const rect = targetEl.getBoundingClientRect();
+      // Show sticky bar only once the primary buy box button has scrolled above the viewport
+      setShowMobileSticky(rect.bottom <= 0);
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
@@ -509,7 +512,7 @@ export function ProductInteractiveClient({
         </div>
 
         {/* Mobile Primary Action & Specs Card (lg:hidden) */}
-        <div className="lg:hidden space-y-4 pt-4 border-t border-[var(--color-decorative-border)]">
+        <div ref={mobileBuyBoxRef} className="lg:hidden space-y-4 pt-4 border-t border-[var(--color-decorative-border)]">
           <ProductPurchaseAction product={effectiveProductForCart} formattedAdvance={formattedAdvance} />
 
           {/* Dimension, Net Weight, Lead Time & Policy Card (Under Add to Cart on mobile) */}
@@ -652,7 +655,7 @@ export function ProductInteractiveClient({
         <aside
           role="region"
           aria-label="Quick action bar"
-          className="fixed bottom-0 inset-x-0 z-40 md:hidden bg-[var(--color-canvas)]/98 backdrop-blur-md border-t border-[var(--color-decorative-border)] p-3 shadow-2xl flex items-center justify-between gap-3 animate-fade-in"
+          className="fixed bottom-0 inset-x-0 z-40 md:hidden bg-[var(--color-canvas)]/98 backdrop-blur-md border-t border-[var(--color-decorative-border)] p-3 shadow-2xl flex items-center justify-between gap-3 animate-slide-up"
         >
           <div className="flex items-center gap-2.5 min-w-0">
             {activeImage && (

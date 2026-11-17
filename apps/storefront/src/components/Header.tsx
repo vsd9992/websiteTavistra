@@ -23,6 +23,8 @@ export function Header() {
   } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const accountDropdownRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  const [headerHeight, setHeaderHeight] = useState(65);
   const { totalItemCount } = useCart();
   const { user, isAuthenticated, logout } = useAuth();
   const { wishlistCount } = useWishlist();
@@ -31,9 +33,21 @@ export function Header() {
     setMounted(true);
   }, []);
 
+  // Track header height for mobile navigation drawer positioning
+  useEffect(() => {
+    const updateHeaderHeight = () => {
+      if (headerRef.current) {
+        setHeaderHeight(headerRef.current.offsetHeight);
+      }
+    };
+    updateHeaderHeight();
+    window.addEventListener("resize", updateHeaderHeight);
+    return () => window.removeEventListener("resize", updateHeaderHeight);
+  }, [systemNotice]);
+
   // Prevent background scroll when mobile navigation or mobile client portal is active
   useEffect(() => {
-    if (isMobileMenuOpen || (isAccountOpen && typeof window !== "undefined" && window.innerWidth < 640)) {
+    if (isMobileMenuOpen || (isAccountOpen && typeof window !== "undefined" && window.innerWidth < 1024)) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
@@ -108,7 +122,7 @@ export function Header() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-[var(--color-decorative-border)] bg-[var(--color-canvas)]/95 backdrop-blur-md">
+    <header ref={headerRef} className="sticky top-0 z-50 w-full border-b border-[var(--color-decorative-border)] bg-[var(--color-canvas)]/95 backdrop-blur-md">
       {systemNotice && (systemNotice.maintenanceMode || systemNotice.studioHiatus) && (
         <aside
           role="status"
@@ -548,31 +562,31 @@ export function Header() {
           role="dialog"
           aria-modal="true"
           aria-label="Navigation Menu"
-          className="fixed inset-0 z-[70] lg:hidden flex justify-end bg-black/60 backdrop-blur-sm"
+          style={{ top: `${headerHeight}px` }}
+          className="fixed inset-x-0 bottom-0 z-40 lg:hidden flex justify-end bg-black/50 backdrop-blur-sm animate-fade-in"
           onClick={() => setIsMobileMenuOpen(false)}
         >
           <div
-            className="w-full h-full max-w-sm bg-[var(--color-canvas)] p-6 shadow-2xl flex flex-col overflow-y-auto text-left"
+            className="w-full h-full max-w-sm bg-[var(--color-canvas)] p-6 shadow-2xl flex flex-col overflow-y-auto text-left animate-slide-left border-l border-[var(--color-decorative-border)]"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header of Overlay with Logo & Close Button */}
-            <div className="flex items-center justify-between pb-4 border-b border-[var(--color-decorative-border)] shrink-0">
-              <Link href="/" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center">
-                <Image
-                  src="/logo-mark.png"
-                  alt="Tavistra"
-                  width={36}
-                  height={28}
-                  className="h-7 w-auto object-contain"
-                />
-              </Link>
+            {/* Header of Overlay (without duplicate logo; header remains fully visible above) */}
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--color-decorative-border)] shrink-0">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--color-bronze)]">
+                  Directory
+                </p>
+                <p className="font-serif text-sm text-[var(--color-ink)]">
+                  Editions &amp; Navigation
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="p-1.5 rounded-full text-[var(--color-muted-light)] hover:text-[var(--color-ink)] hover:bg-[var(--color-ivory)] transition-colors cursor-pointer"
                 aria-label="Close navigation menu"
               >
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -688,11 +702,11 @@ export function Header() {
           role="dialog"
           aria-modal="true"
           aria-label="Client Portal"
-          className="fixed inset-0 z-[70] flex flex-col justify-end bg-black/60 backdrop-blur-sm lg:hidden text-left"
+          className="fixed inset-0 z-[70] flex flex-col justify-end bg-black/60 backdrop-blur-sm lg:hidden text-left animate-fade-in"
           onClick={() => setIsAccountOpen(false)}
         >
           <div
-            className="w-full max-h-[85vh] rounded-t-3xl border-t border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-6 shadow-2xl flex flex-col overflow-y-auto text-left"
+            className="w-full max-h-[85vh] rounded-t-3xl border-t border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-6 shadow-2xl flex flex-col overflow-y-auto text-left animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Top Touch Handle */}
