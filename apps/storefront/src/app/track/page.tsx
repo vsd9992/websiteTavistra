@@ -33,6 +33,7 @@ function TrackOrderContent() {
 
   const [orderId, setOrderId] = useState(initialOrderId);
   const [contact, setContact] = useState(initialContact);
+  const [lastSearchedRef, setLastSearchedRef] = useState(initialOrderId);
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [matchedOrder, setMatchedOrder] = useState<TrackedOrder | null>(null);
@@ -84,8 +85,7 @@ function TrackOrderContent() {
 
   useEffect(() => {
     if (initialOrderId) {
-      setOrderId(initialOrderId);
-      setContact(initialContact);
+      setLastSearchedRef(initialOrderId);
       fetchOrderFromServer(initialOrderId, initialContact);
     } else {
       setOrderId("");
@@ -98,19 +98,6 @@ function TrackOrderContent() {
     }
   }, [initialOrderId, initialContact]);
 
-  const handleResetSearch = () => {
-    setOrderId("");
-    setContact("");
-    setMatchedOrder(null);
-    setSearched(false);
-    setSearchError(null);
-    setPaymentSuccessMessage(null);
-    setPaymentErrorMessage(null);
-    if (typeof window !== "undefined") {
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-  };
-
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!orderId.trim()) {
@@ -118,15 +105,23 @@ function TrackOrderContent() {
       return;
     }
     const cleanRef = orderId.trim().toUpperCase();
+    const cleanContact = contact.trim();
+
     if (cleanRef.startsWith("TCK")) {
       window.location.assign(
         `/track-ticket?ticket=${encodeURIComponent(cleanRef)}${
-          contact ? `&contact=${encodeURIComponent(contact.trim())}` : ""
+          cleanContact ? `&contact=${encodeURIComponent(cleanContact)}` : ""
         }`
       );
       return;
     }
-    fetchOrderFromServer(orderId, contact);
+
+    // Automatically reset the form inputs immediately upon submission (job done)
+    setLastSearchedRef(cleanRef);
+    setOrderId("");
+    setContact("");
+
+    fetchOrderFromServer(cleanRef, cleanContact);
   };
 
   const handlePayBalance = async () => {
@@ -218,24 +213,13 @@ function TrackOrderContent() {
             </p>
           )}
 
-          <div className="flex flex-col sm:flex-row items-center gap-3 pt-1">
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 w-full rounded-full bg-[var(--color-ink)] py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm disabled:opacity-50"
-            >
-              {loading ? "Searching Authoritative Records..." : "Find Order & Delivery Status"}
-            </button>
-            {(orderId || contact || searched) && (
-              <button
-                type="button"
-                onClick={handleResetSearch}
-                className="w-full sm:w-auto px-5 py-3 rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] text-xs font-semibold text-[var(--color-muted-light)] hover:text-[var(--color-ink)] hover:border-[var(--color-ink)] transition-colors text-center"
-              >
-                Reset / Clear Form
-              </button>
-            )}
-          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-full bg-[var(--color-ink)] py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm disabled:opacity-50"
+          >
+            {loading ? "Searching Authoritative Records..." : "Find Order & Delivery Status"}
+          </button>
         </form>
 
         {/* Support Ticket Cross Link Banner */}
@@ -259,13 +243,6 @@ function TrackOrderContent() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-[var(--color-decorative-border)] gap-4">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={handleResetSearch}
-                      className="rounded-full border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-3 py-1 text-[11px] font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors mr-2 inline-flex items-center gap-1"
-                    >
-                      ← Search Another Order
-                    </button>
                     <span className="font-mono text-sm font-bold text-[var(--color-ink)]">
                       {matchedOrder.id}
                     </span>
@@ -566,7 +543,7 @@ function TrackOrderContent() {
                 No Order Found
               </span>
               <p className="text-xs text-[var(--color-muted-light)] max-w-md mx-auto">
-                We could not locate an active order matching reference <strong className="font-mono text-[var(--color-ink)]">{orderId}</strong> with the provided contact information.
+                We could not locate an active order matching reference <strong className="font-mono text-[var(--color-ink)]">{lastSearchedRef || "your reference"}</strong> with the provided contact information.
               </p>
               <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
                 <Link
