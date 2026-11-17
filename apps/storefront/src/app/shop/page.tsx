@@ -63,12 +63,14 @@ async function ShopContent({ searchParams }: ShopPageProps) {
         </p>
       </div>
 
-      {/* Category Filter Navigation */}
-      <div className="flex flex-wrap items-center gap-2 mb-6 pb-4 border-b border-[var(--color-decorative-border)]/60">
-        <span className="text-xs font-semibold text-[var(--color-ink)] mr-2">Category:</span>
+      {/* Category Filter Navigation (Mobile: Smooth horizontal touch rail; Desktop: Wrapped bar) */}
+      <div className="flex sm:flex-wrap items-center gap-2 overflow-x-auto sm:overflow-visible no-scrollbar -mx-6 px-6 sm:mx-0 sm:px-0 py-2 sm:py-0 mb-6 pb-4 border-b border-[var(--color-decorative-border)]/60 scroll-smooth">
+        <span className="hidden sm:inline text-xs font-semibold text-[var(--color-ink)] mr-2 shrink-0">
+          Category:
+        </span>
         <Link
           href="/shop"
-          className="rounded-full bg-[var(--color-ink)] px-4 py-1.5 text-xs font-semibold text-[var(--color-canvas)]"
+          className="shrink-0 rounded-full bg-[var(--color-ink)] px-4 py-1.5 text-xs font-semibold text-[var(--color-canvas)] whitespace-nowrap shadow-sm"
         >
           All Categories ({allPublished.length})
         </Link>
@@ -76,7 +78,7 @@ async function ShopContent({ searchParams }: ShopPageProps) {
           <Link
             key={cat.slug}
             href={`/category/${cat.slug}`}
-            className="rounded-full border border-[var(--color-control-border)] bg-transparent px-4 py-1.5 text-xs font-medium text-[var(--color-ink)] transition-colors hover:border-[var(--color-ink)] hover:bg-[var(--color-ivory)]"
+            className="shrink-0 rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-1.5 text-xs font-medium text-[var(--color-ink)] transition-colors hover:border-[var(--color-ink)] hover:bg-[var(--color-ivory)] whitespace-nowrap"
           >
             {cat.name}
           </Link>

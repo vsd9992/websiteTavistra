@@ -161,18 +161,18 @@ async function CategoryContent({
           {category.name}
         </h1>
 
-        {/* Interactive Subcategory Filter Pills (Dynamic from active products, sorted A-Z) */}
+        {/* Interactive Subcategory Filter Pills (Mobile: Horizontal touch rail; Desktop: Wrapped bar) */}
         {availableSubcategories.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 pt-2">
-            <span className="text-xs font-semibold text-[var(--color-ink)] mr-1">
+          <div className="flex sm:flex-wrap items-center gap-2 overflow-x-auto sm:overflow-visible no-scrollbar -mx-6 px-6 sm:mx-0 sm:px-0 pt-2 pb-1 scroll-smooth">
+            <span className="hidden sm:inline text-xs font-semibold text-[var(--color-ink)] mr-1 shrink-0">
               Subcategory:
             </span>
             <Link
               href={`/category/${category.slug}${currentMode !== "ALL" ? `?mode=${currentMode.toLowerCase()}` : ""}`}
-              className={`rounded-full px-3.5 py-1 text-xs font-medium transition-colors ${
+              className={`shrink-0 rounded-full px-3.5 py-1 text-xs font-medium transition-colors whitespace-nowrap ${
                 !activeSubcategory
                   ? "bg-[var(--color-ink)] text-[var(--color-canvas)] font-semibold shadow-sm"
-                  : "border border-[var(--color-control-border)] bg-transparent text-[var(--color-ink)] hover:bg-[var(--color-ivory)]"
+                  : "border border-[var(--color-control-border)] bg-[var(--color-canvas)] text-[var(--color-ink)] hover:bg-[var(--color-ivory)]"
               }`}
             >
               All Subcategories
@@ -187,10 +187,10 @@ async function CategoryContent({
                 <Link
                   key={sub}
                   href={subHref}
-                  className={`rounded-full px-3.5 py-1 text-xs font-medium transition-colors ${
+                  className={`shrink-0 rounded-full px-3.5 py-1 text-xs font-medium transition-colors whitespace-nowrap ${
                     isSelected
                       ? "bg-[var(--color-ink)] text-[var(--color-canvas)] font-semibold shadow-sm"
-                      : "border border-[var(--color-control-border)] bg-transparent text-[var(--color-ink)] hover:bg-[var(--color-ivory)]"
+                      : "border border-[var(--color-control-border)] bg-[var(--color-canvas)] text-[var(--color-ink)] hover:bg-[var(--color-ivory)]"
                   }`}
                 >
                   {sub}

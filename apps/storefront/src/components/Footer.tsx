@@ -122,6 +122,20 @@ export function Footer() {
                   Privacy Policy
                 </Link>
               </li>
+              {/* Mobile-only Cookie Preferences link (hidden on desktop where gear is visible) */}
+              <li className="block sm:hidden">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (typeof window !== "undefined") {
+                      window.dispatchEvent(new CustomEvent("open-cookie-settings"));
+                    }
+                  }}
+                  className="hover:text-[var(--color-canvas)] transition-colors text-left cursor-pointer"
+                >
+                  Cookie Preferences
+                </button>
+              </li>
               <li>
                 <Link href="/cart" className="hover:text-[var(--color-canvas)] transition-colors">
                   Review Cart

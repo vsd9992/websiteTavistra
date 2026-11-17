@@ -230,6 +230,60 @@ export function ProductInteractiveClient({
               : "Ready Stock"}
           </span>
 
+          {/* Floating Action Pills (Top-Right): Wishlist & Share Piece */}
+          <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+            {/* Wishlist Pill */}
+            <button
+              type="button"
+              onClick={handleToggleCurrentVariantWishlist}
+              className={`p-2.5 rounded-full border shadow-sm backdrop-blur-md transition-all active:scale-95 ${
+                isCurrentVariantInWishlist
+                  ? "bg-[var(--color-ivory)]/95 border-[var(--color-bronze)] text-[var(--color-bronze)] scale-105"
+                  : "bg-[var(--color-ivory)]/90 border-[var(--color-decorative-border)] text-[var(--color-ink)] hover:bg-white hover:text-[var(--color-bronze)] hover:border-[var(--color-bronze)]"
+              }`}
+              title={
+                isCurrentVariantInWishlist
+                  ? `Saved finish (${currentSku}) in Studio Wishlist`
+                  : `Save this finish (${currentSku}) to client wishlist`
+              }
+              aria-label={
+                isCurrentVariantInWishlist
+                  ? "Saved in Studio Wishlist"
+                  : "Save to Wishlist"
+              }
+            >
+              <svg
+                className={`w-4 h-4 transition-transform ${
+                  isCurrentVariantInWishlist
+                    ? "fill-[var(--color-bronze)] text-[var(--color-bronze)]"
+                    : "fill-none text-current"
+                }`}
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
+                />
+              </svg>
+            </button>
+
+            {/* Share Piece Pill */}
+            <button
+              type="button"
+              onClick={() => setShareModalOpen(true)}
+              className="p-2.5 rounded-full border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]/90 hover:bg-white text-[var(--color-ink)] hover:text-[var(--color-bronze)] hover:border-[var(--color-bronze)] shadow-sm backdrop-blur-md transition-all active:scale-95"
+              title="Share piece via WhatsApp, link, or device apps"
+              aria-label="Share piece"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
+              </svg>
+            </button>
+          </div>
+
           {/* Lightbox Trigger Overlay Button */}
           {activeImage && (
             <button
@@ -323,64 +377,66 @@ export function ProductInteractiveClient({
             {product.name}
           </h1>
 
-          {/* Authoritative Tax-Inclusive Pricing (Updates live on variant selection) */}
-          <div className="pt-2 flex items-baseline gap-2">
-            <span className="font-editorial text-3xl sm:text-4xl text-[var(--color-ink)] font-semibold transition-all">
-              {product.mode === "QUOTE_ONLY" ? "Price On Proposal" : formattedPrice}
-            </span>
-            {product.mode !== "QUOTE_ONLY" && (
-              <span className="text-xs text-[var(--color-muted-light)]">
-                (Tax-inclusive / GST included)
+          {/* Authoritative Tax-Inclusive Pricing & Compact Action Micro-Pills */}
+          <div className="pt-2 flex flex-wrap items-baseline justify-between gap-3">
+            <div className="flex items-baseline gap-2">
+              <span className="font-editorial text-3xl sm:text-4xl text-[var(--color-ink)] font-semibold transition-all">
+                {product.mode === "QUOTE_ONLY" ? "Price On Proposal" : formattedPrice}
               </span>
-            )}
-          </div>
+              {product.mode !== "QUOTE_ONLY" && (
+                <span className="text-xs text-[var(--color-muted-light)]">
+                  (Tax-inclusive / GST included)
+                </span>
+              )}
+            </div>
 
-          {/* Client Wishlist & Universal Share Piece Bar */}
-          <div className="pt-2 flex flex-wrap items-center gap-2.5">
-            <button
-              type="button"
-              onClick={handleToggleCurrentVariantWishlist}
-              className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-medium transition-all ${
-                isCurrentVariantInWishlist
-                  ? "border-[var(--color-bronze)] bg-[var(--color-bronze)]/10 text-[var(--color-bronze)] font-semibold shadow-sm"
-                  : "border-[var(--color-control-border)] bg-[var(--color-canvas)] text-[var(--color-ink)] hover:border-[var(--color-bronze)] hover:bg-[var(--color-ivory)]"
-              }`}
-              title={
-                isCurrentVariantInWishlist
-                  ? `Saved finish (${currentSku}) in your Studio Wishlist`
-                  : `Save this finish (${currentSku}) to client wishlist`
-              }
-            >
-              <svg
-                className={`w-4 h-4 transition-transform active:scale-125 ${
+            {/* Compact Action Micro-Pills */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleToggleCurrentVariantWishlist}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all cursor-pointer ${
                   isCurrentVariantInWishlist
-                    ? "fill-[var(--color-bronze)] text-[var(--color-bronze)]"
-                    : "fill-none text-current"
+                    ? "border-[var(--color-bronze)] bg-[var(--color-bronze)]/10 text-[var(--color-bronze)] font-semibold shadow-sm"
+                    : "border-[var(--color-control-border)] bg-[var(--color-canvas)] text-[var(--color-ink)] hover:border-[var(--color-bronze)] hover:bg-[var(--color-ivory)]"
                 }`}
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+                title={
+                  isCurrentVariantInWishlist
+                    ? `Saved finish (${currentSku}) in Studio Wishlist`
+                    : `Save this finish (${currentSku}) to client wishlist`
+                }
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
-                />
-              </svg>
-              <span>{isCurrentVariantInWishlist ? "Saved Finish in Wishlist" : "Save this Finish to Wishlist"}</span>
-            </button>
+                <svg
+                  className={`w-3.5 h-3.5 transition-transform active:scale-125 ${
+                    isCurrentVariantInWishlist
+                      ? "fill-[var(--color-bronze)] text-[var(--color-bronze)]"
+                      : "fill-none text-current"
+                  }`}
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
+                  />
+                </svg>
+                <span>{isCurrentVariantInWishlist ? "Saved" : "Save"}</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setShareModalOpen(true)}
-              className="inline-flex items-center gap-2 rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2 text-xs font-medium text-[var(--color-ink)] hover:border-[var(--color-bronze)] hover:bg-[var(--color-ivory)] transition-all"
-              title="Share piece via WhatsApp, link, or device apps"
-            >
-              <svg className="w-4 h-4 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
-              </svg>
-              <span>Share Piece</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setShareModalOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-3 py-1 text-xs font-medium text-[var(--color-ink)] hover:border-[var(--color-bronze)] hover:bg-[var(--color-ivory)] transition-all cursor-pointer"
+                title="Share piece via WhatsApp, link, or device apps"
+              >
+                <svg className="w-3.5 h-3.5 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
+                </svg>
+                <span>Share</span>
+              </button>
+            </div>
           </div>
 
           {/* Multi-Variant Capsule Button Selector (Clean title-only pills, no price repetition) */}
