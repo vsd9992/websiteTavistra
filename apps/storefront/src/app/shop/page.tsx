@@ -18,6 +18,7 @@ interface ShopPageProps {
   searchParams: Promise<{
     mode?: string;
     sort?: string;
+    sub?: string;
   }>;
 }
 
@@ -26,11 +27,27 @@ async function ShopContent({ searchParams }: ShopPageProps) {
   const params = await searchParams;
   const currentMode = (params.mode || "all").toUpperCase();
   const currentSort = params.sort || "featured";
+  const activeSubcategory = params.sub;
 
   const allPublished = await getPublishedProducts();
 
-  // 1. Filter by Fulfilment Mode
+  // Extract all available subcategories across the entire collection (sorted A-Z)
+  const availableSubcategories = Array.from(
+    new Set(
+      allPublished
+        .map((p) => p.subcategory?.trim())
+        .filter((sub): sub is string => Boolean(sub))
+    )
+  ).sort((a, b) => a.localeCompare(b));
+
+  // 1. Filter by Subcategory
   let filtered = allPublished.filter((p) => {
+    if (activeSubcategory && p.subcategory !== activeSubcategory) return false;
+    return true;
+  });
+
+  // 2. Filter by Fulfilment Mode
+  filtered = filtered.filter((p) => {
     if (currentMode === "READY_STOCK" && p.mode !== "READY_STOCK") return false;
     if (currentMode === "MADE_TO_ORDER" && p.mode !== "MADE_TO_ORDER") return false;
     return true;
@@ -92,6 +109,9 @@ async function ShopContent({ searchParams }: ShopPageProps) {
         totalCount={filtered.length}
         basePath="/shop"
         categories={APPROVED_CATEGORIES}
+        subcategories={availableSubcategories}
+        activeSubcategory={activeSubcategory}
+        extraParams={{ sub: activeSubcategory }}
       />
 
       {/* Product Grid */}

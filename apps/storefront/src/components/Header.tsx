@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { APPROVED_CATEGORIES } from "@/lib/taxonomy";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
@@ -10,6 +11,7 @@ import { useWishlist } from "@/context/WishlistContext";
 import { SearchOverlay } from "@/components/SearchOverlay";
 
 export function Header() {
+  const [mounted, setMounted] = useState(false);
   const [isShopOpen, setIsShopOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -24,6 +26,22 @@ export function Header() {
   const { totalItemCount } = useCart();
   const { user, isAuthenticated, logout } = useAuth();
   const { wishlistCount } = useWishlist();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Prevent background scroll when mobile navigation or mobile client portal is active
+  useEffect(() => {
+    if (isMobileMenuOpen || (isAccountOpen && typeof window !== "undefined" && window.innerWidth < 640)) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isMobileMenuOpen, isAccountOpen]);
 
   // Load system notices & hiatus announcements
   useEffect(() => {
@@ -47,6 +65,7 @@ export function Header() {
         setIsShopOpen(false);
       }
       if (
+        window.innerWidth >= 640 &&
         accountDropdownRef.current &&
         !accountDropdownRef.current.contains(e.target as Node)
       ) {
@@ -448,213 +467,6 @@ export function Header() {
                 </div>
               </div>
             )}
-
-            {/* Mobile Client Portal Bottom Sheet Modal (sm:hidden) */}
-            {isAccountOpen && (
-              <div
-                role="dialog"
-                aria-modal="true"
-                aria-label="Client Portal"
-                className="fixed inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-sm sm:hidden animate-fade-in text-left"
-                onClick={() => setIsAccountOpen(false)}
-              >
-                <div
-                  className="w-full max-h-[85vh] rounded-t-3xl border-t border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-6 shadow-2xl flex flex-col overflow-y-auto animate-slide-up text-left"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {/* Top Touch Handle */}
-                  <div className="w-10 h-1 bg-[var(--color-stone)] rounded-full mx-auto mb-4 shrink-0" />
-
-                  {/* Header with Title & Close */}
-                  <div className="flex items-center justify-between pb-4 border-b border-[var(--color-decorative-border)] shrink-0">
-                    <div>
-                      <h3 className="text-base font-serif text-[var(--color-ink)] font-medium">
-                        Tavistra Client Portal
-                      </h3>
-                      <p className="text-[11px] text-[var(--color-muted-light)]">
-                        {isAuthenticated && user ? `Signed in as ${user.name}` : "Access orders, wishlist & concierge"}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setIsAccountOpen(false)}
-                      className="p-1.5 rounded-full text-[var(--color-muted-light)] hover:text-[var(--color-ink)] hover:bg-[var(--color-ivory)] transition-colors cursor-pointer"
-                      aria-label="Close client portal"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  {/* Account Content */}
-                  <div className="py-4 space-y-3">
-                    {isAuthenticated && user ? (
-                      <div>
-                        {/* Identity Badge */}
-                        <div className="pb-3 mb-2 border-b border-[var(--color-decorative-border)]/60">
-                          <p className="font-semibold text-sm text-[var(--color-ink)]">
-                            {user.name}
-                          </p>
-                          <p className="text-[11px] text-[var(--color-muted-light)]">
-                            {user.email}
-                          </p>
-                          {user.practiceOrStudio && (
-                            <span className="inline-block mt-1 text-[10px] uppercase tracking-wider text-[var(--color-bronze)] font-medium">
-                              {user.practiceOrStudio}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Navigation Links */}
-                        <div className="space-y-1 py-1">
-                          <Link
-                            href="/account"
-                            onClick={() => setIsAccountOpen(false)}
-                            className="flex items-center justify-between rounded-lg px-2.5 py-2.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
-                          >
-                            <span>Overview Dashboard</span>
-                            <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
-                          </Link>
-                          <Link
-                            href="/account/orders"
-                            onClick={() => setIsAccountOpen(false)}
-                            className="flex items-center justify-between rounded-lg px-2.5 py-2.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
-                          >
-                            <span>Orders &amp; Quotations</span>
-                            <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
-                          </Link>
-                          <Link
-                            href="/account/wishlist"
-                            onClick={() => setIsAccountOpen(false)}
-                            className="flex items-center justify-between rounded-lg px-2.5 py-2.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
-                          >
-                            <span className="flex items-center gap-1.5">
-                              <span>Saved Wishlist</span>
-                              {wishlistCount > 0 && (
-                                <span className="text-[9px] font-mono font-bold bg-[var(--color-stone)] px-1.5 py-0.5 rounded-full text-[var(--color-bronze)]">
-                                  {wishlistCount}
-                                </span>
-                              )}
-                            </span>
-                            <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
-                          </Link>
-                          <Link
-                            href="/account/tickets"
-                            onClick={() => setIsAccountOpen(false)}
-                            className="flex items-center justify-between rounded-lg px-2.5 py-2.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
-                          >
-                            <span>Support Tickets</span>
-                            <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
-                          </Link>
-                          <Link
-                            href="/account/addresses"
-                            onClick={() => setIsAccountOpen(false)}
-                            className="flex items-center justify-between rounded-lg px-2.5 py-2.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
-                          >
-                            <span>Saved Addresses</span>
-                            <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
-                          </Link>
-                          <Link
-                            href="/account/profile"
-                            onClick={() => setIsAccountOpen(false)}
-                            className="flex items-center justify-between rounded-lg px-2.5 py-2.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
-                          >
-                            <span>Profile &amp; Security</span>
-                            <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
-                          </Link>
-                        </div>
-
-                        {/* Order Tracker */}
-                        <div className="pt-2 mt-1 border-t border-[var(--color-decorative-border)]">
-                          <Link
-                            href="/track"
-                            onClick={() => setIsAccountOpen(false)}
-                            className="block rounded-lg px-2.5 py-2 text-xs text-[var(--color-muted-light)] hover:text-[var(--color-ink)] hover:bg-[var(--color-ivory)] transition-colors"
-                          >
-                            Track Order Milestones
-                          </Link>
-                        </div>
-
-                        {/* Sign Out */}
-                        <div className="pt-3 mt-2 border-t border-[var(--color-decorative-border)]">
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              setIsAccountOpen(false);
-                              await logout();
-                              window.location.assign("/account/login");
-                            }}
-                            className="flex w-full items-center justify-between rounded-lg px-2.5 py-2.5 text-xs font-semibold text-[var(--color-error)] hover:bg-[var(--color-ivory)] transition-colors cursor-pointer"
-                          >
-                            <span>Sign Out</span>
-                            <span>⎋</span>
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      /* Guest View */
-                      <div>
-                        <div className="pb-3 mb-3 border-b border-[var(--color-decorative-border)]">
-                          <p className="font-semibold text-sm text-[var(--color-ink)]">
-                            Client Account
-                          </p>
-                          <p className="text-[11px] text-[var(--color-muted-light)] mt-0.5 leading-relaxed">
-                            Sign in to access your orders, active quotations, and customer support.
-                          </p>
-                          <div className="mt-4 flex gap-2">
-                            <Link
-                              href="/account/login"
-                              onClick={() => setIsAccountOpen(false)}
-                              className="flex-1 rounded-xl bg-[var(--color-ink)] py-2.5 text-center text-xs font-semibold text-[var(--color-canvas)] transition-opacity hover:opacity-90 shadow-sm"
-                            >
-                              Sign In
-                            </Link>
-                            <Link
-                              href="/account/register"
-                              onClick={() => setIsAccountOpen(false)}
-                              className="flex-1 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] py-2.5 text-center text-xs font-semibold text-[var(--color-ink)] transition-colors hover:border-[var(--color-control-border)]"
-                            >
-                              Register
-                            </Link>
-                          </div>
-                        </div>
-
-                        <div className="space-y-1">
-                          <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-bronze)] block px-2.5 py-1">
-                            Client Services
-                          </span>
-                          <Link
-                            href="/track"
-                            onClick={() => setIsAccountOpen(false)}
-                            className="flex items-center justify-between rounded-lg px-2.5 py-2 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors"
-                          >
-                            <span>Track Order Status</span>
-                            <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
-                          </Link>
-                          <Link
-                            href="/track-ticket"
-                            onClick={() => setIsAccountOpen(false)}
-                            className="flex items-center justify-between rounded-lg px-2.5 py-2 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors"
-                          >
-                            <span>Track Support Ticket</span>
-                            <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
-                          </Link>
-                          <Link
-                            href="/contact"
-                            onClick={() => setIsAccountOpen(false)}
-                            className="flex items-center justify-between rounded-lg px-2.5 py-2 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors"
-                          >
-                            <span>Contact Customer Support</span>
-                            <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
-                          </Link>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Cart Icon */}
@@ -702,17 +514,17 @@ export function Header() {
         </div>
       </div>
 
-      {/* Mobile Navigation Overlay Menu (WEB-036) — App-Style Overlay, does NOT push page content */}
-      {isMobileMenuOpen && (
+      {/* Mobile Navigation Overlay Menu (WEB-036) — App-Style Overlay portalled to document.body */}
+      {mounted && isMobileMenuOpen && createPortal(
         <div
           role="dialog"
           aria-modal="true"
           aria-label="Navigation Menu"
-          className="fixed inset-0 z-50 lg:hidden flex flex-col bg-black/60 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-[70] lg:hidden flex justify-end bg-black/60 backdrop-blur-sm"
           onClick={() => setIsMobileMenuOpen(false)}
         >
           <div
-            className="w-full h-full max-w-sm ml-auto bg-[var(--color-canvas)] p-6 shadow-2xl flex flex-col overflow-y-auto animate-slide-left text-left"
+            className="w-full h-full max-w-sm bg-[var(--color-canvas)] p-6 shadow-2xl flex flex-col overflow-y-auto text-left"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header of Overlay with Logo & Close Button */}
@@ -838,7 +650,216 @@ export function Header() {
               <p>© {new Date().getFullYear()} Tavistra · Architectural Lifestyle</p>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Mobile Client Portal Bottom Sheet Modal portalled to document.body */}
+      {mounted && isAccountOpen && createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Client Portal"
+          className="fixed inset-0 z-[70] flex flex-col justify-end bg-black/60 backdrop-blur-sm sm:hidden text-left"
+          onClick={() => setIsAccountOpen(false)}
+        >
+          <div
+            className="w-full max-h-[85vh] rounded-t-3xl border-t border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-6 shadow-2xl flex flex-col overflow-y-auto text-left"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Top Touch Handle */}
+            <div className="w-10 h-1 bg-[var(--color-stone)] rounded-full mx-auto mb-4 shrink-0" />
+
+            {/* Header with Title & Close */}
+            <div className="flex items-center justify-between pb-4 border-b border-[var(--color-decorative-border)] shrink-0">
+              <div>
+                <h3 className="text-base font-serif text-[var(--color-ink)] font-medium">
+                  Tavistra Client Portal
+                </h3>
+                <p className="text-[11px] text-[var(--color-muted-light)]">
+                  {isAuthenticated && user ? `Signed in as ${user.name}` : "Access orders, wishlist & concierge"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAccountOpen(false)}
+                className="p-1.5 rounded-full text-[var(--color-muted-light)] hover:text-[var(--color-ink)] hover:bg-[var(--color-ivory)] transition-colors cursor-pointer"
+                aria-label="Close client portal"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Account Content */}
+            <div className="py-4 space-y-3">
+              {isAuthenticated && user ? (
+                <div>
+                  {/* Identity Badge */}
+                  <div className="pb-3 mb-2 border-b border-[var(--color-decorative-border)]/60">
+                    <p className="font-semibold text-sm text-[var(--color-ink)]">
+                      {user.name}
+                    </p>
+                    <p className="text-[11px] text-[var(--color-muted-light)]">
+                      {user.email}
+                    </p>
+                    {user.practiceOrStudio && (
+                      <span className="inline-block mt-1 text-[10px] uppercase tracking-wider text-[var(--color-bronze)] font-medium">
+                        {user.practiceOrStudio}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Navigation Links */}
+                  <div className="space-y-1 py-1">
+                    <Link
+                      href="/account"
+                      onClick={() => setIsAccountOpen(false)}
+                      className="flex items-center justify-between rounded-lg px-2.5 py-2.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
+                    >
+                      <span>Overview Dashboard</span>
+                      <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                    </Link>
+                    <Link
+                      href="/account/orders"
+                      onClick={() => setIsAccountOpen(false)}
+                      className="flex items-center justify-between rounded-lg px-2.5 py-2.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
+                    >
+                      <span>Orders &amp; Quotations</span>
+                      <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                    </Link>
+                    <Link
+                      href="/account/wishlist"
+                      onClick={() => setIsAccountOpen(false)}
+                      className="flex items-center justify-between rounded-lg px-2.5 py-2.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <span>Saved Wishlist</span>
+                        {wishlistCount > 0 && (
+                          <span className="text-[9px] font-mono font-bold bg-[var(--color-stone)] px-1.5 py-0.5 rounded-full text-[var(--color-bronze)]">
+                            {wishlistCount}
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                    </Link>
+                    <Link
+                      href="/account/tickets"
+                      onClick={() => setIsAccountOpen(false)}
+                      className="flex items-center justify-between rounded-lg px-2.5 py-2.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
+                    >
+                      <span>Support Tickets</span>
+                      <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                    </Link>
+                    <Link
+                      href="/account/addresses"
+                      onClick={() => setIsAccountOpen(false)}
+                      className="flex items-center justify-between rounded-lg px-2.5 py-2.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
+                    >
+                      <span>Saved Addresses</span>
+                      <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                    </Link>
+                    <Link
+                      href="/account/profile"
+                      onClick={() => setIsAccountOpen(false)}
+                      className="flex items-center justify-between rounded-lg px-2.5 py-2.5 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors font-medium"
+                    >
+                      <span>Profile &amp; Security</span>
+                      <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                    </Link>
+                  </div>
+
+                  {/* Order Tracker */}
+                  <div className="pt-2 mt-1 border-t border-[var(--color-decorative-border)]">
+                    <Link
+                      href="/track"
+                      onClick={() => setIsAccountOpen(false)}
+                      className="block rounded-lg px-2.5 py-2 text-xs text-[var(--color-muted-light)] hover:text-[var(--color-ink)] hover:bg-[var(--color-ivory)] transition-colors"
+                    >
+                      Track Order Milestones
+                    </Link>
+                  </div>
+
+                  {/* Sign Out */}
+                  <div className="pt-3 mt-2 border-t border-[var(--color-decorative-border)]">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setIsAccountOpen(false);
+                        await logout();
+                        window.location.assign("/account/login");
+                      }}
+                      className="flex w-full items-center justify-between rounded-lg px-2.5 py-2.5 text-xs font-semibold text-[var(--color-error)] hover:bg-[var(--color-ivory)] transition-colors cursor-pointer"
+                    >
+                      <span>Sign Out</span>
+                      <span>⎋</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Guest View */
+                <div>
+                  <div className="pb-3 mb-3 border-b border-[var(--color-decorative-border)]">
+                    <p className="font-semibold text-sm text-[var(--color-ink)]">
+                      Client Account
+                    </p>
+                    <p className="text-[11px] text-[var(--color-muted-light)] mt-0.5 leading-relaxed">
+                      Sign in to access your orders, active quotations, and customer support.
+                    </p>
+                    <div className="mt-4 flex gap-2">
+                      <Link
+                        href="/account/login"
+                        onClick={() => setIsAccountOpen(false)}
+                        className="flex-1 rounded-xl bg-[var(--color-ink)] py-2.5 text-center text-xs font-semibold text-[var(--color-canvas)] transition-opacity hover:opacity-90 shadow-sm"
+                      >
+                        Sign In
+                      </Link>
+                      <Link
+                        href="/account/register"
+                        onClick={() => setIsAccountOpen(false)}
+                        className="flex-1 rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] py-2.5 text-center text-xs font-semibold text-[var(--color-ink)] transition-colors hover:border-[var(--color-control-border)]"
+                      >
+                        Register
+                      </Link>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-bronze)] block px-2.5 py-1">
+                      Client Services
+                    </span>
+                    <Link
+                      href="/track"
+                      onClick={() => setIsAccountOpen(false)}
+                      className="flex items-center justify-between rounded-lg px-2.5 py-2 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors"
+                    >
+                      <span>Track Order Status</span>
+                      <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                    </Link>
+                    <Link
+                      href="/track-ticket"
+                      onClick={() => setIsAccountOpen(false)}
+                      className="flex items-center justify-between rounded-lg px-2.5 py-2 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors"
+                    >
+                      <span>Track Support Ticket</span>
+                      <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                    </Link>
+                    <Link
+                      href="/contact"
+                      onClick={() => setIsAccountOpen(false)}
+                      className="flex items-center justify-between rounded-lg px-2.5 py-2 text-xs text-[var(--color-ink)] hover:bg-[var(--color-ivory)] hover:text-[var(--color-bronze)] transition-colors"
+                    >
+                      <span>Contact Customer Support</span>
+                      <span className="text-[11px] text-[var(--color-muted-light)]">→</span>
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Compact Search Overlay (WEB-037 / WEB-039) */}

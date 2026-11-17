@@ -35,8 +35,9 @@ export function CatalogueSortBar({
   const searchParams = useSearchParams();
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
 
-  // Calculate active filter count for badge
+  // Calculate active filter count for badge ("All..." is no filter)
   let activeFilterCount = 0;
+  if (activeCategorySlug) activeFilterCount++; // Category selection counts as an active filter
   if (currentMode && currentMode.toLowerCase() !== "all") activeFilterCount++;
   if (activeSubcategory && activeSubcategory !== "all") activeFilterCount++;
 
@@ -46,7 +47,8 @@ export function CatalogueSortBar({
       params.set("sort", currentSort);
     }
     const query = params.toString();
-    router.push(`${basePath}${query ? `?${query}` : ""}`);
+    // Reset to /shop ("All Categories", all modes, all subcategories)
+    router.push(`/shop${query ? `?${query}` : ""}`);
     setIsFilterDrawerOpen(false);
   };
 
