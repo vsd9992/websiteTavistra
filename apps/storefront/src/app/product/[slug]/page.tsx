@@ -11,6 +11,10 @@ interface ProductPageProps {
   params: Promise<{
     slug: string;
   }>;
+  searchParams?: Promise<{
+    variant?: string;
+    sku?: string;
+  }>;
 }
 
 export async function generateMetadata({ params }: ProductPageProps) {
@@ -28,14 +32,25 @@ export async function generateMetadata({ params }: ProductPageProps) {
   };
 }
 
-async function ProductDetailContent({ params }: { params: Promise<{ slug: string }> }) {
+async function ProductDetailContent({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams?: Promise<{ variant?: string; sku?: string }>;
+}) {
   await connection();
-  const { slug } = await params;
+  const [{ slug }, search] = await Promise.all([
+    params,
+    searchParams ? searchParams : Promise.resolve(undefined),
+  ]);
   const product = await getPublishedProductBySlug(slug);
 
   if (!product) {
     notFound();
   }
+
+  const initialVariantQuery = search?.variant || search?.sku;
 
   // Breadcrumb Schema (AEO/SEO)
   const breadcrumbJsonLd = {
@@ -128,12 +143,12 @@ async function ProductDetailContent({ params }: { params: Promise<{ slug: string
       </nav>
 
       {/* Interactive Product & Variant Pane */}
-      <ProductInteractiveClient product={product} />
+      <ProductInteractiveClient product={product} initialVariantQuery={initialVariantQuery} />
     </>
   );
 }
 
-export default function ProductDetailPage({ params }: ProductPageProps) {
+export default function ProductDetailPage({ params, searchParams }: ProductPageProps) {
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
@@ -147,7 +162,7 @@ export default function ProductDetailPage({ params }: ProductPageProps) {
               </div>
             }
           >
-            <ProductDetailContent params={params} />
+            <ProductDetailContent params={params} searchParams={searchParams} />
           </Suspense>
         </div>
       </main>

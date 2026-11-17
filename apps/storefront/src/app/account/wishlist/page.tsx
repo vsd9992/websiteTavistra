@@ -165,6 +165,9 @@ export default function AccountWishlistPage() {
 
                     const isMoving = movingId === item.id;
                     const isRemoving = removingId === item.id;
+                    const productHref = item.sku
+                      ? `/product/${item.slug}?variant=${encodeURIComponent(item.sku)}`
+                      : `/product/${item.slug}`;
 
                     return (
                       <div
@@ -174,7 +177,7 @@ export default function AccountWishlistPage() {
                         <div className="space-y-4">
                           {/* Image Container */}
                           <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-[var(--color-stone)] border border-[var(--color-decorative-border)]/50">
-                            <Link href={`/product/${item.slug}`}>
+                            <Link href={productHref}>
                               <Image
                                 src={item.imageUrl || "/comingSoon_1.webp"}
                                 alt={item.variantTitle ? `${item.title} — ${item.variantTitle}` : item.title}
@@ -232,7 +235,7 @@ export default function AccountWishlistPage() {
                               )}
                             </div>
                             <h2 className="text-base font-serif font-medium text-[var(--color-ink)] hover:text-[var(--color-bronze)] transition-colors line-clamp-1">
-                              <Link href={`/product/${item.slug}`}>{item.title}</Link>
+                              <Link href={productHref}>{item.title}</Link>
                             </h2>
                             {item.materialFinish && (
                               <p className="text-[11px] text-[var(--color-muted-light)] italic line-clamp-1">
@@ -267,7 +270,7 @@ export default function AccountWishlistPage() {
 
                           <div className="flex items-center justify-between text-xs pt-1 px-1">
                             <Link
-                              href={`/product/${item.slug}`}
+                              href={productHref}
                               className="text-[var(--color-muted-light)] hover:text-[var(--color-ink)] transition-colors"
                             >
                               View Specification →

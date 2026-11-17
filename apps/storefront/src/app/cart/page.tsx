@@ -5,6 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { useCart, getCartLineKey } from "@/context/CartContext";
+import { useAuth } from "@/context/AuthContext";
+import { useWishlist } from "@/context/WishlistContext";
+import { MockProduct } from "@/lib/products";
 import { checkBulkOrderCeiling, ShippingCalculationResult } from "@tavistra/shared";
 
 export default function CartPage() {
@@ -14,6 +17,8 @@ export default function CartPage() {
     updateQuantity,
     removeFromCart,
   } = useCart();
+  const { isAuthenticated } = useAuth();
+  const { isInWishlist, toggleWishlist, promptGuestSignIn } = useWishlist();
 
   const [activeModeTab, setActiveModeTab] = useState<"READY_STOCK" | "MADE_TO_ORDER">(
     "READY_STOCK"
@@ -23,6 +28,32 @@ export default function CartPage() {
   const [resolvedLocation, setResolvedLocation] = useState<string | null>(null);
   const [pinError, setPinError] = useState<string | null>(null);
   const [checkingPin, setCheckingPin] = useState(false);
+  const [movingToWishlistKey, setMovingToWishlistKey] = useState<string | null>(null);
+
+  const handleMoveToWishlist = async (product: MockProduct, lineKey: string) => {
+    if (!isAuthenticated) {
+      promptGuestSignIn("/cart");
+      return;
+    }
+
+    setMovingToWishlistKey(lineKey);
+    try {
+      const variantKey = product.variantId || product.sku || product.id;
+      if (!isInWishlist(variantKey)) {
+        await toggleWishlist({
+          id: product.id,
+          slug: product.slug,
+          title: product.name,
+          variantId: product.variantId,
+          variantTitle: product.variantTitle,
+          sku: product.sku,
+        });
+      }
+      removeFromCart(lineKey, activeModeTab);
+    } finally {
+      setMovingToWishlistKey(null);
+    }
+  };
 
   // Switch default tab automatically if Ready Stock is empty and Made to Order has items
   useEffect(() => {
@@ -322,6 +353,9 @@ export default function CartPage() {
                           ? product.availableStock
                           : undefined;
                       const lineSubtotalPaise = product.pricePaise * quantity;
+                      const productHref = product.sku
+                        ? `/product/${product.slug}?variant=${encodeURIComponent(product.sku)}`
+                        : `/product/${product.slug}`;
 
                       return (
                         <div
@@ -330,14 +364,14 @@ export default function CartPage() {
                         >
                           <div className="flex items-start gap-4">
                             <Link
-                              href={`/product/${product.slug}`}
-                              className="h-20 w-20 shrink-0 rounded-lg border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] overflow-hidden flex items-center justify-center"
+                              href={productHref}
+                              className="h-20 w-20 shrink-0 rounded-lg border border-[var(--color-decorative-border)] bg-[var(--color-ivory)] overflow-hidden flex items-center justify-center group"
                             >
                               {product.primaryImageUrl ? (
                                 <img
                                   src={product.primaryImageUrl}
                                   alt={product.name}
-                                  className="h-full w-full object-cover"
+                                  className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
                                 />
                               ) : (
                                 <span className="text-[10px] uppercase tracking-wider text-[var(--color-muted-light)]">
@@ -355,7 +389,7 @@ export default function CartPage() {
                                 {isMtoTab ? "Made to Order" : "Ready Stock"}
                               </span>
                               <Link
-                                href={`/product/${product.slug}`}
+                                href={productHref}
                                 className="block font-semibold text-sm text-[var(--color-ink)] hover:underline"
                               >
                                 {product.name}
@@ -387,38 +421,65 @@ export default function CartPage() {
                             </div>
                           </div>
 
-                          <div className="flex items-center justify-end gap-4">
-                            <div className="flex items-center rounded-lg border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]">
+                          <div className="flex flex-col sm:items-end gap-3 shrink-0">
+                            <div className="flex items-center gap-4">
+                              <div className="flex items-center rounded-lg border border-[var(--color-decorative-border)] bg-[var(--color-ivory)]">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateQuantity(lineKey, activeModeTab, quantity - 1)
+                                  }
+                                  className="px-2.5 py-1 text-xs text-[var(--color-ink)] hover:bg-[var(--color-stone)]"
+                                >
+                                  -
+                                </button>
+                                <span className="px-3 text-xs font-semibold text-[var(--color-ink)]">
+                                  {quantity}
+                                </span>
+                                <button
+                                  type="button"
+                                  disabled={maxStock !== undefined && quantity >= maxStock}
+                                  onClick={() =>
+                                    updateQuantity(lineKey, activeModeTab, quantity + 1)
+                                  }
+                                  className="px-2.5 py-1 text-xs text-[var(--color-ink)] hover:bg-[var(--color-stone)] disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                  +
+                                </button>
+                              </div>
+
                               <button
                                 type="button"
-                                onClick={() =>
-                                  updateQuantity(lineKey, activeModeTab, quantity - 1)
-                                }
-                                className="px-2.5 py-1 text-xs text-[var(--color-ink)] hover:bg-[var(--color-stone)]"
+                                onClick={() => removeFromCart(lineKey, activeModeTab)}
+                                className="text-xs text-[var(--color-error)] hover:underline"
                               >
-                                -
-                              </button>
-                              <span className="px-3 text-xs font-semibold text-[var(--color-ink)]">
-                                {quantity}
-                              </span>
-                              <button
-                                type="button"
-                                disabled={maxStock !== undefined && quantity >= maxStock}
-                                onClick={() =>
-                                  updateQuantity(lineKey, activeModeTab, quantity + 1)
-                                }
-                                className="px-2.5 py-1 text-xs text-[var(--color-ink)] hover:bg-[var(--color-stone)] disabled:opacity-40 disabled:cursor-not-allowed"
-                              >
-                                +
+                                Remove
                               </button>
                             </div>
 
                             <button
                               type="button"
-                              onClick={() => removeFromCart(lineKey, activeModeTab)}
-                              className="text-xs text-[var(--color-error)] hover:underline"
+                              onClick={() => handleMoveToWishlist(product, lineKey)}
+                              disabled={movingToWishlistKey === lineKey}
+                              className="inline-flex items-center gap-1.5 text-xs text-[var(--color-muted-light)] hover:text-[var(--color-bronze)] transition-colors self-start sm:self-end disabled:opacity-50"
+                              title="Move this edition to your saved Wishlist"
                             >
-                              Remove
+                              <svg
+                                className="w-3.5 h-3.5 text-current"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={1.5}
+                                  d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
+                                />
+                              </svg>
+                              <span>
+                                {movingToWishlistKey === lineKey ? "Moving to Wishlist..." : "Move to Wishlist"}
+                              </span>
                             </button>
                           </div>
                         </div>

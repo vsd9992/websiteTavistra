@@ -12,22 +12,16 @@ import { useCart } from "@/context/CartContext";
 
 interface ProductInteractiveClientProps {
   product: MockProduct;
+  initialVariantQuery?: string;
 }
 
-export function ProductInteractiveClient({ product }: ProductInteractiveClientProps) {
+export function ProductInteractiveClient({
+  product,
+  initialVariantQuery,
+}: ProductInteractiveClientProps) {
   const { isInWishlist, toggleWishlist } = useWishlist();
   const { addToCart } = useCart();
   const variants = product.variants && product.variants.length > 0 ? product.variants : [];
-  const [selectedVariant, setSelectedVariant] = useState<ProductVariantView | null>(
-    variants[0] || null
-  );
-
-  // Lightbox & Share states
-  const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [lightboxIndex, setLightboxIndex] = useState(0);
-  const [shareModalOpen, setShareModalOpen] = useState(false);
-  const [showMobileSticky, setShowMobileSticky] = useState(false);
-  const buyBoxRef = useRef<HTMLDivElement>(null);
 
   // Helper to resolve gallery images for a given variant (with fallback to master product gallery)
   const getGalleryForVariant = (v: ProductVariantView | null): string[] => {
@@ -51,18 +45,74 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
     return masterGallery;
   };
 
+  // Helper to match a variant by SKU, ID, or Title
+  const findMatchingVariant = (query?: string | null): ProductVariantView | null => {
+    if (!query || variants.length === 0) return null;
+    const qLower = query.trim().toLowerCase();
+    return (
+      variants.find(
+        (v) =>
+          (v.sku && v.sku.toLowerCase() === qLower) ||
+          (v.id && v.id.toLowerCase() === qLower) ||
+          (v.title && v.title.toLowerCase() === qLower)
+      ) || null
+    );
+  };
+
+  const initialVariant = findMatchingVariant(initialVariantQuery) || variants[0] || null;
+  const initialGallery = getGalleryForVariant(initialVariant);
+
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariantView | null>(initialVariant);
+
+  // Lightbox & Share states
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [showMobileSticky, setShowMobileSticky] = useState(false);
+  const buyBoxRef = useRef<HTMLDivElement>(null);
+
   const currentGallery = getGalleryForVariant(selectedVariant);
 
   // Active hero image state
   const [activeImage, setActiveImage] = useState<string | null>(
-    currentGallery[0] || selectedVariant?.imageUrl || product.primaryImageUrl || null
+    initialGallery[0] || initialVariant?.imageUrl || product.primaryImageUrl || null
   );
 
-  // When variant changes, update variant and switch gallery & hero image to the variant's images
+  // Listen for initial browser query params or query changes
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const variantParam = urlParams.get("variant") || urlParams.get("sku") || initialVariantQuery;
+      if (variantParam) {
+        const matched = findMatchingVariant(variantParam);
+        if (matched && matched.id !== selectedVariant?.id) {
+          setSelectedVariant(matched);
+          const gallery = getGalleryForVariant(matched);
+          setActiveImage(gallery[0] || matched.imageUrl || null);
+        }
+      }
+    }
+  }, [initialVariantQuery]);
+
+  // When variant changes, update variant, switch gallery & hero image, and update URL
   const handleVariantChange = (v: ProductVariantView) => {
     setSelectedVariant(v);
     const newGallery = getGalleryForVariant(v);
     setActiveImage(newGallery[0] || v.imageUrl || null);
+
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (v.sku) {
+        url.searchParams.set("variant", v.sku);
+      } else {
+        url.searchParams.delete("variant");
+      }
+      window.history.replaceState(
+        { ...window.history.state, as: url.toString(), url: url.toString() },
+        "",
+        url.toString()
+      );
+    }
   };
 
   // Mobile Sticky Bar Trigger (triggers when buy box scrolls past top viewport)
@@ -489,6 +539,9 @@ export function ProductInteractiveClient({ product }: ProductInteractiveClientPr
           slug: product.slug,
           sku: currentSku,
           categoryName: product.categoryName,
+          variantTitle: selectedVariant?.title,
+          materialFinish: currentMaterialFinish,
+          priceRupees: Math.round(currentPricePaise / 100),
         }}
       />
 

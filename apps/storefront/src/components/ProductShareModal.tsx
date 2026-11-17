@@ -10,6 +10,9 @@ interface ProductShareModalProps {
     slug: string;
     sku?: string;
     categoryName?: string;
+    variantTitle?: string;
+    materialFinish?: string;
+    priceRupees?: number;
   };
 }
 
@@ -36,12 +39,16 @@ export function ProductShareModal({
 
   if (!isOpen) return null;
 
+  const variantParam = product.sku ? `?variant=${encodeURIComponent(product.sku)}` : "";
   const currentUrl =
     typeof window !== "undefined"
-      ? `${window.location.origin}/product/${product.slug}`
-      : `https://tavistra.com/product/${product.slug}`;
+      ? `${window.location.origin}/product/${product.slug}${variantParam}`
+      : `https://tavistra.com/product/${product.slug}${variantParam}`;
 
-  const shareText = `Discover the ${product.title} architectural edition by Tavistra:`;
+  const finishDetail = product.variantTitle || product.materialFinish;
+  const shareText = finishDetail
+    ? `Discover the ${product.title} in ${finishDetail}${product.sku ? ` (${product.sku})` : ""} architectural edition by Tavistra:`
+    : `Discover the ${product.title} architectural edition by Tavistra:`;
 
   const handleCopyLink = async () => {
     try {
@@ -71,7 +78,7 @@ export function ProductShareModal({
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `${product.title} — Tavistra`,
+          title: finishDetail ? `${product.title} (${finishDetail}) — Tavistra` : `${product.title} — Tavistra`,
           text: shareText,
           url: currentUrl,
         });
@@ -83,9 +90,17 @@ export function ProductShareModal({
   };
 
   const handleEmailShare = () => {
-    const subject = encodeURIComponent(`${product.title} | Tavistra Architectural Hardware`);
+    const subject = encodeURIComponent(
+      finishDetail
+        ? `${product.title} (${finishDetail}) | Tavistra Architectural Hardware`
+        : `${product.title} | Tavistra Architectural Hardware`
+    );
     const body = encodeURIComponent(
-      `Hello,\n\nI wanted to share this architectural edition from Tavistra with you:\n\n${product.title}\n${currentUrl}\n\nTavistra — Architectural Hardware & Fine Castings`
+      `Hello,\n\nI wanted to share this architectural edition from Tavistra with you:\n\n${product.title}${
+        finishDetail ? `\nFinish: ${finishDetail}` : ""
+      }${product.sku ? `\nSKU: ${product.sku}` : ""}${
+        product.priceRupees ? `\nPrice: ₹${product.priceRupees.toLocaleString("en-IN")}` : ""
+      }\n\nView Edition:\n${currentUrl}\n\nTavistra — Architectural Hardware & Fine Castings`
     );
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
   };
@@ -111,11 +126,23 @@ export function ProductShareModal({
             <h3 className="text-xl font-serif text-[var(--color-ink)]">
               {product.title}
             </h3>
-            {product.sku && (
-              <p className="text-[10px] font-mono text-[var(--color-muted-light)]">
-                SKU: {product.sku}
-              </p>
-            )}
+            <div className="flex flex-wrap items-center gap-2 pt-0.5">
+              {finishDetail && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--color-stone)] text-[var(--color-ink)] border border-[var(--color-decorative-border)]">
+                  Finish: {finishDetail}
+                </span>
+              )}
+              {product.sku && (
+                <span className="text-[10px] font-mono text-[var(--color-muted-light)]">
+                  SKU: {product.sku}
+                </span>
+              )}
+              {typeof product.priceRupees === "number" && product.priceRupees > 0 && (
+                <span className="text-[11px] font-semibold text-[var(--color-bronze)]">
+                  ₹{product.priceRupees.toLocaleString("en-IN")}
+                </span>
+              )}
+            </div>
           </div>
           <button
             type="button"
