@@ -121,23 +121,23 @@ async function ProductDetailContent({
       />
 
       {/* Breadcrumbs (Desktop only; hidden on mobile for clean app-like viewport) */}
-      <nav className="hidden sm:flex items-center gap-2 text-xs text-[var(--color-muted-light)] mb-10">
-        <Link href="/" className="hover:text-[var(--color-ink)]">
+      <nav className="hidden lg:flex items-center gap-2 text-xs text-[var(--color-muted-light)] mb-10 whitespace-nowrap overflow-hidden">
+        <Link href="/" className="hover:text-[var(--color-ink)] shrink-0">
           Home
         </Link>
-        <span>/</span>
-        <Link href="/shop" className="hover:text-[var(--color-ink)]">
+        <span className="shrink-0">/</span>
+        <Link href="/shop" className="hover:text-[var(--color-ink)] shrink-0">
           Shop
         </Link>
-        <span>/</span>
+        <span className="shrink-0">/</span>
         <Link
           href={`/category/${product.categorySlug}`}
-          className="hover:text-[var(--color-ink)]"
+          className="hover:text-[var(--color-ink)] shrink-0"
         >
           {product.categoryName}
         </Link>
-        <span>/</span>
-        <span className="text-[var(--color-ink)] font-semibold truncate max-w-xs">
+        <span className="shrink-0">/</span>
+        <span className="text-[var(--color-ink)] font-semibold truncate max-w-sm shrink">
           {product.name}
         </span>
       </nav>

@@ -118,12 +118,12 @@ export function CookieConsentBanner() {
         </aside>
       )}
 
-      {/* 2. Persistent Floating Trigger Button (Bottom-Left: Desktop only, hidden on mobile per policy) */}
+      {/* 2. Persistent Floating Trigger Button (Bottom-Left: Desktop only, hidden on mobile/tablet per policy) */}
       {!isBannerOpen && !isSettingsModalOpen && (
         <button
           type="button"
           onClick={handleOpenModal}
-          className="hidden sm:flex fixed bottom-5 left-5 z-40 items-center gap-2 rounded-full border border-[var(--color-decorative-border)] bg-[var(--color-canvas)]/95 px-3 py-2 text-xs font-medium text-[var(--color-ink)] shadow-lg backdrop-blur-md hover:bg-[var(--color-ivory)] hover:border-[var(--color-ink)] transition-all group cursor-pointer"
+          className="hidden lg:flex fixed bottom-5 left-5 z-40 items-center gap-2 rounded-full border border-[var(--color-decorative-border)] bg-[var(--color-canvas)]/95 px-3 py-2 text-xs font-medium text-[var(--color-ink)] shadow-lg backdrop-blur-md hover:bg-[var(--color-ivory)] hover:border-[var(--color-ink)] transition-all group cursor-pointer"
           title="Cookie & Privacy Settings"
           aria-label="Cookie & Privacy Settings"
         >

@@ -80,8 +80,8 @@ async function ShopContent({ searchParams }: ShopPageProps) {
         </p>
       </div>
 
-      {/* Category Filter Navigation (Desktop only; on mobile accessed via Filter button in sort bar) */}
-      <div className="hidden sm:flex sm:flex-wrap items-center gap-2 mb-6 pb-4 border-b border-[var(--color-decorative-border)]/60">
+      {/* Category Filter Navigation (Desktop only; on mobile/tablet accessed via Filter button in sort bar) */}
+      <div className="hidden lg:flex lg:flex-wrap items-center gap-2 mb-6 pb-4 border-b border-[var(--color-decorative-border)]/60">
         <span className="text-xs font-semibold text-[var(--color-ink)] mr-2 shrink-0">
           Category:
         </span>

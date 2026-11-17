@@ -65,7 +65,7 @@ export function Header() {
         setIsShopOpen(false);
       }
       if (
-        window.innerWidth >= 640 &&
+        window.innerWidth >= 1024 &&
         accountDropdownRef.current &&
         !accountDropdownRef.current.contains(e.target as Node)
       ) {
@@ -297,9 +297,9 @@ export function Header() {
               )}
             </button>
 
-            {/* Desktop Hover Menu Panel (hidden on mobile; accessed via bottom sheet on mobile) */}
+            {/* Desktop Hover Menu Panel (hidden on mobile/tablet; accessed via bottom sheet) */}
             {isAccountOpen && (
-              <div className="hidden sm:block absolute right-0 top-full pt-2 w-64 sm:w-72 z-50">
+              <div className="hidden lg:block absolute right-0 top-full pt-2 w-64 sm:w-72 z-50">
                 <div className="rounded-2xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-4 shadow-xl text-xs">
                   {isAuthenticated && user ? (
                     /* Set 1: Authenticated User Menu */
@@ -660,7 +660,7 @@ export function Header() {
           role="dialog"
           aria-modal="true"
           aria-label="Client Portal"
-          className="fixed inset-0 z-[70] flex flex-col justify-end bg-black/60 backdrop-blur-sm sm:hidden text-left"
+          className="fixed inset-0 z-[70] flex flex-col justify-end bg-black/60 backdrop-blur-sm lg:hidden text-left"
           onClick={() => setIsAccountOpen(false)}
         >
           <div

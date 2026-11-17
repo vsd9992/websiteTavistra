@@ -122,8 +122,8 @@ export function Footer() {
                   Privacy Policy
                 </Link>
               </li>
-              {/* Mobile-only Cookie Preferences link (hidden on desktop where gear is visible) */}
-              <li className="block sm:hidden">
+              {/* Mobile/Tablet Cookie Preferences link (hidden on desktop where gear is visible) */}
+              <li className="block lg:hidden">
                 <button
                   type="button"
                   onClick={() => {

@@ -130,22 +130,22 @@ async function CategoryContent({
       />
 
       {/* Breadcrumbs (Desktop only; hidden on mobile for clean app-like viewport) */}
-      <nav className="hidden sm:flex items-center gap-2 text-xs text-[var(--color-muted-light)] mb-8">
-        <Link href="/" className="hover:text-[var(--color-ink)]">
+      <nav className="hidden lg:flex items-center gap-2 text-xs text-[var(--color-muted-light)] mb-8 whitespace-nowrap overflow-hidden">
+        <Link href="/" className="hover:text-[var(--color-ink)] shrink-0">
           Home
         </Link>
-        <span>/</span>
-        <Link href="/shop" className="hover:text-[var(--color-ink)]">
+        <span className="shrink-0">/</span>
+        <Link href="/shop" className="hover:text-[var(--color-ink)] shrink-0">
           Shop
         </Link>
-        <span>/</span>
-        <span className="text-[var(--color-ink)] font-semibold">
+        <span className="shrink-0">/</span>
+        <span className="text-[var(--color-ink)] font-semibold shrink-0">
           {category.name}
         </span>
         {activeSubcategory && (
           <>
-            <span>/</span>
-            <span className="text-[var(--color-bronze)] font-semibold">
+            <span className="shrink-0">/</span>
+            <span className="text-[var(--color-bronze)] font-semibold shrink-0">
               {activeSubcategory}
             </span>
           </>
@@ -163,7 +163,7 @@ async function CategoryContent({
 
         {/* Interactive Subcategory Filter Pills (Desktop only; on mobile accessed via Filter button in sort bar) */}
         {availableSubcategories.length > 0 && (
-          <div className="hidden sm:flex sm:flex-wrap items-center gap-2 pt-2 pb-1">
+          <div className="hidden lg:flex lg:flex-wrap items-center gap-2 pt-2 pb-1">
             <span className="text-xs font-semibold text-[var(--color-ink)] mr-1 shrink-0">
               Subcategory:
             </span>

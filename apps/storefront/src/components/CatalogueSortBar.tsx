@@ -90,9 +90,9 @@ export function CatalogueSortBar({
   return (
     <>
       {/* =========================================================================
-          DESKTOP TOOLBAR (sm:flex): Completely undisturbed desktop experience
+          DESKTOP TOOLBAR (lg:flex): Completely undisturbed desktop experience
          ========================================================================= */}
-      <div className="hidden sm:flex items-center justify-between gap-4 pb-6 mb-8 border-b border-[var(--color-decorative-border)]/60 text-xs">
+      <div className="hidden lg:flex items-center justify-between gap-4 pb-6 mb-8 border-b border-[var(--color-decorative-border)]/60 text-xs">
         {/* Mode Filters on Desktop */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-semibold text-[var(--color-ink)] mr-1 shrink-0">
@@ -173,9 +173,9 @@ export function CatalogueSortBar({
       </div>
 
       {/* =========================================================================
-          MOBILE APP-STYLE TOOLBAR (sm:hidden): Clean single bar with Filter & Sort
+          MOBILE APP-STYLE TOOLBAR (lg:hidden): Clean single bar with Filter & Sort
          ========================================================================= */}
-      <div className="flex sm:hidden items-center justify-between gap-3 pb-4 mb-6 border-b border-[var(--color-decorative-border)]/60 text-xs">
+      <div className="flex lg:hidden items-center justify-between gap-3 pb-4 mb-6 border-b border-[var(--color-decorative-border)]/60 text-xs">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-xs font-mono text-[var(--color-muted-light)] shrink-0">
             {totalCount} {totalCount === 1 ? "piece" : "pieces"}
