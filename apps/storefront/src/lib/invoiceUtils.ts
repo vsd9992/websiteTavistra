@@ -31,9 +31,10 @@ export interface InvoiceLineItem {
   totalPaise: number;
 }
 
-export const SELLER_DETAILS = {
+export const DEFAULT_SELLER_DETAILS = {
   legalEntityName: "VDesign",
   brandName: "Tavistra",
+  businessUnitLine: "A business unit of VDesign",
   tagline: "Design-led lifestyle & architectural décor",
   registeredAddressLine1: "New Delhi Design Studio, Okhla Industrial Area Phase III",
   city: "New Delhi",
@@ -44,9 +45,42 @@ export const SELLER_DETAILS = {
   gstin: "07AAAFV1234A1Z5",
   pan: "AAAFV1234A",
   supportEmail: "support@tavistra.com",
-  conciergeEmail: "concierge@tavistra.in",
   deskHours: "Mon – Fri, 10:00 AM – 5:00 PM IST",
 };
+
+export const SELLER_DETAILS = DEFAULT_SELLER_DETAILS;
+
+/**
+ * Resolves legal seller details with database SystemSetting overrides if configured in backend.
+ */
+export function resolveSellerDetails(overrideJson?: string | null): typeof DEFAULT_SELLER_DETAILS {
+  if (!overrideJson) return DEFAULT_SELLER_DETAILS;
+  try {
+    const parsed = JSON.parse(overrideJson);
+    return {
+      ...DEFAULT_SELLER_DETAILS,
+      ...parsed,
+    };
+  } catch {
+    return DEFAULT_SELLER_DETAILS;
+  }
+}
+
+/**
+ * Generates official statutory reference numbers
+ */
+export function deriveDocumentNumbers(orderNumber: string, date: Date | string) {
+  const d = new Date(date);
+  const year = isNaN(d.getFullYear()) ? new Date().getFullYear() : d.getFullYear();
+  const digits = orderNumber.replace(/\D/g, "");
+  const suffix = digits.slice(-4) || orderNumber;
+
+  return {
+    invoiceNumber: `TAV-INV-${year}-${suffix}`,
+    creditNoteNumber: `TAV-CN-${year}-${suffix}`,
+    receiptVoucherNumber: `TAV-RCV-${year}-${suffix}`,
+  };
+}
 
 /**
  * Resolves standard 4-digit or 6-digit HSN code based on product attributes

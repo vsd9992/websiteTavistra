@@ -393,51 +393,118 @@ export default function AccountOrdersPage() {
                                 </button>
                               )}
 
-                            {/* Balanced 2-Column Grid for Order Journey & Statutory Documentation */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                              <Link
-                                href={`/track?orderId=${order.id}`}
-                                className="text-center rounded-full bg-[var(--color-ink)] py-2.5 px-4 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm block"
-                              >
-                                Track Order Status
-                              </Link>
-                              <Link
-                                href={`/orders/${encodeURIComponent(order.orderNumber || order.id)}/invoice`}
-                                target="_blank"
-                                className="text-center rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] py-2.5 px-4 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors inline-flex items-center justify-center gap-1.5 shadow-sm"
-                              >
-                                <svg className="w-3.5 h-3.5 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                                <span>Tax Invoice (PDF) ↗</span>
-                              </Link>
-                            </div>
-
-                            {/* Client Assistance CTA */}
-                            <Link
-                              href={`/contact?intent=support&order=${encodeURIComponent(order.orderNumber || order.id)}&subject=${encodeURIComponent(`Assistance for Order ${order.orderNumber || order.id}`)}`}
-                              className="w-full text-center rounded-full border border-[var(--color-bronze)]/60 bg-[var(--color-ivory)] py-2.5 px-4 text-xs font-semibold text-[var(--color-ink)] hover:border-[var(--color-ink)] transition-colors inline-flex items-center justify-center gap-1.5 shadow-sm block"
-                            >
-                              <svg className="w-3.5 h-3.5 text-[var(--color-bronze)] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
-                              </svg>
-                              <span>Need Help? Raise Support Ticket</span>
-                            </Link>
-
-                            {/* Full-Width Cancellation Action */}
-                            {isOrderCancellable(order) && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setCancelError(null);
-                                  setCancelSuccessMessage(null);
-                                  setCancellationReason("");
-                                  setOrderToCancel(order);
-                                }}
-                                className="w-full text-center rounded-full border border-rose-300 bg-rose-50/70 py-2.5 px-4 text-xs font-semibold text-rose-800 hover:bg-rose-100 hover:border-rose-400 transition-colors shadow-sm block"
-                              >
-                                Request Cancellation &amp; Refund
-                              </button>
+                            {/* Order Journey & Actions Matrix */}
+                            {order.status === "CANCELLED" || order.status === "REFUNDED" ? (
+                              <>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                  <Link
+                                    href={`/track?orderId=${order.id}`}
+                                    className="text-center rounded-full bg-[var(--color-ink)] py-2.5 px-4 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm block"
+                                  >
+                                    Track Order Status
+                                  </Link>
+                                  <Link
+                                    href={`/orders/${encodeURIComponent(order.orderNumber || order.id)}/invoice`}
+                                    target="_blank"
+                                    className="text-center rounded-full border border-rose-300 bg-rose-50/50 py-2.5 px-4 text-xs font-semibold text-rose-900 hover:bg-rose-100 transition-colors inline-flex items-center justify-center gap-1.5 shadow-sm"
+                                  >
+                                    <svg className="w-3.5 h-3.5 text-rose-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    <span>Credit Note (PDF) ↗</span>
+                                  </Link>
+                                </div>
+                                <Link
+                                  href={`/contact?intent=support&order=${encodeURIComponent(order.orderNumber || order.id)}&subject=${encodeURIComponent(`Assistance for Order ${order.orderNumber || order.id}`)}`}
+                                  className="w-full text-center rounded-full border border-[var(--color-control-border)] bg-[var(--color-ivory)] py-2.5 px-4 text-xs font-medium text-[var(--color-ink)] hover:border-[var(--color-ink)] transition-colors inline-flex items-center justify-center gap-1.5 shadow-sm block"
+                                >
+                                  <svg className="w-3.5 h-3.5 text-[var(--color-bronze)] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+                                  </svg>
+                                  <span>Need Help? Raise Support Ticket</span>
+                                </Link>
+                              </>
+                            ) : order.balanceDueRupees > 0 &&
+                              (order.mode === "MADE_TO_ORDER" || Boolean(order.quoteNumber)) ? (
+                              /* Made to Order with Balance Due: Tax invoice button is hidden until 100% paid */
+                              <>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                  <Link
+                                    href={`/track?orderId=${order.id}`}
+                                    className="text-center rounded-full bg-[var(--color-ink)] py-2.5 px-4 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm block"
+                                  >
+                                    Track Order Status
+                                  </Link>
+                                  <Link
+                                    href={`/contact?intent=support&order=${encodeURIComponent(order.orderNumber || order.id)}&subject=${encodeURIComponent(`Assistance for Order ${order.orderNumber || order.id}`)}`}
+                                    className="text-center rounded-full border border-[var(--color-bronze)]/60 bg-[var(--color-ivory)] py-2.5 px-4 text-xs font-semibold text-[var(--color-ink)] hover:border-[var(--color-ink)] transition-colors inline-flex items-center justify-center gap-1.5 shadow-sm"
+                                  >
+                                    <svg className="w-3.5 h-3.5 text-[var(--color-bronze)] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+                                    </svg>
+                                    <span>Raise Support Ticket</span>
+                                  </Link>
+                                </div>
+                                {isOrderCancellable(order) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setCancelError(null);
+                                      setCancelSuccessMessage(null);
+                                      setCancellationReason("");
+                                      setOrderToCancel(order);
+                                    }}
+                                    className="w-full text-center rounded-full border border-rose-300 bg-rose-50/70 py-2.5 px-4 text-xs font-semibold text-rose-800 hover:bg-rose-100 hover:border-rose-400 transition-colors shadow-sm block"
+                                  >
+                                    Request Cancellation &amp; Refund
+                                  </button>
+                                )}
+                              </>
+                            ) : (
+                              /* 100% Paid Orders: Full Tax Invoice available */
+                              <>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                  <Link
+                                    href={`/track?orderId=${order.id}`}
+                                    className="text-center rounded-full bg-[var(--color-ink)] py-2.5 px-4 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm block"
+                                  >
+                                    Track Order Status
+                                  </Link>
+                                  <Link
+                                    href={`/orders/${encodeURIComponent(order.orderNumber || order.id)}/invoice`}
+                                    target="_blank"
+                                    className="text-center rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] py-2.5 px-4 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors inline-flex items-center justify-center gap-1.5 shadow-sm"
+                                  >
+                                    <svg className="w-3.5 h-3.5 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    <span>Tax Invoice (PDF) ↗</span>
+                                  </Link>
+                                </div>
+                                <Link
+                                  href={`/contact?intent=support&order=${encodeURIComponent(order.orderNumber || order.id)}&subject=${encodeURIComponent(`Assistance for Order ${order.orderNumber || order.id}`)}`}
+                                  className="w-full text-center rounded-full border border-[var(--color-bronze)]/60 bg-[var(--color-ivory)] py-2.5 px-4 text-xs font-semibold text-[var(--color-ink)] hover:border-[var(--color-ink)] transition-colors inline-flex items-center justify-center gap-1.5 shadow-sm block"
+                                >
+                                  <svg className="w-3.5 h-3.5 text-[var(--color-bronze)] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+                                  </svg>
+                                  <span>Need Help? Raise Support Ticket</span>
+                                </Link>
+                                {isOrderCancellable(order) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setCancelError(null);
+                                      setCancelSuccessMessage(null);
+                                      setCancellationReason("");
+                                      setOrderToCancel(order);
+                                    }}
+                                    className="w-full text-center rounded-full border border-rose-300 bg-rose-50/70 py-2.5 px-4 text-xs font-semibold text-rose-800 hover:bg-rose-100 hover:border-rose-400 transition-colors shadow-sm block"
+                                  >
+                                    Request Cancellation &amp; Refund
+                                  </button>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>

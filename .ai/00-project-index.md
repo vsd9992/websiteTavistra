@@ -2,11 +2,11 @@
 
 Project: Tavistra (`websiteTavistra`)
 Phase: Phase 2 — Execution (Sets 0–8 Complete & Verified Live)
-Milestone: Storefront Usability Batch 1 & Batch 2 (GST Tax Invoice Engine & Clean Layouts) Verified Live
-Status: Sets 0–8 verified live on `devMachine` (268/268 checks passing); All Runbook Phases (1–8) verified. Usability Batch 1 & 2 deployed live: Official statutory Indian GST Tax Invoice engine (A4, Rule 46 CGST 2017) at `/orders/[id]/invoice`, balanced order card CTA matrix on `/account/orders`, tax invoice links on `/track` and `/checkout`, custom branded 404/error, catalogue sort & fulfilment mode toolbar on `/shop` and `/category/[slug]`, floating "Added to Cart" toast on PDP, and structured `BreadcrumbList` + `Product` JSON-LD schemas verified on ports 3001 and 3002.
+Milestone: Storefront Usability Batch 1 & Solidified Batch 2 (GST Tax Invoice, Credit Notes, Seller Compliance & Email Engine) Verified Live
+Status: Sets 0–8 verified live on `devMachine` (268/268 checks passing); All Runbook Phases (1–8) verified. Usability Batch 1 & Solidified Batch 2 deployed live: Statutory Indian GST Tax Invoice (Rule 46 CGST 2017) and GST Credit Note (Sec 34(1) / Rule 53 CGST 2017) engine at `/orders/[id]/invoice`, VDesign legal entity & Tavistra business unit statutory branding, system-generated electronic document authentication, dynamic database seller configuration via `SystemSetting`, email invoice/credit note dispatch API, conditional MTO 100% payment gating on invoice buttons, symmetric order card CTA matrix on `/account/orders`, clean navigation cleanup on `/account` & header dropdown, and tax invoice/credit note links on `/track` and `/checkout` verified on ports 3001 and 3002.
 
 ## Active Tasks
-- None (Batch 1 & 2 Complete; Batch 3: Wishlist for Signed-in Clients, Universal Share Piece, and PDP Zoom Lightbox queued).
+- None (Batch 1 & Solidified Batch 2 Complete; Ready for Batch 3: Wishlist for Signed-in Clients, Universal Share Piece, and PDP Zoom Lightbox).
 
 ## Document Map
 - [AGENTS.md](../AGENTS.md) — Operating rules & memory policy

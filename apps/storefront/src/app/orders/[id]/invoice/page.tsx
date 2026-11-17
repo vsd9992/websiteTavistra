@@ -5,13 +5,15 @@ import { notFound } from "next/navigation";
 import { prisma } from "@tavistra/db";
 import { getAuthenticatedUser } from "@/lib/auth";
 import {
-  SELLER_DETAILS,
+  DEFAULT_SELLER_DETAILS,
+  resolveSellerDetails,
   FREIGHT_SAC_CODE,
   resolveHsnCode,
   deriveGstStateDetails,
+  deriveDocumentNumbers,
   numberToIndianRupeesWords,
 } from "@/lib/invoiceUtils";
-import { InvoicePrintActions } from "./InvoicePrintActions";
+import { InvoicePrintActions, InvoiceBackButton } from "./InvoicePrintActions";
 
 interface InvoicePageProps {
   params: Promise<{ id: string }>;
@@ -19,8 +21,8 @@ interface InvoicePageProps {
 }
 
 export const metadata = {
-  title: "GST Tax Invoice — Tavistra",
-  description: "Official Statutory GST Tax Invoice issued under Section 31 of CGST Act, 2017.",
+  title: "Statutory Tax Document — Tavistra",
+  description: "Official Statutory Indian GST Tax Document issued by VDesign / Tavistra.",
 };
 
 async function InvoiceContent({ params, searchParams }: InvoicePageProps) {
@@ -54,6 +56,12 @@ async function InvoiceContent({ params, searchParams }: InvoicePageProps) {
     notFound();
   }
 
+  // Load any backend admin overrides from SystemSetting
+  const sellerSetting = await prisma.systemSetting.findUnique({
+    where: { key: "INVOICE_SELLER_DETAILS" },
+  });
+  const sellerDetails = resolveSellerDetails(sellerSetting?.value);
+
   // Security Verification: Logged-in owner OR matching contact param
   const sessionUser = await getAuthenticatedUser();
   const isOwner = Boolean(sessionUser && order.userId === sessionUser.id);
@@ -72,10 +80,11 @@ async function InvoiceContent({ params, searchParams }: InvoicePageProps) {
             Verification Required
           </span>
           <h2 className="font-editorial text-2xl text-[var(--color-ink)]">
-            Access GST Tax Invoice
+            Access Statutory Document
           </h2>
           <p className="text-xs text-[var(--color-muted-light)] leading-relaxed">
-            To view or print the official tax invoice for <strong className="text-[var(--color-ink)]">{order.orderNumber}</strong>, please sign in or provide the registered email or phone used at checkout.
+            To view or print the official GST tax invoice / credit note for{" "}
+            <strong className="text-[var(--color-ink)]">{order.orderNumber}</strong>, please sign in or provide the registered email or mobile used at checkout.
           </p>
           <form method="GET" action={`/orders/${encodeURIComponent(order.orderNumber)}/invoice`} className="space-y-3 pt-2">
             <input
@@ -89,11 +98,14 @@ async function InvoiceContent({ params, searchParams }: InvoicePageProps) {
               type="submit"
               className="w-full rounded-full bg-[var(--color-ink)] py-2.5 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm"
             >
-              Verify &amp; Open Tax Invoice
+              Verify &amp; Open Document
             </button>
           </form>
           <div className="pt-2 text-[11px]">
-            <Link href={`/account/login?next=${encodeURIComponent(`/orders/${order.orderNumber}/invoice`)}`} className="text-[var(--color-bronze)] font-medium hover:underline">
+            <Link
+              href={`/account/login?next=${encodeURIComponent(`/orders/${order.orderNumber}/invoice`)}`}
+              className="text-[var(--color-bronze)] font-medium hover:underline"
+            >
               Sign In to Your Account →
             </Link>
           </div>
@@ -102,24 +114,35 @@ async function InvoiceContent({ params, searchParams }: InvoicePageProps) {
     );
   }
 
-  // Determine State Tax Breakdown (Delhi intra-state vs Inter-state)
-  const gstState = deriveGstStateDetails(order.shippingAddress.state);
-  const isInterState = gstState.isInterState;
-
-  // Invoice Number (Standard format: TAV-INV-YYYY-XXXX)
-  const orderNumberDigits = order.orderNumber.replace(/\D/g, "");
-  const invoiceNumber = `TAV-INV-${new Date(order.createdAt).getFullYear()}-${orderNumberDigits.slice(-4) || order.orderNumber}`;
-  const invoiceDateFormatted = new Date(order.createdAt).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-
+  // Determine Document Type
+  const isCancelled = order.status === "CANCELLED" || order.status === "REFUNDED";
   const totalAmountNum = Number(order.totalAmount);
   const itemsSubtotalNum = Number(order.itemsSubtotal);
   const shippingChargeNum = Number(order.shippingCharge);
   const amountPaidNum = Number(order.amountPaid);
   const balanceDueNum = Number(order.balanceAmount);
+
+  const isMtoPending =
+    (order.purchaseMode === "MADE_TO_ORDER" || Boolean(order.quoteNumber)) &&
+    balanceDueNum > 0 &&
+    !isCancelled;
+
+  // Determine State Tax Breakdown (Delhi intra-state vs Inter-state)
+  const gstState = deriveGstStateDetails(order.shippingAddress.state);
+  const isInterState = gstState.isInterState;
+
+  // Standard Document Numbers
+  const docNumbers = deriveDocumentNumbers(order.orderNumber, order.createdAt);
+  const invoiceDateFormatted = new Date(order.createdAt).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const updatedDateFormatted = new Date(order.updatedAt).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 
   // Line items breakdown
   const lineItems = order.items.map((item, idx) => {
@@ -152,20 +175,66 @@ async function InvoiceContent({ params, searchParams }: InvoicePageProps) {
   const sgstAmount = isInterState ? 0 : Math.round((totalTax / 2) * 100) / 100;
   const igstAmount = isInterState ? totalTax : 0;
 
-  const amountInWords = numberToIndianRupeesWords(totalAmountNum);
+  // Amount In Words
+  const documentTotalRupees = isCancelled ? amountPaidNum : totalAmountNum;
+  const amountInWords = numberToIndianRupeesWords(documentTotalRupees);
+
+  // Document labels
+  const docBadge = isCancelled
+    ? "GST CREDIT NOTE"
+    : isMtoPending
+    ? "ADVANCE RECEIPT VOUCHER"
+    : "TAX INVOICE";
+
+  const docRule = isCancelled
+    ? "Section 34(1) · Rule 53 · CGST Rules, 2017"
+    : isMtoPending
+    ? "Section 31(3)(d) · CGST Act, 2017"
+    : "Rule 46 · CGST Rules, 2017";
+
+  const docNumber = isCancelled
+    ? docNumbers.creditNoteNumber
+    : isMtoPending
+    ? docNumbers.receiptVoucherNumber
+    : docNumbers.invoiceNumber;
+
+  const fallbackBackUrl = isOwner ? "/account/orders" : `/track?orderId=${encodeURIComponent(order.orderNumber)}`;
 
   return (
     <div className="min-h-screen bg-stone-100 py-6 sm:py-10 px-4 sm:px-6 font-sans text-neutral-900 print:bg-white print:p-0 print:m-0">
       {/* Top Action Bar (Hidden in Print) */}
       <div className="mx-auto max-w-4xl mb-6 flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <Link
-          href={`/track?orderId=${encodeURIComponent(order.orderNumber)}`}
-          className="text-xs font-semibold text-neutral-600 hover:text-neutral-900 flex items-center gap-1.5 transition-colors"
-        >
-          <span>←</span> Back to Order Tracker
-        </Link>
-        <InvoicePrintActions orderNumber={order.orderNumber} />
+        <InvoiceBackButton fallbackUrl={fallbackBackUrl} />
+        <InvoicePrintActions
+          orderNumber={order.orderNumber}
+          contact={cleanContact}
+          documentLabel={isCancelled ? "Credit Note" : isMtoPending ? "Advance Voucher" : "Tax Invoice"}
+        />
       </div>
+
+      {/* Made-to-Order Pending Balance Notice */}
+      {isMtoPending && (
+        <div className="mx-auto max-w-4xl mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-xs text-amber-950 print:hidden space-y-1.5">
+          <strong className="font-semibold flex items-center gap-1.5 text-amber-900">
+            <span>ℹ</span> Advance Receipt Voucher (75% Balance Pending)
+          </strong>
+          <p className="leading-relaxed">
+            This voucher acknowledges your 25% production advance (₹{amountPaidNum.toLocaleString("en-IN")}). In accordance with Section 31(1) of the CGST Act, 2017, the final statutory GST Tax Invoice is generated once 100% payment (remaining ₹{balanceDueNum.toLocaleString("en-IN")}) is completed prior to dispatch.
+          </p>
+        </div>
+      )}
+
+      {/* Cancelled Order Credit Note Notice */}
+      {isCancelled && (
+        <div className="mx-auto max-w-4xl mb-4 rounded-xl border border-rose-300 bg-rose-50 p-4 text-xs text-rose-950 print:hidden space-y-1">
+          <strong className="font-semibold flex items-center gap-1.5 text-rose-900">
+            <span>✓</span> Official Statutory Credit Note (100% Refund Issued)
+          </strong>
+          <p className="leading-relaxed">
+            This statutory GST Credit Note has been issued for order cancellation and full refund under Section 34(1) of the CGST Act, 2017.
+          </p>
+        </div>
+      )}
 
       {/* Main A4 Document Sheet */}
       <div className="mx-auto max-w-4xl bg-white border border-neutral-300 shadow-lg p-8 sm:p-12 print:border-none print:shadow-none print:p-0 print:m-0 print:w-full print:max-w-none space-y-6 text-[12px] leading-relaxed">
@@ -174,33 +243,59 @@ async function InvoiceContent({ params, searchParams }: InvoicePageProps) {
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
             <div>
               <span className="font-mono text-2xl font-bold tracking-tight text-neutral-900 block">
-                {SELLER_DETAILS.brandName}
+                {sellerDetails.brandName}
               </span>
-              <span className="text-[10px] text-neutral-600 block mt-0.5">
-                {SELLER_DETAILS.legalEntityName} · {SELLER_DETAILS.tagline}
+              <span className="text-[11px] font-semibold text-neutral-700 block mt-0.5">
+                {sellerDetails.businessUnitLine}
+              </span>
+              <span className="text-[10px] text-neutral-500 block">
+                Legal Entity: <strong>{sellerDetails.legalEntityName}</strong> · {sellerDetails.tagline}
               </span>
               <p className="text-[11px] text-neutral-600 mt-2 max-w-xs">
-                {SELLER_DETAILS.registeredAddressLine1}, {SELLER_DETAILS.city}, {SELLER_DETAILS.state} - {SELLER_DETAILS.pincode}, {SELLER_DETAILS.country}
+                {sellerDetails.registeredAddressLine1}, {sellerDetails.city}, {sellerDetails.state} - {sellerDetails.pincode}, {sellerDetails.country}
               </p>
               <div className="mt-1.5 font-mono text-[10px] text-neutral-700 space-y-0.5">
-                <div>GSTIN: <strong>{SELLER_DETAILS.gstin}</strong> | PAN: <strong>{SELLER_DETAILS.pan}</strong></div>
-                <div>State: {SELLER_DETAILS.state} (Code: {SELLER_DETAILS.stateCode})</div>
-                <div>Email: {SELLER_DETAILS.supportEmail}</div>
+                <div>
+                  GSTIN: <strong>{sellerDetails.gstin}</strong> | PAN: <strong>{sellerDetails.pan}</strong>
+                </div>
+                <div>
+                  State: {sellerDetails.state} (Code: {sellerDetails.stateCode})
+                </div>
+                <div>Email: {sellerDetails.supportEmail}</div>
               </div>
             </div>
 
             <div className="sm:text-right space-y-1">
-              <span className="inline-block bg-neutral-900 text-white font-mono uppercase text-xs font-bold px-3 py-1 rounded">
-                TAX INVOICE
+              <span
+                className={`inline-block text-white font-mono uppercase text-xs font-bold px-3 py-1 rounded ${
+                  isCancelled ? "bg-rose-800" : isMtoPending ? "bg-amber-800" : "bg-neutral-900"
+                }`}
+              >
+                {docBadge}
               </span>
               <span className="block text-[9px] text-neutral-500 uppercase tracking-wider">
-                Rule 46 · CGST Rules, 2017
+                {docRule}
               </span>
               <div className="pt-2 font-mono text-[11px] space-y-1">
-                <div>Invoice No: <strong>{invoiceNumber}</strong></div>
-                <div>Invoice Date: <strong>{invoiceDateFormatted}</strong></div>
+                <div>
+                  {isCancelled ? "Credit Note No:" : isMtoPending ? "Voucher No:" : "Invoice No:"}{" "}
+                  <strong>{docNumber}</strong>
+                </div>
+                <div>Date: <strong>{isCancelled ? updatedDateFormatted : invoiceDateFormatted}</strong></div>
+                {isCancelled && (
+                  <div>
+                    Original Invoice Ref: <strong>{docNumbers.invoiceNumber}</strong>
+                  </div>
+                )}
                 <div>Order Ref: <strong>{order.orderNumber}</strong></div>
-                <div>Place of Supply: <strong>{gstState.stateName} ({gstState.stateCode})</strong></div>
+                <div>
+                  Place of Supply: <strong>{gstState.stateName} ({gstState.stateCode})</strong>
+                </div>
+                {isCancelled && (
+                  <div className="text-[10px] text-rose-800 font-semibold pt-1">
+                    Reason: Order Cancellation &amp; 100% Refund (Sec 34 CGST)
+                  </div>
+                )}
                 <div>Reverse Charge: <strong>No</strong></div>
               </div>
             </div>
@@ -267,11 +362,15 @@ async function InvoiceContent({ params, searchParams }: InvoicePageProps) {
             <thead>
               <tr className="bg-neutral-100 font-mono text-[10px] text-neutral-700 border-b border-neutral-300">
                 <th className="border-r border-neutral-300 p-2 text-center w-8">#</th>
-                <th className="border-r border-neutral-300 p-2">Description of Goods / Services</th>
+                <th className="border-r border-neutral-300 p-2">
+                  {isCancelled ? "Credited Goods / Services Description" : "Description of Goods / Services"}
+                </th>
                 <th className="border-r border-neutral-300 p-2 text-center w-16">HSN/SAC</th>
                 <th className="border-r border-neutral-300 p-2 text-center w-10">Qty</th>
                 <th className="border-r border-neutral-300 p-2 text-right w-20">Gross (₹)</th>
-                <th className="border-r border-neutral-300 p-2 text-right w-20">Taxable (₹)</th>
+                <th className="border-r border-neutral-300 p-2 text-right w-20">
+                  {isCancelled ? "Taxable Credit (₹)" : "Taxable (₹)"}
+                </th>
                 {isInterState ? (
                   <th className="border-r border-neutral-300 p-2 text-right w-20">IGST 18% (₹)</th>
                 ) : (
@@ -280,7 +379,7 @@ async function InvoiceContent({ params, searchParams }: InvoicePageProps) {
                     <th className="border-r border-neutral-300 p-2 text-right w-16">SGST 9% (₹)</th>
                   </>
                 )}
-                <th className="p-2 text-right w-24">Total (₹)</th>
+                <th className="p-2 text-right w-24">{isCancelled ? "Credited Total (₹)" : "Total (₹)"}</th>
               </tr>
             </thead>
             <tbody>
@@ -364,7 +463,7 @@ async function InvoiceContent({ params, searchParams }: InvoicePageProps) {
           <div className="sm:col-span-7 space-y-3">
             <div>
               <span className="font-mono text-[10px] uppercase font-bold text-neutral-500 block">
-                Total Amount in Words:
+                {isCancelled ? "Credited / Refunded Amount in Words:" : "Total Amount in Words:"}
               </span>
               <p className="font-medium text-neutral-900 text-xs italic mt-0.5">
                 {amountInWords}
@@ -379,22 +478,49 @@ async function InvoiceContent({ params, searchParams }: InvoicePageProps) {
                 <span>Method / Gateway:</span>
                 <span>PhonePe Verified Electronic</span>
               </div>
-              <div className="flex justify-between font-mono">
-                <span>Amount Paid:</span>
-                <span className="font-bold text-neutral-900">
-                  ₹{amountPaidNum.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                </span>
-              </div>
-              {balanceDueNum > 0 ? (
-                <div className="flex justify-between font-mono text-amber-800 font-semibold">
-                  <span>Balance Due Before Dispatch (75%):</span>
-                  <span>₹{balanceDueNum.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-                </div>
+              {isCancelled ? (
+                <>
+                  <div className="flex justify-between font-mono">
+                    <span>Original Amount Paid:</span>
+                    <span className="text-neutral-900">
+                      ₹{amountPaidNum.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between font-mono text-rose-800 font-bold">
+                    <span>100% Refund Credited to Source:</span>
+                    <span>₹{amountPaidNum.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="flex justify-between font-mono text-[10px] text-neutral-500 pt-0.5">
+                    <span>Credit Note Reason:</span>
+                    <span>Cancellation &amp; Full Refund (Section 34 CGST)</span>
+                  </div>
+                </>
+              ) : isMtoPending ? (
+                <>
+                  <div className="flex justify-between font-mono">
+                    <span>25% Advance Paid Today:</span>
+                    <span className="font-bold text-neutral-900">
+                      ₹{amountPaidNum.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between font-mono text-amber-800 font-semibold">
+                    <span>Remaining 75% Balance Due at Dispatch:</span>
+                    <span>₹{balanceDueNum.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                  </div>
+                </>
               ) : (
-                <div className="flex justify-between font-mono text-emerald-800 font-semibold">
-                  <span>Settlement Status:</span>
-                  <span>100% Upfront Verified Settlement</span>
-                </div>
+                <>
+                  <div className="flex justify-between font-mono">
+                    <span>Amount Paid:</span>
+                    <span className="font-bold text-neutral-900">
+                      ₹{amountPaidNum.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between font-mono text-emerald-800 font-semibold">
+                    <span>Settlement Status:</span>
+                    <span>100% Upfront Verified Settlement</span>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -422,36 +548,33 @@ async function InvoiceContent({ params, searchParams }: InvoicePageProps) {
               </>
             )}
             <div className="flex justify-between text-neutral-900 font-bold border-t border-neutral-300 pt-2 text-xs">
-              <span>Grand Total (GST Incl.):</span>
+              <span>{isCancelled ? "Total Credited Value:" : "Grand Total (GST Incl.):"}</span>
               <span>₹{totalAmountNum.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
             </div>
           </div>
         </div>
 
-        {/* Statutory Declaration & Signature Box */}
+        {/* Statutory Declaration & System-Generated Exemption Box */}
         <div className="border-t-2 border-neutral-800 pt-5 grid grid-cols-1 sm:grid-cols-2 gap-6 items-end">
           <div className="text-[10px] text-neutral-500 space-y-1">
             <p className="font-semibold text-neutral-700">Declaration &amp; Warranty Conditions:</p>
             <p>
-              We declare that this invoice shows the actual price of the goods and services described and that all particulars are true and correct.
-            </p>
-            <p>
-              All products are covered by Tavistra master artisanal guarantee. This is a computer-generated tax invoice issued in accordance with Rule 46 of the CGST Rules, 2017.
+              {isCancelled
+                ? "We declare that this Credit Note shows the actual reduction in output tax liability and credit value as per Section 34 of the CGST Act, 2017. All credits have been verified."
+                : "We declare that this invoice shows the actual price of the goods and services described and that all particulars are true and correct. All products are covered by Tavistra master artisanal guarantee."}
             </p>
           </div>
 
           <div className="sm:text-right space-y-1 pt-4 sm:pt-0">
             <span className="text-[10px] font-mono text-neutral-500 block">
-              For VDesign / Tavistra:
+              Issued for: {sellerDetails.legalEntityName} (Trade Name: {sellerDetails.brandName})
             </span>
-            <div className="h-10 flex items-center justify-end">
-              <span className="font-serif italic text-base text-neutral-700">
-                VDesign Studio Desk
-              </span>
+            <div className="rounded border border-neutral-200 bg-neutral-50 p-2.5 text-[10px] text-neutral-600 leading-snug">
+              <strong className="block text-neutral-800 font-mono uppercase text-[9px] mb-0.5">
+                Electronic Document Authentication
+              </strong>
+              This is a computer-generated electronic document issued in accordance with Rule 46 / Rule 53 of the CGST Rules, 2017 and the Information Technology Act, 2000. No physical or digital signature is required.
             </div>
-            <span className="text-[10px] font-mono text-neutral-600 uppercase font-semibold block border-t border-neutral-300 pt-1 inline-block">
-              Authorized Signatory
-            </span>
           </div>
         </div>
       </div>
@@ -464,7 +587,7 @@ export default function OrderInvoicePage({ params, searchParams }: InvoicePagePr
     <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center bg-stone-100 text-xs text-neutral-600">
-          Generating official GST tax invoice...
+          Generating official statutory document...
         </div>
       }
     >

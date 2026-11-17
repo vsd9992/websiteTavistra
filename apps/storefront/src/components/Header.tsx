@@ -342,7 +342,7 @@ export function Header() {
                         </Link>
                       </div>
 
-                      {/* Guest Tools */}
+                      {/* Tracking Utility */}
                       <div className="pt-2 mt-1 border-t border-[var(--color-decorative-border)] space-y-1">
                         <Link
                           href="/track"
@@ -350,13 +350,6 @@ export function Header() {
                           className="block rounded-lg px-2.5 py-1.5 text-[11px] text-[var(--color-muted-light)] hover:text-[var(--color-ink)] hover:bg-[var(--color-ivory)] transition-colors"
                         >
                           Track Order Milestones
-                        </Link>
-                        <Link
-                          href="/track-ticket"
-                          onClick={() => setIsAccountOpen(false)}
-                          className="block rounded-lg px-2.5 py-1.5 text-[11px] text-[var(--color-muted-light)] hover:text-[var(--color-ink)] hover:bg-[var(--color-ivory)] transition-colors"
-                        >
-                          Track Support Ticket
                         </Link>
                       </div>
 

@@ -948,3 +948,106 @@ export async function sendOrderCancelledRefundEmail(params: {
   });
 }
 
+/**
+ * Sends official Statutory Tax Invoice, Credit Note, or Advance Voucher to customer email.
+ */
+export async function sendTaxInvoiceOrCreditNoteEmail(params: {
+  orderNumber: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string;
+  documentType: "TAX_INVOICE" | "CREDIT_NOTE" | "ADVANCE_RECEIPT";
+  documentNumber: string;
+  totalAmountRupees: number;
+  itemsSummary: string;
+  invoiceUrl: string;
+  trackingUrl: string;
+}) {
+  const {
+    orderNumber,
+    customerName,
+    customerEmail,
+    documentType,
+    documentNumber,
+    totalAmountRupees,
+    itemsSummary,
+    invoiceUrl,
+    trackingUrl,
+  } = params;
+
+  const docTitle =
+    documentType === "CREDIT_NOTE"
+      ? "Statutory GST Credit Note"
+      : documentType === "ADVANCE_RECEIPT"
+      ? "Statutory Advance Receipt Voucher"
+      : "Statutory GST Tax Invoice";
+
+  const docRule =
+    documentType === "CREDIT_NOTE"
+      ? "Section 34(1) · Rule 53 · CGST Rules, 2017"
+      : documentType === "ADVANCE_RECEIPT"
+      ? "Section 31(3)(d) · CGST Act, 2017"
+      : "Rule 46 · CGST Rules, 2017";
+
+  const bodyContent = `
+    <p>Dear ${customerName},</p>
+    <p>
+      Please find below the official statutory document for your acquisition record <strong style="font-family: monospace;">${orderNumber}</strong> issued by <strong>VDesign</strong> (Trade Name: <strong>Tavistra</strong>).
+    </p>
+
+    <div class="card" style="margin: 20px 0;">
+      <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #8e6c46; font-weight: bold; margin-bottom: 8px;">
+        ${docTitle} Details
+      </div>
+      <div class="ledger-row">
+        <span>Document Reference Number:</span>
+        <strong style="font-family: monospace;">${documentNumber}</strong>
+      </div>
+      <div class="ledger-row">
+        <span>Statutory Authority:</span>
+        <span>${docRule}</span>
+      </div>
+      <div class="ledger-row">
+        <span>Order Reference:</span>
+        <strong style="font-family: monospace;">${orderNumber}</strong>
+      </div>
+      <div class="ledger-row">
+        <span>Associated Objects:</span>
+        <span>${itemsSummary}</span>
+      </div>
+      <div class="ledger-row total">
+        <span>${documentType === "CREDIT_NOTE" ? "Credited / Refunded Value:" : "Total Document Value (GST Incl.):"}</span>
+        <span>₹${totalAmountRupees.toLocaleString("en-IN")}</span>
+      </div>
+    </div>
+
+    <div style="text-align: center; margin: 28px 0 12px 0;">
+      <a href="${invoiceUrl}" class="btn" style="background-color: #141412; margin-bottom: 8px;">
+        View &amp; Print Official Document ↗
+      </a>
+      <div style="margin-top: 8px;">
+        <a href="${trackingUrl}" style="font-size: 12px; color: #8e6c46; text-decoration: underline;">
+          Track Live Order Status &amp; Milestones →
+        </a>
+      </div>
+    </div>
+
+    <div style="margin-top: 24px; padding: 12px; background-color: #f9f8f5; border-radius: 6px; font-size: 10px; color: #726e64; line-height: 1.5;">
+      <strong>Electronic Document Authentication:</strong> This is a computer-generated statutory electronic document issued in accordance with Rule 46 / Rule 53 of the CGST Rules, 2017 and the Information Technology Act, 2000. No physical or digital signature is required.
+    </div>
+  `;
+
+  const html = wrapLuxuryEmailTemplate(
+    docTitle,
+    `Ref: ${documentNumber} · Order #${orderNumber}`,
+    bodyContent
+  );
+
+  return sendTavistraMail({
+    to: customerEmail,
+    subject: `[Tavistra] ${docTitle} — ${documentNumber} (Order #${orderNumber})`,
+    html,
+  });
+}
+
+

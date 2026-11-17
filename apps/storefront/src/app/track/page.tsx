@@ -271,16 +271,35 @@ function TrackOrderContent() {
                     </svg>
                     Raise Support Ticket
                   </Link>
-                  <Link
-                    href={`/orders/${encodeURIComponent(matchedOrder.id)}/invoice${(contact || matchedOrder.phone || matchedOrder.email) ? `?contact=${encodeURIComponent((contact || matchedOrder.phone || matchedOrder.email).trim())}` : ""}`}
-                    target="_blank"
-                    className="rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors inline-flex items-center gap-1.5 shadow-sm"
-                  >
-                    <svg className="w-3.5 h-3.5 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <span>GST Tax Invoice ↗</span>
-                  </Link>
+
+                  {/* Statutory Document (Credit Note if cancelled; Tax Invoice if 100% settled; hidden if balance pending) */}
+                  {matchedOrder.status === "CANCELLED" || matchedOrder.status === "REFUNDED" ? (
+                    <Link
+                      href={`/orders/${encodeURIComponent(matchedOrder.id)}/invoice${(contact || matchedOrder.phone || matchedOrder.email) ? `?contact=${encodeURIComponent((contact || matchedOrder.phone || matchedOrder.email).trim())}` : ""}`}
+                      target="_blank"
+                      className="rounded-full border border-rose-300 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-900 hover:bg-rose-100 transition-colors inline-flex items-center gap-1.5 shadow-sm"
+                    >
+                      <svg className="w-3.5 h-3.5 text-rose-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span>GST Credit Note ↗</span>
+                    </Link>
+                  ) : matchedOrder.balanceDueRupees > 0 &&
+                    (matchedOrder.mode === "MADE_TO_ORDER" || Boolean(matchedOrder.quoteNumber)) ? (
+                    /* Made to Order with balance due: Tax Invoice is withheld until 100% payment */
+                    null
+                  ) : (
+                    <Link
+                      href={`/orders/${encodeURIComponent(matchedOrder.id)}/invoice${(contact || matchedOrder.phone || matchedOrder.email) ? `?contact=${encodeURIComponent((contact || matchedOrder.phone || matchedOrder.email).trim())}` : ""}`}
+                      target="_blank"
+                      className="rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2 text-xs font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors inline-flex items-center gap-1.5 shadow-sm"
+                    >
+                      <svg className="w-3.5 h-3.5 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span>GST Tax Invoice ↗</span>
+                    </Link>
+                  )}
                 </div>
               </div>
 
