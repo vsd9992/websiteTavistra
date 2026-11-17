@@ -16,6 +16,7 @@ import {
   validateIndianMobile,
   validateEmail,
   validateGstin,
+  lookupPincode,
   ShippingCalculationResult,
 } from "@tavistra/shared";
 
@@ -67,6 +68,24 @@ function CheckoutContent() {
     phone?: boolean;
     email?: boolean;
     address1?: boolean;
+  }>({});
+
+  // Separate Billing Address State
+  const [isBillingSameAsShipping, setIsBillingSameAsShipping] = useState(true);
+  const [billingCustomer, setBillingCustomer] = useState({
+    fullName: "",
+    phone: "",
+    address1: "",
+    address2: "",
+    city: "",
+    state: "Delhi",
+    pincode: "",
+  });
+  const [billingTouched, setBillingTouched] = useState<{
+    fullName?: boolean;
+    phone?: boolean;
+    address1?: boolean;
+    pincode?: boolean;
   }>({});
 
   const [shippingResult, setShippingResult] = useState<ShippingCalculationResult | null>(null);
@@ -186,6 +205,31 @@ function CheckoutContent() {
   const isPinValid = customer.pincode.trim().length === 6 && shippingResult !== null && !pinError;
   const isGstinValid = !customer.gstin.trim() || gstinValidation.isValid;
 
+  // Billing Address Validations
+  const billingMobileValidation = validateIndianMobile(billingCustomer.phone);
+  const isBillingNameValid = isBillingSameAsShipping || billingCustomer.fullName.trim().length >= 2;
+  const isBillingAddressValid = isBillingSameAsShipping || billingCustomer.address1.trim().length >= 5;
+  const isBillingCityValid = isBillingSameAsShipping || billingCustomer.city.trim().length >= 2;
+  const isBillingStateValid = isBillingSameAsShipping || billingCustomer.state.trim().length >= 2;
+  const isBillingPinValid = isBillingSameAsShipping || /^\d{6}$/.test(billingCustomer.pincode.trim());
+  const isBillingPhoneValid = isBillingSameAsShipping || billingMobileValidation.isValid;
+
+  // Auto-fill city & state for separate billing address
+  useEffect(() => {
+    if (isBillingSameAsShipping) return;
+    const cleanPin = billingCustomer.pincode.replace(/\s+/g, "");
+    if (/^\d{6}$/.test(cleanPin)) {
+      const pinInfo = lookupPincode(cleanPin);
+      if (pinInfo) {
+        setBillingCustomer((prev) => ({
+          ...prev,
+          city: pinInfo.city || prev.city,
+          state: pinInfo.state || prev.state,
+        }));
+      }
+    }
+  }, [billingCustomer.pincode, isBillingSameAsShipping]);
+
   // Check live system maintenance status
   useEffect(() => {
     fetch("/api/settings")
@@ -209,6 +253,12 @@ function CheckoutContent() {
     isStateValid &&
     isPinValid &&
     isGstinValid &&
+    isBillingNameValid &&
+    isBillingAddressValid &&
+    isBillingCityValid &&
+    isBillingStateValid &&
+    isBillingPinValid &&
+    isBillingPhoneValid &&
     !bulkCheck.isBulkEnquiryRequired;
 
   const handleBlur = (field: "fullName" | "phone" | "email" | "address1") => {
@@ -382,6 +432,14 @@ function CheckoutContent() {
         email: true,
         address1: true,
       });
+      if (!isBillingSameAsShipping) {
+        setBillingTouched({
+          fullName: true,
+          phone: true,
+          address1: true,
+          pincode: true,
+        });
+      }
       return;
     }
 
@@ -438,6 +496,17 @@ function CheckoutContent() {
       city: customer.city.trim(),
       state: customer.state.trim(),
       destinationPin: customer.pincode,
+      billingAddress: isBillingSameAsShipping
+        ? null
+        : {
+            fullName: billingCustomer.fullName.trim(),
+            phone: billingMobileValidation.normalizedPhone || billingCustomer.phone.trim(),
+            addressLine1: billingCustomer.address1.trim(),
+            addressLine2: billingCustomer.address2.trim() || undefined,
+            city: billingCustomer.city.trim(),
+            state: billingCustomer.state.trim(),
+            pincode: billingCustomer.pincode.trim(),
+          },
       gstin: gstinValidation.normalizedGstin || undefined,
       items: activeItems.map((item) => ({
         productId: item.product.id,
@@ -1180,6 +1249,150 @@ function CheckoutContent() {
                 </div>
               </div>
             )}
+
+            {/* Separate Billing Address Selection */}
+            <div className="pt-4 border-t border-[var(--color-decorative-border)] space-y-3">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isBillingSameAsShipping}
+                  onChange={(e) => setIsBillingSameAsShipping(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded accent-[var(--color-ink)] cursor-pointer"
+                />
+                <div>
+                  <span className="text-xs font-semibold text-[var(--color-ink)] block">
+                    Billing address is the same as delivery address
+                  </span>
+                  <span className="text-[11px] text-[var(--color-muted-light)] block">
+                    Uncheck to provide a separate registered billing address for your GST Tax Invoice and accounting records.
+                  </span>
+                </div>
+              </label>
+
+              {!isBillingSameAsShipping && (
+                <div className="rounded-xl border border-[var(--color-decorative-border)] bg-[var(--color-canvas)] p-5 space-y-4 mt-2">
+                  <div className="border-b border-[var(--color-decorative-border)] pb-2.5">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-bronze)] block">
+                      Tax Invoice Billing Address
+                    </span>
+                    <span className="text-[11px] text-[var(--color-muted-light)] block">
+                      This address will be printed under &quot;Billed To&quot; on your official statutory GST Tax Invoice.
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
+                        Billing Legal Name *
+                      </label>
+                      <input
+                        required
+                        type="text"
+                        value={billingCustomer.fullName}
+                        onChange={(e) => setBillingCustomer({ ...billingCustomer, fullName: e.target.value })}
+                        placeholder="e.g. Acme Architecture Pvt Ltd"
+                        className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                      />
+                      {billingTouched.fullName && !isBillingNameValid && (
+                        <p className="text-[10px] text-red-600 font-medium mt-1">⚠ Legal name is required (min 2 chars).</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
+                        Billing Mobile / Phone *
+                      </label>
+                      <input
+                        required
+                        type="tel"
+                        value={billingCustomer.phone}
+                        onChange={(e) => setBillingCustomer({ ...billingCustomer, phone: e.target.value })}
+                        placeholder="10-digit mobile"
+                        className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono"
+                      />
+                      {billingTouched.phone && !isBillingPhoneValid && (
+                        <p className="text-[10px] text-red-600 font-medium mt-1">⚠ Valid 10-digit mobile required.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
+                      Billing PIN Code *
+                    </label>
+                    <input
+                      required
+                      type="text"
+                      maxLength={6}
+                      value={billingCustomer.pincode}
+                      onChange={(e) => setBillingCustomer({ ...billingCustomer, pincode: e.target.value.replace(/\D/g, "") })}
+                      placeholder="6-digit Indian PIN code"
+                      className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)] font-mono"
+                    />
+                    {billingTouched.pincode && !isBillingPinValid && (
+                      <p className="text-[10px] text-red-600 font-medium mt-1">⚠ 6-digit PIN code required.</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
+                      Billing Address Line 1 *
+                    </label>
+                    <input
+                      required
+                      type="text"
+                      value={billingCustomer.address1}
+                      onChange={(e) => setBillingCustomer({ ...billingCustomer, address1: e.target.value })}
+                      placeholder="e.g. Unit 302, DLF Cyber City"
+                      className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                    />
+                    {billingTouched.address1 && !isBillingAddressValid && (
+                      <p className="text-[10px] text-red-600 font-medium mt-1">⚠ Address is required (min 5 chars).</p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
+                        Address Line 2
+                      </label>
+                      <input
+                        type="text"
+                        value={billingCustomer.address2}
+                        onChange={(e) => setBillingCustomer({ ...billingCustomer, address2: e.target.value })}
+                        placeholder="e.g. Phase 2"
+                        className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
+                        City *
+                      </label>
+                      <input
+                        required
+                        type="text"
+                        value={billingCustomer.city}
+                        onChange={(e) => setBillingCustomer({ ...billingCustomer, city: e.target.value })}
+                        placeholder="City"
+                        className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted-light)] mb-1.5">
+                        State *
+                      </label>
+                      <input
+                        required
+                        type="text"
+                        value={billingCustomer.state}
+                        onChange={(e) => setBillingCustomer({ ...billingCustomer, state: e.target.value })}
+                        placeholder="State"
+                        className="w-full rounded-xl border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-4 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink)]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Optional GSTIN for corporate architects */}
             <div className="pt-4 border-t border-[var(--color-decorative-border)]">

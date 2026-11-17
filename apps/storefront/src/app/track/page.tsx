@@ -98,6 +98,19 @@ function TrackOrderContent() {
     }
   }, [initialOrderId, initialContact]);
 
+  const handleResetSearch = () => {
+    setOrderId("");
+    setContact("");
+    setMatchedOrder(null);
+    setSearched(false);
+    setSearchError(null);
+    setPaymentSuccessMessage(null);
+    setPaymentErrorMessage(null);
+    if (typeof window !== "undefined") {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  };
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!orderId.trim()) {
@@ -205,13 +218,24 @@ function TrackOrderContent() {
             </p>
           )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-full bg-[var(--color-ink)] py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm disabled:opacity-50"
-          >
-            {loading ? "Searching Authoritative Records..." : "Find Order & Delivery Status"}
-          </button>
+          <div className="flex flex-col sm:flex-row items-center gap-3 pt-1">
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 w-full rounded-full bg-[var(--color-ink)] py-3 text-xs font-semibold text-[var(--color-canvas)] hover:bg-[var(--color-charcoal)] transition-colors shadow-sm disabled:opacity-50"
+            >
+              {loading ? "Searching Authoritative Records..." : "Find Order & Delivery Status"}
+            </button>
+            {(orderId || contact || searched) && (
+              <button
+                type="button"
+                onClick={handleResetSearch}
+                className="w-full sm:w-auto px-5 py-3 rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] text-xs font-semibold text-[var(--color-muted-light)] hover:text-[var(--color-ink)] hover:border-[var(--color-ink)] transition-colors text-center"
+              >
+                Reset / Clear Form
+              </button>
+            )}
+          </div>
         </form>
 
         {/* Support Ticket Cross Link Banner */}
@@ -235,6 +259,13 @@ function TrackOrderContent() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-[var(--color-decorative-border)] gap-4">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={handleResetSearch}
+                      className="rounded-full border border-[var(--color-control-border)] bg-[var(--color-ivory)] px-3 py-1 text-[11px] font-semibold text-[var(--color-ink)] hover:bg-[var(--color-stone)] transition-colors mr-2 inline-flex items-center gap-1"
+                    >
+                      ← Search Another Order
+                    </button>
                     <span className="font-mono text-sm font-bold text-[var(--color-ink)]">
                       {matchedOrder.id}
                     </span>

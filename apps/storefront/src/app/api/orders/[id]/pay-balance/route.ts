@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, OrderStatus } from "@tavistra/db";
 import { sendBalancePaymentClearedEmail } from "@/lib/email";
+import { sendOrderTaxInvoiceEmailWithPdf } from "@/lib/sendInvoiceHelper";
 import { deriveOrderStatusPresentation } from "@/lib/orderStatus";
 
 export async function POST(
@@ -103,6 +104,11 @@ export async function POST(
       amountPaidRupees: balanceDue,
       totalAmountRupees: Number(updatedOrder.totalAmount),
     }).catch((err) => console.warn("Balance payment email dispatch error:", err));
+
+    // Auto-dispatch official statutory Tax Invoice with attached PDF copy upon 100% balance clearance
+    sendOrderTaxInvoiceEmailWithPdf(updatedOrder.id).catch((err) =>
+      console.warn("Auto-dispatch tax invoice email with PDF error:", err)
+    );
 
     return NextResponse.json({
       success: true,

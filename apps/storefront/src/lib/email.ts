@@ -31,22 +31,35 @@ const transporter = nodemailer.createTransport({
     : undefined,
 });
 
-async function sendTavistraMail(opts: { to: string; subject: string; html: string }) {
+async function sendTavistraMail(opts: {
+  to: string;
+  subject: string;
+  html: string;
+  attachments?: {
+    filename: string;
+    content?: Buffer | string;
+    path?: string;
+    cid?: string;
+    contentType?: string;
+  }[];
+}) {
   const logoPath = resolveTavistraLogoPath();
+  const defaultAttachments = logoPath
+    ? [
+        {
+          filename: "logo-name.png",
+          path: logoPath,
+          cid: "tavistra-logo",
+        },
+      ]
+    : [];
+
   return transporter.sendMail({
     from: smtpFrom,
     to: opts.to,
     subject: opts.subject,
     html: opts.html,
-    attachments: logoPath
-      ? [
-          {
-            filename: "logo-name.png",
-            path: logoPath,
-            cid: "tavistra-logo",
-          },
-        ]
-      : undefined,
+    attachments: [...defaultAttachments, ...(opts.attachments || [])],
   });
 }
 
@@ -962,6 +975,8 @@ export async function sendTaxInvoiceOrCreditNoteEmail(params: {
   itemsSummary: string;
   invoiceUrl: string;
   trackingUrl: string;
+  pdfBuffer?: Buffer;
+  pdfFileName?: string;
 }) {
   const {
     orderNumber,
@@ -973,67 +988,62 @@ export async function sendTaxInvoiceOrCreditNoteEmail(params: {
     itemsSummary,
     invoiceUrl,
     trackingUrl,
+    pdfBuffer,
+    pdfFileName,
   } = params;
 
   const docTitle =
     documentType === "CREDIT_NOTE"
-      ? "Statutory GST Credit Note"
+      ? "Credit Note"
       : documentType === "ADVANCE_RECEIPT"
-      ? "Statutory Advance Receipt Voucher"
-      : "Statutory GST Tax Invoice";
-
-  const docRule =
-    documentType === "CREDIT_NOTE"
-      ? "Section 34(1) · Rule 53 · CGST Rules, 2017"
-      : documentType === "ADVANCE_RECEIPT"
-      ? "Section 31(3)(d) · CGST Act, 2017"
-      : "Rule 46 · CGST Rules, 2017";
+      ? "Advance Receipt Voucher"
+      : "Tax Invoice";
 
   const bodyContent = `
     <p>Dear ${customerName},</p>
     <p>
-      Please find below the official statutory document for your acquisition record <strong style="font-family: monospace;">${orderNumber}</strong> issued by <strong>VDesign</strong> (Trade Name: <strong>Tavistra</strong>).
+      Please find attached a PDF copy of your official <strong>${docTitle}</strong> for acquisition record <strong style="font-family: monospace;">${orderNumber}</strong> issued by <strong>VDesign</strong> (Trade Name: <strong>Tavistra</strong>).
     </p>
 
     <div class="card" style="margin: 20px 0;">
       <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #8e6c46; font-weight: bold; margin-bottom: 8px;">
-        ${docTitle} Details
+        ${docTitle} Summary
       </div>
       <div class="ledger-row">
-        <span>Document Reference Number:</span>
+        <span>Document Number:</span>
         <strong style="font-family: monospace;">${documentNumber}</strong>
-      </div>
-      <div class="ledger-row">
-        <span>Statutory Authority:</span>
-        <span>${docRule}</span>
       </div>
       <div class="ledger-row">
         <span>Order Reference:</span>
         <strong style="font-family: monospace;">${orderNumber}</strong>
       </div>
       <div class="ledger-row">
-        <span>Associated Objects:</span>
+        <span>Acquisition Pieces:</span>
         <span>${itemsSummary}</span>
       </div>
       <div class="ledger-row total">
-        <span>${documentType === "CREDIT_NOTE" ? "Credited / Refunded Value:" : "Total Document Value (GST Incl.):"}</span>
+        <span>${documentType === "CREDIT_NOTE" ? "Credited / Refunded Value:" : "Total Amount (Tax Incl.):"}</span>
         <span>₹${totalAmountRupees.toLocaleString("en-IN")}</span>
       </div>
     </div>
 
-    <div style="text-align: center; margin: 28px 0 12px 0;">
+    <p style="font-size: 12px; color: #5a574f;">
+      A PDF copy is attached directly to this email for your accounting and record keeping.
+    </p>
+
+    <div style="text-align: center; margin: 24px 0 12px 0;">
       <a href="${invoiceUrl}" class="btn" style="background-color: #141412; margin-bottom: 8px;">
-        View &amp; Print Official Document ↗
+        View Digital Document Online ↗
       </a>
       <div style="margin-top: 8px;">
         <a href="${trackingUrl}" style="font-size: 12px; color: #8e6c46; text-decoration: underline;">
-          Track Live Order Status &amp; Milestones →
+          Track Live Consignment Milestones →
         </a>
       </div>
     </div>
 
     <div style="margin-top: 24px; padding: 12px; background-color: #f9f8f5; border-radius: 6px; font-size: 10px; color: #726e64; line-height: 1.5;">
-      <strong>Electronic Document Authentication:</strong> This is a computer-generated statutory electronic document issued in accordance with Rule 46 / Rule 53 of the CGST Rules, 2017 and the Information Technology Act, 2000. No physical or digital signature is required.
+      <strong>Electronic Document:</strong> This is an authoritative system-generated electronic document. No physical signature is required.
     </div>
   `;
 
@@ -1047,6 +1057,15 @@ export async function sendTaxInvoiceOrCreditNoteEmail(params: {
     to: customerEmail,
     subject: `[Tavistra] ${docTitle} — ${documentNumber} (Order #${orderNumber})`,
     html,
+    attachments: pdfBuffer
+      ? [
+          {
+            filename: pdfFileName || `${documentNumber}.pdf`,
+            content: pdfBuffer,
+            contentType: "application/pdf",
+          },
+        ]
+      : undefined,
   });
 }
 

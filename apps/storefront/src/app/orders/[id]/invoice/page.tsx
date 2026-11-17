@@ -47,6 +47,7 @@ async function InvoiceContent({ params, searchParams }: InvoicePageProps) {
         },
       },
       shippingAddress: true,
+      billingAddress: true,
       user: true,
       payments: true,
     },
@@ -219,7 +220,7 @@ async function InvoiceContent({ params, searchParams }: InvoicePageProps) {
             <span>ℹ</span> Advance Receipt Voucher (75% Balance Pending)
           </strong>
           <p className="leading-relaxed">
-            This voucher acknowledges your 25% production advance (₹{amountPaidNum.toLocaleString("en-IN")}). In accordance with Section 31(1) of the CGST Act, 2017, the final statutory GST Tax Invoice is generated once 100% payment (remaining ₹{balanceDueNum.toLocaleString("en-IN")}) is completed prior to dispatch.
+            This voucher acknowledges your 25% production advance (₹{amountPaidNum.toLocaleString("en-IN")}). The final official GST Tax Invoice is generated once 100% payment (remaining ₹{balanceDueNum.toLocaleString("en-IN")}) is completed prior to dispatch.
           </p>
         </div>
       )}
@@ -228,10 +229,10 @@ async function InvoiceContent({ params, searchParams }: InvoicePageProps) {
       {isCancelled && (
         <div className="mx-auto max-w-4xl mb-4 rounded-xl border border-rose-300 bg-rose-50 p-4 text-xs text-rose-950 print:hidden space-y-1">
           <strong className="font-semibold flex items-center gap-1.5 text-rose-900">
-            <span>✓</span> Official Statutory Credit Note (100% Refund Issued)
+            <span>✓</span> Official Credit Note (100% Refund Issued)
           </strong>
           <p className="leading-relaxed">
-            This statutory GST Credit Note has been issued for order cancellation and full refund under Section 34(1) of the CGST Act, 2017.
+            This official GST Credit Note has been issued for order cancellation and full 100% refund.
           </p>
         </div>
       )}
@@ -273,9 +274,6 @@ async function InvoiceContent({ params, searchParams }: InvoicePageProps) {
               >
                 {docBadge}
               </span>
-              <span className="block text-[9px] text-neutral-500 uppercase tracking-wider">
-                {docRule}
-              </span>
               <div className="pt-2 font-mono text-[11px] space-y-1">
                 <div>
                   {isCancelled ? "Credit Note No:" : isMtoPending ? "Voucher No:" : "Invoice No:"}{" "}
@@ -293,7 +291,7 @@ async function InvoiceContent({ params, searchParams }: InvoicePageProps) {
                 </div>
                 {isCancelled && (
                   <div className="text-[10px] text-rose-800 font-semibold pt-1">
-                    Reason: Order Cancellation &amp; 100% Refund (Sec 34 CGST)
+                    Reason: Order Cancellation &amp; 100% Refund
                   </div>
                 )}
                 <div>Reverse Charge: <strong>No</strong></div>
@@ -309,7 +307,7 @@ async function InvoiceContent({ params, searchParams }: InvoicePageProps) {
               Billed To (Client / Studio):
             </span>
             <div className="font-bold text-neutral-900 text-sm">
-              {order.shippingAddress.fullName}
+              {(order.billingAddress || order.shippingAddress).fullName}
             </div>
             {order.user?.practiceOrStudio && (
               <div className="text-[11px] font-semibold text-neutral-700">
@@ -317,14 +315,14 @@ async function InvoiceContent({ params, searchParams }: InvoicePageProps) {
               </div>
             )}
             <div className="text-neutral-700">
-              {order.shippingAddress.addressLine1}
-              {order.shippingAddress.addressLine2 ? `, ${order.shippingAddress.addressLine2}` : ""}
+              {(order.billingAddress || order.shippingAddress).addressLine1}
+              {(order.billingAddress || order.shippingAddress).addressLine2 ? `, ${(order.billingAddress || order.shippingAddress).addressLine2}` : ""}
             </div>
             <div className="text-neutral-700">
-              {order.shippingAddress.city}, {order.shippingAddress.state} — {order.shippingAddress.pincode}
+              {(order.billingAddress || order.shippingAddress).city}, {(order.billingAddress || order.shippingAddress).state} — {(order.billingAddress || order.shippingAddress).pincode}
             </div>
             <div className="text-neutral-600 font-mono text-[11px] pt-1">
-              Phone: {order.shippingAddress.phone} | Email: {order.customerEmail}
+              Phone: {(order.billingAddress || order.shippingAddress).phone} | Email: {order.customerEmail}
             </div>
             {order.user?.gstin && (
               <div className="font-mono text-[11px] font-bold text-neutral-900 pt-0.5">
@@ -560,8 +558,8 @@ async function InvoiceContent({ params, searchParams }: InvoicePageProps) {
             <p className="font-semibold text-neutral-700">Declaration &amp; Warranty Conditions:</p>
             <p>
               {isCancelled
-                ? "We declare that this Credit Note shows the actual reduction in output tax liability and credit value as per Section 34 of the CGST Act, 2017. All credits have been verified."
-                : "We declare that this invoice shows the actual price of the goods and services described and that all particulars are true and correct. All products are covered by Tavistra master artisanal guarantee."}
+                ? "We declare that this Credit Note shows the actual reduction in invoice value and credit amount. All credits have been verified."
+                : "We declare that this invoice shows the actual price of the goods and services described and that all particulars are true and correct. All products are covered by Tavistra artisanal warranty."}
             </p>
           </div>
 
@@ -573,7 +571,7 @@ async function InvoiceContent({ params, searchParams }: InvoicePageProps) {
               <strong className="block text-neutral-800 font-mono uppercase text-[9px] mb-0.5">
                 Electronic Document Authentication
               </strong>
-              This is a computer-generated electronic document issued in accordance with Rule 46 / Rule 53 of the CGST Rules, 2017 and the Information Technology Act, 2000. No physical or digital signature is required.
+              Electronic Document: This is an authoritative system-generated electronic document. No physical signature is required.
             </div>
           </div>
         </div>

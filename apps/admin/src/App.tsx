@@ -158,6 +158,26 @@ export default function App() {
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [settingsSaveSuccess, setSettingsSaveSuccess] = useState(false);
 
+  // Invoice Seller Legal Entity Configuration State
+  const [sellerDetails, setSellerDetails] = useState({
+    legalEntityName: "VDesign",
+    brandName: "Tavistra",
+    businessUnitLine: "A business unit of VDesign",
+    tagline: "Design-led lifestyle & architectural décor",
+    registeredAddressLine1: "New Delhi Design Studio, Okhla Industrial Area Phase III",
+    city: "New Delhi",
+    state: "Delhi",
+    stateCode: "07",
+    pincode: "110045",
+    country: "India",
+    gstin: "07AAAFV1234A1Z5",
+    pan: "AAAFV1234A",
+    supportEmail: "support@tavistra.com",
+    deskHours: "Mon – Fri, 10:00 AM – 5:00 PM IST",
+  });
+  const [isSavingSellerDetails, setIsSavingSellerDetails] = useState(false);
+  const [sellerDetailsSaveSuccess, setSellerDetailsSaveSuccess] = useState(false);
+
   // Search & Filters
   const [orderSearch, setOrderSearch] = useState("");
   const [modeFilter, setModeFilter] = useState<"ALL" | "READY_STOCK" | "MADE_TO_ORDER">("ALL");
@@ -238,13 +258,22 @@ export default function App() {
       fetchJson<{ pincodes?: PincodeEntry[] }>("/api/admin/pincodes").then((d) => {
         if (Array.isArray(d.pincodes)) setPincodes(d.pincodes);
       }),
-      fetchJson<{ maintenanceMode?: boolean; studioHiatus?: boolean; announcementBanner?: string }>("/api/admin/settings").then(
-        (d) => {
-          if (typeof d.maintenanceMode === "boolean") setMaintenanceMode(d.maintenanceMode);
-          if (typeof d.studioHiatus === "boolean") setStudioHiatus(d.studioHiatus);
-          if (d.announcementBanner) setAnnouncementBanner(d.announcementBanner);
+      fetchJson<{
+        maintenanceMode?: boolean;
+        studioHiatus?: boolean;
+        announcementBanner?: string;
+        settings?: Record<string, string>;
+      }>("/api/admin/settings").then((d) => {
+        if (typeof d.maintenanceMode === "boolean") setMaintenanceMode(d.maintenanceMode);
+        if (typeof d.studioHiatus === "boolean") setStudioHiatus(d.studioHiatus);
+        if (d.announcementBanner) setAnnouncementBanner(d.announcementBanner);
+        if (d.settings?.["INVOICE_SELLER_DETAILS"]) {
+          try {
+            const parsed = JSON.parse(d.settings["INVOICE_SELLER_DETAILS"]);
+            setSellerDetails((prev) => ({ ...prev, ...parsed }));
+          } catch {}
         }
-      ),
+      }),
       fetchJson<{ proposals?: AdminProposal[] }>("/api/quotes").then((d) => {
         if (Array.isArray(d.proposals)) setProposals(d.proposals);
       }),
@@ -990,6 +1019,31 @@ export default function App() {
       alert(`Failed to save announcement banner: ${(err as Error).message}`);
     } finally {
       setIsSavingSettings(false);
+    }
+  };
+
+  // Save Legal Entity & Statutory GST Invoice Configuration with DB synchronization
+  const handleSaveSellerDetails = async () => {
+    if (!isActionPermitted(currentStaff.role, "SETTINGS_MUTATE")) {
+      alert(`Unauthorized: Role '${currentStaff.role}' cannot update legal invoice configuration. Requires Super Admin.`);
+      return;
+    }
+    setIsSavingSellerDetails(true);
+    setSellerDetailsSaveSuccess(false);
+    try {
+      await updateSystemSetting("INVOICE_SELLER_DETAILS", JSON.stringify(sellerDetails));
+      logAuditAction(
+        "INVOICE_SELLER_DETAILS_UPDATE",
+        "SystemSetting",
+        "INVOICE_SELLER_DETAILS",
+        `Updated legal entity (${sellerDetails.legalEntityName}), brand (${sellerDetails.brandName}) & GSTIN (${sellerDetails.gstin}) for tax documents`
+      );
+      setSellerDetailsSaveSuccess(true);
+      setTimeout(() => setSellerDetailsSaveSuccess(false), 3000);
+    } catch (err) {
+      alert(`Failed to save invoice seller details: ${(err as Error).message}`);
+    } finally {
+      setIsSavingSellerDetails(false);
     }
   };
 
@@ -2954,13 +3008,184 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Card 4: Brand & Entity Attribution */}
-              <div className="p-6 rounded-2xl bg-[#1c1c20] border border-[#2e2e34] space-y-3">
-                <h3 className="font-semibold text-sm text-white">Brand Entity Attribution</h3>
-                <div className="p-3.5 rounded-xl bg-[#24242a] border border-[#2e2e34] space-y-1 text-xs">
-                  <p className="text-white font-semibold">Brand: Tavistra</p>
-                  <p className="text-[#c59b6d]">Parent Entity: VDesign (Strictly, never 'VDesign Studio')</p>
-                  <p className="text-[11px] text-[#9e9ea8]">Prohibited terminology: 'Commission'</p>
+              {/* Card 4: Legal Entity & Statutory GST Invoice Configuration */}
+              <div className="md:col-span-2 p-6 rounded-2xl bg-[#1c1c20] border border-[#2e2e34] space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#2e2e34] pb-3 gap-2">
+                  <div>
+                    <h3 className="font-semibold text-sm text-white flex items-center gap-2">
+                      <span>Legal Entity &amp; Statutory GST Invoice Configuration</span>
+                      <span className="text-[10px] bg-[#c59b6d]/20 text-[#c59b6d] px-2 py-0.5 rounded font-mono">
+                        Rule 46 &amp; Rule 53 Compliant
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-[#9e9ea8]">
+                      Authoritative legal details printed on customer GST Tax Invoices, Credit Notes, and statutory PDF downloads.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleSaveSellerDetails}
+                    disabled={isSavingSellerDetails}
+                    className="px-5 py-2 rounded-xl bg-[#c59b6d] text-[#121214] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors disabled:opacity-50 shrink-0 shadow-sm"
+                  >
+                    {isSavingSellerDetails ? "Saving..." : sellerDetailsSaveSuccess ? "Saved to Database ✓" : "Save Legal Details"}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                  <div>
+                    <label className="text-[11px] text-[#9e9ea8] font-medium block mb-1">
+                      Legal Entity Name (Registered)
+                    </label>
+                    <input
+                      type="text"
+                      value={sellerDetails.legalEntityName}
+                      onChange={(e) => setSellerDetails({ ...sellerDetails, legalEntityName: e.target.value })}
+                      className="w-full rounded-xl border border-[#3e3e46] bg-[#16161a] px-3 py-2 text-white placeholder-[#6e6e76] focus:border-[#c59b6d] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-[#9e9ea8] font-medium block mb-1">
+                      Brand / Trade Name
+                    </label>
+                    <input
+                      type="text"
+                      value={sellerDetails.brandName}
+                      onChange={(e) => setSellerDetails({ ...sellerDetails, brandName: e.target.value })}
+                      className="w-full rounded-xl border border-[#3e3e46] bg-[#16161a] px-3 py-2 text-white placeholder-[#6e6e76] focus:border-[#c59b6d] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-[#9e9ea8] font-medium block mb-1">
+                      Business Unit Relationship Line
+                    </label>
+                    <input
+                      type="text"
+                      value={sellerDetails.businessUnitLine}
+                      onChange={(e) => setSellerDetails({ ...sellerDetails, businessUnitLine: e.target.value })}
+                      className="w-full rounded-xl border border-[#3e3e46] bg-[#16161a] px-3 py-2 text-white placeholder-[#6e6e76] focus:border-[#c59b6d] focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-xs">
+                  <div>
+                    <label className="text-[11px] text-[#9e9ea8] font-medium block mb-1">
+                      GSTIN (15-Character)
+                    </label>
+                    <input
+                      type="text"
+                      value={sellerDetails.gstin}
+                      onChange={(e) => setSellerDetails({ ...sellerDetails, gstin: e.target.value.toUpperCase() })}
+                      className="w-full rounded-xl border border-[#3e3e46] bg-[#16161a] px-3 py-2 text-white font-mono placeholder-[#6e6e76] focus:border-[#c59b6d] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-[#9e9ea8] font-medium block mb-1">
+                      Permanent Account Number (PAN)
+                    </label>
+                    <input
+                      type="text"
+                      value={sellerDetails.pan}
+                      onChange={(e) => setSellerDetails({ ...sellerDetails, pan: e.target.value.toUpperCase() })}
+                      className="w-full rounded-xl border border-[#3e3e46] bg-[#16161a] px-3 py-2 text-white font-mono placeholder-[#6e6e76] focus:border-[#c59b6d] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-[#9e9ea8] font-medium block mb-1">
+                      Support Email
+                    </label>
+                    <input
+                      type="text"
+                      value={sellerDetails.supportEmail}
+                      onChange={(e) => setSellerDetails({ ...sellerDetails, supportEmail: e.target.value })}
+                      className="w-full rounded-xl border border-[#3e3e46] bg-[#16161a] px-3 py-2 text-white placeholder-[#6e6e76] focus:border-[#c59b6d] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-[#9e9ea8] font-medium block mb-1">
+                      Support Desk Hours
+                    </label>
+                    <input
+                      type="text"
+                      value={sellerDetails.deskHours}
+                      onChange={(e) => setSellerDetails({ ...sellerDetails, deskHours: e.target.value })}
+                      className="w-full rounded-xl border border-[#3e3e46] bg-[#16161a] px-3 py-2 text-white placeholder-[#6e6e76] focus:border-[#c59b6d] focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-xs">
+                  <div className="sm:col-span-2">
+                    <label className="text-[11px] text-[#9e9ea8] font-medium block mb-1">
+                      Registered Address Line 1
+                    </label>
+                    <input
+                      type="text"
+                      value={sellerDetails.registeredAddressLine1}
+                      onChange={(e) => setSellerDetails({ ...sellerDetails, registeredAddressLine1: e.target.value })}
+                      className="w-full rounded-xl border border-[#3e3e46] bg-[#16161a] px-3 py-2 text-white placeholder-[#6e6e76] focus:border-[#c59b6d] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-[#9e9ea8] font-medium block mb-1">
+                      City
+                    </label>
+                    <input
+                      type="text"
+                      value={sellerDetails.city}
+                      onChange={(e) => setSellerDetails({ ...sellerDetails, city: e.target.value })}
+                      className="w-full rounded-xl border border-[#3e3e46] bg-[#16161a] px-3 py-2 text-white placeholder-[#6e6e76] focus:border-[#c59b6d] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-[#9e9ea8] font-medium block mb-1">
+                      PIN Code
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={sellerDetails.pincode}
+                      onChange={(e) => setSellerDetails({ ...sellerDetails, pincode: e.target.value })}
+                      className="w-full rounded-xl border border-[#3e3e46] bg-[#16161a] px-3 py-2 text-white font-mono placeholder-[#6e6e76] focus:border-[#c59b6d] focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                  <div>
+                    <label className="text-[11px] text-[#9e9ea8] font-medium block mb-1">
+                      State Name
+                    </label>
+                    <input
+                      type="text"
+                      value={sellerDetails.state}
+                      onChange={(e) => setSellerDetails({ ...sellerDetails, state: e.target.value })}
+                      className="w-full rounded-xl border border-[#3e3e46] bg-[#16161a] px-3 py-2 text-white placeholder-[#6e6e76] focus:border-[#c59b6d] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-[#9e9ea8] font-medium block mb-1">
+                      GST State Code (e.g. 07 for Delhi)
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={2}
+                      value={sellerDetails.stateCode}
+                      onChange={(e) => setSellerDetails({ ...sellerDetails, stateCode: e.target.value })}
+                      className="w-full rounded-xl border border-[#3e3e46] bg-[#16161a] px-3 py-2 text-white font-mono placeholder-[#6e6e76] focus:border-[#c59b6d] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-[#9e9ea8] font-medium block mb-1">
+                      Country
+                    </label>
+                    <input
+                      type="text"
+                      value={sellerDetails.country}
+                      onChange={(e) => setSellerDetails({ ...sellerDetails, country: e.target.value })}
+                      className="w-full rounded-xl border border-[#3e3e46] bg-[#16161a] px-3 py-2 text-white placeholder-[#6e6e76] focus:border-[#c59b6d] focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
             </div>

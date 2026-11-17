@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@tavistra/db";
 import { getAuthenticatedUser } from "@/lib/auth";
 import { deriveDocumentNumbers } from "@/lib/invoiceUtils";
-import { sendTaxInvoiceOrCreditNoteEmail } from "@/lib/email";
+import { sendOrderTaxInvoiceEmailWithPdf } from "@/lib/sendInvoiceHelper";
 
 export async function POST(
   request: NextRequest,
@@ -23,11 +23,6 @@ export async function POST(
         OR: [{ id: cleanId }, { orderNumber: cleanId.toUpperCase() }],
       },
       include: {
-        items: {
-          include: {
-            product: true,
-          },
-        },
         shippingAddress: true,
       },
     });
@@ -71,37 +66,17 @@ export async function POST(
       ? docNumbers.receiptVoucherNumber
       : docNumbers.invoiceNumber;
 
-    const totalAmountRupees = isCancelled
-      ? Number(order.amountPaid)
-      : Number(order.totalAmount);
-
-    const itemsSummary = order.items
-      .map((item) => `${item.product.title} (×${item.quantity})`)
-      .join(", ");
-
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://tavistra.com";
-    const invoiceUrl = `${appUrl}/orders/${encodeURIComponent(order.orderNumber)}/invoice?contact=${encodeURIComponent(order.customerEmail)}`;
-    const trackingUrl = `${appUrl}/track?orderId=${encodeURIComponent(order.orderNumber)}&contact=${encodeURIComponent(order.customerEmail)}`;
-
-    await sendTaxInvoiceOrCreditNoteEmail({
-      orderNumber: order.orderNumber,
-      customerName: order.shippingAddress.fullName,
-      customerEmail: order.customerEmail,
-      customerPhone: order.customerPhone,
-      documentType,
-      documentNumber,
-      totalAmountRupees,
-      itemsSummary,
-      invoiceUrl,
-      trackingUrl,
-    });
+    const sent = await sendOrderTaxInvoiceEmailWithPdf(order.id);
+    if (!sent) {
+      throw new Error("PDF generator or email transport failed.");
+    }
 
     return NextResponse.json({
       success: true,
       email: order.customerEmail,
       documentType,
       documentNumber,
-      message: `Document dispatched to ${order.customerEmail}`,
+      message: `Document with attached statutory PDF dispatched to ${order.customerEmail}`,
     });
   } catch (error) {
     console.error("POST /api/orders/[id]/email-invoice error:", error);

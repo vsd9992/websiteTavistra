@@ -149,7 +149,8 @@ model CustomerAddress {
   updatedAt     DateTime        @updatedAt @default(now())
 
   user          User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
-  orders        Order[]
+  shippingOrders        Order[]             @relation("OrderShippingAddress")
+  billingOrders         Order[]             @relation("OrderBillingAddress")
 
   @@index([pincode])
   @@index([userId])
@@ -428,7 +429,9 @@ model Order {
   updatedAt             DateTime            @updatedAt
 
   user                  User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
-  shippingAddress       CustomerAddress     @relation(fields: [shippingAddressId], references: [id])
+  shippingAddress       CustomerAddress     @relation("OrderShippingAddress", fields: [shippingAddressId], references: [id])
+  billingAddressId      String?
+  billingAddress        CustomerAddress?    @relation("OrderBillingAddress", fields: [billingAddressId], references: [id])
   items                 OrderItem[]
   payments              Payment[]
 

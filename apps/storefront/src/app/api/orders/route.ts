@@ -312,6 +312,7 @@ export async function POST(req: NextRequest) {
       city,
       state,
       destinationPin,
+      billingAddress,
       gstin,
       items,
     } = body as {
@@ -325,6 +326,17 @@ export async function POST(req: NextRequest) {
       city?: string;
       state?: string;
       destinationPin?: string;
+      billingAddress?: {
+        fullName?: string;
+        phone?: string;
+        addressLine1?: string;
+        address1?: string;
+        addressLine2?: string;
+        address2?: string;
+        city?: string;
+        state?: string;
+        pincode?: string;
+      } | null;
       gstin?: string;
       items?: Array<{
         productId?: string;
@@ -727,6 +739,39 @@ export async function POST(req: NextRequest) {
           },
         }));
 
+      let billingAddressId: string = address.id;
+      if (
+        billingAddress &&
+        (billingAddress.addressLine1 || billingAddress.address1) &&
+        billingAddress.pincode
+      ) {
+        const bName = String(billingAddress.fullName || cleanName).trim();
+        const bPhone = String(billingAddress.phone || cleanPhone).trim();
+        const bAddr1 = String(billingAddress.addressLine1 || billingAddress.address1).trim();
+        const bAddr2 = (billingAddress.addressLine2 || billingAddress.address2)
+          ? String(billingAddress.addressLine2 || billingAddress.address2).trim()
+          : null;
+        const bPin = String(billingAddress.pincode).replace(/\s+/g, "");
+        const bCity = String(billingAddress.city || resolvedCity).trim();
+        const bState = String(billingAddress.state || resolvedState).trim();
+
+        const billingRecord = await tx.customerAddress.create({
+          data: {
+            userId: sessionUser ? sessionUser.id : null,
+            guestEmail: sessionUser ? null : cleanEmail,
+            label: "Billing Address",
+            fullName: bName,
+            phone: bPhone,
+            addressLine1: bAddr1,
+            addressLine2: bAddr2,
+            city: bCity,
+            state: bState,
+            pincode: bPin,
+          },
+        });
+        billingAddressId = billingRecord.id;
+      }
+
       const createdOrder = await tx.order.create({
         data: {
           orderNumber,
@@ -734,6 +779,7 @@ export async function POST(req: NextRequest) {
           customerEmail: cleanEmail,
           customerPhone: cleanPhone,
           shippingAddressId: address.id,
+          billingAddressId: billingAddressId,
           purchaseMode: requestedMode,
           itemsSubtotal: serverItemsSubtotalRupees,
           shippingCharge: serverDeliveryFeeRupees,

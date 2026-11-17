@@ -37,6 +37,15 @@ export interface OrderRecord {
   city: string;
   state: string;
   destinationPin: string;
+  billingAddress?: {
+    fullName: string;
+    phone: string;
+    addressLine1: string;
+    addressLine2?: string;
+    city: string;
+    state: string;
+    pincode: string;
+  } | null;
   gstin?: string;
   items: {
     productId?: string;
