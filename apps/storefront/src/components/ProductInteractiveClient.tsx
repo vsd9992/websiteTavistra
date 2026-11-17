@@ -230,8 +230,8 @@ export function ProductInteractiveClient({
               : "Ready Stock"}
           </span>
 
-          {/* Floating Action Pills (Top-Right): Wishlist & Share Piece */}
-          <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+          {/* Floating Action Pills (Top-Right): Wishlist & Share Piece (Mobile Only) */}
+          <div className="lg:hidden absolute top-4 right-4 z-10 flex items-center gap-2">
             {/* Wishlist Pill */}
             <button
               type="button"
@@ -323,6 +323,42 @@ export function ProductInteractiveClient({
             ))}
           </div>
         )}
+
+        {/* Dimension & Weight Specs Grid — Desktop Only (Batch 3 Locked Position) */}
+        <div className="hidden lg:grid grid-cols-4 gap-4 p-4 rounded-xl bg-[var(--color-ivory)] border border-[var(--color-decorative-border)] text-center text-xs">
+          <div>
+            <span className="text-[10px] uppercase tracking-wider text-[var(--color-muted-light)] block mb-1">
+              Dimensions
+            </span>
+            <span className="font-semibold text-[var(--color-ink)] transition-all">
+              {currentDimensions}
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] uppercase tracking-wider text-[var(--color-muted-light)] block mb-1">
+              Net Weight
+            </span>
+            <span className="font-semibold text-[var(--color-ink)] transition-all">
+              {(currentWeightGrams / 1000).toFixed(2)} kg
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] uppercase tracking-wider text-[var(--color-muted-light)] block mb-1">
+              Lead Time
+            </span>
+            <span className="font-semibold text-[var(--color-ink)]">
+              {product.estimatedLeadTime}
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] uppercase tracking-wider text-[var(--color-muted-light)] block mb-1">
+              Policy
+            </span>
+            <span className="font-semibold text-[var(--color-ink)]">
+              {product.returnPolicyText}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Right Column: Commercial & Action Pane (5 cols) */}
@@ -351,6 +387,54 @@ export function ProductInteractiveClient({
                 (Tax-inclusive / GST included)
               </span>
             )}
+          </div>
+
+          {/* Client Wishlist & Universal Share Piece Bar (Desktop Only — Batch 3 Locked Position) */}
+          <div className="hidden lg:flex pt-2 flex-wrap items-center gap-2.5">
+            <button
+              type="button"
+              onClick={handleToggleCurrentVariantWishlist}
+              className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-medium transition-all ${
+                isCurrentVariantInWishlist
+                  ? "border-[var(--color-bronze)] bg-[var(--color-bronze)]/10 text-[var(--color-bronze)] font-semibold shadow-sm"
+                  : "border-[var(--color-control-border)] bg-[var(--color-canvas)] text-[var(--color-ink)] hover:border-[var(--color-bronze)] hover:bg-[var(--color-ivory)]"
+              }`}
+              title={
+                isCurrentVariantInWishlist
+                  ? `Saved finish (${currentSku}) in your Studio Wishlist`
+                  : `Save this finish (${currentSku}) to client wishlist`
+              }
+            >
+              <svg
+                className={`w-4 h-4 transition-transform active:scale-125 ${
+                  isCurrentVariantInWishlist
+                    ? "fill-[var(--color-bronze)] text-[var(--color-bronze)]"
+                    : "fill-none text-current"
+                }`}
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
+                />
+              </svg>
+              <span>{isCurrentVariantInWishlist ? "Saved Finish in Wishlist" : "Save this Finish to Wishlist"}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShareModalOpen(true)}
+              className="inline-flex items-center gap-2 rounded-full border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-4 py-2 text-xs font-medium text-[var(--color-ink)] hover:border-[var(--color-bronze)] hover:bg-[var(--color-ivory)] transition-all"
+              title="Share piece via WhatsApp, link, or device apps"
+            >
+              <svg className="w-4 h-4 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
+              </svg>
+              <span>Share Piece</span>
+            </button>
           </div>
 
           {/* Multi-Variant Capsule Button Selector (Clean title-only pills, no price repetition) */}
@@ -424,11 +508,11 @@ export function ProductInteractiveClient({
           )}
         </div>
 
-        {/* Immediate App-Style Primary Action & Physical Specifications */}
-        <div ref={buyBoxRef} className="space-y-4">
+        {/* Mobile Primary Action & Specs Card (lg:hidden) */}
+        <div className="lg:hidden space-y-4 pt-4 border-t border-[var(--color-decorative-border)]">
           <ProductPurchaseAction product={effectiveProductForCart} formattedAdvance={formattedAdvance} />
 
-          {/* Dimension, Net Weight, Lead Time & Policy Card (Directly under Add to Cart button) */}
+          {/* Dimension, Net Weight, Lead Time & Policy Card (Under Add to Cart on mobile) */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-xl bg-[var(--color-ivory)] border border-[var(--color-decorative-border)] text-center text-xs">
             <div>
               <span className="text-[10px] uppercase tracking-wider text-[var(--color-muted-light)] block mb-1">
@@ -466,7 +550,7 @@ export function ProductInteractiveClient({
         </div>
 
         {/* Short Description (Variant-Specific Override or Master Fallback) */}
-        <div className="pt-4 border-t border-[var(--color-decorative-border)] text-sm text-[var(--color-muted-light)] leading-relaxed space-y-4">
+        <div className="text-sm text-[var(--color-muted-light)] leading-relaxed space-y-4">
           <p>{currentDescription}</p>
         </div>
 
@@ -485,6 +569,14 @@ export function ProductInteractiveClient({
               </span>
             ))}
           </div>
+        </div>
+
+        {/* Purchase Action (Add to Cart / Request Quote) — Desktop Only (Batch 3 Locked Position) */}
+        <div ref={buyBoxRef} className="hidden lg:block pt-4 border-t border-[var(--color-decorative-border)] space-y-4">
+          <ProductPurchaseAction product={effectiveProductForCart} formattedAdvance={formattedAdvance} />
+
+          {/* Dynamic Distance-Band Delivery Estimator (Under Add to Cart per Batch 3 Locked Structure) */}
+          <DeliveryEstimator product={effectiveProductForCart} />
         </div>
 
         {/* Full Editorial Description */}
@@ -524,8 +616,8 @@ export function ProductInteractiveClient({
         </div>
       </div>
 
-      {/* Farmost Bottom: Delivery & Transit Estimator (Just before footer) */}
-      <div className="lg:col-span-12 pt-10 mt-6 border-t border-[var(--color-decorative-border)]">
+      {/* Farmost Bottom: Delivery & Transit Estimator (Mobile Only — lg:hidden) */}
+      <div className="lg:hidden pt-8 mt-6 border-t border-[var(--color-decorative-border)]">
         <div className="max-w-xl mx-auto">
           <DeliveryEstimator product={effectiveProductForCart} />
         </div>

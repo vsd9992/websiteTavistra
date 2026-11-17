@@ -262,12 +262,13 @@ export function Header() {
             onMouseEnter={() => setIsAccountOpen(true)}
             onMouseLeave={() => setIsAccountOpen(false)}
           >
-            <button
-              type="button"
-              onClick={() => setIsAccountOpen((prev) => !prev)}
-              className="relative flex items-center gap-1.5 p-1.5 text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)] cursor-pointer"
+            {/* Desktop Account Icon with Hover Menu (hidden on mobile; Batch 3 Locked Structure) */}
+            <Link
+              href={isAuthenticated ? "/account" : "/account/login"}
+              onClick={() => setIsAccountOpen(false)}
+              className="hidden lg:flex relative items-center gap-1.5 p-1.5 text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)]"
               aria-label={isAuthenticated && user ? `Signed in as ${user.name}` : "Sign in to client account"}
-              title={isAuthenticated && user ? `Account: ${user.name}` : "Sign In / Client Portal"}
+              title={isAuthenticated && user ? `Account: ${user.name}` : "Sign In"}
               aria-expanded={isAccountOpen}
               aria-haspopup="menu"
             >
@@ -294,6 +295,33 @@ export function Header() {
                     .map((p) => p[0] || "")
                     .join("") || "U"}
                 </span>
+              )}
+            </Link>
+
+            {/* Mobile User Icon Toggle (opens portalled bottom sheet) */}
+            <button
+              type="button"
+              onClick={() => setIsAccountOpen((prev) => !prev)}
+              className="lg:hidden relative flex items-center gap-1.5 p-1.5 text-[var(--color-muted-light)] transition-colors hover:text-[var(--color-ink)] cursor-pointer"
+              aria-label={isAuthenticated && user ? `Signed in as ${user.name}` : "Sign in to client account"}
+              title={isAuthenticated && user ? `Account: ${user.name}` : "Sign In / Client Portal"}
+              aria-expanded={isAccountOpen}
+            >
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.5}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
+                />
+              </svg>
+              {isAuthenticated && user && (
+                <span className="h-2 w-2 rounded-full bg-[var(--color-bronze)]" />
               )}
             </button>
 

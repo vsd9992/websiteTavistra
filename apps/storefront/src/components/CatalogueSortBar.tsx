@@ -137,17 +137,6 @@ export function CatalogueSortBar({
 
         {/* Counter & Sort Selector on Desktop */}
         <div className="flex items-center gap-4 shrink-0">
-          {activeFilterCount > 0 && (
-            <button
-              type="button"
-              onClick={handleClearAllFilters}
-              className="text-xs text-[var(--color-muted-light)] hover:text-[var(--color-ink)] underline cursor-pointer transition-colors"
-              title="Clear all active filters"
-            >
-              Clear filters
-            </button>
-          )}
-
           <span className="text-[11px] font-mono text-[var(--color-muted-light)]">
             {totalCount} {totalCount === 1 ? "piece" : "pieces"}
           </span>
@@ -160,7 +149,7 @@ export function CatalogueSortBar({
               id="catalogue-sort-desktop"
               value={currentSort}
               onChange={(e) => handleUpdate(currentMode, e.target.value)}
-              className="rounded-xl border border-[var(--color-control-border)] bg-[var(--color-canvas)] px-2.5 py-1 text-xs text-[var(--color-ink)] font-medium focus:outline-none focus:border-[var(--color-ink)] cursor-pointer"
+              className="rounded-xl border border-[var(--color-control-border)] bg-transparent px-2.5 py-1 text-xs text-[var(--color-ink)] font-medium focus:outline-none focus:border-[var(--color-ink)] cursor-pointer"
             >
               <option value="featured">Curated Studio Order</option>
               <option value="price_asc">Price: Low to High</option>
