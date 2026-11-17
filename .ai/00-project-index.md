@@ -27,6 +27,7 @@ Status: Sets 0–8 verified live on `devMachine` (268/268 checks passing); All R
 - [0004-delivery-fee-and-bulk-policy.md](decisions/current/0004-delivery-fee-and-bulk-policy.md) — 12-slab ladder, strict enabled PINs, 10-unit/10-line bulk boundary
 - [0005-modular-workflow-and-product-pipeline.md](decisions/current/0005-modular-workflow-and-product-pipeline.md) — Sets 0–8 phasing & folder-based product pipeline
 - [0006-inbound-email-routing-and-desk-channels.md](decisions/current/0006-inbound-email-routing-and-desk-channels.md) — Inbound email routing (`support@tavistra.com` / `concierge@tavistra.in`) & Mon–Fri 10–5 hours
+- [0007-desktop-view-lock-and-mobile-exclusive-refinements.md](decisions/current/0007-desktop-view-lock-and-mobile-exclusive-refinements.md) — Strict desktop storefront lock; all active refinements exclusively mobile-scoped
 
 ## Active Risks
 - PhonePe merchant review requires a live review-ready public site before gateway keys are issued.
