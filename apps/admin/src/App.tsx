@@ -242,7 +242,13 @@ export default function App() {
   const [overviewAuditCategory, setOverviewAuditCategory] = useState<string>("ALL");
   const [overviewAuditSearch, setOverviewAuditSearch] = useState<string>("");
   const [syncCountdown, setSyncCountdown] = useState<number>(60);
-  const [workshopStatusFilter, setWorkshopStatusFilter] = useState<"ACTIVE" | "CANCELLED" | "ALL">("ACTIVE");
+
+  // Workshop Queue (Grace) State & Filters
+  const [workshopSearchQuery, setWorkshopSearchQuery] = useState("");
+  const [workshopFilter, setWorkshopFilter] = useState<"ALL" | "GRACE_LOCKED" | "RELEASE_ELIGIBLE" | "IN_WORKSHOP" | "CANCELLED">("ALL");
+  const [workshopSortBy, setWorkshopSortBy] = useState<"GRACE_ASC" | "GRACE_DESC" | "DATE_DESC" | "AMOUNT_DESC">("GRACE_ASC");
+  const [workshopDonutView, setWorkshopDonutView] = useState<"PIPELINE" | "BALANCE">("PIPELINE");
+  const [hoveredWorkshopSlice, setHoveredWorkshopSlice] = useState<string | null>(null);
 
   // Ticket detail view & filters
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
@@ -1437,6 +1443,184 @@ export default function App() {
       );
     });
   }, [customers, customerFilter, customerSearchQuery]);
+
+  // Workshop Queue (Grace) KPIs
+  const workshopKpis = useMemo(() => {
+    const mtoOrders = orders.filter((o) => o.mode === "MADE_TO_ORDER");
+    const activeMtoOrders = mtoOrders.filter((o) => o.status !== "CANCELLED" && o.status !== "REFUNDED");
+    const graceLockedOrders = activeMtoOrders.filter(
+      (o) =>
+        (o.status === "CONFIRMED" || o.status === "GRACE_PERIOD_ACTIVE") &&
+        (o.isGraceActive ?? (o.graceDaysRemaining ?? 0) > 0)
+    );
+    const releaseEligibleOrders = activeMtoOrders.filter(
+      (o) =>
+        (o.status === "CONFIRMED" || o.status === "GRACE_PERIOD_ACTIVE") &&
+        !o.isGraceActive &&
+        (o.graceDaysRemaining ?? 0) <= 0
+    );
+    const inWorkshopOrders = activeMtoOrders.filter(
+      (o) =>
+        o.status === "WORKSHOP_CRAFTING" ||
+        o.status === "IN_PRODUCTION" ||
+        o.status === "PRODUCTION_COMPLETED" ||
+        o.status === "AWAITING_DISPATCH"
+    );
+    const cancelledOrders = mtoOrders.filter((o) => o.status === "CANCELLED" || o.status === "REFUNDED");
+
+    const earliestGraceOrder =
+      graceLockedOrders.length > 0
+        ? [...graceLockedOrders].sort((a, b) => (a.graceDaysRemaining ?? 7) - (b.graceDaysRemaining ?? 7))[0]
+        : null;
+
+    const minGraceDays = earliestGraceOrder ? (earliestGraceOrder.graceDaysRemaining ?? 0) : null;
+    const earliestReleaseDate = earliestGraceOrder?.releaseEligibleDate ?? null;
+
+    const totalActiveVolume = activeMtoOrders.reduce((sum, o) => sum + (o.totalAmountRupees || 0), 0);
+    const totalGraceVolume = graceLockedOrders.reduce((sum, o) => sum + (o.totalAmountRupees || 0), 0);
+    const totalCancelledRefunded = cancelledOrders.reduce((sum, o) => sum + (o.amountPaidRupees || 0), 0);
+
+    const feasibleCount = activeMtoOrders.filter((o) => {
+      const match = pincodes.find((p) => p.pincode === o.pincode);
+      return match ? match.isServiceable : false;
+    }).length;
+    const feasibilityRate = activeMtoOrders.length > 0 ? Math.round((feasibleCount / activeMtoOrders.length) * 100) : 100;
+
+    return {
+      totalMtoCount: mtoOrders.length,
+      activeMtoCount: activeMtoOrders.length,
+      graceLockedCount: graceLockedOrders.length,
+      releaseEligibleCount: releaseEligibleOrders.length,
+      inWorkshopCount: inWorkshopOrders.length,
+      cancelledCount: cancelledOrders.length,
+      minGraceDays,
+      earliestReleaseDate,
+      earliestGraceOrder,
+      totalActiveVolume,
+      totalGraceVolume,
+      totalCancelledRefunded,
+      feasibilityRate,
+    };
+  }, [orders, pincodes]);
+
+  // Workshop Pipeline Donut Data (100% mathematically consistent)
+  const workshopDonutData = useMemo(() => {
+    const mtoOrders = orders.filter((o) => o.mode === "MADE_TO_ORDER");
+    const activeMtoOrders = mtoOrders.filter((o) => o.status !== "CANCELLED" && o.status !== "REFUNDED");
+    const cancelledOrders = mtoOrders.filter((o) => o.status === "CANCELLED" || o.status === "REFUNDED");
+
+    if (workshopDonutView === "PIPELINE") {
+      const graceCount = workshopKpis.graceLockedCount;
+      const releaseReadyCount = workshopKpis.releaseEligibleCount;
+      const craftingQcCount = workshopKpis.inWorkshopCount;
+      const dispatchedCount = activeMtoOrders.filter((o) => o.status === "DISPATCHED" || o.status === "DELIVERED").length;
+      const cancelledCount = cancelledOrders.length;
+
+      const slices = [
+        { id: "GRACE", label: "Grace Lock (Cooling)", count: graceCount, color: "#f59e0b", filterKey: "GRACE_LOCKED" as const },
+        { id: "RELEASE_READY", label: "Day 8 Release Ready", count: releaseReadyCount, color: "#c59b6d", filterKey: "RELEASE_ELIGIBLE" as const },
+        { id: "CRAFTING_QC", label: "In Crafting & QC", count: craftingQcCount, color: "#10b981", filterKey: "IN_WORKSHOP" as const },
+        { id: "DISPATCHED", label: "Dispatched / Transit", count: dispatchedCount, color: "#818cf8", filterKey: "ALL" as const },
+        { id: "CANCELLED", label: "Pre-Prod Cancelled", count: cancelledCount, color: "#f43f5e", filterKey: "CANCELLED" as const },
+      ].filter((s) => s.count > 0);
+
+      const totalCount = slices.reduce((acc, s) => acc + s.count, 0) || 1;
+      return {
+        slices: slices.map((s) => ({
+          ...s,
+          pct: Math.round((s.count / totalCount) * 100),
+        })),
+        totalCount,
+        title: "Made-to-Order Workshop Lifecycle",
+        centerNumber: totalCount,
+        centerLabel: "MTO Pieces",
+      };
+    } else {
+      const fullyPaidCount = activeMtoOrders.filter((o) => o.balanceDueRupees <= 0).length;
+      const advancePaidCount = activeMtoOrders.filter((o) => o.balanceDueRupees > 0).length;
+      const cancelledCount = cancelledOrders.length;
+
+      const slices = [
+        { id: "FULLY_PAID", label: "100% Settled Upfront", count: fullyPaidCount, color: "#10b981", filterKey: "ALL" as const },
+        { id: "ADVANCE_PAID", label: "25% Advance Paid (75% Due)", count: advancePaidCount, color: "#f59e0b", filterKey: "ALL" as const },
+        { id: "REFUNDED", label: "100% Statutory Refunded", count: cancelledCount, color: "#f43f5e", filterKey: "CANCELLED" as const },
+      ].filter((s) => s.count > 0);
+
+      const totalCount = slices.reduce((acc, s) => acc + s.count, 0) || 1;
+      return {
+        slices: slices.map((s) => ({
+          ...s,
+          pct: Math.round((s.count / totalCount) * 100),
+        })),
+        totalCount,
+        title: "MTO Commercial Payment Status",
+        centerNumber: totalCount,
+        centerLabel: "Financial Gate",
+      };
+    }
+  }, [orders, workshopDonutView, workshopKpis]);
+
+  // Filtered & Sorted Workshop Orders
+  const filteredWorkshopOrders = useMemo(() => {
+    const list = orders
+      .filter((o) => o.mode === "MADE_TO_ORDER")
+      .filter((order) => {
+        const isCancelled = order.status === "CANCELLED" || order.status === "REFUNDED";
+        const isConfirmedAwaitingRelease = order.status === "CONFIRMED" || order.status === "GRACE_PERIOD_ACTIVE";
+        const isGraceActive = isConfirmedAwaitingRelease && (order.isGraceActive ?? (order.graceDaysRemaining ?? 0) > 0);
+        const isReleaseEligible = isConfirmedAwaitingRelease && !isGraceActive;
+        const isInWorkshop =
+          order.status === "WORKSHOP_CRAFTING" ||
+          order.status === "IN_PRODUCTION" ||
+          order.status === "PRODUCTION_COMPLETED" ||
+          order.status === "AWAITING_DISPATCH";
+
+        if (workshopFilter === "GRACE_LOCKED" && !isGraceActive) return false;
+        if (workshopFilter === "RELEASE_ELIGIBLE" && !isReleaseEligible) return false;
+        if (workshopFilter === "IN_WORKSHOP" && !isInWorkshop) return false;
+        if (workshopFilter === "CANCELLED" && !isCancelled) return false;
+
+        if (!workshopSearchQuery.trim()) return true;
+        const q = workshopSearchQuery.toLowerCase();
+        const num = (order.orderNumber || "").toLowerCase();
+        const name = (order.customerName || "").toLowerCase();
+        const email = (order.email || "").toLowerCase();
+        const phone = (order.phone || "").toLowerCase();
+        const city = (order.city || "").toLowerCase();
+        const pin = (order.pincode || "").toLowerCase();
+        const items = order.items?.map((it) => it.name.toLowerCase()).join(" ") || "";
+
+        return (
+          num.includes(q) ||
+          name.includes(q) ||
+          email.includes(q) ||
+          phone.includes(q) ||
+          city.includes(q) ||
+          pin.includes(q) ||
+          items.includes(q)
+        );
+      });
+
+    return list.sort((a, b) => {
+      if (workshopSortBy === "GRACE_ASC") {
+        const aGrace = a.graceDaysRemaining ?? 99;
+        const bGrace = b.graceDaysRemaining ?? 99;
+        return aGrace - bGrace;
+      }
+      if (workshopSortBy === "GRACE_DESC") {
+        const aGrace = a.graceDaysRemaining ?? -1;
+        const bGrace = b.graceDaysRemaining ?? -1;
+        return bGrace - aGrace;
+      }
+      if (workshopSortBy === "DATE_DESC") {
+        return new Date(b.placedAt || 0).getTime() - new Date(a.placedAt || 0).getTime();
+      }
+      if (workshopSortBy === "AMOUNT_DESC") {
+        return (b.totalAmountRupees || 0) - (a.totalAmountRupees || 0);
+      }
+      return 0;
+    });
+  }, [orders, workshopFilter, workshopSearchQuery, workshopSortBy]);
 
   const handleCopyQuoteLink = async (quoteNumber: string) => {
     const link = getStorefrontUrl(`/quote/${quoteNumber}`);
@@ -4675,227 +4859,645 @@ export default function App() {
               </div>
             )}
 
-            <div className="p-5 rounded-2xl bg-amber-950/20 border border-amber-800/40 space-y-2">
-              <h3 className="font-semibold text-sm text-amber-300 flex items-center gap-2">
-                <span>⚠️</span> 7-Day Confirmation Grace & Production Cutoff (TAV-06)
-              </h3>
-              <p className="text-xs text-amber-200/80 leading-relaxed">
-                Made to Order pieces enforce an independent 7-calendar-day grace period (local IST date = Day 0). Physical workshop machining strictly commences on <strong>Day 8</strong>. Customers are entitled to pre-production alterations or 100% full refund cancellations during this grace window, and staff must verify courier feasibility for the destination PIN before release.
-              </p>
-            </div>
-
-            {/* Filter between Active Crafting vs Cancelled */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#38332c] pb-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-[#a8a093] font-semibold uppercase tracking-wider mr-1">Queue Filter:</span>
-                <button
-                  type="button"
-                  onClick={() => setWorkshopStatusFilter("ACTIVE")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                    workshopStatusFilter === "ACTIVE"
-                      ? "bg-[#c59b6d] text-[#181715]"
-                      : "bg-[#2a2722] text-[#a8a093] hover:text-white"
-                  }`}
-                >
-                  Active Workshop Works ({orders.filter((o) => o.mode === "MADE_TO_ORDER" && o.status !== "CANCELLED" && o.status !== "REFUNDED").length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setWorkshopStatusFilter("CANCELLED")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                    workshopStatusFilter === "CANCELLED"
-                      ? "bg-rose-900 text-rose-100"
-                      : "bg-[#2a2722] text-[#a8a093] hover:text-white"
-                  }`}
-                >
-                  Pre-Production Cancellations ({orders.filter((o) => o.mode === "MADE_TO_ORDER" && (o.status === "CANCELLED" || o.status === "REFUNDED")).length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setWorkshopStatusFilter("ALL")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                    workshopStatusFilter === "ALL"
-                      ? "bg-white text-[#181715]"
-                      : "bg-[#2a2722] text-[#a8a093] hover:text-white"
-                  }`}
-                >
-                  All MTO Records ({orders.filter((o) => o.mode === "MADE_TO_ORDER").length})
-                </button>
+            {/* Header with Title & Aggregate Summary */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#38332c] pb-3">
+              <div>
+                <h2 className="text-base font-semibold text-white">Workshop Fabrication Queue &amp; 7-Day Grace Engine</h2>
+                <p className="text-xs text-[#a8a093]">
+                  Statutory Day 0–7 customer cooling period, Day 8 physical machining gate, and craftsmanship tracking.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-3 py-1 rounded-full bg-[#24211d] border border-[#38332c] text-xs font-mono text-[#c59b6d]">
+                  {workshopKpis.graceLockedCount} in Grace Lock · {formatPrice(workshopKpis.totalActiveVolume)} Active MTO Volume
+                </span>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {orders
-                .filter((o) => o.mode === "MADE_TO_ORDER")
-                .filter((o) => {
-                  const isCancelled = o.status === "CANCELLED" || o.status === "REFUNDED";
-                  if (workshopStatusFilter === "ACTIVE") return !isCancelled;
-                  if (workshopStatusFilter === "CANCELLED") return isCancelled;
-                  return true;
-                }).length === 0 && (
-                <div className="col-span-1 md:col-span-2 py-10 text-center text-xs text-[#a8a093] bg-[#24211d] rounded-2xl border border-[#38332c] space-y-1">
+            {/* Top 4 KPI Pulse Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="rounded-2xl bg-[#24211d] border border-[#38332c] p-4 flex flex-col justify-between">
+                <div className="flex items-center justify-between text-xs text-[#a8a093]">
+                  <span className="font-medium uppercase tracking-wider text-[10px]">Grace Period Hold</span>
+                  <span className="text-base">⏳</span>
+                </div>
+                <div className="my-2">
+                  <span className="text-2xl font-mono font-bold text-[#f59e0b]">{workshopKpis.graceLockedCount}</span>
+                </div>
+                <div className="text-[11px] text-[#a8a093] flex items-center justify-between">
+                  <span>{formatPrice(workshopKpis.totalGraceVolume)} in cooling</span>
+                  <span className="text-amber-400 font-mono">Day 0–7 Lock</span>
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-[#24211d] border border-[#38332c] p-4 flex flex-col justify-between">
+                <div className="flex items-center justify-between text-xs text-[#a8a093]">
+                  <span className="font-medium uppercase tracking-wider text-[10px]">Earliest Release Gate</span>
+                  <span className="text-base">🔓</span>
+                </div>
+                <div className="my-2">
+                  <span className="text-2xl font-mono font-bold text-[#c59b6d]">
+                    {workshopKpis.minGraceDays !== null ? `${workshopKpis.minGraceDays} Days Left` : "None in Grace"}
+                  </span>
+                </div>
+                <div className="text-[11px] text-[#a8a093] flex items-center justify-between">
+                  <span>{workshopKpis.earliestGraceOrder ? workshopKpis.earliestGraceOrder.orderNumber : "All clear"}</span>
+                  <span className="text-[#c59b6d] font-mono">{workshopKpis.earliestReleaseDate || "Day 8 Unlock"}</span>
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-[#24211d] border border-[#38332c] p-4 flex flex-col justify-between">
+                <div className="flex items-center justify-between text-xs text-[#a8a093]">
+                  <span className="font-medium uppercase tracking-wider text-[10px]">In Workshop &amp; QC</span>
+                  <span className="text-base">🔨</span>
+                </div>
+                <div className="my-2">
+                  <span className="text-2xl font-mono font-bold text-[#10b981]">{workshopKpis.inWorkshopCount}</span>
+                </div>
+                <div className="text-[11px] text-[#a8a093]">
+                  <span>Physical crafting &amp; QC passed pieces</span>
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-[#24211d] border border-[#38332c] p-4 flex flex-col justify-between">
+                <div className="flex items-center justify-between text-xs text-[#a8a093]">
+                  <span className="font-medium uppercase tracking-wider text-[10px]">Courier PIN Feasibility</span>
+                  <span className="text-base">🚚</span>
+                </div>
+                <div className="my-2">
+                  <span className="text-2xl font-mono font-bold text-emerald-400">{workshopKpis.feasibilityRate}%</span>
+                </div>
+                <div className="text-[11px] text-[#a8a093] flex items-center justify-between">
+                  <span>Destination zones verified</span>
+                  <span className="text-emerald-400 font-semibold">TAV-06 Compliant</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Visual Intelligence Grid: Interactive Donut + Workshop Governance Card */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+              {/* Interactive Donut Chart (7 cols) */}
+              <div className="lg:col-span-7 rounded-2xl bg-[#24211d] border border-[#38332c] p-5 flex flex-col justify-between space-y-4">
+                <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">{workshopDonutData.title}</h3>
+                    <p className="text-[11px] text-[#a8a093]">Click any slice to filter workshop queue</p>
+                  </div>
+                  <div className="flex items-center gap-1 bg-[#181715] p-1 rounded-xl border border-[#38332c]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWorkshopDonutView("PIPELINE");
+                        setHoveredWorkshopSlice(null);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors ${
+                        workshopDonutView === "PIPELINE"
+                          ? "bg-[#c59b6d] text-[#181715]"
+                          : "text-[#a8a093] hover:text-white"
+                      }`}
+                    >
+                      Lifecycle ({workshopKpis.totalMtoCount})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWorkshopDonutView("BALANCE");
+                        setHoveredWorkshopSlice(null);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors ${
+                        workshopDonutView === "BALANCE"
+                          ? "bg-[#c59b6d] text-[#181715]"
+                          : "text-[#a8a093] hover:text-white"
+                      }`}
+                    >
+                      Payment Gate ({workshopKpis.totalMtoCount})
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center justify-around gap-6 py-2">
+                  {/* SVG Donut Visual */}
+                  <div className="relative w-44 h-44 shrink-0 flex items-center justify-center">
+                    {(() => {
+                      const r = 38;
+                      const c = 2 * Math.PI * r;
+                      let accumulatedPct = 0;
+                      return (
+                        <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
+                          <circle
+                            cx="50"
+                            cy="50"
+                            r={r}
+                            fill="transparent"
+                            stroke="#2a2722"
+                            strokeWidth="13"
+                          />
+                          {workshopDonutData.slices.map((slice) => {
+                            const strokeLength = (slice.pct / 100) * c;
+                            const strokeGap = c - strokeLength;
+                            const currentOffset = (accumulatedPct / 100) * c;
+                            accumulatedPct += slice.pct;
+                            const isHovered = hoveredWorkshopSlice === slice.id;
+
+                            return (
+                              <circle
+                                key={slice.id}
+                                cx="50"
+                                cy="50"
+                                r={r}
+                                fill="transparent"
+                                stroke={slice.color}
+                                strokeWidth={isHovered ? 17 : 13}
+                                strokeDasharray={`${strokeLength} ${strokeGap}`}
+                                strokeDashoffset={-currentOffset}
+                                onMouseEnter={() => setHoveredWorkshopSlice(slice.id)}
+                                onMouseLeave={() => setHoveredWorkshopSlice(null)}
+                                onClick={() => {
+                                  if ('filterKey' in slice && slice.filterKey) {
+                                    setWorkshopFilter(slice.filterKey as any);
+                                  }
+                                }}
+                                className="transition-all duration-300 cursor-pointer"
+                                style={{
+                                  opacity: hoveredWorkshopSlice && !isHovered ? 0.45 : 1,
+                                }}
+                              >
+                                <title>{`${slice.label}: ${slice.count} (${slice.pct}%) - Click to filter`}</title>
+                              </circle>
+                            );
+                          })}
+                        </svg>
+                      );
+                    })()}
+
+                    {/* Donut Center Hub Info */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none text-center px-4">
+                      <span className="text-2xl font-mono font-bold text-white tracking-tight">
+                        {hoveredWorkshopSlice
+                          ? workshopDonutData.slices.find((s) => s.id === hoveredWorkshopSlice)?.count
+                          : workshopDonutData.centerNumber}
+                      </span>
+                      <span className="text-[9px] uppercase font-bold text-[#c59b6d] tracking-wider max-w-[85px] leading-tight mt-0.5 line-clamp-2">
+                        {hoveredWorkshopSlice
+                          ? workshopDonutData.slices.find((s) => s.id === hoveredWorkshopSlice)?.label
+                          : workshopDonutData.centerLabel}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Dynamic Legend List */}
+                  <div className="flex-1 w-full space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {workshopDonutData.slices.map((slice) => {
+                      const isHovered = hoveredWorkshopSlice === slice.id;
+                      return (
+                        <div
+                          key={slice.id}
+                          onMouseEnter={() => setHoveredWorkshopSlice(slice.id)}
+                          onMouseLeave={() => setHoveredWorkshopSlice(null)}
+                          onClick={() => {
+                            if ('filterKey' in slice && slice.filterKey) {
+                              setWorkshopFilter(slice.filterKey as any);
+                            }
+                          }}
+                          className={`flex items-center justify-between p-1.5 rounded-lg text-xs cursor-pointer transition-all ${
+                            isHovered ? "bg-[#2e2a24] text-white" : "hover:bg-[#25221d] text-[#a8a093]"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span
+                              className="h-2.5 w-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: slice.color }}
+                            />
+                            <span className="truncate text-[11px] font-medium">{slice.label}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="font-mono text-white text-[11px] font-bold">{slice.count}</span>
+                            <span className="text-[10px] text-[#787165] font-mono">({slice.pct}%)</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Studio Workshop Governance Card (5 cols) */}
+              <div className="lg:col-span-5 rounded-2xl bg-[#24211d] border border-[#38332c] p-5 space-y-3.5">
+                <div className="border-b border-[#38332c] pb-2.5">
+                  <h3 className="text-sm font-semibold text-white">TAV-06 Workshop Governance</h3>
+                  <p className="text-[11px] text-[#a8a093]">Confirmation cooling window &amp; craftsmanship rules</p>
+                </div>
+                <div className="space-y-2.5 text-xs">
+                  <div className="p-2.5 rounded-xl bg-[#1e1c19] border border-[#38332c]/80 flex gap-2.5">
+                    <span className="text-[#c59b6d] font-mono font-bold text-xs shrink-0 mt-0.5">01</span>
+                    <div>
+                      <strong className="text-white block text-[11px]">7-Calendar-Day Customer Cooling</strong>
+                      <p className="text-[10px] text-[#a8a093] leading-relaxed">
+                        Order confirmation date = Day 0 (local IST). Patrons retain statutory 100% full refund rights or finish/dimension modification privileges through Day 7.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-[#1e1c19] border border-[#38332c]/80 flex gap-2.5">
+                    <span className="text-[#c59b6d] font-mono font-bold text-xs shrink-0 mt-0.5">02</span>
+                    <div>
+                      <strong className="text-white block text-[11px]">Day 8 Automatic Machining Gate</strong>
+                      <p className="text-[10px] text-[#a8a093] leading-relaxed">
+                        Physical workshop release button remains hard-locked during the grace period. Release automatically unlocks at 00:00 IST on Day 8 upon cooling expiry.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-[#1e1c19] border border-[#38332c]/80 flex gap-2.5">
+                    <span className="text-[#c59b6d] font-mono font-bold text-xs shrink-0 mt-0.5">03</span>
+                    <div>
+                      <strong className="text-white block text-[11px]">Pre-Production 100% Refund Guarantee</strong>
+                      <p className="text-[10px] text-[#a8a093] leading-relaxed">
+                        Pre-machining cancellations are settled in full without restocking fees. Bank UTR is recorded immediately in the order audit ledger.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Search Bar, Filter Pills & Sorter Tray */}
+            <div className="rounded-2xl bg-[#24211d] border border-[#38332c] p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                {/* Status Filter Pills */}
+                <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                  <span className="text-[10px] uppercase font-bold text-[#787165] tracking-wider mr-1">Filter:</span>
+                  {(
+                    [
+                      { id: "ALL", label: `All MTO (${workshopKpis.totalMtoCount})` },
+                      { id: "GRACE_LOCKED", label: `Grace Locked (${workshopKpis.graceLockedCount})` },
+                      { id: "RELEASE_ELIGIBLE", label: `Day 8 Release Ready (${workshopKpis.releaseEligibleCount})` },
+                      { id: "IN_WORKSHOP", label: `In Workshop & QC (${workshopKpis.inWorkshopCount})` },
+                      { id: "CANCELLED", label: `Pre-Prod Cancelled (${workshopKpis.cancelledCount})` },
+                    ] as const
+                  ).map((st) => (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => setWorkshopFilter(st.id as any)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
+                        workshopFilter === st.id
+                          ? "bg-[#c59b6d] text-[#181715]"
+                          : "bg-[#181715] text-[#a8a093] hover:text-white border border-[#38332c]"
+                      }`}
+                    >
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2 flex-1 max-w-md min-w-[280px]">
+                  {/* Search Input */}
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      placeholder="Search order #, patron, edition, PIN..."
+                      value={workshopSearchQuery}
+                      onChange={(e) => setWorkshopSearchQuery(e.target.value)}
+                      className="w-full rounded-xl border border-[#464037] bg-[#181715] px-3.5 py-1.5 text-xs text-white placeholder-[#787165] focus:outline-none focus:border-[#c59b6d]"
+                    />
+                    {workshopSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setWorkshopSearchQuery("")}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#a8a093] hover:text-white"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Sorter Dropdown */}
+                  <select
+                    value={workshopSortBy}
+                    onChange={(e) => setWorkshopSortBy(e.target.value as any)}
+                    className="rounded-xl border border-[#464037] bg-[#181715] px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#c59b6d]"
+                  >
+                    <option value="GRACE_ASC">Sort: Grace (Shortest First)</option>
+                    <option value="GRACE_DESC">Sort: Grace (Longest First)</option>
+                    <option value="DATE_DESC">Sort: Date (Newest First)</option>
+                    <option value="AMOUNT_DESC">Sort: Value (Highest First)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Workshop Queue Cards Grid */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-xs text-[#a8a093]">
+                <span>Showing {filteredWorkshopOrders.length} of {workshopKpis.totalMtoCount} Made-to-Order consignments</span>
+                {workshopFilter !== "ALL" || workshopSearchQuery ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWorkshopFilter("ALL");
+                      setWorkshopSearchQuery("");
+                    }}
+                    className="text-[#c59b6d] hover:underline"
+                  >
+                    Reset filters
+                  </button>
+                ) : null}
+              </div>
+
+              {filteredWorkshopOrders.length === 0 ? (
+                <div className="py-12 text-center text-xs text-[#a8a093] bg-[#24211d] rounded-2xl border border-[#38332c] space-y-1">
                   <p className="font-semibold text-white">No orders matching this workshop filter.</p>
                   <p className="text-[11px]">All made-to-order consignments in this category are clear.</p>
                 </div>
-              )}
-              {orders
-                .filter((o) => o.mode === "MADE_TO_ORDER")
-                .filter((o) => {
-                  const isCancelled = o.status === "CANCELLED" || o.status === "REFUNDED";
-                  if (workshopStatusFilter === "ACTIVE") return !isCancelled;
-                  if (workshopStatusFilter === "CANCELLED") return isCancelled;
-                  return true;
-                })
-                .map((order) => {
-                  const isCancelled = order.status === "CANCELLED" || order.status === "REFUNDED";
-                  const isConfirmedAwaitingRelease =
-                    order.status === "CONFIRMED" || order.status === "GRACE_PERIOD_ACTIVE";
-                  const isGraceWindowOpen =
-                    isConfirmedAwaitingRelease &&
-                    (order.isGraceActive ?? (order.graceDaysRemaining ?? 0) > 0);
-                  const matchedPin = pincodes.find((p) => p.pincode === order.pincode);
-                  const isPinFeasible = matchedPin ? matchedPin.isServiceable : false;
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                  {filteredWorkshopOrders.map((order) => {
+                    const isCancelled = order.status === "CANCELLED" || order.status === "REFUNDED";
+                    const isConfirmedAwaitingRelease =
+                      order.status === "CONFIRMED" || order.status === "GRACE_PERIOD_ACTIVE";
+                    const isGraceWindowOpen =
+                      isConfirmedAwaitingRelease &&
+                      (order.isGraceActive ?? (order.graceDaysRemaining ?? 0) > 0);
+                    const matchedPin = pincodes.find((p) => p.pincode === order.pincode);
+                    const isPinFeasible = matchedPin ? matchedPin.isServiceable : false;
+                    const daysRemaining = Math.max(0, order.graceDaysRemaining ?? 0);
+                    const daysElapsed = Math.min(7, Math.max(0, 7 - daysRemaining));
 
-                  return (
-                    <div
-                      key={order.id}
-                      className="p-6 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-5"
-                    >
-                      <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
-                        <div>
-                          <span className="font-mono font-bold text-white text-sm">{order.orderNumber}</span>
-                          <p className="text-xs text-[#a8a093]">{order.customerName}</p>
-                        </div>
-                        <span
-                          className={`px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider ${
-                            isCancelled
-                              ? "bg-red-950 text-red-300 border border-red-800"
-                              : isGraceWindowOpen
-                              ? "bg-amber-950 text-amber-300 border border-amber-800"
-                              : "bg-emerald-950 text-emerald-300 border border-emerald-800"
-                          }`}
-                        >
-                          {order.status}
-                        </span>
-                      </div>
-
-                      <div className="space-y-2 text-xs">
-                        <strong className="text-white block">Ordered Works:</strong>
-                        <ul className="list-disc list-inside text-[#a8a093]">
-                          {order.items.map((i, idx) => (
-                            <li key={idx}>
-                              {i.name} (Qty: {i.quantity})
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-
-                      <div className="p-4 rounded-xl bg-[#2a2722] space-y-2 text-xs">
-                        <div className="flex justify-between text-[#a8a093]">
-                          <span>Amount Verified Paid:</span>
-                          <span className="font-semibold text-[#10b981]">{formatPrice(order.amountPaidRupees)}</span>
-                        </div>
-                        <div className="flex justify-between text-[#a8a093]">
-                          <span>Pre-Dispatch Balance:</span>
-                          <span className="font-semibold text-white">
-                            {order.balanceDueRupees <= 0 ? "₹0 (100% Settled)" : formatPrice(order.balanceDueRupees)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-[#a8a093]">
-                          <span>Courier Feasibility ({order.pincode}):</span>
-                          <span className={`font-semibold ${isPinFeasible ? "text-emerald-400" : "text-amber-300"}`}>
-                            {isPinFeasible ? `✓ Verified (${matchedPin?.zoneCode || "Active PIN"})` : "⚠ Review PIN Feasibility"}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-[#f59e0b] pt-1 border-t border-[#38332c]">
-                          <span>Grace Window Status:</span>
-                          <span className="font-bold">
-                            {isCancelled
-                              ? "Cancelled & Refunded"
-                              : isGraceWindowOpen
-                              ? `${order.graceDaysRemaining ?? 7} Day(s) Remaining${order.releaseEligibleDate ? ` (Release ${order.releaseEligibleDate})` : ""}`
-                              : isConfirmedAwaitingRelease
-                              ? "Day 8 Reached — Eligible for Release"
-                              : "Grace Concluded / Released"}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3 pt-2">
-                        {isCancelled ? (
-                          <div className="w-full text-center py-2 text-xs text-red-300 font-semibold bg-red-950/20 border border-red-800/40 rounded-xl">
-                            Pre-Production Cancellation Completed
-                          </div>
-                        ) : isConfirmedAwaitingRelease ? (
-                          <div className="w-full space-y-2">
-                            <div className="flex items-center gap-3">
-                              <button
-                                onClick={() => handleReleaseToProduction(order.id)}
-                                disabled={isGraceWindowOpen}
-                                title={
-                                  isGraceWindowOpen
-                                    ? `Physical production blocked during 7-day grace window until Day 8 (${order.releaseEligibleDate || "grace end"}).`
-                                    : "Release order to workshop machining"
-                                }
-                                className="flex-1 py-2.5 rounded-xl bg-[#c59b6d] text-[#181715] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors shadow-sm disabled:opacity-45 disabled:cursor-not-allowed"
-                              >
-                                {isGraceWindowOpen
-                                  ? `Locked in Grace (${order.graceDaysRemaining ?? 7}d left)`
-                                  : "Release to Workshop Machining"}
-                              </button>
-                              <button
-                                onClick={() => handleCancelOrder(order.id)}
-                                className="py-2.5 px-4 rounded-xl border border-red-800/60 text-red-400 font-semibold text-xs hover:bg-red-950/40 transition-colors"
-                              >
-                                100% Pre-Prod Refund
-                              </button>
-                            </div>
-                            {isGraceWindowOpen && (
-                              <p className="text-[11px] text-amber-300/80">
-                                Hard TAV-06 Gate: Machining release unlocks automatically on Day 8 ({order.releaseEligibleDate || "after grace"}).
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="w-full space-y-2">
-                            <div className="w-full text-center py-2 text-xs text-[#10b981] font-semibold bg-emerald-950/20 border border-emerald-800/40 rounded-xl">
-                              ✓{" "}
-                              {order.status === "PRODUCTION_COMPLETED"
-                                ? "QC Passed & Completed"
-                                : order.status === "AWAITING_DISPATCH"
-                                ? "QC Passed · 100% Paid · Awaiting Dispatch"
-                                : order.status === "DISPATCHED" || order.status === "DELIVERED"
-                                ? `Consignment ${order.status}`
-                                : "Machining in Progress in Tavistra Workshop"}
-                            </div>
-                            <button
-                              onClick={() => {
-                                setQcOrderModal(order);
-                                setQcNotesInput(order.qcNotes || "");
-                                setQcImageInput(parseQcImagesList(order.qcImages).join("\n"));
-                                setQcUploadError(null);
-                              }}
-                              className="w-full py-2.5 rounded-xl bg-[#2a2a30] border border-[#464037] text-xs font-semibold text-white hover:bg-[#34343c] transition-colors flex items-center justify-center gap-2"
-                            >
-                              <svg className="w-4 h-4 text-[#c59b6d]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                              </svg>
-                              <span>
-                                {parseQcImagesList(order.qcImages).length > 0
-                                  ? `Manage QC Photos (${parseQcImagesList(order.qcImages).length}) & Notes`
-                                  : "Upload Workshop QC Photos & Review"}
+                    return (
+                      <div
+                        key={order.id}
+                        className={`p-5 rounded-2xl border space-y-4 transition-all ${
+                          isCancelled
+                            ? "bg-[#1f1b1a] border-red-900/50"
+                            : isGraceWindowOpen
+                            ? "bg-[#24211d] border-amber-800/60 shadow-lg shadow-amber-950/10"
+                            : "bg-[#24211d] border-[#38332c]"
+                        }`}
+                      >
+                        {/* Order Header */}
+                        <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-white text-sm">{order.orderNumber}</span>
+                              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-[#181715] text-[#a8a093] border border-[#38332c]">
+                                MTO
                               </span>
+                            </div>
+                            <p className="text-xs text-[#a8a093] mt-0.5">
+                              {order.customerName} · {order.city} (PIN {order.pincode})
+                            </p>
+                          </div>
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider border ${
+                              isCancelled
+                                ? "bg-red-950 text-red-300 border-red-800"
+                                : isGraceWindowOpen
+                                ? "bg-amber-950 text-amber-300 border-amber-800"
+                                : order.status === "PRODUCTION_COMPLETED"
+                                ? "bg-emerald-950 text-emerald-300 border-emerald-800"
+                                : "bg-sky-950 text-sky-300 border-sky-800"
+                            }`}
+                          >
+                            {isCancelled ? "Cancelled & Refunded" : order.status}
+                          </span>
+                        </div>
+
+                        {/* Visual 7-Day Grace Timeline Progress Step Bar */}
+                        <div className="p-3.5 rounded-xl bg-[#181715] border border-[#38332c] space-y-2">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-semibold text-[11px] text-white flex items-center gap-1.5">
+                              <span>⏱ 7-Day Customer Grace Window</span>
+                            </span>
+                            <span
+                              className={`text-[11px] font-mono font-bold ${
+                                isCancelled
+                                  ? "text-red-400"
+                                  : isGraceWindowOpen
+                                  ? "text-[#f59e0b]"
+                                  : isConfirmedAwaitingRelease
+                                  ? "text-emerald-400"
+                                  : "text-[#10b981]"
+                              }`}
+                            >
+                              {isCancelled
+                                ? "Pre-Production Cancelled"
+                                : isGraceWindowOpen
+                                ? `${daysRemaining}d Left (Day ${daysElapsed}/7)`
+                                : isConfirmedAwaitingRelease
+                                ? "Day 8 Reached · Unlock Active"
+                                : "Grace Concluded · Machining Active"}
+                            </span>
+                          </div>
+
+                          {/* 7-Segment Step Bar */}
+                          <div className="grid grid-cols-8 gap-1.5 pt-1">
+                            {[1, 2, 3, 4, 5, 6, 7].map((dayNum) => {
+                              const isCompletedDay = !isCancelled && dayNum <= daysElapsed;
+                              const isCurrentDay = !isCancelled && isGraceWindowOpen && dayNum === daysElapsed + 1;
+                              return (
+                                <div key={dayNum} className="space-y-1">
+                                  <div
+                                    className={`h-2 rounded-full transition-all ${
+                                      isCancelled
+                                        ? "bg-red-950/60"
+                                        : isCompletedDay
+                                        ? "bg-[#f59e0b]"
+                                        : isCurrentDay
+                                        ? "bg-amber-500 animate-pulse"
+                                        : "bg-[#2a2722]"
+                                    }`}
+                                  />
+                                  <span className="text-[9px] text-[#787165] block text-center font-mono">D{dayNum}</span>
+                                </div>
+                              );
+                            })}
+                            {/* Day 8 Unlock Gate */}
+                            <div className="space-y-1">
+                              <div
+                                className={`h-2 rounded-full transition-all ${
+                                  isCancelled
+                                    ? "bg-red-950/60"
+                                    : !isGraceWindowOpen
+                                    ? "bg-[#10b981]"
+                                    : "bg-[#2a2722]"
+                                }`}
+                              />
+                              <span className="text-[9px] text-[#10b981] font-bold block text-center font-mono">D8 🔓</span>
+                            </div>
+                          </div>
+
+                          <div className="text-[10px] text-[#787165] flex items-center justify-between pt-0.5">
+                            <span>
+                              {isGraceWindowOpen && order.releaseEligibleDate
+                                ? `Release unlocks automatically: ${order.releaseEligibleDate}`
+                                : isCancelled
+                                ? "Statutory cooling refund settled"
+                                : "Physical fabrication authorized"}
+                            </span>
+                            <span>Day 0: {order.placedAt ? new Date(order.placedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "Confirmed"}</span>
+                          </div>
+                        </div>
+
+                        {/* Ordered Works Specifications */}
+                        <div className="space-y-1.5 text-xs">
+                          <strong className="text-white block text-[11px] uppercase tracking-wider text-[#a8a093]">
+                            Bespoke Fabrication Specifications:
+                          </strong>
+                          <div className="rounded-xl border border-[#38332c] bg-[#181715] p-2.5 space-y-1 divide-y divide-[#38332c]/50">
+                            {order.items.map((i, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-xs pt-1 first:pt-0">
+                                <div>
+                                  <span className="text-white font-medium">{i.name}</span>
+                                  <span className="text-[10px] text-[#c59b6d] block">Studio Bespoke Edition</span>
+                                </div>
+                                <div className="text-right font-mono">
+                                  <span className="text-white text-xs font-bold">Qty {i.quantity}</span>
+                                  <span className="text-[10px] text-[#787165] block">{formatPrice(i.priceRupees)}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Commercial & Courier Feasibility Checklist */}
+                        <div className="p-3.5 rounded-xl bg-[#1e1c19] border border-[#38332c] space-y-2 text-xs">
+                          <div className="flex justify-between text-[#a8a093]">
+                            <span>Verified Advance Paid:</span>
+                            <span className="font-semibold text-[#10b981] font-mono">{formatPrice(order.amountPaidRupees)}</span>
+                          </div>
+                          <div className="flex justify-between text-[#a8a093]">
+                            <span>Pre-Dispatch Balance:</span>
+                            <span className="font-semibold text-white font-mono">
+                              {order.balanceDueRupees <= 0 ? "₹0 (100% Settled)" : formatPrice(order.balanceDueRupees)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-[#a8a093] pt-1 border-t border-[#38332c]">
+                            <span>Destination PIN Feasibility:</span>
+                            <span className={`font-semibold ${isPinFeasible ? "text-emerald-400" : "text-amber-300"}`}>
+                              {isPinFeasible ? `✓ Verified (${matchedPin?.zoneCode || "Active PIN"})` : "⚠ Review PIN Feasibility"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="space-y-2 pt-1 border-t border-[#38332c]">
+                          {isCancelled ? (
+                            <div className="w-full text-center py-2 text-xs text-red-300 font-semibold bg-red-950/20 border border-red-800/40 rounded-xl">
+                              Pre-Production Cancellation Completed · 100% Refund Issued
+                            </div>
+                          ) : isConfirmedAwaitingRelease ? (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleReleaseToProduction(order.id)}
+                                  disabled={isGraceWindowOpen}
+                                  title={
+                                    isGraceWindowOpen
+                                      ? `Hard TAV-06 Gate: Production blocked until Day 8 (${order.releaseEligibleDate || "grace expiry"}).`
+                                      : "Authorize workshop physical machining"
+                                  }
+                                  className="flex-1 py-2 rounded-xl bg-[#c59b6d] text-[#181715] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors shadow-sm disabled:opacity-45 disabled:cursor-not-allowed"
+                                >
+                                  {isGraceWindowOpen
+                                    ? `Locked in Grace (${daysRemaining}d left)`
+                                    : "Release to Workshop Machining →"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCancelOrder(order.id)}
+                                  className="py-2 px-3 rounded-xl border border-red-800/60 text-red-400 font-semibold text-xs hover:bg-red-950/40 transition-colors"
+                                  title="Cancel order during grace with statutory 100% refund"
+                                >
+                                  100% Refund
+                                </button>
+                              </div>
+                              {isGraceWindowOpen && (
+                                <p className="text-[10px] text-amber-300/80 text-center">
+                                  TAV-06 Cooling Gate: Machining unlocks automatically on Day 8 ({order.releaseEligibleDate || "grace end"}).
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <div className="w-full text-center py-2 text-xs text-[#10b981] font-semibold bg-emerald-950/20 border border-emerald-800/40 rounded-xl">
+                                ✓{" "}
+                                {order.status === "PRODUCTION_COMPLETED"
+                                  ? "QC Passed & Completed"
+                                  : order.status === "AWAITING_DISPATCH"
+                                  ? "QC Passed · 100% Paid · Awaiting Dispatch"
+                                  : order.status === "DISPATCHED" || order.status === "DELIVERED"
+                                  ? `Consignment ${order.status}`
+                                  : "Machining in Progress in Tavistra Workshop"}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setQcOrderModal(order);
+                                  setQcNotesInput(order.qcNotes || "");
+                                  setQcImageInput(parseQcImagesList(order.qcImages).join("\n"));
+                                  setQcUploadError(null);
+                                }}
+                                className="w-full py-2 rounded-xl bg-[#2a2a30] border border-[#464037] text-xs font-semibold text-white hover:bg-[#34343c] transition-colors flex items-center justify-center gap-2"
+                              >
+                                <svg className="w-3.5 h-3.5 text-[#c59b6d]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                <span>
+                                  {parseQcImagesList(order.qcImages).length > 0
+                                    ? `Manage QC Photos (${parseQcImagesList(order.qcImages).length}) & Notes`
+                                    : "Upload Workshop QC Photos & Review"}
+                                </span>
+                              </button>
+                            </div>
+                          )}
+
+                          {/* In-place Inspect Order Button */}
+                          <div className="flex justify-end pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedOrder(order)}
+                              className="text-xs text-[#c59b6d] hover:underline flex items-center gap-1 font-semibold"
+                              title="Inspect full order dossier in-place"
+                            >
+                              <span>Inspect Full Consignment Dossier ↗</span>
                             </button>
                           </div>
-                        )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
-        )}
+        )}"""
+
+# Normalise \r\n to \n for matching
+text_lf = text.replace("\r\n", "\n")
+
+replacements = [
+    (target_state, replacement_state, "Workshop state declarations"),
+    (target_hooks, replacement_hooks, "Workshop hooks insertion"),
+    (target_production_tab, replacement_production_tab, "Upgraded Workshop Queue UI"),
+]
+
+for tgt, repl, name in replacements:
+    tgt_lf = tgt.replace("\r\n", "\n")
+    repl_lf = repl.replace("\r\n", "\n")
+    if tgt_lf in text_lf:
+        text_lf = text_lf.replace(tgt_lf, repl_lf, 1)
+        print(f"[OK] Applied: {name}")
+    else:
+        print(f"[FAIL] Target not found: {name}")
+
+final_text = text_lf.replace("\n", "\r\n")
+with open(path, "wb") as f:
+    f.write(final_text.encode("utf-8"))
+
+print("Workshop upgrade applied.
 
         {/* TAB 4: DISPATCH & AWB */}
         {activeTab === "DISPATCH" && (
