@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Fragment } from "react";
 import {
   INITIAL_ORDERS,
   INITIAL_BULK_INQUIRIES,
@@ -356,6 +356,19 @@ export default function App() {
   const [dispatchCarrierFilter, setDispatchCarrierFilter] = useState<string>("ALL");
   const [dispatchDonutView, setDispatchDonutView] = useState<"STATUS" | "CARRIER">("STATUS");
   const [hoveredDispatchSlice, setHoveredDispatchSlice] = useState<string | null>(null);
+
+  // Catalogue & Variants Tab State
+  const [catalogueSearchQuery, setCatalogueSearchQuery] = useState("");
+  const [catalogueModeFilter, setCatalogueModeFilter] = useState<"ALL" | "READY_STOCK" | "MADE_TO_ORDER" | "QUOTE_ONLY">("ALL");
+  const [catalogueCategoryFilter, setCatalogueCategoryFilter] = useState<string>("ALL");
+  const [catalogueDonutView, setCatalogueDonutView] = useState<"MODE" | "CATEGORY">("MODE");
+  const [hoveredCatalogueSlice, setHoveredCatalogueSlice] = useState<string | null>(null);
+  const [expandedCatalogueItemIds, setExpandedCatalogueItemIds] = useState<Set<string>>(new Set());
+
+  // Price & Description editing in Product Review Modal
+  const [editingPriceRupees, setEditingPriceRupees] = useState<number | null>(null);
+  const [editingDescription, setEditingDescription] = useState<string | null>(null);
+  const [isSavingProductSpecs, setIsSavingProductSpecs] = useState(false);
 
   // Helper to record audit log
   const logAuditAction = (action: string, entityType: string, entityId: string, details: string) => {
@@ -1799,6 +1812,205 @@ export default function App() {
         );
       });
   }, [orders, dispatchStatusFilter, dispatchCarrierFilter, dispatchSearchQuery]);
+
+  // Catalogue & Inventory KPIs
+  const catalogueKpis = useMemo(() => {
+    const totalEditions = catalogue.length;
+    const publishedCount = catalogue.filter((c) => c.isPublished).length;
+    const draftCount = totalEditions - publishedCount;
+
+    const readyStockItems = catalogue.filter((c) => c.mode === "READY_STOCK");
+    const mtoItems = catalogue.filter((c) => c.mode === "MADE_TO_ORDER");
+    const quoteOnlyItems = catalogue.filter((c) => c.mode === "QUOTE_ONLY");
+
+    const totalVariants = catalogue.reduce((sum, c) => sum + (c.variants?.length || 0), 0);
+    const totalAvailableStock = readyStockItems.reduce((sum, c) => sum + (c.availableStock || 0), 0);
+    const totalReservedStock = readyStockItems.reduce((sum, c) => sum + (c.reservedStock || 0), 0);
+
+    const readyStockValuation = readyStockItems.reduce((sum, c) => {
+      if (c.variants && c.variants.length > 0) {
+        return sum + c.variants.reduce((vSum, v) => vSum + (v.stock || 0) * (v.priceRupees || c.priceRupees), 0);
+      }
+      return sum + (c.availableStock || 0) * (c.priceRupees || 0);
+    }, 0);
+
+    const minPrice = catalogue.length > 0 ? Math.min(...catalogue.map((c) => c.minPriceRupees || c.priceRupees)) : 0;
+    const maxPrice = catalogue.length > 0 ? Math.max(...catalogue.map((c) => c.maxPriceRupees || c.priceRupees)) : 0;
+
+    const categories = Array.from(new Set(catalogue.map((c) => c.category).filter(Boolean))).sort();
+
+    return {
+      totalEditions,
+      publishedCount,
+      draftCount,
+      readyStockCount: readyStockItems.length,
+      mtoCount: mtoItems.length,
+      quoteOnlyCount: quoteOnlyItems.length,
+      totalVariants,
+      totalAvailableStock,
+      totalReservedStock,
+      readyStockValuation,
+      minPrice,
+      maxPrice,
+      categories,
+    };
+  }, [catalogue]);
+
+  // Catalogue Donut Data (100% mathematically consistent)
+  const catalogueDonutData = useMemo(() => {
+    if (catalogueDonutView === "MODE") {
+      const readyCount = catalogueKpis.readyStockCount;
+      const mtoCount = catalogueKpis.mtoCount;
+      const quoteCount = catalogueKpis.quoteOnlyCount;
+
+      const slices = [
+        { id: "READY_STOCK", label: "Ready Stock (Immediate Dispatch)", count: readyCount, color: "#10b981", filterKey: "READY_STOCK" as const },
+        { id: "MADE_TO_ORDER", label: "Made to Order (Workshop Craft)", count: mtoCount, color: "#c59b6d", filterKey: "MADE_TO_ORDER" as const },
+        { id: "QUOTE_ONLY", label: "Bespoke Commission / Quote", count: quoteCount, color: "#818cf8", filterKey: "QUOTE_ONLY" as const },
+      ].filter((s) => s.count > 0);
+
+      const totalCount = slices.reduce((acc, s) => acc + s.count, 0) || 1;
+      return {
+        slices: slices.map((s) => ({
+          ...s,
+          pct: Math.round((s.count / totalCount) * 100),
+        })),
+        totalCount,
+        title: "Purchase Mode & Commercial Distribution",
+        centerNumber: totalCount,
+        centerLabel: "Editions",
+      };
+    } else {
+      // Group by Category
+      const categoryCounts: Record<string, number> = {};
+      catalogue.forEach((c) => {
+        const cat = c.category || "Uncategorized";
+        categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+      });
+
+      const catColors = ["#c59b6d", "#38bdf8", "#10b981", "#f59e0b", "#ec4899", "#818cf8", "#94a3b8"];
+      const slices = Object.entries(categoryCounts).map(([cat, count], idx) => ({
+        id: `cat_${idx}`,
+        label: cat,
+        count,
+        color: catColors[idx % catColors.length],
+        filterKey: "ALL" as const,
+        categoryName: cat,
+      }));
+
+      const totalCount = slices.reduce((acc, s) => acc + s.count, 0) || 1;
+      return {
+        slices: slices.map((s) => ({
+          ...s,
+          pct: Math.round((s.count / totalCount) * 100),
+        })),
+        totalCount,
+        title: "Curated Architectural Collections",
+        centerNumber: totalCount,
+        centerLabel: "Works",
+      };
+    }
+  }, [catalogue, catalogueDonutView, catalogueKpis]);
+
+  // Filtered & Searched Catalogue Items
+  const filteredCatalogue = useMemo(() => {
+    return catalogue.filter((item) => {
+      if (catalogueModeFilter !== "ALL" && item.mode !== catalogueModeFilter) return false;
+      if (catalogueCategoryFilter !== "ALL" && item.category !== catalogueCategoryFilter) return false;
+
+      if (!catalogueSearchQuery.trim()) return true;
+      const q = catalogueSearchQuery.toLowerCase();
+      const name = (item.name || "").toLowerCase();
+      const sku = (item.sku || "").toLowerCase();
+      const slug = (item.slug || "").toLowerCase();
+      const cat = (item.category || "").toLowerCase();
+      const subcat = (item.subcategory || "").toLowerCase();
+      const materials = (item.materials || []).join(" ").toLowerCase();
+      const variantSkus = (item.variants || []).map((v) => `${v.sku} ${v.title} ${v.materialFinish || ""}`).join(" ").toLowerCase();
+
+      return (
+        name.includes(q) ||
+        sku.includes(q) ||
+        slug.includes(q) ||
+        cat.includes(q) ||
+        subcat.includes(q) ||
+        materials.includes(q) ||
+        variantSkus.includes(q)
+      );
+    });
+  }, [catalogue, catalogueModeFilter, catalogueCategoryFilter, catalogueSearchQuery]);
+
+  const toggleCatalogueItemExpanded = (id: string) => {
+    setExpandedCatalogueItemIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSaveProductSpecs = async (productId: string) => {
+    if (!isActionPermitted(currentStaff.role, "CATALOGUE_MUTATE")) {
+      alert(`Unauthorized: Role '${currentStaff.role}' cannot modify catalogue items. Requires Commerce Admin or Super Admin.`);
+      return;
+    }
+    const targetItem = catalogue.find((c) => c.id === productId);
+    if (!targetItem) return;
+
+    setIsSavingProductSpecs(true);
+    try {
+      const updatePayload: { id: string; priceRupees?: number; fullDescription?: string; staffName: string } = {
+        id: productId,
+        staffName: currentStaff.name,
+      };
+      if (editingPriceRupees !== null && editingPriceRupees > 0) {
+        updatePayload.priceRupees = editingPriceRupees;
+      }
+      if (editingDescription !== null && editingDescription.trim().length > 0) {
+        updatePayload.fullDescription = editingDescription.trim();
+      }
+
+      const res = await fetchJson<{ success?: boolean; product?: any }>("/api/admin/catalogue", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatePayload),
+      });
+
+      if (res.success) {
+        setCatalogue((prev) =>
+          prev.map((c) => {
+            if (c.id === productId) {
+              return {
+                ...c,
+                priceRupees: updatePayload.priceRupees ?? c.priceRupees,
+                fullDescription: updatePayload.fullDescription ?? c.fullDescription,
+              };
+            }
+            return c;
+          })
+        );
+        if (reviewedProduct && reviewedProduct.id === productId) {
+          setReviewedProduct({
+            ...reviewedProduct,
+            priceRupees: updatePayload.priceRupees ?? reviewedProduct.priceRupees,
+            fullDescription: updatePayload.fullDescription ?? reviewedProduct.fullDescription,
+          });
+        }
+        logAuditAction(
+          "CATALOGUE_SPEC_UPDATE",
+          "Product",
+          targetItem.slug,
+          `Updated specs: price=₹${updatePayload.priceRupees || targetItem.priceRupees}, description updated.`
+        );
+        setEditingPriceRupees(null);
+        setEditingDescription(null);
+      }
+    } catch (err) {
+      alert(`Failed to save product specs: ${(err as Error).message}`);
+    } finally {
+      setIsSavingProductSpecs(false);
+    }
+  };
 
   const handleCopyQuoteLink = async (quoteNumber: string) => {
     const link = getStorefrontUrl(`/quote/${quoteNumber}`);
@@ -7894,23 +8106,398 @@ export default function App() {
         {/* TAB 7: CATALOGUE & PRODUCT REVIEW */}
         {activeTab === "CATALOGUE" && (
           <div className="space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#38332c] pb-3">
+            {/* Header with Title and Global Actions */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#38332c] pb-4 gap-4">
               <div>
-                <h2 className="text-base font-semibold text-white">Catalogue Editions & Live Inventory</h2>
-                <p className="text-xs text-[#a8a093]">
-                  Publish status, available workshop stock, and active reservations (TAV-02 & TAV-05). Click "Review Specs" to inspect full editorial copy, dimensions, and Markdown sources.
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-semibold text-white">Catalogue Editions & Live Inventory</h2>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#2a2722] text-[#c59b6d] border border-[#38332c]">
+                    Markdown Source of Truth (TAV-02)
+                  </span>
+                </div>
+                <p className="text-xs text-[#a8a093] mt-0.5">
+                  Dual-mode portfolio management (Ready Stock vs Made to Order), live variant matrices, wholesale stock valuation, and Markdown architecture synchronization.
                 </p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5">
                 <button
-                  onClick={() => setIsImportModalOpen(true)}
-                  className="px-3.5 py-1.5 rounded-lg bg-[#38332c] border border-[#464037] text-xs font-semibold text-white hover:bg-[#464037] flex items-center gap-1.5"
+                  type="button"
+                  onClick={() => syncBackendData()}
+                  className="px-3.5 py-1.5 rounded-xl bg-[#24211d] border border-[#38332c] hover:border-[#4d473d] text-xs font-semibold text-white hover:bg-[#2a2722] transition-colors flex items-center gap-1.5"
                 >
-                  <span>📝</span> Import / Sync Markdown
+                  <svg className="w-3.5 h-3.5 text-[#c59b6d]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Sync Catalogue
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsImportModalOpen(true)}
+                  className="px-3.5 py-1.5 rounded-xl bg-[#38332c] border border-[#464037] text-xs font-semibold text-white hover:bg-[#464037] transition-colors flex items-center gap-1.5"
+                >
+                  <span>📝</span>
+                  <span>Import / Sync Markdown</span>
                 </button>
               </div>
             </div>
 
+            {/* 4 Top Metric Pulse Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {/* Card 1: Catalogue Editions */}
+              <div
+                onClick={() => {
+                  setCatalogueModeFilter("ALL");
+                  setCatalogueCategoryFilter("ALL");
+                }}
+                className={`p-4 rounded-2xl bg-[#24211d] border transition-all cursor-pointer ${
+                  catalogueModeFilter === "ALL" && catalogueCategoryFilter === "ALL"
+                    ? "border-[#c59b6d] ring-1 ring-[#c59b6d]"
+                    : "border-[#38332c] hover:border-[#4d473d]"
+                }`}
+              >
+                <span className="text-[10px] uppercase font-bold text-[#a8a093] tracking-wider block">Catalogue Editions</span>
+                <span className="text-2xl font-mono font-bold text-white mt-1 block">
+                  {catalogueKpis.totalEditions}
+                </span>
+                <div className="text-[11px] text-[#a8a093] mt-0.5 flex items-center justify-between">
+                  <span>{catalogueKpis.publishedCount} Published</span>
+                  <span className="text-emerald-400 font-medium">100% Live</span>
+                </div>
+              </div>
+
+              {/* Card 2: Configured Variants */}
+              <div className="p-4 rounded-2xl bg-[#24211d] border border-[#38332c]">
+                <span className="text-[10px] uppercase font-bold text-[#a8a093] tracking-wider block">Configured Variants</span>
+                <span className="text-2xl font-mono font-bold text-[#38bdf8] mt-1 block">
+                  {catalogueKpis.totalVariants}
+                </span>
+                <div className="text-[11px] text-[#a8a093] mt-0.5 flex items-center justify-between">
+                  <span>Across {catalogueKpis.totalEditions} Works</span>
+                  <span className="text-[#c59b6d] font-medium">Finishes & Sizes</span>
+                </div>
+              </div>
+
+              {/* Card 3: Ready-Stock Warehouse Ledger */}
+              <div
+                onClick={() => setCatalogueModeFilter("READY_STOCK")}
+                className={`p-4 rounded-2xl bg-[#24211d] border transition-all cursor-pointer ${
+                  catalogueModeFilter === "READY_STOCK"
+                    ? "border-[#10b981] ring-1 ring-[#10b981]"
+                    : "border-[#38332c] hover:border-[#4d473d]"
+                }`}
+              >
+                <span className="text-[10px] uppercase font-bold text-[#a8a093] tracking-wider block">Ready-Stock Warehouse</span>
+                <span className="text-2xl font-mono font-bold text-[#10b981] mt-1 block">
+                  {catalogueKpis.totalAvailableStock} Units
+                </span>
+                <div className="text-[11px] text-[#a8a093] mt-0.5 flex items-center justify-between">
+                  <span>{formatPrice(catalogueKpis.readyStockValuation)}</span>
+                  <span className="text-emerald-400 font-medium">Available</span>
+                </div>
+              </div>
+
+              {/* Card 4: Price Band Spectrum */}
+              <div className="p-4 rounded-2xl bg-[#24211d] border border-[#38332c]">
+                <span className="text-[10px] uppercase font-bold text-[#a8a093] tracking-wider block">Price Band Spectrum</span>
+                <span className="text-lg font-mono font-bold text-white mt-1.5 block truncate">
+                  {formatPrice(catalogueKpis.minPrice)} – {formatPrice(catalogueKpis.maxPrice)}
+                </span>
+                <div className="text-[11px] text-[#a8a093] mt-0.5 flex items-center justify-between">
+                  <span>5 Studio Collections</span>
+                  <span className="text-[#c59b6d] font-medium">Architectural Range</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Interactive SVG Donut & Studio Catalogue Governance Card */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Donut Visual Box */}
+              <div className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4">
+                <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
+                  <div>
+                    <h3 className="text-xs uppercase font-bold text-[#c59b6d] tracking-wider">
+                      {catalogueDonutData.title}
+                    </h3>
+                    <p className="text-[11px] text-[#a8a093] mt-0.5">
+                      {catalogueDonutView === "MODE"
+                        ? "Interactive breakdown by commercial fulfillment mode"
+                        : "Distribution across curated architectural collections"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 bg-[#181715] p-1 rounded-xl border border-[#38332c]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCatalogueDonutView("MODE");
+                        setHoveredCatalogueSlice(null);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors ${
+                        catalogueDonutView === "MODE"
+                          ? "bg-[#c59b6d] text-[#181715]"
+                          : "text-[#a8a093] hover:text-white"
+                      }`}
+                    >
+                      Modes ({catalogueDonutData.totalCount})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCatalogueDonutView("CATEGORY");
+                        setHoveredCatalogueSlice(null);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors ${
+                        catalogueDonutView === "CATEGORY"
+                          ? "bg-[#c59b6d] text-[#181715]"
+                          : "text-[#a8a093] hover:text-white"
+                      }`}
+                    >
+                      Collections ({catalogueDonutData.totalCount})
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center justify-around gap-6 py-2">
+                  {/* SVG Donut Visual */}
+                  <div className="relative w-44 h-44 shrink-0 flex items-center justify-center">
+                    {(() => {
+                      const r = 38;
+                      const c = 2 * Math.PI * r;
+                      let accumulatedPct = 0;
+                      return (
+                        <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
+                          <circle
+                            cx="50"
+                            cy="50"
+                            r={r}
+                            fill="transparent"
+                            stroke="#2a2722"
+                            strokeWidth="13"
+                          />
+                          {catalogueDonutData.slices.map((slice) => {
+                            const strokeLength = (slice.pct / 100) * c;
+                            const strokeGap = c - strokeLength;
+                            const currentOffset = (accumulatedPct / 100) * c;
+                            accumulatedPct += slice.pct;
+                            const isHovered = hoveredCatalogueSlice === slice.id;
+
+                            return (
+                              <circle
+                                key={slice.id}
+                                cx="50"
+                                cy="50"
+                                r={r}
+                                fill="transparent"
+                                stroke={slice.color}
+                                strokeWidth={isHovered ? 17 : 13}
+                                strokeDasharray={`${strokeLength} ${strokeGap}`}
+                                strokeDashoffset={-currentOffset}
+                                onMouseEnter={() => setHoveredCatalogueSlice(slice.id)}
+                                onMouseLeave={() => setHoveredCatalogueSlice(null)}
+                                onClick={() => {
+                                  if (slice.filterKey && slice.filterKey !== "ALL") {
+                                    setCatalogueModeFilter(slice.filterKey);
+                                  } else if ('categoryName' in slice && slice.categoryName) {
+                                    setCatalogueCategoryFilter(slice.categoryName);
+                                  }
+                                }}
+                                className="transition-all duration-300 cursor-pointer"
+                                style={{
+                                  opacity: hoveredCatalogueSlice && !isHovered ? 0.45 : 1,
+                                }}
+                              >
+                                <title>{`${slice.label}: ${slice.count} (${slice.pct}%) - Click to filter`}</title>
+                              </circle>
+                            );
+                          })}
+                        </svg>
+                      );
+                    })()}
+
+                    {/* Donut Center Hub Info */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none text-center px-4">
+                      <span className="text-2xl font-mono font-bold text-white tracking-tight">
+                        {hoveredCatalogueSlice
+                          ? catalogueDonutData.slices.find((s) => s.id === hoveredCatalogueSlice)?.count
+                          : catalogueDonutData.centerNumber}
+                      </span>
+                      <span className="text-[9px] uppercase font-bold text-[#c59b6d] tracking-wider max-w-[85px] leading-tight mt-0.5 line-clamp-2">
+                        {hoveredCatalogueSlice
+                          ? catalogueDonutData.slices.find((s) => s.id === hoveredCatalogueSlice)?.label
+                          : catalogueDonutData.centerLabel}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Dynamic Legend List */}
+                  <div className="flex-1 w-full space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {catalogueDonutData.slices.map((slice) => {
+                      const isHovered = hoveredCatalogueSlice === slice.id;
+                      return (
+                        <div
+                          key={slice.id}
+                          onMouseEnter={() => setHoveredCatalogueSlice(slice.id)}
+                          onMouseLeave={() => setHoveredCatalogueSlice(null)}
+                          onClick={() => {
+                            if (slice.filterKey && slice.filterKey !== "ALL") {
+                              setCatalogueModeFilter(slice.filterKey);
+                            } else if ('categoryName' in slice && slice.categoryName) {
+                              setCatalogueCategoryFilter(slice.categoryName);
+                            }
+                          }}
+                          className={`flex items-center justify-between p-1.5 rounded-lg text-xs cursor-pointer transition-all ${
+                            isHovered ? "bg-[#2e2a24] text-white" : "hover:bg-[#25221d] text-[#a8a093]"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span
+                              className="h-2.5 w-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: slice.color }}
+                            />
+                            <span className="truncate text-[11px]">{slice.label}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0 font-mono text-[11px]">
+                            <span className="font-semibold text-white">{slice.count}</span>
+                            <span className="text-[#787165] text-[10px]">({slice.pct}%)</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Tavistra Studio Catalogue Architecture (TAV-02 & TAV-05) */}
+              <div className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-3.5 flex flex-col justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-[#c59b6d] animate-pulse" />
+                    <h3 className="text-xs uppercase font-bold text-[#c59b6d] tracking-wider">
+                      Studio Catalogue Architecture (TAV-02 & TAV-05)
+                    </h3>
+                  </div>
+                  <p className="text-xs text-[#a8a093]">
+                    Products and edition variants are governed by Markdown architectural specifications mirrored directly to PostgreSQL.
+                  </p>
+                </div>
+
+                <div className="space-y-2.5 text-xs text-[#a8a093]">
+                  <div className="p-2.5 rounded-xl bg-[#181715] border border-[#38332c] flex items-start gap-2.5">
+                    <span className="text-[#c59b6d] font-bold shrink-0">📄</span>
+                    <div>
+                      <strong className="text-white block font-medium">Markdown Source-of-Truth:</strong>
+                      <span>
+                        Product copy, materials, and dimension specs live in <code className="text-[#c59b6d]">docs/products/{`{slug}`}/{`{slug}`}.md</code>, automatically indexed into live commerce search.
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-[#181715] border border-[#38332c] flex items-start gap-2.5">
+                    <span className="text-emerald-400 font-bold shrink-0">📦</span>
+                    <div>
+                      <strong className="text-white block font-medium">Dual-Mode Inventory Ledger:</strong>
+                      <span>
+                        Ready Stock pieces utilize atomic inventory reservations with strict zero-overselling gates, while Made-to-Order pieces feed directly into the 7-day Workshop Grace queue.
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-[#181715] border border-[#38332c] flex items-start gap-2.5">
+                    <span className="text-sky-400 font-bold shrink-0">✨</span>
+                    <div>
+                      <strong className="text-white block font-medium">Variant & SKU-Specific Granularity:</strong>
+                      <span>
+                        Every finish option (Obsidian, Brushed Brass, Sand Stone, Gunmetal) has a distinct SKU, finish title, weight, and dedicated inventory ledger.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-1 flex items-center justify-between text-[11px] text-[#787165] border-t border-[#38332c]">
+                  <span>Total Works: {catalogueKpis.totalEditions}</span>
+                  <span>Configured Variants: {catalogueKpis.totalVariants}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter and Search Action Controls */}
+            <div className="space-y-3">
+              <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+                {/* Search Bar */}
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    placeholder="Search works by title, SKU, slug, finish, or materials..."
+                    value={catalogueSearchQuery}
+                    onChange={(e) => setCatalogueSearchQuery(e.target.value)}
+                    className="w-full rounded-xl border border-[#464037] bg-[#181715] pl-9 pr-8 py-2 text-xs text-white placeholder-[#787165] focus:outline-none focus:border-[#c59b6d]"
+                  />
+                  <svg
+                    className="w-4 h-4 text-[#787165] absolute left-3 top-2.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  {catalogueSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setCatalogueSearchQuery("")}
+                      className="absolute right-2.5 top-2.5 text-[#787165] hover:text-white text-xs"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* Category Filter Select */}
+                <div className="flex items-center gap-2">
+                  <select
+                    value={catalogueCategoryFilter}
+                    onChange={(e) => setCatalogueCategoryFilter(e.target.value)}
+                    className="rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-xs text-white focus:outline-none focus:border-[#c59b6d]"
+                  >
+                    <option value="ALL">All Categories ({catalogueKpis.totalEditions})</option>
+                    {catalogueKpis.categories.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Mode Filter Pills */}
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#38332c] pb-3">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {[
+                    { id: "ALL" as const, label: `All Works (${catalogueKpis.totalEditions})` },
+                    { id: "READY_STOCK" as const, label: `Ready Stock (${catalogueKpis.readyStockCount})` },
+                    { id: "MADE_TO_ORDER" as const, label: `Made to Order (${catalogueKpis.mtoCount})` },
+                    { id: "QUOTE_ONLY" as const, label: `Bespoke Quote (${catalogueKpis.quoteOnlyCount})` },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setCatalogueModeFilter(tab.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
+                        catalogueModeFilter === tab.id
+                          ? "bg-[#c59b6d] text-[#181715]"
+                          : "bg-[#24211d] text-[#a8a093] hover:text-white hover:bg-[#2a2722] border border-[#38332c]"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="text-xs text-[#a8a093]">
+                  Showing <strong className="text-white">{filteredCatalogue.length}</strong> of {catalogueKpis.totalEditions} works
+                </div>
+              </div>
+            </div>
+
+            {/* Catalogue Table with Expandable Variant Trays */}
             <div className="rounded-2xl border border-[#38332c] bg-[#24211d] overflow-hidden">
               <table className="w-full text-left text-xs">
                 <thead className="bg-[#1e1c19] border-b border-[#38332c] text-[11px] uppercase tracking-wider text-[#a8a093]">
@@ -7925,93 +8512,218 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#38332c]">
-                  {catalogue.map((item) => (
-                    <tr key={item.id} className="hover:bg-[#2a2722]/40 transition-colors">
-                      <td className="py-4 px-4 font-semibold text-white">
-                        <div className="flex items-center gap-3">
-                          {item.primaryImageUrl ? (
-                            <img
-                              src={item.primaryImageUrl}
-                              alt={item.name}
-                              className="h-10 w-10 rounded-lg object-cover border border-[#464037] shrink-0"
-                            />
-                          ) : (
-                            <div className="h-10 w-10 rounded-lg bg-[#2a2722] border border-[#464037] flex items-center justify-center text-[10px] text-[#c59b6d] font-bold shrink-0">
-                              ED
-                            </div>
-                          )}
-                          <div>
-                            <span className="text-white block">{item.name}</span>
-                            <span className="block text-[10px] font-mono text-[#a8a093]">
-                              {item.sku ? `${item.sku} · ` : ""}{item.slug}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4 text-[#a8a093]">
-                        <span className="text-white block">{item.category}</span>
-                        {item.subcategory && (
-                          <span className="text-[10px] text-[#c59b6d] block">{item.subcategory}</span>
-                        )}
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#2a2a30] text-[#c59b6d]">
-                          {item.mode}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4 font-semibold text-white">
-                        {item.isVariablePrice && item.minPriceRupees
-                          ? `From ${formatPrice(item.minPriceRupees)}`
-                          : formatPrice(item.priceRupees)}
-                      </td>
-                      <td className="py-4 px-4 text-xs text-[#a8a093]">
-                        {item.variants && item.variants.length > 0 ? (
-                          <span>
-                            <strong className="text-white">{item.variants.length}</strong> edition(s)
-                          </span>
-                        ) : (
-                          <span className="text-[11px] text-[#787165]">Standard</span>
-                        )}
-                      </td>
-                      <td className="py-4 px-4">
-                        {item.mode === "READY_STOCK" ? (
-                          <div className="text-[11px]">
-                            <span className="text-[#10b981] font-semibold">{item.availableStock} Available</span>
-                            {item.reservedStock > 0 && (
-                              <span className="text-[#f59e0b] block">({item.reservedStock} Reserved)</span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-[11px] text-[#a8a093]">Workshop On-Demand</span>
-                        )}
-                      </td>
-                      <td className="py-4 px-4 text-right space-x-2">
+                  {filteredCatalogue.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-xs text-[#a8a093]">
+                        <p className="font-semibold text-white">No catalogue works match the selected search or filter criteria.</p>
                         <button
-                          onClick={() => setReviewedProduct(item)}
-                          className="px-3 py-1 rounded-lg bg-[#2a2722] text-white border border-[#464037] text-xs font-semibold hover:bg-[#38332c]"
+                          type="button"
+                          onClick={() => {
+                            setCatalogueModeFilter("ALL");
+                            setCatalogueCategoryFilter("ALL");
+                            setCatalogueSearchQuery("");
+                          }}
+                          className="mt-2 px-3 py-1.5 rounded-xl bg-[#2a2722] text-[#c59b6d] hover:bg-[#343029] text-xs font-semibold border border-[#464037]"
                         >
-                          Review Specs
-                        </button>
-                        <button
-                          onClick={() => handleTogglePublish(item.id)}
-                          className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
-                            item.isPublished
-                              ? "bg-emerald-950 text-emerald-300 border border-emerald-800 hover:bg-emerald-900"
-                              : "bg-[#2a2a30] text-[#787165] hover:text-white"
-                          }`}
-                        >
-                          {item.isPublished ? "Published" : "Draft"}
+                          Reset Filters
                         </button>
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    filteredCatalogue.map((item) => {
+                      const isExpanded = expandedCatalogueItemIds.has(item.id);
+                      const hasVariants = item.variants && item.variants.length > 0;
+
+                      return (
+                        <Fragment key={item.id}>
+                          <tr className={`hover:bg-[#2a2722]/40 transition-colors ${isExpanded ? "bg-[#2a2722]/30" : ""}`}>
+                            <td className="py-4 px-4 font-semibold text-white">
+                              <div className="flex items-center gap-3">
+                                {item.primaryImageUrl ? (
+                                  <img
+                                    src={item.primaryImageUrl}
+                                    alt={item.name}
+                                    className="h-10 w-10 rounded-lg object-cover border border-[#464037] shrink-0"
+                                  />
+                                ) : (
+                                  <div className="h-10 w-10 rounded-lg bg-[#2a2722] border border-[#464037] flex items-center justify-center text-[10px] text-[#c59b6d] font-bold shrink-0">
+                                    ED
+                                  </div>
+                                )}
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-white block">{item.name}</span>
+                                    <a
+                                      href={getStorefrontUrl(`/product/${item.slug}`)}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-[10px] text-[#c59b6d] hover:underline flex items-center gap-0.5 font-normal"
+                                      title="Open live storefront PDP"
+                                    >
+                                      ↗
+                                    </a>
+                                  </div>
+                                  <span className="block text-[10px] font-mono text-[#a8a093]">
+                                    {item.sku ? `${item.sku} · ` : ""}{item.slug}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-4 px-4 text-[#a8a093]">
+                              <span className="text-white block">{item.category}</span>
+                              {item.subcategory && (
+                                <span className="text-[10px] text-[#c59b6d] block">{item.subcategory}</span>
+                              )}
+                            </td>
+                            <td className="py-4 px-4">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                                item.mode === "READY_STOCK"
+                                  ? "bg-emerald-950/60 text-emerald-300 border border-emerald-800/60"
+                                  : item.mode === "MADE_TO_ORDER"
+                                  ? "bg-amber-950/60 text-amber-300 border border-amber-800/60"
+                                  : "bg-purple-950/60 text-purple-300 border border-purple-800/60"
+                              }`}>
+                                {item.mode === "READY_STOCK" ? "Ready Stock" : item.mode === "MADE_TO_ORDER" ? "Made to Order" : "Bespoke Quote"}
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 font-semibold text-white">
+                              {item.isVariablePrice && item.minPriceRupees
+                                ? `From ${formatPrice(item.minPriceRupees)}`
+                                : formatPrice(item.priceRupees)}
+                            </td>
+                            <td className="py-4 px-4 text-xs">
+                              {hasVariants ? (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleCatalogueItemExpanded(item.id)}
+                                  className="px-2.5 py-1 rounded-lg bg-[#181715] hover:bg-[#2e2a24] border border-[#38332c] text-[11px] text-[#c59b6d] font-medium flex items-center gap-1.5 transition-colors"
+                                >
+                                  <span>{isExpanded ? "▲ Hide" : "▼ View"}</span>
+                                  <span className="font-semibold text-white">{item.variants?.length}</span>
+                                  <span>Editions</span>
+                                </button>
+                              ) : (
+                                <span className="text-[11px] text-[#787165]">Standard Edition</span>
+                              )}
+                            </td>
+                            <td className="py-4 px-4">
+                              {item.mode === "READY_STOCK" ? (
+                                <div className="text-[11px]">
+                                  <span className="text-[#10b981] font-semibold">{item.availableStock} Available</span>
+                                  {item.reservedStock > 0 && (
+                                    <span className="text-[#f59e0b] block">({item.reservedStock} Reserved)</span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-[#a8a093]">Workshop On-Demand</span>
+                              )}
+                            </td>
+                            <td className="py-4 px-4 text-right space-x-2">
+                              <button
+                                type="button"
+                                onClick={() => setReviewedProduct(item)}
+                                className="px-3 py-1 rounded-lg bg-[#2a2722] text-white border border-[#464037] text-xs font-semibold hover:bg-[#38332c] transition-colors"
+                              >
+                                Review Specs ↗
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleTogglePublish(item.id)}
+                                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                                  item.isPublished
+                                    ? "bg-emerald-950 text-emerald-300 border border-emerald-800 hover:bg-emerald-900"
+                                    : "bg-[#2a2a30] text-[#787165] hover:text-white"
+                                }`}
+                              >
+                                {item.isPublished ? "Published" : "Draft"}
+                              </button>
+                            </td>
+                          </tr>
+
+                          {/* Expandable Variant Tray */}
+                          {isExpanded && hasVariants && (
+                            <tr className="bg-[#1a1815] border-b border-[#38332c]">
+                              <td colSpan={7} className="p-4 pl-12">
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between border-b border-[#38332c] pb-2">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[10px] uppercase font-bold text-[#c59b6d] tracking-wider">
+                                        Configured Variant Editions for {item.name}
+                                      </span>
+                                      <span className="text-[10px] text-[#a8a093]">
+                                        ({item.variants?.length} unique finishes)
+                                      </span>
+                                    </div>
+                                    <span className="text-[10px] text-[#787165]">
+                                      Wishlist & Cart Granular SKU Mapping
+                                    </span>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {item.variants?.map((v) => (
+                                      <div
+                                        key={v.id}
+                                        className="p-3 rounded-xl bg-[#24211d] border border-[#38332c] space-y-2 hover:border-[#4d473d] transition-all text-xs"
+                                      >
+                                        <div className="flex items-start justify-between gap-3">
+                                          <div className="flex items-center gap-3">
+                                            {v.imageUrl ? (
+                                              <img
+                                                src={v.imageUrl}
+                                                alt={v.title}
+                                                className="h-10 w-10 rounded-lg object-cover border border-[#464037] shrink-0"
+                                              />
+                                            ) : (
+                                              <div className="h-10 w-10 rounded-lg bg-[#181715] border border-[#464037] flex items-center justify-center text-[10px] text-[#c59b6d] font-bold shrink-0">
+                                                VAR
+                                              </div>
+                                            )}
+                                            <div>
+                                              <strong className="text-white block font-medium">{v.title}</strong>
+                                              <span className="font-mono text-[10px] text-[#c59b6d] block">{v.sku}</span>
+                                            </div>
+                                          </div>
+                                          <div className="text-right">
+                                            <span className="font-mono font-bold text-white block">
+                                              {formatPrice(v.priceRupees)}
+                                            </span>
+                                            {item.mode === "READY_STOCK" ? (
+                                              <span className="text-[10px] text-emerald-400 font-medium">
+                                                {v.stock} in stock
+                                              </span>
+                                            ) : (
+                                              <span className="text-[10px] text-[#a8a093]">Workshop On-Demand</span>
+                                            )}
+                                          </div>
+                                        </div>
+
+                                        {v.materialFinish && (
+                                          <div className="text-[11px] text-[#a8a093] bg-[#181715] p-2 rounded-lg border border-[#38332c]">
+                                            <span className="text-[#787165] block text-[9px] uppercase font-bold">Material & Finish</span>
+                                            <span className="text-white">{v.materialFinish}</span>
+                                          </div>
+                                        )}
+
+                                        <div className="flex items-center justify-between text-[10px] text-[#787165] pt-1 border-t border-[#38332c]">
+                                          <span>{v.dimensions ? `Dims: ${v.dimensions}` : "Dimensions standard"}</span>
+                                          <span>{v.weightGrams ? `${(v.weightGrams / 1000).toFixed(2)} kg` : ""}</span>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
-        )}
-
-        {/* TAB 8: DELIVERY PIN CODES & SLABS */}
+        )}        {/* TAB 8: DELIVERY PIN CODES & SLABS */}
         {activeTab === "PINCODES" && (
           <LogisticsTab
             staffName={currentStaff.name}
@@ -8655,13 +9367,50 @@ export default function App() {
                   <span className="text-[#a8a093]">Purchase Mode:</span>
                   <span className="font-semibold text-[#c59b6d]">{reviewedProduct.mode}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span className="text-[#a8a093]">Tax-Inclusive Price:</span>
-                  <span className="font-semibold text-white">
-                    {reviewedProduct.isVariablePrice && reviewedProduct.minPriceRupees
-                      ? `From ${formatPrice(reviewedProduct.minPriceRupees)}`
-                      : formatPrice(reviewedProduct.priceRupees)}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {editingPriceRupees !== null ? (
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          value={editingPriceRupees}
+                          onChange={(e) => setEditingPriceRupees(Number(e.target.value))}
+                          className="w-28 rounded-lg border border-[#464037] bg-[#181715] px-2 py-1 text-xs text-white font-mono"
+                        />
+                        <button
+                          type="button"
+                          disabled={isSavingProductSpecs}
+                          onClick={() => handleSaveProductSpecs(reviewedProduct.id)}
+                          className="px-2.5 py-1 rounded-lg bg-[#10b981] text-[#181715] text-[11px] font-semibold"
+                        >
+                          {isSavingProductSpecs ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingPriceRupees(null)}
+                          className="px-2 py-1 rounded-lg border border-[#464037] text-[11px] text-[#a8a093]"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-white">
+                          {reviewedProduct.isVariablePrice && reviewedProduct.minPriceRupees
+                            ? `From ${formatPrice(reviewedProduct.minPriceRupees)}`
+                            : formatPrice(reviewedProduct.priceRupees)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setEditingPriceRupees(reviewedProduct.priceRupees)}
+                          className="text-[10px] text-[#c59b6d] hover:underline"
+                        >
+                          ✎ Edit
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 {reviewedProduct.subcategory && (
                   <div className="flex justify-between">
@@ -8728,10 +9477,48 @@ export default function App() {
               )}
 
               <div>
-                <strong className="text-[#a8a093] block mb-1">Editorial Description:</strong>
-                <p className="p-3 rounded-xl bg-[#16161a] border border-[#38332c] text-white leading-relaxed">
-                  {reviewedProduct.fullDescription}
-                </p>
+                <div className="flex items-center justify-between mb-1">
+                  <strong className="text-[#a8a093] block">Editorial Description:</strong>
+                  {editingDescription === null ? (
+                    <button
+                      type="button"
+                      onClick={() => setEditingDescription(reviewedProduct.fullDescription)}
+                      className="text-[10px] text-[#c59b6d] hover:underline"
+                    >
+                      ✎ Edit Copy
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        disabled={isSavingProductSpecs}
+                        onClick={() => handleSaveProductSpecs(reviewedProduct.id)}
+                        className="px-2.5 py-0.5 rounded bg-[#10b981] text-[#181715] text-[10px] font-semibold"
+                      >
+                        {isSavingProductSpecs ? "Saving..." : "Save Copy"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingDescription(null)}
+                        className="px-2 py-0.5 rounded border border-[#464037] text-[10px] text-[#a8a093]"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {editingDescription !== null ? (
+                  <textarea
+                    rows={4}
+                    value={editingDescription}
+                    onChange={(e) => setEditingDescription(e.target.value)}
+                    className="w-full rounded-xl border border-[#464037] bg-[#16161a] p-3 text-white text-xs leading-relaxed focus:outline-none focus:border-[#c59b6d]"
+                  />
+                ) : (
+                  <p className="p-3 rounded-xl bg-[#16161a] border border-[#38332c] text-white leading-relaxed">
+                    {reviewedProduct.fullDescription}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -8757,7 +9544,7 @@ export default function App() {
             <div className="flex justify-between items-center pt-2 border-t border-[#38332c]">
               <div className="flex items-center gap-3">
                 <a
-                  href={`http://localhost:3000/product/${reviewedProduct.slug}`}
+                  href={getStorefrontUrl(`/product/${reviewedProduct.slug}`)}
                   target="_blank"
                   rel="noreferrer"
                   className="text-xs font-semibold text-[#c59b6d] hover:underline"
