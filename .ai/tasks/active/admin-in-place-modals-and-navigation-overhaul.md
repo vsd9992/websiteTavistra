@@ -23,9 +23,9 @@ This created undesired, disruptive navigation away from the staff member's worki
 ## 2. Global Inventory of Navigation-to-Modal Conversions
 - [x] **Client Dossier → Order Inspection:** When viewing a customer dossier and clicking "Inspect ↗" on an order, open the Order Details modal directly in-place with elevated stacking (`z-[60]`) over the dossier (`z-50`). Closing the order modal leaves staff in the dossier.
 - [x] **Client Dossier → Proposal Inspection:** When clicking "Inspect ↗" on an associated quote, open the 30-Day Locked Proposal Dossier directly in-place with elevated stacking (`z-[60]`) over the dossier. Closing the proposal leaves staff in the dossier.
+- [x] **Support Tickets → Linked Consignment Inspection:** Inspect associated consignment directly in-place (`setSelectedOrder(order)` at `z-[60]`) without switching tabs (`setActiveTab("ORDERS")` removed). Closing leaves staff in the active ticket thread.
 - [ ] **Overview Attention Required → Order Inspection:** Open order inspection in-place rather than switching to Orders tab.
 - [ ] **Overview Commercial Ledger → Order Inspection:** Open order inspection in-place.
-- [ ] **Support Tickets → Customer Profile & Order Inspection:** Inspect patron or associated order without navigating away from the ticket conversation.
 - [ ] **Audit Trail → Resource Inspection:** Inspect order, quote, or ticket in-place from audit log entries.
 
 ---
