@@ -119,6 +119,12 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
   const [calcPin, setCalcPin] = useState<string>("560001");
   const [calcResult, setCalcResult] = useState<any | null>(null);
 
+  // Visual View Mode: MAP vs DONUT vs PROTOCOL
+  const [visualMode, setVisualMode] = useState<"MAP" | "DONUT" | "PROTOCOL">("MAP");
+  const [pincodeDonutView, setPincodeDonutView] = useState<"ZONE" | "STATUS">("ZONE");
+  const [hoveredPincodeSlice, setHoveredPincodeSlice] = useState<string | null>(null);
+  const [hoveredMapRegion, setHoveredMapRegion] = useState<string | null>(null);
+
   const notify = (text: string, isError = false) => {
     setStatusBanner({ text, isError });
     setTimeout(() => setStatusBanner(null), 5000);
@@ -706,9 +712,101 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
     return Array.from(map.values()).sort((a, b) => a.maxWeightGrams - b.maxWeightGrams);
   }, [rateMatrix]);
 
+  // Interactive India Map Regional Territories
+  const INDIA_MAP_REGIONS = [
+    { prefix2: "11", label: "Delhi NCR", state: "Delhi Hub", zone: "ZONE_A", x: 320, y: 195, hub: true },
+    { prefix2: "19", label: "Kashmir & Ladakh", state: "Ladakh", zone: "ZONE_E", x: 290, y: 70 },
+    { prefix2: "18", label: "Jammu", state: "J&K", zone: "ZONE_E", x: 245, y: 105 },
+    { prefix2: "17", label: "Himachal Pradesh", state: "Himachal", zone: "ZONE_B", x: 340, y: 115 },
+    { prefix2: "14", label: "Punjab (Ludhiana)", state: "Punjab", zone: "ZONE_B", x: 235, y: 150 },
+    { prefix2: "13", label: "Haryana North", state: "Haryana", zone: "ZONE_B", x: 295, y: 155 },
+    { prefix2: "24", label: "Uttarakhand", state: "Uttarakhand", zone: "ZONE_B", x: 395, y: 155 },
+    { prefix2: "30", label: "Rajasthan (Jaipur)", state: "Rajasthan", zone: "ZONE_B", x: 195, y: 240 },
+    { prefix2: "22", label: "Uttar Pradesh", state: "UP", zone: "ZONE_B", x: 440, y: 215 },
+    { prefix2: "80", label: "Bihar (Patna)", state: "Bihar", zone: "ZONE_D", x: 530, y: 245 },
+    { prefix2: "78", label: "Assam & NE", state: "Assam", zone: "ZONE_E", x: 670, y: 220 },
+    { prefix2: "70", label: "West Bengal (Kolkata)", state: "Kolkata", zone: "ZONE_C", x: 560, y: 330 },
+    { prefix2: "75", label: "Odisha (Bhubaneswar)", state: "Odisha", zone: "ZONE_D", x: 500, y: 405 },
+    { prefix2: "38", label: "Gujarat (Ahmedabad)", state: "Gujarat", zone: "ZONE_C", x: 145, y: 335 },
+    { prefix2: "45", label: "Madhya Pradesh", state: "MP", zone: "ZONE_D", x: 310, y: 315 },
+    { prefix2: "40", label: "Maharashtra (Mumbai)", state: "Mumbai/Pune", zone: "ZONE_C", x: 195, y: 420 },
+    { prefix2: "44", label: "Maharashtra East", state: "Nagpur", zone: "ZONE_D", x: 345, y: 395 },
+    { prefix2: "50", label: "Telangana (Hyderabad)", state: "Hyderabad", zone: "ZONE_C", x: 345, y: 475 },
+    { prefix2: "56", label: "Karnataka (Bengaluru)", state: "Bengaluru", zone: "ZONE_C", x: 270, y: 545 },
+    { prefix2: "60", label: "Tamil Nadu (Chennai)", state: "Chennai", zone: "ZONE_C", x: 375, y: 565 },
+    { prefix2: "68", label: "Kerala (Kochi)", state: "Kerala", zone: "ZONE_D", x: 270, y: 625 },
+    { prefix2: "64", label: "TN South (Coimbatore)", state: "Tamil Nadu", zone: "ZONE_D", x: 345, y: 625 },
+  ];
+
   const prefixCount = pincodes.filter((p) => p.pincode.length < 6).length;
   const exactPinCount = pincodes.filter((p) => p.pincode.length === 6).length;
   const suspendedCount = pincodes.filter((p) => !p.isServiceable).length;
+  const serviceableCount = pincodes.filter((p) => p.isServiceable).length;
+
+  // Donut data computation (100% mathematically consistent)
+  const pincodeDonutData = useMemo(() => {
+    if (pincodeDonutView === "ZONE") {
+      const zoneCounts: Record<string, number> = {
+        ZONE_A: 0,
+        ZONE_B: 0,
+        ZONE_C: 0,
+        ZONE_D: 0,
+        ZONE_E: 0,
+      };
+      pincodes.forEach((p) => {
+        const code = p.zoneCode || "ZONE_D";
+        zoneCounts[code] = (zoneCounts[code] || 0) + 1;
+      });
+
+      const zoneColorMap: Record<string, string> = {
+        ZONE_A: "#c59b6d",
+        ZONE_B: "#38bdf8",
+        ZONE_C: "#10b981",
+        ZONE_D: "#818cf8",
+        ZONE_E: "#f43f5e",
+      };
+
+      const slices = Object.entries(zoneCounts).map(([code, count]) => {
+        const zoneObj = zones.find((z) => z.code === code);
+        return {
+          id: code,
+          label: zoneObj ? `${zoneObj.code} (${zoneObj.name})` : code,
+          count,
+          color: zoneColorMap[code] || "#a8a093",
+          filterKey: code,
+        };
+      }).filter((s) => s.count > 0);
+
+      const sumCount = slices.reduce((acc, s) => acc + s.count, 0) || 1;
+      return {
+        slices: slices.map((s) => ({
+          ...s,
+          pct: Math.round((s.count / sumCount) * 100),
+        })),
+        totalCount: sumCount,
+        title: "Postal Rules across 5 Shipping Zones",
+        centerNumber: sumCount,
+        centerLabel: "PIN Rules",
+      };
+    } else {
+      const slices = [
+        { id: "SERVICEABLE", label: "Serviceable (Active Whitelist)", count: serviceableCount, color: "#10b981", filterKey: "ACTIVE" },
+        { id: "SUSPENDED", label: "Suspended / Blocked", count: suspendedCount, color: "#f43f5e", filterKey: "DISABLED" },
+      ].filter((s) => s.count > 0);
+
+      const sumCount = slices.reduce((acc, s) => acc + s.count, 0) || 1;
+      return {
+        slices: slices.map((s) => ({
+          ...s,
+          pct: Math.round((s.count / sumCount) * 100),
+        })),
+        totalCount: sumCount,
+        title: "Whitelist Serviceability Health",
+        centerNumber: sumCount,
+        centerLabel: "Verified Coverage",
+      };
+    }
+  }, [pincodes, zones, pincodeDonutView, serviceableCount, suspendedCount]);
 
   return (
     <div className="space-y-6">
@@ -766,24 +864,535 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
       {/* ================================================================= */}
       {subTab === "PINS" && (
         <div className="space-y-6">
-          {/* Stats & Origin Bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-3.5 rounded-xl bg-[#24211d] border border-[#38332c]">
-              <span className="text-[10px] uppercase tracking-wider text-[#a8a093] block">Region Prefixes (2–4 digit)</span>
-              <span className="text-lg font-bold text-white font-mono">{prefixCount}</span>
+          {/* 4 Top Metric Pulse Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="p-4 rounded-2xl bg-[#24211d] border border-[#38332c]">
+              <span className="text-[10px] uppercase font-bold text-[#a8a093] tracking-wider block">Registered PIN Rules</span>
+              <span className="text-2xl font-mono font-bold text-white mt-1 block">
+                {pincodes.length}
+              </span>
+              <div className="text-[11px] text-[#a8a093] mt-0.5 flex items-center justify-between">
+                <span>{exactPinCount} Exact · {prefixCount} Prefixes</span>
+                <span className="text-[#c59b6d] font-medium">Hierarchical</span>
+              </div>
             </div>
-            <div className="p-3.5 rounded-xl bg-[#24211d] border border-[#38332c]">
-              <span className="text-[10px] uppercase tracking-wider text-[#a8a093] block">Exact 6-Digit PINs</span>
-              <span className="text-lg font-bold text-[#c59b6d] font-mono">{exactPinCount}</span>
+
+            <div className="p-4 rounded-2xl bg-[#24211d] border border-[#38332c]">
+              <span className="text-[10px] uppercase font-bold text-[#a8a093] tracking-wider block">Whitelist Health</span>
+              <span className="text-2xl font-mono font-bold text-emerald-400 mt-1 block">
+                {pincodes.length > 0 ? Math.round((serviceableCount / pincodes.length) * 100) : 100}%
+              </span>
+              <div className="text-[11px] text-[#a8a093] mt-0.5 flex items-center justify-between">
+                <span>{serviceableCount} Serviceable</span>
+                <span className={suspendedCount > 0 ? "text-amber-400 font-medium" : "text-emerald-400 font-medium"}>
+                  {suspendedCount} Suspended
+                </span>
+              </div>
             </div>
-            <div className="p-3.5 rounded-xl bg-[#24211d] border border-[#38332c]">
-              <span className="text-[10px] uppercase tracking-wider text-[#a8a093] block">Suspended Rules</span>
-              <span className="text-lg font-bold text-rose-400 font-mono">{suspendedCount}</span>
+
+            <div className="p-4 rounded-2xl bg-[#24211d] border border-[#38332c]">
+              <span className="text-[10px] uppercase font-bold text-[#a8a093] tracking-wider block">Commercial Shipping Zones</span>
+              <span className="text-2xl font-mono font-bold text-[#38bdf8] mt-1 block">
+                {zones.length} Zones
+              </span>
+              <div className="text-[11px] text-[#a8a093] mt-0.5 flex items-center justify-between">
+                <span>Zone A through Zone E</span>
+                <span className="text-[#38bdf8] font-medium">Ex-Delhi Hub</span>
+              </div>
             </div>
-            <div className="p-3.5 rounded-xl bg-[#24211d] border border-[#38332c]">
-              <span className="text-[10px] uppercase tracking-wider text-[#a8a093] block">Approved Origins</span>
-              <span className="text-xs font-mono font-semibold text-emerald-400 mt-1 block">110062, 110019, 110074</span>
+
+            <div className="p-4 rounded-2xl bg-[#24211d] border border-[#38332c]">
+              <span className="text-[10px] uppercase font-bold text-[#a8a093] tracking-wider block">12-Slab Fee Ladder</span>
+              <span className="text-lg font-mono font-bold text-white mt-1.5 block truncate">
+                ₹{feeSlabs[0] ?? 0} – ₹{(feeSlabs[feeSlabs.length - 1] ?? 7500).toLocaleString("en-IN")}
+              </span>
+              <div className="text-[11px] text-[#a8a093] mt-0.5 flex items-center justify-between">
+                <span>Origins: 110062, 110019</span>
+                <span className="text-emerald-400 font-medium">Approved</span>
+              </div>
             </div>
+          </div>
+
+          {/* Visual Section: Interactive India Map / Donut / Protocol Switcher */}
+          <div className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#38332c] pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs uppercase font-bold text-[#c59b6d] tracking-wider">
+                    {visualMode === "MAP"
+                      ? "Interactive India Delivery Zones Map"
+                      : visualMode === "DONUT"
+                      ? pincodeDonutData.title
+                      : "Studio Delivery Governance Protocol (TAV-04)"}
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#181715] text-emerald-400 border border-[#38332c]">
+                    {visualMode === "MAP" ? "22 Regional Postal Nodes" : "Live DB Telemetry"}
+                  </span>
+                </div>
+                <p className="text-[11px] text-[#a8a093] mt-0.5">
+                  {visualMode === "MAP"
+                    ? "Click any regional node or state card to drill down into its exact 6-digit PIN codes."
+                    : visualMode === "DONUT"
+                    ? "Interactive mathematical distribution of postal rules across commercial shipping zones."
+                    : "Statutory governance rules protecting bespoke solid-brass luxury freight."}
+                </p>
+              </div>
+
+              {/* View Switcher Controls */}
+              <div className="flex items-center gap-1 bg-[#181715] p-1 rounded-xl border border-[#38332c] shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setVisualMode("MAP")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+                    visualMode === "MAP" ? "bg-[#c59b6d] text-[#181715]" : "text-[#a8a093] hover:text-white"
+                  }`}
+                >
+                  <span>🗺</span>
+                  <span>India Map</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVisualMode("DONUT")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+                    visualMode === "DONUT" ? "bg-[#c59b6d] text-[#181715]" : "text-[#a8a093] hover:text-white"
+                  }`}
+                >
+                  <span>📊</span>
+                  <span>Zones Donut</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVisualMode("PROTOCOL")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+                    visualMode === "PROTOCOL" ? "bg-[#c59b6d] text-[#181715]" : "text-[#a8a093] hover:text-white"
+                  }`}
+                >
+                  <span>📋</span>
+                  <span>Protocol</span>
+                </button>
+              </div>
+            </div>
+
+            {/* VIEW 1: INTERACTIVE MAP OF INDIA */}
+            {visualMode === "MAP" && (
+              <div className="space-y-4">
+                <div className="relative rounded-2xl bg-[#16161a] border border-[#38332c] p-4 overflow-hidden">
+                  <svg
+                    viewBox="0 0 760 690"
+                    className="w-full h-auto select-none"
+                    style={{ minHeight: "420px", maxHeight: "680px" }}
+                  >
+                    <defs>
+                      <linearGradient id="hubPulse" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#c59b6d" stopOpacity="0.4" />
+                        <stop offset="100%" stopColor="#c59b6d" stopOpacity="0" />
+                      </linearGradient>
+                      <radialGradient id="hubBeacon" cx="50%" cy="50%" r="50%">
+                        <stop offset="0%" stopColor="#c59b6d" stopOpacity="1" />
+                        <stop offset="50%" stopColor="#c59b6d" stopOpacity="0.5" />
+                        <stop offset="100%" stopColor="#c59b6d" stopOpacity="0" />
+                      </radialGradient>
+                    </defs>
+
+                    {/* Subtle Coordinate Graticule Grid */}
+                    <g opacity="0.15" stroke="#464037" strokeWidth="0.5" strokeDasharray="3 3">
+                      <line x1="50" y1="120" x2="710" y2="120" />
+                      <line x1="50" y1="240" x2="710" y2="240" />
+                      <line x1="50" y1="360" x2="710" y2="360" />
+                      <line x1="50" y1="480" x2="710" y2="480" />
+                      <line x1="50" y1="600" x2="710" y2="600" />
+                      <line x1="180" y1="50" x2="180" y2="650" />
+                      <line x1="320" y1="50" x2="320" y2="650" />
+                      <line x1="460" y1="50" x2="460" y2="650" />
+                      <line x1="600" y1="50" x2="600" y2="650" />
+                    </g>
+
+                    {/* Geographic Cardinal Label Markers */}
+                    <text x="60" y="70" fill="#787165" fontSize="10" fontFamily="monospace">NW · 32°N 74°E</text>
+                    <text x="650" y="70" fill="#787165" fontSize="10" fontFamily="monospace">NE · 28°N 96°E</text>
+                    <text x="60" y="650" fill="#787165" fontSize="10" fontFamily="monospace">SW · 10°N 72°E</text>
+                    <text x="650" y="650" fill="#787165" fontSize="10" fontFamily="monospace">SE · 8°N 80°E</text>
+
+                    {/* Transit Corridor Curved Lines connecting Delhi NCR Hub (320, 195) to each region */}
+                    {INDIA_MAP_REGIONS.filter((n) => !n.hub).map((n) => {
+                      const zoneColors: Record<string, string> = {
+                        ZONE_A: "#c59b6d",
+                        ZONE_B: "#38bdf8",
+                        ZONE_C: "#10b981",
+                        ZONE_D: "#818cf8",
+                        ZONE_E: "#f43f5e",
+                      };
+                      const color = zoneColors[n.zone] || "#a8a093";
+                      const isHovered = hoveredMapRegion === n.prefix2;
+                      const midX = (320 + n.x) / 2 + (n.x > 320 ? 15 : -15);
+                      const midY = (195 + n.y) / 2 - 10;
+
+                      return (
+                        <path
+                          key={`corridor-${n.prefix2}`}
+                          d={`M 320 195 Q ${midX} ${midY} ${n.x} ${n.y}`}
+                          fill="none"
+                          stroke={color}
+                          strokeWidth={isHovered ? 2.5 : 1}
+                          strokeDasharray={isHovered ? "none" : "3 3"}
+                          opacity={isHovered ? 1 : 0.28}
+                          className="transition-all duration-300"
+                        />
+                      );
+                    })}
+
+                    {/* Central Dispatch Hub: Delhi NCR Beacon */}
+                    <g transform="translate(320, 195)">
+                      <circle cx="0" cy="0" r="32" fill="url(#hubBeacon)" opacity="0.3" className="animate-pulse" />
+                      <circle cx="0" cy="0" r="18" fill="#c59b6d" fillOpacity="0.2" />
+                      <circle cx="0" cy="0" r="7" fill="#c59b6d" stroke="#181715" strokeWidth="2" />
+                    </g>
+
+                    {/* 22 Interactive Regional Nodes */}
+                    {INDIA_MAP_REGIONS.map((n) => {
+                      const isHovered = hoveredMapRegion === n.prefix2;
+                      const group = regionGroups.find((g) => g.prefix2 === n.prefix2);
+                      const activeCount = group ? group.activeCount : 0;
+                      const zoneCode = group ? group.zoneCode : n.zone;
+
+                      const zoneColors: Record<string, string> = {
+                        ZONE_A: "#c59b6d",
+                        ZONE_B: "#38bdf8",
+                        ZONE_C: "#10b981",
+                        ZONE_D: "#818cf8",
+                        ZONE_E: "#f43f5e",
+                      };
+                      const color = zoneColors[zoneCode] || "#a8a093";
+                      const cardW = 124;
+                      const cardH = 46;
+
+                      return (
+                        <g
+                          key={n.prefix2}
+                          transform={`translate(${n.x - cardW / 2}, ${n.y - cardH / 2})`}
+                          className="cursor-pointer transition-all duration-200"
+                          onClick={() => openRegionDetail(n.prefix2)}
+                          onMouseEnter={() => setHoveredMapRegion(n.prefix2)}
+                          onMouseLeave={() => setHoveredMapRegion(null)}
+                        >
+                          {/* Card Background */}
+                          <rect
+                            width={cardW}
+                            height={cardH}
+                            rx="10"
+                            fill={isHovered ? "#24211d" : "#181715"}
+                            stroke={isHovered ? color : "#38332c"}
+                            strokeWidth={isHovered ? 2 : 1}
+                            filter={isHovered ? "drop-shadow(0 4px 12px rgba(0,0,0,0.6))" : "none"}
+                          />
+
+                          {/* Left Accent Color Indicator */}
+                          <rect
+                            x="0"
+                            y="0"
+                            width="4"
+                            height={cardH}
+                            rx="2"
+                            fill={color}
+                          />
+
+                          {/* Top Row: 2-Digit Postal Prefix & Zone Badge */}
+                          <text x="10" y="16" fill={color} fontSize="9" fontWeight="bold" fontFamily="monospace">
+                            {n.prefix2}xxxx
+                          </text>
+                          <text x={cardW - 8} y="16" textAnchor="end" fill={color} fontSize="8.5" fontWeight="600">
+                            {zoneCode.replace("_", " ")}
+                          </text>
+
+                          {/* Middle Row: Region / City Label */}
+                          <text x="10" y="29" fill="#ffffff" fontSize="10.5" fontWeight="600">
+                            {n.label}
+                          </text>
+
+                          {/* Bottom Row: Active PIN Count */}
+                          <text x="10" y="40" fill="#a8a093" fontSize="8.5">
+                            {activeCount} verified PINs
+                          </text>
+                          <text x={cardW - 8} y="40" textAnchor="end" fill="#c59b6d" fontSize="8.5">
+                            Drill-down →
+                          </text>
+                        </g>
+                      );
+                    })}
+                  </svg>
+                </div>
+
+                {/* Shipping Zone Legend & Quick Filter */}
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-[#181715] p-3 rounded-xl border border-[#38332c] text-xs">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-[10px] uppercase font-bold text-[#787165]">Zone Legend:</span>
+                    <button
+                      type="button"
+                      onClick={() => setFilterZone(filterZone === "ZONE_A" ? "ALL" : "ZONE_A")}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] transition-colors ${
+                        filterZone === "ZONE_A"
+                          ? "bg-[#c59b6d] text-[#181715] font-semibold border-[#c59b6d]"
+                          : "bg-[#24211d] border-[#38332c] text-white hover:border-[#4d473d]"
+                      }`}
+                    >
+                      <span className="h-2 w-2 rounded-full bg-[#c59b6d]" />
+                      <span>Zone A: Delhi NCR (2–3d)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setFilterZone(filterZone === "ZONE_B" ? "ALL" : "ZONE_B")}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] transition-colors ${
+                        filterZone === "ZONE_B"
+                          ? "bg-[#38bdf8] text-[#181715] font-semibold border-[#38bdf8]"
+                          : "bg-[#24211d] border-[#38332c] text-white hover:border-[#4d473d]"
+                      }`}
+                    >
+                      <span className="h-2 w-2 rounded-full bg-[#38bdf8]" />
+                      <span>Zone B: North/Regional (3–5d)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setFilterZone(filterZone === "ZONE_C" ? "ALL" : "ZONE_C")}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] transition-colors ${
+                        filterZone === "ZONE_C"
+                          ? "bg-[#10b981] text-[#181715] font-semibold border-[#10b981]"
+                          : "bg-[#24211d] border-[#38332c] text-white hover:border-[#4d473d]"
+                      }`}
+                    >
+                      <span className="h-2 w-2 rounded-full bg-[#10b981]" />
+                      <span>Zone C: Metros (4–6d)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setFilterZone(filterZone === "ZONE_D" ? "ALL" : "ZONE_D")}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] transition-colors ${
+                        filterZone === "ZONE_D"
+                          ? "bg-[#818cf8] text-[#181715] font-semibold border-[#818cf8]"
+                          : "bg-[#24211d] border-[#38332c] text-white hover:border-[#4d473d]"
+                      }`}
+                    >
+                      <span className="h-2 w-2 rounded-full bg-[#818cf8]" />
+                      <span>Zone D: Rest of India (5–7d)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setFilterZone(filterZone === "ZONE_E" ? "ALL" : "ZONE_E")}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] transition-colors ${
+                        filterZone === "ZONE_E"
+                          ? "bg-[#f43f5e] text-[#181715] font-semibold border-[#f43f5e]"
+                          : "bg-[#24211d] border-[#38332c] text-white hover:border-[#4d473d]"
+                      }`}
+                    >
+                      <span className="h-2 w-2 rounded-full bg-[#f43f5e]" />
+                      <span>Zone E: Remote (7–10d)</span>
+                    </button>
+                  </div>
+
+                  {filterZone !== "ALL" && (
+                    <button
+                      type="button"
+                      onClick={() => setFilterZone("ALL")}
+                      className="text-[11px] text-[#c59b6d] hover:underline"
+                    >
+                      Clear Filter ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* VIEW 2: ZONES & COVERAGE DONUT */}
+            {visualMode === "DONUT" && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl bg-[#181715] border border-[#38332c] space-y-4">
+                  <div className="flex items-center justify-between border-b border-[#38332c] pb-2">
+                    <span className="text-xs font-semibold text-white">{pincodeDonutData.title}</span>
+                    <div className="flex items-center gap-1 bg-[#1e1c19] p-0.5 rounded-lg border border-[#38332c]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPincodeDonutView("ZONE");
+                          setHoveredPincodeSlice(null);
+                        }}
+                        className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${
+                          pincodeDonutView === "ZONE" ? "bg-[#c59b6d] text-[#181715]" : "text-[#a8a093]"
+                        }`}
+                      >
+                        Zones
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPincodeDonutView("STATUS");
+                          setHoveredPincodeSlice(null);
+                        }}
+                        className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${
+                          pincodeDonutView === "STATUS" ? "bg-[#c59b6d] text-[#181715]" : "text-[#a8a093]"
+                        }`}
+                      >
+                        Status
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-center justify-around gap-6 py-2">
+                    {/* SVG Donut Visual */}
+                    <div className="relative w-44 h-44 shrink-0 flex items-center justify-center">
+                      {(() => {
+                        const r = 38;
+                        const c = 2 * Math.PI * r;
+                        let accumulatedPct = 0;
+                        return (
+                          <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
+                            <circle
+                              cx="50"
+                              cy="50"
+                              r={r}
+                              fill="transparent"
+                              stroke="#2a2722"
+                              strokeWidth="13"
+                            />
+                            {pincodeDonutData.slices.map((slice) => {
+                              const strokeLength = (slice.pct / 100) * c;
+                              const strokeGap = c - strokeLength;
+                              const currentOffset = (accumulatedPct / 100) * c;
+                              accumulatedPct += slice.pct;
+                              const isHovered = hoveredPincodeSlice === slice.id;
+
+                              return (
+                                <circle
+                                  key={slice.id}
+                                  cx="50"
+                                  cy="50"
+                                  r={r}
+                                  fill="transparent"
+                                  stroke={slice.color}
+                                  strokeWidth={isHovered ? 17 : 13}
+                                  strokeDasharray={`${strokeLength} ${strokeGap}`}
+                                  strokeDashoffset={-currentOffset}
+                                  onMouseEnter={() => setHoveredPincodeSlice(slice.id)}
+                                  onMouseLeave={() => setHoveredPincodeSlice(null)}
+                                  className="transition-all duration-300 cursor-pointer"
+                                  style={{
+                                    opacity: hoveredPincodeSlice && !isHovered ? 0.45 : 1,
+                                  }}
+                                >
+                                  <title>{`${slice.label}: ${slice.count} (${slice.pct}%)`}</title>
+                                </circle>
+                              );
+                            })}
+                          </svg>
+                        );
+                      })()}
+
+                      {/* Donut Center Hub Info */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none text-center px-4">
+                        <span className="text-2xl font-mono font-bold text-white tracking-tight">
+                          {hoveredPincodeSlice
+                            ? pincodeDonutData.slices.find((s) => s.id === hoveredPincodeSlice)?.count
+                            : pincodeDonutData.centerNumber}
+                        </span>
+                        <span className="text-[9px] uppercase font-bold text-[#c59b6d] tracking-wider max-w-[85px] leading-tight mt-0.5 line-clamp-2">
+                          {hoveredPincodeSlice
+                            ? pincodeDonutData.slices.find((s) => s.id === hoveredPincodeSlice)?.label
+                            : pincodeDonutData.centerLabel}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Dynamic Legend List */}
+                    <div className="flex-1 w-full space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                      {pincodeDonutData.slices.map((slice) => {
+                        const isHovered = hoveredPincodeSlice === slice.id;
+                        return (
+                          <div
+                            key={slice.id}
+                            onMouseEnter={() => setHoveredPincodeSlice(slice.id)}
+                            onMouseLeave={() => setHoveredPincodeSlice(null)}
+                            className={`flex items-center justify-between p-1.5 rounded-lg text-xs cursor-pointer transition-all ${
+                              isHovered ? "bg-[#2e2a24] text-white" : "hover:bg-[#25221d] text-[#a8a093]"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span
+                                className="h-2.5 w-2.5 rounded-full shrink-0"
+                                style={{ backgroundColor: slice.color }}
+                              />
+                              <span className="truncate text-[11px]">{slice.label}</span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0 font-mono text-[11px]">
+                              <span className="font-semibold text-white">{slice.count}</span>
+                              <span className="text-[#787165] text-[10px]">({slice.pct}%)</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Studio Delivery Protocol Summary */}
+                <div className="p-4 rounded-xl bg-[#181715] border border-[#38332c] space-y-3 flex flex-col justify-between text-xs">
+                  <div>
+                    <h4 className="text-xs uppercase font-bold text-[#c59b6d] tracking-wider mb-1">
+                      Tavistra Studio Delivery Protocol (TAV-04)
+                    </h4>
+                    <p className="text-[#a8a093] text-[11px]">
+                      Postal coverage operates under strict statutory rules ensuring reliable courier delivery without freight damage.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="p-2.5 rounded-lg bg-[#24211d] border border-[#38332c]">
+                      <strong className="text-white block font-medium">Strict Whitelist Policy:</strong>
+                      <span className="text-[#a8a093] text-[11px]">
+                        PINs not explicitly verified in this directory default to non-serviceable on the storefront.
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-[#24211d] border border-[#38332c]">
+                      <strong className="text-white block font-medium">12-Slab Fee Engine:</strong>
+                      <span className="text-[#a8a093] text-[11px]">
+                        All delivery fees are tax-inclusive and bind strictly to the approved 12-slab ladder.
+                      </span>
+                    </div>
+                  </div>
+                  <div className="pt-1 text-[11px] text-[#787165] border-t border-[#38332c] flex justify-between">
+                    <span>Approved Origins: Delhi Hub</span>
+                    <span>Divisor: 5,000,000 mm³</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* VIEW 3: PROTOCOL DIRECTORY */}
+            {visualMode === "PROTOCOL" && (
+              <div className="p-5 rounded-xl bg-[#181715] border border-[#38332c] space-y-3 text-xs text-[#a8a093]">
+                <h4 className="text-sm font-semibold text-white">Full TAV-04 Delivery Governance Architecture</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                  <div className="p-3 rounded-xl bg-[#24211d] border border-[#38332c] space-y-1">
+                    <strong className="text-[#c59b6d] block font-semibold">1. Whitelist Hierarchy</strong>
+                    <p className="text-[11px]">
+                      Resolution evaluates from most specific to parent prefix: Exact 6-Digit PIN → 4-Digit District Hub → 2-Digit Region Prefix.
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-[#24211d] border border-[#38332c] space-y-1">
+                    <strong className="text-emerald-400 block font-semibold">2. Volumetric Formula</strong>
+                    <p className="text-[11px]">
+                      Volumetric weight (kg) = (Length × Width × Height in mm) / 5,000,000. Customer fee is calculated on max(actual, volumetric).
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-[#24211d] border border-[#38332c] space-y-1">
+                    <strong className="text-[#38bdf8] block font-semibold">3. Ex-Delhi Transit Windows</strong>
+                    <p className="text-[11px]">
+                      Zone A (2–3d), Zone B (3–5d), Zone C (4–6d), Zone D (5–7d), Zone E (7–10d). All shipments depart strictly from approved studio origins.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Live 6-Digit Resolution Simulator */}
@@ -792,7 +1401,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
               <div>
                 <h3 className="text-sm font-semibold text-white">Live Nested PIN Resolution Simulator</h3>
                 <p className="text-xs text-[#a8a093]">
-                  Test any 6-digit Indian PIN code (e.g. <span className="font-mono text-white">110043</span>, <span className="font-mono text-white">560103</span>, <span className="font-mono text-white">194101</span>) to see which parent prefix or exact override governs it, and create an override in 1 click.
+                  Test any 6-digit Indian PIN code to trace parent prefix or exact override hierarchy, and create an override in 1 click.
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -813,6 +1422,32 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                   {simLoading ? "Testing..." : "Simulate"}
                 </button>
               </div>
+            </div>
+
+            {/* Quick Test Presets */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-[10px] text-[#787165] uppercase font-bold mr-1">Quick Presets:</span>
+              {[
+                { pin: "110001", label: "Delhi NCR (Zone A)" },
+                { pin: "141001", label: "Punjab (Zone B)" },
+                { pin: "560001", label: "Bengaluru (Zone C)" },
+                { pin: "682001", label: "Kochi (Zone D)" },
+                { pin: "194101", label: "Leh Ladakh (Zone E)" },
+              ].map((p) => (
+                <button
+                  key={p.pin}
+                  type="button"
+                  onClick={() => {
+                    setSimPin(p.pin);
+                    fetch(`/api/pincodes/check?pincode=${p.pin}`)
+                      .then((r) => r.ok && r.json())
+                      .then((d) => d && setSimResult(d));
+                  }}
+                  className="px-2 py-0.5 rounded-md bg-[#181715] hover:bg-[#2e2a24] text-[10px] text-[#c59b6d] border border-[#38332c] transition-colors font-mono"
+                >
+                  ⚡ {p.pin} · {p.label}
+                </button>
+              ))}
             </div>
 
             {simResult && (
