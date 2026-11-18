@@ -189,8 +189,12 @@ export default function App() {
   const [copiedLinkOrderId, setCopiedLinkOrderId] = useState<string | null>(null);
 
   // Studio Overview state & filters
-  const [overviewDomainFilter, setOverviewDomainFilter] = useState<"ALL" | "URGENT" | "COMMERCIAL" | "WORKSHOP" | "OPERATIONS">("ALL");
+  const [overviewDomainFilter, setOverviewDomainFilter] = useState<"ALL" | "URGENT" | "COMMERCIAL" | "WORKSHOP" | "OPERATIONS" | "AUDIT">("ALL");
   const [urgentCategoryFilter, setUrgentCategoryFilter] = useState<string>("ALL");
+  const [commercialLedgerFilter, setCommercialLedgerFilter] = useState<"ALL" | "SETTLED" | "STAGED" | "REFUND_PENDING" | "REFUND_ISSUED">("ALL");
+  const [overviewAuditCategory, setOverviewAuditCategory] = useState<string>("ALL");
+  const [overviewAuditSearch, setOverviewAuditSearch] = useState<string>("");
+  const [syncCountdown, setSyncCountdown] = useState<number>(60);
 
   // Ticket detail view & filters
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
@@ -300,8 +304,23 @@ export default function App() {
     }
   }, [selectedOrder]);
 
+  const handleManualSync = () => {
+    setSyncCountdown(60);
+    void syncBackendData();
+  };
+
   useEffect(() => {
     void syncBackendData();
+    const interval = setInterval(() => {
+      setSyncCountdown((prev) => {
+        if (prev <= 1) {
+          void syncBackendData();
+          return 60;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
   }, []);
 
   // Statistics
@@ -348,7 +367,73 @@ export default function App() {
     };
   }, [orders, tickets, inquiries, customers, pincodes]);
 
-  // Urgent Cases / Action Required Telemetry
+  // Authority Flags for Overview & Telemetry
+  const canViewFinancials =
+    isTabPermitted(currentStaff.role, "ORDERS") &&
+    (currentStaff.role === "SUPER_ADMIN" || currentStaff.role === "COMMERCE_ADMIN");
+  const canViewWorkshop = isTabPermitted(currentStaff.role, "PRODUCTION");
+  const canViewTickets = isTabPermitted(currentStaff.role, "TICKETS");
+  const canViewProposals = isTabPermitted(currentStaff.role, "PROPOSALS");
+  const canViewDispatch = isTabPermitted(currentStaff.role, "DISPATCH");
+  const canViewAudit = isTabPermitted(currentStaff.role, "AUDIT");
+  const canCreateQuote = isActionPermitted(currentStaff.role, "PROPOSAL_CREATE_REVISE");
+
+  // Commercial & Sales Financial Segregation Telemetry
+  const commercialFinancials = useMemo(() => {
+    const settledOrders = orders.filter(
+      (o) =>
+        o.status !== "CANCELLED" &&
+        o.status !== "REFUNDED" &&
+        (o.balanceDueRupees === 0 || o.isFullyPaid || o.amountPaidRupees >= o.totalAmountRupees)
+    );
+    const stagedOrders = orders.filter(
+      (o) =>
+        o.status !== "CANCELLED" &&
+        o.status !== "REFUNDED" &&
+        o.balanceDueRupees > 0 &&
+        o.amountPaidRupees > 0
+    );
+    const refundPendingOrders = orders.filter(
+      (o) =>
+        o.status === "CANCELLED" &&
+        (!o.refund || (o.refund.status !== "COMPLETED" && o.refund.status !== "PROCESSED"))
+    );
+    const refundIssuedOrders = orders.filter(
+      (o) =>
+        (o.status === "CANCELLED" || o.status === "REFUNDED") &&
+        o.refund &&
+        (o.refund.status === "COMPLETED" || o.refund.status === "PROCESSED" || o.status === "REFUNDED")
+    );
+
+    const settledRevenue = settledOrders.reduce((sum, o) => sum + o.amountPaidRupees, 0);
+    const advanceCollected = stagedOrders.reduce((sum, o) => sum + o.amountPaidRupees, 0);
+    const balancePending = stagedOrders.reduce((sum, o) => sum + o.balanceDueRupees, 0);
+    const refundPendingTotal = refundPendingOrders.reduce(
+      (sum, o) => sum + (o.refund?.amountRupees ?? o.amountPaidRupees),
+      0
+    );
+    const refundIssuedTotal = refundIssuedOrders.reduce(
+      (sum, o) => sum + (o.refund?.amountRupees ?? o.amountPaidRupees),
+      0
+    );
+
+    const totalCommitted = settledRevenue + advanceCollected + balancePending;
+
+    return {
+      settledOrders,
+      stagedOrders,
+      refundPendingOrders,
+      refundIssuedOrders,
+      settledRevenue,
+      advanceCollected,
+      balancePending,
+      refundPendingTotal,
+      refundIssuedTotal,
+      totalCommitted,
+    };
+  }, [orders]);
+
+  // Urgent Cases / Action Required Telemetry (Honoring User Authority)
   interface UrgentCase {
     id: string;
     category: "GRACE_RELEASE" | "BALANCE_DUE" | "URGENT_TICKET" | "PENDING_QUOTE" | "AWAITING_DISPATCH";
@@ -365,149 +450,218 @@ export default function App() {
   const allUrgentCases = useMemo<UrgentCase[]>(() => {
     const list: UrgentCase[] = [];
 
-    // 1. MTO Grace Ending Soon (or day 0 - release eligible)
-    orders
-      .filter(
-        (o) =>
-          o.mode === "MADE_TO_ORDER" &&
-          o.isGraceActive &&
-          o.graceDaysRemaining !== undefined &&
-          o.graceDaysRemaining <= 2
-      )
-      .forEach((o) => {
-        list.push({
-          id: `grace-${o.id}`,
-          category: "GRACE_RELEASE",
-          categoryLabel: "MTO Grace",
-          title: `MTO Hold: ${o.orderNumber}`,
-          description: `${o.customerName} · ${
-            o.graceDaysRemaining === 0
-              ? "7-day hold complete, ready for workshop machining release"
-              : `${o.graceDaysRemaining} day(s) left in client grace period`
-          }`,
-          badge: o.graceDaysRemaining === 0 ? "Release Ready" : `${o.graceDaysRemaining}d Left`,
-          badgeColor: "amber",
-          timestamp: o.placedAt,
-          actionLabel: "Inspect Grace Queue →",
-          onAction: () => setActiveTab("PRODUCTION"),
+    // 1. MTO Grace Ending Soon (only if role has PRODUCTION tab permission)
+    if (canViewWorkshop) {
+      orders
+        .filter(
+          (o) =>
+            o.mode === "MADE_TO_ORDER" &&
+            o.isGraceActive &&
+            o.graceDaysRemaining !== undefined &&
+            o.graceDaysRemaining <= 2
+        )
+        .forEach((o) => {
+          list.push({
+            id: `grace-${o.id}`,
+            category: "GRACE_RELEASE",
+            categoryLabel: "MTO Grace",
+            title: `MTO Hold: ${o.orderNumber}`,
+            description: `${o.customerName} · ${
+              o.graceDaysRemaining === 0
+                ? "7-day hold complete, ready for workshop machining release"
+                : `${o.graceDaysRemaining} day(s) left in client grace period`
+            }`,
+            badge: o.graceDaysRemaining === 0 ? "Release Ready" : `${o.graceDaysRemaining}d Left`,
+            badgeColor: "amber",
+            timestamp: o.placedAt,
+            actionLabel: "Inspect Grace Queue →",
+            onAction: () => setActiveTab("PRODUCTION"),
+          });
         });
-      });
+    }
 
-    // 2. 75% Balance Collection Pending
-    orders
-      .filter(
-        (o) =>
-          (o.status === "PRODUCTION_COMPLETED" || o.status === "QC_INSPECTION") &&
-          (o.balanceDueRupees > 0 || !o.isFullyPaid)
-      )
-      .forEach((o) => {
-        list.push({
-          id: `bal-${o.id}`,
-          category: "BALANCE_DUE",
-          categoryLabel: "Payment Due",
-          title: `Balance Due: ${o.orderNumber}`,
-          description: `${o.customerName} · Final 75% balance of ${formatPrice(
-            o.balanceDueRupees
-          )} required before dispatch AWB`,
-          badge: formatPrice(o.balanceDueRupees),
-          badgeColor: "amber",
-          timestamp: o.placedAt,
-          actionLabel: "Open Order Details →",
-          onAction: () => setSelectedOrder(o),
+    // 2. 75% Balance Collection Pending (only if role can view financial/commercial orders)
+    if (canViewFinancials) {
+      orders
+        .filter(
+          (o) =>
+            (o.status === "PRODUCTION_COMPLETED" || o.status === "QC_INSPECTION") &&
+            (o.balanceDueRupees > 0 || !o.isFullyPaid)
+        )
+        .forEach((o) => {
+          list.push({
+            id: `bal-${o.id}`,
+            category: "BALANCE_DUE",
+            categoryLabel: "Payment Due",
+            title: `Balance Due: ${o.orderNumber}`,
+            description: `${o.customerName} · Final 75% balance of ${formatPrice(
+              o.balanceDueRupees
+            )} required before dispatch AWB`,
+            badge: formatPrice(o.balanceDueRupees),
+            badgeColor: "amber",
+            timestamp: o.placedAt,
+            actionLabel: "Open Order Details →",
+            onAction: () => setSelectedOrder(o),
+          });
         });
-      });
+    }
 
-    // 3. High-Priority or Alteration Support Tickets
-    tickets
-      .filter(
-        (t) =>
-          t.status !== "RESOLVED" &&
-          (t.priority === "URGENT" ||
-            t.priority === "HIGH" ||
-            t.category === "SPEC_ALTERATION" ||
-            t.category === "DAMAGE_REPORT" ||
-            t.category === "CANCELLATION")
-      )
-      .forEach((t) => {
-        list.push({
-          id: `tkt-${t.id}`,
-          category: "URGENT_TICKET",
-          categoryLabel: "Support",
-          title: `Priority Ticket: ${t.ticketNumber}`,
-          description: `${t.customerName} · ${t.subject} (${t.category.replace(/_/g, " ")})`,
-          badge: t.priority,
-          badgeColor: t.priority === "URGENT" ? "rose" : "amber",
-          timestamp: t.createdAt,
-          actionLabel: "Open Ticket Thread →",
-          onAction: () => {
-            setSelectedTicket(t);
-            setActiveTab("TICKETS");
-          },
+    // 3. High-Priority or Alteration Support Tickets (only if role has TICKETS permission)
+    if (canViewTickets) {
+      tickets
+        .filter(
+          (t) =>
+            t.status !== "RESOLVED" &&
+            (t.priority === "URGENT" ||
+              t.priority === "HIGH" ||
+              t.category === "SPEC_ALTERATION" ||
+              t.category === "DAMAGE_REPORT" ||
+              t.category === "CANCELLATION")
+        )
+        .forEach((t) => {
+          list.push({
+            id: `tkt-${t.id}`,
+            category: "URGENT_TICKET",
+            categoryLabel: "Support",
+            title: `Priority Ticket: ${t.ticketNumber}`,
+            description: `${t.customerName} · ${t.subject} (${t.category.replace(/_/g, " ")})`,
+            badge: t.priority,
+            badgeColor: t.priority === "URGENT" ? "rose" : "amber",
+            timestamp: t.createdAt,
+            actionLabel: "Open Ticket Thread →",
+            onAction: () => {
+              setSelectedTicket(t);
+              setActiveTab("TICKETS");
+            },
+          });
         });
-      });
+    }
 
-    // 4. Inbound Bespoke Inquiries & Draft Proposals
-    inquiries
-      .filter((i) => i.status === "NEW" || i.status === "IN_REVIEW")
-      .forEach((i) => {
-        list.push({
-          id: `inq-${i.id}`,
-          category: "PENDING_QUOTE",
-          categoryLabel: "Quote RFQ",
-          title: `Bespoke Inquiry: ${i.clientName}`,
-          description: `${i.practiceOrStudio || "Private Client"} · Requested: ${
-            i.requestedEditions || `${i.quantityUnits} units`
-          } (${i.destinationCity})`,
-          badge: i.status === "NEW" ? "New RFQ" : "In Review",
-          badgeColor: "bronze",
-          timestamp: i.submittedAt,
-          actionLabel: "Formulate Quote →",
-          onAction: () => setActiveTab("PROPOSALS"),
+    // 4. Inbound Bespoke Inquiries & Draft Proposals (only if role has PROPOSALS permission & quote authority)
+    if (canViewProposals && canCreateQuote) {
+      inquiries
+        .filter((i) => i.status === "NEW" || i.status === "IN_REVIEW")
+        .forEach((i) => {
+          list.push({
+            id: `inq-${i.id}`,
+            category: "PENDING_QUOTE",
+            categoryLabel: "Quote RFQ",
+            title: `Bespoke Inquiry: ${i.clientName}`,
+            description: `${i.practiceOrStudio || "Private Client"} · Requested: ${
+              i.requestedEditions || `${i.quantityUnits} units`
+            } (${i.destinationCity})`,
+            badge: i.status === "NEW" ? "New RFQ" : "In Review",
+            badgeColor: "bronze",
+            timestamp: i.submittedAt,
+            actionLabel: "Formulate Quote →",
+            onAction: () => setActiveTab("PROPOSALS"),
+          });
         });
-      });
 
-    proposals
-      .filter((p) => p.status === "DRAFT")
-      .forEach((p) => {
-        list.push({
-          id: `prop-${p.id}`,
-          category: "PENDING_QUOTE",
-          categoryLabel: "Proposal",
-          title: `Draft Proposal: ${p.quoteNumber}`,
-          description: `${p.customerName} · Pending review & official issuance`,
-          badge: "Draft",
-          badgeColor: "bronze",
-          timestamp: p.expiresAt,
-          actionLabel: "Review & Issue →",
-          onAction: () => setActiveTab("PROPOSALS"),
+      proposals
+        .filter((p) => p.status === "DRAFT")
+        .forEach((p) => {
+          list.push({
+            id: `prop-${p.id}`,
+            category: "PENDING_QUOTE",
+            categoryLabel: "Proposal",
+            title: `Draft Proposal: ${p.quoteNumber}`,
+            description: `${p.customerName} · Pending review & official issuance`,
+            badge: "Draft",
+            badgeColor: "bronze",
+            timestamp: p.expiresAt,
+            actionLabel: "Review & Issue →",
+            onAction: () => setActiveTab("PROPOSALS"),
+          });
         });
-      });
+    }
 
-    // 5. Ready for Dispatch (Packaged & awaiting courier booking)
-    orders
-      .filter((o) => o.status === "AWAITING_DISPATCH" && !o.awbNumber)
-      .forEach((o) => {
-        list.push({
-          id: `dsp-${o.id}`,
-          category: "AWAITING_DISPATCH",
-          categoryLabel: "Fulfilment",
-          title: `Ready for AWB: ${o.orderNumber}`,
-          description: `${o.customerName} · ${o.city}, ${o.state} · Paid & QC approved, awaiting consignment booking`,
-          badge: "Ready to Ship",
-          badgeColor: "emerald",
-          timestamp: o.placedAt,
-          actionLabel: "Assign Carrier & AWB →",
-          onAction: () => setActiveTab("DISPATCH"),
+    // 5. Ready for Dispatch (Packaged & awaiting courier booking, only if DISPATCH permitted)
+    if (canViewDispatch) {
+      orders
+        .filter((o) => o.status === "AWAITING_DISPATCH" && !o.awbNumber)
+        .forEach((o) => {
+          list.push({
+            id: `dsp-${o.id}`,
+            category: "AWAITING_DISPATCH",
+            categoryLabel: "Fulfilment",
+            title: `Ready for AWB: ${o.orderNumber}`,
+            description: `${o.customerName} · ${o.city}, ${o.state} · Paid & QC approved, awaiting consignment booking`,
+            badge: "Ready to Ship",
+            badgeColor: "emerald",
+            timestamp: o.placedAt,
+            actionLabel: "Assign Carrier & AWB →",
+            onAction: () => setActiveTab("DISPATCH"),
+          });
         });
-      });
+    }
 
     return list;
-  }, [orders, tickets, inquiries, proposals]);
+  }, [orders, tickets, inquiries, proposals, canViewWorkshop, canViewFinancials, canViewTickets, canViewProposals, canViewDispatch, canCreateQuote]);
 
   const filteredUrgentCases = useMemo(() => {
     if (urgentCategoryFilter === "ALL") return allUrgentCases;
     return allUrgentCases.filter((c) => c.category === urgentCategoryFilter);
   }, [allUrgentCases, urgentCategoryFilter]);
+
+  // Overview Audit Log Category Filtering
+  const filteredOverviewAuditLogs = useMemo(() => {
+    let list = auditLogs;
+    if (overviewAuditCategory !== "ALL") {
+      list = list.filter((log) => {
+        const cat = overviewAuditCategory;
+        const eType = (log.entityType || "").toLowerCase();
+        const act = (log.action || "").toUpperCase();
+        if (cat === "ORDERS") return eType.includes("order") || act.includes("ORDER") || act.includes("REFUND") || act.includes("PRODUCTION");
+        if (cat === "LOGISTICS") return act.includes("AWB") || act.includes("CARRIER") || act.includes("DISPATCH");
+        if (cat === "SUPPORT") return eType.includes("ticket") || act.includes("TICKET");
+        if (cat === "PROPOSALS") return eType.includes("proposal") || act.includes("PROPOSAL") || act.includes("QUOTE");
+        if (cat === "SYSTEM") return eType.includes("setting") || act.includes("SETTING") || act.includes("SYSTEM") || eType.includes("system");
+        return true;
+      });
+    }
+    const q = overviewAuditSearch.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (log) =>
+          log.staffName.toLowerCase().includes(q) ||
+          log.action.toLowerCase().includes(q) ||
+          log.details.toLowerCase().includes(q) ||
+          log.entityId.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [auditLogs, overviewAuditCategory, overviewAuditSearch]);
+
+  // Audit Category Counts for Overview
+  const auditCategoryCounts = useMemo(() => {
+    let ordersCount = 0;
+    let logisticsCount = 0;
+    let supportCount = 0;
+    let quoteCount = 0;
+    let systemCount = 0;
+
+    auditLogs.forEach((log) => {
+      const eType = (log.entityType || "").toLowerCase();
+      const act = (log.action || "").toUpperCase();
+      if (eType.includes("order") || act.includes("ORDER") || act.includes("REFUND") || act.includes("PRODUCTION")) ordersCount++;
+      if (act.includes("AWB") || act.includes("CARRIER") || act.includes("DISPATCH")) logisticsCount++;
+      if (eType.includes("ticket") || act.includes("TICKET")) supportCount++;
+      if (eType.includes("proposal") || act.includes("PROPOSAL") || act.includes("QUOTE")) quoteCount++;
+      if (eType.includes("setting") || act.includes("SETTING") || act.includes("SYSTEM") || eType.includes("system")) systemCount++;
+    });
+
+    return { ordersCount, logisticsCount, supportCount, quoteCount, systemCount };
+  }, [auditLogs]);
+
+  // Filtered Commercial Orders by Financial Ledger Status
+  const filteredCommercialOrders = useMemo(() => {
+    if (commercialLedgerFilter === "SETTLED") return commercialFinancials.settledOrders;
+    if (commercialLedgerFilter === "STAGED") return commercialFinancials.stagedOrders;
+    if (commercialLedgerFilter === "REFUND_PENDING") return commercialFinancials.refundPendingOrders;
+    if (commercialLedgerFilter === "REFUND_ISSUED") return commercialFinancials.refundIssuedOrders;
+    return orders;
+  }, [orders, commercialLedgerFilter, commercialFinancials]);
 
   // Filtered Orders
   const filteredOrders = useMemo(() => {
@@ -1768,10 +1922,13 @@ export default function App() {
                   ? "Syncing..."
                   : "Offline"}
               </span>
+              <span className="text-[10px] text-[#c59b6d] font-mono hidden md:inline" title="Auto-syncs in seconds">
+                {syncCountdown}s
+              </span>
               <button
                 type="button"
-                onClick={() => void syncBackendData()}
-                title="Sync state from Storefront API"
+                onClick={handleManualSync}
+                title="Sync state from Storefront API (auto-syncs every 60s, click to reset)"
                 className="text-[10px] px-1.5 py-0.5 rounded bg-[#2a2722] hover:bg-[#35312b] text-[#eae6df] border border-[#464037] transition-colors"
               >
                 Sync
@@ -1809,7 +1966,7 @@ export default function App() {
             </span>
             <button
               type="button"
-              onClick={() => void syncBackendData()}
+              onClick={handleManualSync}
               className="px-2.5 py-1 rounded bg-rose-800 hover:bg-rose-700 text-white font-semibold shrink-0"
             >
               Retry Connection
@@ -1841,599 +1998,972 @@ export default function App() {
           ) : (
             <>
         {/* TAB 1: OVERVIEW */}
-        {activeTab === "OVERVIEW" && (
-          <div className="space-y-8">
-            {/* Header & Controls */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-[#38332c]">
-              <div>
-                <span className="text-[10px] uppercase font-bold text-[#c59b6d] tracking-widest block">
-                  Studio Operations Cockpit
-                </span>
-                <h2 className="text-xl font-bold text-white tracking-tight">Studio Overview</h2>
-                <p className="text-xs text-[#a8a093]">
-                  Real-time health, priority bottlenecks, and cross-functional telemetry across commercial, workshop, and client operations.
-                </p>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setIsProposalModalOpen(true)}
-                  className="px-3 py-1.5 rounded-lg bg-[#2a2722] hover:bg-[#332f29] text-[#eae6df] border border-[#464037] text-xs font-semibold transition-colors flex items-center gap-1.5"
-                >
-                  <span>+</span>
-                  <span>New Custom Quote</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void syncBackendData()}
-                  className="px-3 py-1.5 rounded-lg bg-[#c59b6d] hover:bg-[#d6aa7c] text-[#181715] text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-sm"
-                >
-                  <span>↻</span>
-                  <span>Sync Telemetry</span>
-                </button>
-              </div>
-            </div>
+        {activeTab === "OVERVIEW" && (() => {
+          // Compute domain tabs available to current role
+          const domainTabs = [
+            { id: "ALL" as const, label: "All Domains", icon: "🌐", count: undefined, visible: true },
+            { id: "URGENT" as const, label: "Attention Required", icon: "🚨", count: allUrgentCases.length, highlight: true, visible: true },
+            { id: "COMMERCIAL" as const, label: "Commercial & Sales", icon: "💼", count: orders.length, visible: canViewFinancials },
+            { id: "WORKSHOP" as const, label: "Workshop & Fulfilment", icon: "🔨", count: stats.mtoGraceCount, visible: canViewWorkshop },
+            { id: "OPERATIONS" as const, label: "Client Care & Support", icon: "⚙️", count: stats.openTicketsCount, visible: canViewTickets },
+            { id: "AUDIT" as const, label: "Audit Trail", icon: "📜", count: auditLogs.length, visible: canViewAudit },
+          ].filter((t) => t.visible);
 
-            {/* Domain Filter Bar */}
-            <div className="flex flex-wrap items-center gap-2 p-1.5 rounded-xl bg-[#1e1c19] border border-[#38332c]">
-              {[
-                { id: "ALL", label: "All Domains", icon: "🌐", count: undefined },
-                { id: "URGENT", label: "Attention Required", icon: "🚨", count: allUrgentCases.length, highlight: true },
-                { id: "COMMERCIAL", label: "Commercial & Sales", icon: "💼", count: orders.length },
-                { id: "WORKSHOP", label: "Workshop & Fulfilment", icon: "🔨", count: stats.mtoGraceCount },
-                { id: "OPERATIONS", label: "Client Care & Governance", icon: "⚙️", count: stats.openTicketsCount },
-              ].map((tab) => {
-                const isActive = overviewDomainFilter === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => {
-                      setOverviewDomainFilter(tab.id as any);
-                      if (tab.id !== "URGENT") setUrgentCategoryFilter("ALL");
-                    }}
-                    className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 ${
-                      isActive
-                        ? "bg-[#2a2620] text-white border-l-2 border-l-[#c59b6d] border-y border-r border-[#464037] shadow-sm"
-                        : "text-[#a8a093] hover:text-[#eae6df] hover:bg-[#24211d] border border-transparent"
-                    }`}
-                  >
-                    <span>{tab.icon}</span>
-                    <span>{tab.label}</span>
-                    {tab.count !== undefined && (
-                      <span
-                        className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                          tab.highlight && tab.count > 0
-                            ? "bg-rose-950/80 text-rose-300 border border-rose-800/70"
-                            : isActive
-                            ? "bg-[#38332c] text-[#c59b6d]"
-                            : "bg-[#2a2722] text-[#a8a093]"
-                        }`}
-                      >
-                        {tab.count}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+          // Total committed cash flow for percentage calculations
+          const totalCashFlow = Math.max(
+            1,
+            commercialFinancials.settledRevenue +
+              commercialFinancials.advanceCollected +
+              commercialFinancials.balancePending +
+              commercialFinancials.refundIssuedTotal
+          );
+          const settledPct = Math.round((commercialFinancials.settledRevenue / totalCashFlow) * 100);
+          const advPct = Math.round((commercialFinancials.advanceCollected / totalCashFlow) * 100);
+          const balPct = Math.round((commercialFinancials.balancePending / totalCashFlow) * 100);
+          const refPct = Math.max(0, 100 - (settledPct + advPct + balPct));
 
-            {/* Top 4 Interactive Pulse Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div
-                onClick={() => setOverviewDomainFilter("COMMERCIAL")}
-                className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] hover:border-[#464037] hover:bg-[#282520] transition-all cursor-pointer group space-y-2 select-none shadow-sm"
-              >
-                <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[#a8a093]">
-                  <span>Net Verified Revenue</span>
-                  <span className="text-[#c59b6d] opacity-0 group-hover:opacity-100 transition-opacity">Inspect →</span>
-                </div>
-                <p className="text-2xl font-bold text-white group-hover:text-[#c59b6d] transition-colors">
-                  {formatPrice(stats.netRevenue)}
-                </p>
-                <p className="text-[11px] text-[#10b981]">
-                  Gross: {formatPrice(stats.grossRevenue)} · Refunds: {formatPrice(stats.totalRefunded)}
-                </p>
-              </div>
+          // Pipeline stage counts for velocity chart
+          const pipelineStages = [
+            { label: "Grace Hold", count: stats.mtoGraceCount, color: "#f59e0b" },
+            { label: "Crafting", count: stats.inProductionCount, color: "#c59b6d" },
+            { label: "QC Done", count: orders.filter((o) => o.status === "PRODUCTION_COMPLETED").length, color: "#10b981" },
+            { label: "Ready AWB", count: orders.filter((o) => o.status === "AWAITING_DISPATCH").length, color: "#38bdf8" },
+            { label: "In Transit", count: orders.filter((o) => o.status === "DISPATCHED").length, color: "#818cf8" },
+            { label: "Delivered", count: orders.filter((o) => o.status === "DELIVERED").length, color: "#34d399" },
+          ];
+          const maxStageCount = Math.max(1, ...pipelineStages.map((s) => s.count));
 
-              <div
-                onClick={() => setActiveTab("ORDERS")}
-                className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] hover:border-[#464037] hover:bg-[#282520] transition-all cursor-pointer group space-y-2 select-none shadow-sm"
-              >
-                <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[#a8a093]">
-                  <span>Active Pipeline</span>
-                  <span className="text-[#c59b6d] opacity-0 group-hover:opacity-100 transition-opacity">View Orders →</span>
-                </div>
-                <p className="text-2xl font-bold text-white group-hover:text-[#c59b6d] transition-colors">
-                  {orders.length} Consignments
-                </p>
-                <p className="text-[11px] text-[#a8a093]">
-                  {orders.filter((o) => o.mode === "READY_STOCK").length} Ready Stock · {orders.filter((o) => o.mode === "MADE_TO_ORDER").length} Made to Order
-                </p>
-              </div>
-
-              <div
-                onClick={() => setActiveTab("PRODUCTION")}
-                className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] hover:border-[#464037] hover:bg-[#282520] transition-all cursor-pointer group space-y-2 select-none shadow-sm"
-              >
-                <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[#a8a093]">
-                  <span>Workshop Grace Holds</span>
-                  <span className="text-[#c59b6d] opacity-0 group-hover:opacity-100 transition-opacity">Grace Queue →</span>
-                </div>
-                <p className="text-2xl font-bold text-[#f59e0b] group-hover:text-[#fbbf24] transition-colors">
-                  {stats.mtoGraceCount} Active Holds
-                </p>
-                <p className="text-[11px] text-[#a8a093]">
-                  Earliest: {stats.minGraceDays !== null ? (stats.minGraceDays === 0 ? "Release Ready Today" : `${stats.minGraceDays}d remaining`) : "None"} · Day 8 Machining
-                </p>
-              </div>
-
-              <div
-                onClick={() => setOverviewDomainFilter("URGENT")}
-                className={`p-5 rounded-2xl border transition-all cursor-pointer group space-y-2 select-none shadow-sm ${
-                  allUrgentCases.length > 0
-                    ? "bg-rose-950/20 border-rose-900/60 hover:border-rose-700/80 hover:bg-rose-950/30"
-                    : "bg-[#24211d] border-[#38332c] hover:border-[#464037]"
-                }`}
-              >
-                <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[#a8a093]">
-                  <span className="flex items-center gap-1.5 text-rose-300">
-                    <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
-                    Urgent Bottlenecks
+          return (
+            <div className="space-y-8">
+              {/* Header & Controls */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-[#38332c]">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#c59b6d] tracking-widest block">
+                    Studio Operations Cockpit
                   </span>
-                  <span className="text-rose-300 opacity-0 group-hover:opacity-100 transition-opacity">Triage →</span>
+                  <h2 className="text-xl font-bold text-white tracking-tight">Studio Overview</h2>
+                  <p className="text-xs text-[#a8a093]">
+                    Cross-functional telemetry, live operational exceptions, and role-authorized executive metrics.
+                  </p>
                 </div>
-                <p className="text-2xl font-bold text-rose-400 group-hover:text-rose-300 transition-colors">
-                  {allUrgentCases.length} Action-Required
-                </p>
-                <p className="text-[11px] text-[#a8a093]">
-                  {allUrgentCases.length === 0 ? "All queues operating smoothly" : "Grace, balance, tickets & RFQs"}
-                </p>
+                <div className="flex items-center gap-2.5">
+                  {canCreateQuote && (
+                    <button
+                      type="button"
+                      onClick={() => setIsProposalModalOpen(true)}
+                      className="px-3 py-1.5 rounded-lg bg-[#2a2722] hover:bg-[#332f29] text-[#eae6df] border border-[#464037] text-xs font-semibold transition-colors flex items-center gap-1.5"
+                    >
+                      <span>+</span>
+                      <span>New Custom Quote</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleManualSync}
+                    title="Click to sync immediately (auto-syncs every 60s, resets timer)"
+                    className="px-3 py-1.5 rounded-lg bg-[#c59b6d] hover:bg-[#d6aa7c] text-[#181715] text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-sm"
+                  >
+                    <span>↻</span>
+                    <span>Sync Telemetry</span>
+                    <span className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-black/20 font-bold">
+                      {syncCountdown}s
+                    </span>
+                  </button>
+                </div>
               </div>
-            </div>
 
-            {/* ATTENTION REQUIRED SHELF */}
-            {(overviewDomainFilter === "URGENT" || (overviewDomainFilter === "ALL" && allUrgentCases.length > 0)) && (
-              <div className="p-6 rounded-2xl bg-[#24211d] border border-amber-900/40 shadow-md space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#38332c] pb-3">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-lg">🚨</span>
-                    <div>
-                      <h3 className="font-bold text-sm text-white">Attention Required · Urgent Exceptions</h3>
-                      <p className="text-[11px] text-[#a8a093]">
-                        Actionable operational items requiring staff decisions to unblock production or fulfillment.
-                      </p>
+              {/* Domain Filter Bar (Role-Filtered) */}
+              <div className="flex flex-wrap items-center gap-2 p-1.5 rounded-xl bg-[#1e1c19] border border-[#38332c]">
+                {domainTabs.map((tab) => {
+                  const isActive = overviewDomainFilter === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => {
+                        setOverviewDomainFilter(tab.id);
+                        if (tab.id !== "URGENT") setUrgentCategoryFilter("ALL");
+                      }}
+                      className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 ${
+                        isActive
+                          ? "bg-[#2a2620] text-white border-l-2 border-l-[#c59b6d] border-y border-r border-[#464037] shadow-sm"
+                          : "text-[#a8a093] hover:text-[#eae6df] hover:bg-[#24211d] border border-transparent"
+                      }`}
+                    >
+                      <span>{tab.icon}</span>
+                      <span>{tab.label}</span>
+                      {tab.count !== undefined && (
+                        <span
+                          className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                            tab.highlight && tab.count > 0
+                              ? "bg-rose-950/80 text-rose-300 border border-rose-800/70"
+                              : isActive
+                              ? "bg-[#38332c] text-[#c59b6d]"
+                              : "bg-[#2a2722] text-[#a8a093]"
+                          }`}
+                        >
+                          {tab.count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Top 4 Interactive Pulse Cards (Role Authority Honored) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Card 1: Role Authority */}
+                {canViewFinancials ? (
+                  <div
+                    onClick={() => setOverviewDomainFilter("COMMERCIAL")}
+                    className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] hover:border-[#464037] hover:bg-[#282520] transition-all cursor-pointer group space-y-2 select-none shadow-sm"
+                  >
+                    <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[#a8a093]">
+                      <span>Net Verified Revenue</span>
+                      <span className="text-[#c59b6d] opacity-0 group-hover:opacity-100 transition-opacity">Financial Flow →</span>
                     </div>
+                    <p className="text-2xl font-bold text-white group-hover:text-[#c59b6d] transition-colors">
+                      {formatPrice(stats.netRevenue)}
+                    </p>
+                    <p className="text-[11px] text-[#10b981]">
+                      Gross: {formatPrice(stats.grossRevenue)} · Refunds: {formatPrice(stats.totalRefunded)}
+                    </p>
                   </div>
-
-                  {/* Sub-filters for urgent items */}
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {[
-                      { id: "ALL", label: `All (${allUrgentCases.length})` },
-                      { id: "GRACE_RELEASE", label: "Grace Releases" },
-                      { id: "BALANCE_DUE", label: "Balance Due" },
-                      { id: "URGENT_TICKET", label: "Tickets" },
-                      { id: "PENDING_QUOTE", label: "Quotes" },
-                      { id: "AWAITING_DISPATCH", label: "Dispatch" },
-                    ].map((sub) => (
-                      <button
-                        key={sub.id}
-                        type="button"
-                        onClick={() => setUrgentCategoryFilter(sub.id)}
-                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
-                          urgentCategoryFilter === sub.id
-                            ? "bg-[#c59b6d] text-[#181715]"
-                            : "bg-[#2a2722] text-[#a8a093] hover:text-white"
-                        }`}
-                      >
-                        {sub.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {filteredUrgentCases.length === 0 ? (
-                  <div className="py-8 text-center text-xs text-[#a8a093] space-y-2">
-                    <span className="text-2xl block text-emerald-400">✓</span>
-                    <p className="font-medium text-white">No pending items in this category.</p>
-                    <p className="text-[11px]">All workshop grace holds, payments, and tickets are currently on schedule.</p>
+                ) : canViewWorkshop ? (
+                  <div
+                    onClick={() => setActiveTab("PRODUCTION")}
+                    className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] hover:border-[#464037] hover:bg-[#282520] transition-all cursor-pointer group space-y-2 select-none shadow-sm"
+                  >
+                    <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[#a8a093]">
+                      <span>Workshop Active Units</span>
+                      <span className="text-[#c59b6d] opacity-0 group-hover:opacity-100 transition-opacity">Workshop Queue →</span>
+                    </div>
+                    <p className="text-2xl font-bold text-white group-hover:text-[#c59b6d] transition-colors">
+                      {stats.inProductionCount} in Machining/QC
+                    </p>
+                    <p className="text-[11px] text-[#f59e0b]">
+                      {stats.mtoGraceCount} active 7-day grace holds
+                    </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                    {filteredUrgentCases.map((item) => (
-                      <div
-                        key={item.id}
-                        className={`p-4 rounded-xl bg-[#1e1c19] border flex flex-col justify-between space-y-3 transition-all hover:bg-[#23201b] ${
-                          item.badgeColor === "rose"
-                            ? "border-l-4 border-l-rose-500 border-y border-r border-[#38332c]"
-                            : item.badgeColor === "amber"
-                            ? "border-l-4 border-l-amber-500 border-y border-r border-[#38332c]"
-                            : item.badgeColor === "emerald"
-                            ? "border-l-4 border-l-emerald-500 border-y border-r border-[#38332c]"
-                            : "border-l-4 border-l-[#c59b6d] border-y border-r border-[#38332c]"
-                        }`}
-                      >
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] uppercase font-bold tracking-wider text-[#a8a093]">
-                              {item.categoryLabel}
-                            </span>
-                            <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                item.badgeColor === "rose"
-                                  ? "bg-rose-950 text-rose-300 border border-rose-800"
-                                  : item.badgeColor === "amber"
-                                  ? "bg-amber-950 text-amber-300 border border-amber-800"
-                                  : item.badgeColor === "emerald"
-                                  ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
-                                  : "bg-[#2a2722] text-[#c59b6d] border border-[#38332c]"
-                              }`}
-                            >
-                              {item.badge}
-                            </span>
-                          </div>
-                          <h4 className="text-xs font-bold text-white line-clamp-1">{item.title}</h4>
-                          <p className="text-[11px] text-[#a8a093] line-clamp-2 leading-relaxed">
-                            {item.description}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={item.onAction}
-                          className="w-full py-2 px-3 rounded-lg bg-[#2a2722] hover:bg-[#35312b] text-[#c59b6d] hover:text-[#d6aa7c] border border-[#464037] text-xs font-semibold text-center transition-colors flex items-center justify-center gap-1"
-                        >
-                          <span>{item.actionLabel}</span>
-                        </button>
-                      </div>
-                    ))}
+                  <div
+                    onClick={() => setActiveTab("TICKETS")}
+                    className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] hover:border-[#464037] hover:bg-[#282520] transition-all cursor-pointer group space-y-2 select-none shadow-sm"
+                  >
+                    <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[#a8a093]">
+                      <span>Open Support Tickets</span>
+                      <span className="text-[#c59b6d] opacity-0 group-hover:opacity-100 transition-opacity">Support Desk →</span>
+                    </div>
+                    <p className="text-2xl font-bold text-white group-hover:text-[#c59b6d] transition-colors">
+                      {stats.openTicketsCount} Active Requests
+                    </p>
+                    <p className="text-[11px] text-rose-300">
+                      {tickets.filter((t) => t.priority === "URGENT").length} urgent escalations
+                    </p>
                   </div>
                 )}
-              </div>
-            )}
 
-            {/* DOMAIN 1: COMMERCIAL & SALES STREAM */}
-            {(overviewDomainFilter === "ALL" || overviewDomainFilter === "COMMERCIAL") && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between border-b border-[#38332c] pb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">💼</span>
-                    <h3 className="font-bold text-sm text-white">Commercial & Sales Stream</h3>
-                    <span className="text-xs text-[#a8a093]">({orders.length} Orders · {inquiries.length + proposals.length} Inquiries & Quotes)</span>
+                {/* Card 2: Active Pipeline */}
+                <div
+                  onClick={() => setActiveTab("ORDERS")}
+                  className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] hover:border-[#464037] hover:bg-[#282520] transition-all cursor-pointer group space-y-2 select-none shadow-sm"
+                >
+                  <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[#a8a093]">
+                    <span>Active Pipeline</span>
+                    <span className="text-[#c59b6d] opacity-0 group-hover:opacity-100 transition-opacity">View Orders →</span>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("PROPOSALS")}
-                      className="text-xs font-semibold text-[#a8a093] hover:text-[#c59b6d] transition-colors"
-                    >
-                      Inquiries & Quotes ({inquiries.length + proposals.length}) →
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("ORDERS")}
-                      className="text-xs font-semibold text-[#c59b6d] hover:underline"
-                    >
-                      View All Orders ({orders.length}) →
-                    </button>
-                  </div>
+                  <p className="text-2xl font-bold text-white group-hover:text-[#c59b6d] transition-colors">
+                    {orders.length} Consignments
+                  </p>
+                  <p className="text-[11px] text-[#a8a093]">
+                    {orders.filter((o) => o.mode === "READY_STOCK").length} Ready Stock · {orders.filter((o) => o.mode === "MADE_TO_ORDER").length} Made to Order
+                  </p>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                  {/* Left: Active Consignments Mini-Table */}
-                  <div className="lg:col-span-8 p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4 shadow-sm">
-                    <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
-                      <h4 className="font-semibold text-xs text-white uppercase tracking-wider">
-                        Recent Consignments
-                      </h4>
-                      <span className="text-[11px] text-[#a8a093]">Click row or inspect to view full dossier</span>
+                {/* Card 3: Role Authority */}
+                {canViewWorkshop ? (
+                  <div
+                    onClick={() => setActiveTab("PRODUCTION")}
+                    className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] hover:border-[#464037] hover:bg-[#282520] transition-all cursor-pointer group space-y-2 select-none shadow-sm"
+                  >
+                    <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[#a8a093]">
+                      <span>Workshop Grace Holds</span>
+                      <span className="text-[#c59b6d] opacity-0 group-hover:opacity-100 transition-opacity">Grace Queue →</span>
+                    </div>
+                    <p className="text-2xl font-bold text-[#f59e0b] group-hover:text-[#fbbf24] transition-colors">
+                      {stats.mtoGraceCount} Active Holds
+                    </p>
+                    <p className="text-[11px] text-[#a8a093]">
+                      Earliest: {stats.minGraceDays !== null ? (stats.minGraceDays === 0 ? "Release Ready Today" : `${stats.minGraceDays}d remaining`) : "None"} · Day 8 Machining
+                    </p>
+                  </div>
+                ) : canViewProposals ? (
+                  <div
+                    onClick={() => setActiveTab("PROPOSALS")}
+                    className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] hover:border-[#464037] hover:bg-[#282520] transition-all cursor-pointer group space-y-2 select-none shadow-sm"
+                  >
+                    <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[#a8a093]">
+                      <span>Bespoke Quotes & RFQs</span>
+                      <span className="text-[#c59b6d] opacity-0 group-hover:opacity-100 transition-opacity">Quotes Console →</span>
+                    </div>
+                    <p className="text-2xl font-bold text-[#c59b6d] group-hover:text-[#d6aa7c] transition-colors">
+                      {inquiries.length + proposals.length} Active
+                    </p>
+                    <p className="text-[11px] text-[#a8a093]">
+                      {inquiries.filter((i) => i.status === "NEW").length} New Inquiries · {proposals.filter((p) => p.status === "DRAFT").length} Drafts
+                    </p>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => setActiveTab("TICKETS")}
+                    className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] hover:border-[#464037] hover:bg-[#282520] transition-all cursor-pointer group space-y-2 select-none shadow-sm"
+                  >
+                    <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[#a8a093]">
+                      <span>Resolved Client Requests</span>
+                      <span className="text-[#c59b6d] opacity-0 group-hover:opacity-100 transition-opacity">Ticket Archive →</span>
+                    </div>
+                    <p className="text-2xl font-bold text-emerald-400 transition-colors">
+                      {tickets.filter((t) => t.status === "RESOLVED").length} Resolved
+                    </p>
+                    <p className="text-[11px] text-[#a8a093]">
+                      Assistance successfully delivered
+                    </p>
+                  </div>
+                )}
+
+                {/* Card 4: Urgent Bottlenecks */}
+                <div
+                  onClick={() => setOverviewDomainFilter("URGENT")}
+                  className={`p-5 rounded-2xl border transition-all cursor-pointer group space-y-2 select-none shadow-sm ${
+                    allUrgentCases.length > 0
+                      ? "bg-rose-950/20 border-rose-900/60 hover:border-rose-700/80 hover:bg-rose-950/30"
+                      : "bg-[#24211d] border-[#38332c] hover:border-[#464037]"
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[#a8a093]">
+                    <span className="flex items-center gap-1.5 text-rose-300">
+                      <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
+                      Urgent Bottlenecks
+                    </span>
+                    <span className="text-rose-300 opacity-0 group-hover:opacity-100 transition-opacity">Triage →</span>
+                  </div>
+                  <p className="text-2xl font-bold text-rose-400 group-hover:text-rose-300 transition-colors">
+                    {allUrgentCases.length} Action-Required
+                  </p>
+                  <p className="text-[11px] text-[#a8a093]">
+                    {allUrgentCases.length === 0 ? "All authorized queues operating smoothly" : "Filtered to your staff authority"}
+                  </p>
+                </div>
+              </div>
+
+              {/* ATTENTION REQUIRED SHELF (The Exception-Based Cockpit) */}
+              {(overviewDomainFilter === "URGENT" || (overviewDomainFilter === "ALL" && allUrgentCases.length > 0)) && (
+                <div className="p-6 rounded-2xl bg-[#24211d] border border-amber-900/40 shadow-md space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#38332c] pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-lg">🚨</span>
+                      <div>
+                        <h3 className="font-bold text-sm text-white">Attention Required · Urgent Exceptions</h3>
+                        <p className="text-[11px] text-[#a8a093]">
+                          Actionable operational items requiring staff decisions (filtered by your role: <span className="text-[#c59b6d]">{currentStaff.role}</span>).
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="divide-y divide-[#38332c]">
-                      {orders.slice(0, 5).map((order) => (
-                        <div
-                          key={order.id}
-                          onClick={() => setSelectedOrder(order)}
-                          className="py-3 px-2 -mx-2 rounded-lg hover:bg-[#282520] transition-colors cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                    {/* Sub-filters for urgent items */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {[
+                        { id: "ALL", label: `All (${allUrgentCases.length})` },
+                        { id: "GRACE_RELEASE", label: "Grace Releases" },
+                        { id: "BALANCE_DUE", label: "Balance Due" },
+                        { id: "URGENT_TICKET", label: "Tickets" },
+                        { id: "PENDING_QUOTE", label: "Quotes" },
+                        { id: "AWAITING_DISPATCH", label: "Dispatch" },
+                      ].map((sub) => (
+                        <button
+                          key={sub.id}
+                          type="button"
+                          onClick={() => setUrgentCategoryFilter(sub.id)}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                            urgentCategoryFilter === sub.id
+                              ? "bg-[#c59b6d] text-[#181715]"
+                              : "bg-[#2a2722] text-[#a8a093] hover:text-white"
+                          }`}
                         >
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono font-bold text-white">{order.orderNumber}</span>
-                              <span
-                                className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                                  order.mode === "READY_STOCK"
-                                    ? "bg-[#2a2722] text-[#c59b6d] border border-[#38332c]"
-                                    : "bg-amber-950/60 text-amber-300 border border-amber-800/60"
-                                }`}
-                              >
-                                {order.mode === "READY_STOCK" ? "Ready Stock" : "Made to Order"}
-                              </span>
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#1e1c19] text-[#a8a093]">
-                                {order.status.replace(/_/g, " ")}
-                              </span>
-                            </div>
-                            <p className="text-[#a8a093]">
-                              {order.customerName} · {order.city}, {order.state} ({order.pincode})
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-4 sm:self-center">
-                            <div className="text-right">
-                              <span className="font-semibold text-white block">
-                                {formatPrice(order.totalAmountRupees)}
-                              </span>
-                              <p className="text-[11px] text-[#10b981]">
-                                Paid: {formatPrice(order.amountPaidRupees)}
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedOrder(order);
-                              }}
-                              className="px-2.5 py-1 rounded bg-[#2a2722] hover:bg-[#35312b] text-[#c59b6d] border border-[#464037] text-[11px] font-semibold transition-colors"
-                            >
-                              Inspect →
-                            </button>
-                          </div>
-                        </div>
+                          {sub.label}
+                        </button>
                       ))}
                     </div>
                   </div>
 
-                  {/* Right: Bespoke Quotes & Inquiries Snapshot */}
-                  <div className="lg:col-span-4 p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4 shadow-sm flex flex-col justify-between">
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
-                        <h4 className="font-semibold text-xs text-white uppercase tracking-wider">
-                          Bespoke Quotes & RFQs
-                        </h4>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#2a2722] text-[#c59b6d]">
-                          {inquiries.length + proposals.length} Active
-                        </span>
-                      </div>
-
-                      <div className="space-y-2.5">
-                        {inquiries.slice(0, 3).map((inq) => (
-                          <div
-                            key={inq.id}
-                            className="p-3 rounded-xl bg-[#1e1c19] border border-[#38332c] text-xs space-y-1.5"
-                          >
-                            <div className="flex justify-between items-center text-[11px]">
-                              <strong className="text-white truncate">{inq.clientName}</strong>
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#2a2722] text-[#c59b6d] border border-[#38332c]">
-                                {inq.status}
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-[#a8a093] line-clamp-1">
-                              {inq.requestedEditions || `${inq.quantityUnits} unit(s)`} · {inq.destinationCity}
-                            </p>
-                          </div>
-                        ))}
-
-                        {proposals.slice(0, 2).map((prop) => (
-                          <div
-                            key={prop.id}
-                            className="p-3 rounded-xl bg-[#1e1c19] border border-[#38332c] text-xs space-y-1.5"
-                          >
-                            <div className="flex justify-between items-center text-[11px]">
-                              <strong className="text-white truncate font-mono">{prop.quoteNumber}</strong>
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-950/70 text-amber-300 border border-amber-800/60">
-                                {prop.status}
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-[#a8a093] line-clamp-1">
-                              {prop.customerName} · {prop.versions?.[prop.versions.length - 1]?.quotedAmount ? formatPrice(prop.versions[prop.versions.length - 1].quotedAmount) : "Pending"}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
+                  {filteredUrgentCases.length === 0 ? (
+                    <div className="py-8 text-center text-xs text-[#a8a093] space-y-2">
+                      <span className="text-2xl block text-emerald-400">✓</span>
+                      <p className="font-medium text-white">No pending items in this category.</p>
+                      <p className="text-[11px]">All queues within your authority are currently on schedule.</p>
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("PROPOSALS")}
-                      className="w-full mt-3 py-2 px-3 rounded-xl bg-[#2a2722] hover:bg-[#35312b] text-[#c59b6d] border border-[#464037] text-xs font-semibold transition-colors text-center"
-                    >
-                      Open Inquiries & Quotes Console →
-                    </button>
-                  </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                      {filteredUrgentCases.map((item) => (
+                        <div
+                          key={item.id}
+                          className={`p-4 rounded-xl bg-[#1e1c19] border flex flex-col justify-between space-y-3 transition-all hover:bg-[#23201b] ${
+                            item.badgeColor === "rose"
+                              ? "border-l-4 border-l-rose-500 border-y border-r border-[#38332c]"
+                              : item.badgeColor === "amber"
+                              ? "border-l-4 border-l-amber-500 border-y border-r border-[#38332c]"
+                              : item.badgeColor === "emerald"
+                              ? "border-l-4 border-l-emerald-500 border-y border-r border-[#38332c]"
+                              : "border-l-4 border-l-[#c59b6d] border-y border-r border-[#38332c]"
+                          }`}
+                        >
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] uppercase font-bold tracking-wider text-[#a8a093]">
+                                {item.categoryLabel}
+                              </span>
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  item.badgeColor === "rose"
+                                    ? "bg-rose-950 text-rose-300 border border-rose-800"
+                                    : item.badgeColor === "amber"
+                                    ? "bg-amber-950 text-amber-300 border border-amber-800"
+                                    : item.badgeColor === "emerald"
+                                    ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                                    : "bg-[#2a2722] text-[#c59b6d] border border-[#38332c]"
+                                }`}
+                              >
+                                {item.badge}
+                              </span>
+                            </div>
+                            <h4 className="text-xs font-bold text-white line-clamp-1">{item.title}</h4>
+                            <p className="text-[11px] text-[#a8a093] line-clamp-2 leading-relaxed">
+                              {item.description}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={item.onAction}
+                            className="w-full py-2 px-3 rounded-lg bg-[#2a2722] hover:bg-[#35312b] text-[#c59b6d] hover:text-[#d6aa7c] border border-[#464037] text-xs font-semibold text-center transition-colors flex items-center justify-center gap-1"
+                          >
+                            <span>{item.actionLabel}</span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* DOMAIN 2: WORKSHOP & FULFILMENT STREAM */}
-            {(overviewDomainFilter === "ALL" || overviewDomainFilter === "WORKSHOP") && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between border-b border-[#38332c] pb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">🔨</span>
-                    <h3 className="font-bold text-sm text-white">Workshop & Fulfilment Pipeline</h3>
-                    <span className="text-xs text-[#a8a093]">({stats.mtoGraceCount} MTO Grace Holds · Logistics Telemetry)</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("DISPATCH")}
-                      className="text-xs font-semibold text-[#a8a093] hover:text-[#c59b6d] transition-colors"
-                    >
-                      Logistics & AWB →
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("PRODUCTION")}
-                      className="text-xs font-semibold text-[#c59b6d] hover:underline"
-                    >
-                      Workshop Grace Queue ({stats.mtoGraceCount}) →
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                  {/* Left: 7-Day Grace Hold Monitor */}
-                  <div className="lg:col-span-7 p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4 shadow-sm">
-                    <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
-                      <div>
-                        <h4 className="font-semibold text-xs text-white uppercase tracking-wider">
-                          7-Day Grace Hold Queue
-                        </h4>
-                        <p className="text-[11px] text-[#a8a093]">
-                          Client alterations allowed during Days 1–7. Machining commences Day 8.
-                        </p>
-                      </div>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-950/70 text-amber-300 border border-amber-800/60">
-                        {stats.mtoGraceCount} Active
+              {/* DOMAIN 1: COMMERCIAL & SALES STREAM (With Financial Segregation & Charts) */}
+              {canViewFinancials && (overviewDomainFilter === "ALL" || overviewDomainFilter === "COMMERCIAL") && (
+                <div className="space-y-5">
+                  <div className="flex items-center justify-between border-b border-[#38332c] pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">💼</span>
+                      <h3 className="font-bold text-sm text-white">Commercial & Sales Telemetry</h3>
+                      <span className="text-xs text-[#a8a093]">
+                        ({orders.length} Consignments · {inquiries.length + proposals.length} Quotes)
                       </span>
                     </div>
+                    <div className="flex items-center gap-3">
+                      {canViewProposals && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab("PROPOSALS")}
+                          className="text-xs font-semibold text-[#a8a093] hover:text-[#c59b6d] transition-colors"
+                        >
+                          Inquiries & Quotes ({inquiries.length + proposals.length}) →
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab("ORDERS")}
+                        className="text-xs font-semibold text-[#c59b6d] hover:underline"
+                      >
+                        View All Orders ({orders.length}) →
+                      </button>
+                    </div>
+                  </div>
 
-                    <div className="space-y-3">
-                      {orders
-                        .filter((o) => o.mode === "MADE_TO_ORDER" && o.isGraceActive)
-                        .slice(0, 4)
-                        .map((order) => {
-                          const daysRemaining = order.graceDaysRemaining ?? 0;
-                          const elapsedDays = Math.max(0, Math.min(7, 7 - daysRemaining));
-                          const percent = Math.round((elapsedDays / 7) * 100);
-                          return (
+                  {/* Financial Overview Segregation: 4 Distinct Status Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* 1. Paid 100% */}
+                    <div
+                      onClick={() => setCommercialLedgerFilter("SETTLED")}
+                      className={`p-4 rounded-xl border transition-all cursor-pointer space-y-1.5 shadow-sm ${
+                        commercialLedgerFilter === "SETTLED"
+                          ? "bg-[#2a2822] border-emerald-500/80 ring-1 ring-emerald-500/50"
+                          : "bg-[#24211d] border-[#38332c] hover:border-[#464037]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-semibold uppercase tracking-wider text-[#a8a093]">Paid 100% (Settled)</span>
+                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-800/60">
+                          {commercialFinancials.settledOrders.length}
+                        </span>
+                      </div>
+                      <p className="text-xl font-bold text-emerald-400">
+                        {formatPrice(commercialFinancials.settledRevenue)}
+                      </p>
+                      <p className="text-[10px] text-[#a8a093]">Fully cleared ready stock & delivered</p>
+                    </div>
+
+                    {/* 2. Paid 25% Advance */}
+                    <div
+                      onClick={() => setCommercialLedgerFilter("STAGED")}
+                      className={`p-4 rounded-xl border transition-all cursor-pointer space-y-1.5 shadow-sm ${
+                        commercialLedgerFilter === "STAGED"
+                          ? "bg-[#2a2822] border-[#c59b6d] ring-1 ring-[#c59b6d]/50"
+                          : "bg-[#24211d] border-[#38332c] hover:border-[#464037]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-semibold uppercase tracking-wider text-[#a8a093]">Paid 25% Advance</span>
+                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-[#2e2a22] text-[#c59b6d] border border-[#464037]">
+                          {commercialFinancials.stagedOrders.length}
+                        </span>
+                      </div>
+                      <p className="text-xl font-bold text-[#c59b6d]">
+                        {formatPrice(commercialFinancials.advanceCollected)}
+                      </p>
+                      <p className="text-[10px] text-[#a8a093]">Committed MTO production deposits</p>
+                    </div>
+
+                    {/* 3. 75% Final Balance Pending */}
+                    <div
+                      onClick={() => setCommercialLedgerFilter("STAGED")}
+                      className={`p-4 rounded-xl border transition-all cursor-pointer space-y-1.5 shadow-sm ${
+                        commercialLedgerFilter === "STAGED"
+                          ? "bg-[#2a2822] border-amber-500/80 ring-1 ring-amber-500/50"
+                          : "bg-[#24211d] border-[#38332c] hover:border-[#464037]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-semibold uppercase tracking-wider text-[#a8a093]">75% Balance Pending</span>
+                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-950/80 text-amber-300 border border-amber-800/60">
+                          Due Pre-AWB
+                        </span>
+                      </div>
+                      <p className="text-xl font-bold text-[#f59e0b]">
+                        {formatPrice(commercialFinancials.balancePending)}
+                      </p>
+                      <p className="text-[10px] text-[#a8a093]">Payable upon QC before consignment release</p>
+                    </div>
+
+                    {/* 4. Cancelled & Refunds */}
+                    <div
+                      onClick={() =>
+                        setCommercialLedgerFilter(
+                          commercialFinancials.refundPendingOrders.length > 0 ? "REFUND_PENDING" : "REFUND_ISSUED"
+                        )
+                      }
+                      className={`p-4 rounded-xl border transition-all cursor-pointer space-y-1.5 shadow-sm ${
+                        commercialLedgerFilter === "REFUND_PENDING" || commercialLedgerFilter === "REFUND_ISSUED"
+                          ? "bg-[#2a2822] border-rose-500/80 ring-1 ring-rose-500/50"
+                          : "bg-[#24211d] border-[#38332c] hover:border-[#464037]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-semibold uppercase tracking-wider text-[#a8a093]">Cancelled & Refunds</span>
+                        <span
+                          className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                            commercialFinancials.refundPendingOrders.length > 0
+                              ? "bg-rose-950 text-rose-300 border border-rose-800"
+                              : "bg-[#2a2722] text-[#a8a093] border border-[#38332c]"
+                          }`}
+                        >
+                          {commercialFinancials.refundPendingOrders.length > 0 ? "Pending Action" : "Settled"}
+                        </span>
+                      </div>
+                      <div className="text-xs space-y-0.5">
+                        <div className="flex justify-between">
+                          <span className="text-[#a8a093]">Pending:</span>
+                          <span className="font-bold text-rose-400">
+                            {formatPrice(commercialFinancials.refundPendingTotal)} ({commercialFinancials.refundPendingOrders.length})
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-[#a8a093]">Settled:</span>
+                          <span className="font-semibold text-emerald-400">
+                            {formatPrice(commercialFinancials.refundIssuedTotal)} ({commercialFinancials.refundIssuedOrders.length})
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Visual Financial Charts (SVG) */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    {/* Chart 1: Financial Settlement Distribution */}
+                    <div className="lg:col-span-6 p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4 shadow-sm">
+                      <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
+                        <div>
+                          <h4 className="font-semibold text-xs text-white uppercase tracking-wider">
+                            Financial Settlement Flow
+                          </h4>
+                          <p className="text-[11px] text-[#a8a093]">
+                            Distribution of total committed ledger volume ({formatPrice(totalCashFlow)})
+                          </p>
+                        </div>
+                        <span className="text-[10px] font-mono text-[#c59b6d] font-bold">LEDGER-VERIFIED</span>
+                      </div>
+
+                      {/* Multi-segmented Visual Stacked Bar */}
+                      <div className="space-y-2 pt-1">
+                        <div className="h-4 w-full bg-[#181715] rounded-full overflow-hidden flex border border-[#38332c]">
+                          {settledPct > 0 && (
                             <div
-                              key={order.id}
-                              className="p-3.5 rounded-xl bg-[#1e1c19] border border-[#38332c] space-y-2.5"
-                            >
-                              <div className="flex items-center justify-between text-xs">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-mono font-bold text-white">{order.orderNumber}</span>
-                                  <span className="text-[#a8a093]">({order.customerName})</span>
-                                </div>
-                                <span
-                                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                    daysRemaining === 0
-                                      ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
-                                      : daysRemaining <= 2
-                                      ? "bg-amber-950 text-amber-300 border border-amber-800"
-                                      : "bg-[#2a2722] text-[#c59b6d] border border-[#38332c]"
-                                  }`}
-                                >
-                                  {daysRemaining === 0 ? "Release Ready Today" : `Day ${elapsedDays}/7 (${daysRemaining}d Left)`}
-                                </span>
-                              </div>
+                              style={{ width: `${settledPct}%` }}
+                              title={`100% Settled: ${formatPrice(commercialFinancials.settledRevenue)} (${settledPct}%)`}
+                              className="h-full bg-emerald-500 hover:opacity-90 transition-all cursor-pointer"
+                            />
+                          )}
+                          {advPct > 0 && (
+                            <div
+                              style={{ width: `${advPct}%` }}
+                              title={`25% Advance: ${formatPrice(commercialFinancials.advanceCollected)} (${advPct}%)`}
+                              className="h-full bg-[#c59b6d] hover:opacity-90 transition-all cursor-pointer"
+                            />
+                          )}
+                          {balPct > 0 && (
+                            <div
+                              style={{ width: `${balPct}%` }}
+                              title={`75% Due: ${formatPrice(commercialFinancials.balancePending)} (${balPct}%)`}
+                              className="h-full bg-amber-400 hover:opacity-90 transition-all cursor-pointer"
+                            />
+                          )}
+                          {refPct > 0 && (
+                            <div
+                              style={{ width: `${refPct}%` }}
+                              title={`Refunds: ${formatPrice(commercialFinancials.refundIssuedTotal)} (${refPct}%)`}
+                              className="h-full bg-rose-400 hover:opacity-90 transition-all cursor-pointer"
+                            />
+                          )}
+                        </div>
 
-                              {/* Progress bar */}
-                              <div className="space-y-1">
-                                <div className="h-1.5 w-full bg-[#2a2722] rounded-full overflow-hidden">
-                                  <div
-                                    className={`h-full rounded-full transition-all ${
-                                      daysRemaining === 0
-                                        ? "bg-emerald-500"
-                                        : daysRemaining <= 2
-                                        ? "bg-amber-400"
-                                        : "bg-[#c59b6d]"
-                                    }`}
-                                    style={{ width: `${percent}%` }}
-                                  />
-                                </div>
-                                <div className="flex justify-between text-[10px] text-[#787165]">
-                                  <span>Day 1 (Hold Placed)</span>
-                                  <span>Day 7 (Client Lock)</span>
-                                  <span>Day 8 (Machining Release)</span>
-                                </div>
+                        {/* Legend */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 text-[11px]">
+                          <div className="flex items-center gap-1.5">
+                            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shrink-0" />
+                            <div className="min-w-0">
+                              <span className="text-[#a8a093] block truncate">100% Settled</span>
+                              <strong className="text-white font-mono text-[10px]">{settledPct}%</strong>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="h-2.5 w-2.5 rounded-full bg-[#c59b6d] shrink-0" />
+                            <div className="min-w-0">
+                              <span className="text-[#a8a093] block truncate">25% Advance</span>
+                              <strong className="text-white font-mono text-[10px]">{advPct}%</strong>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="h-2.5 w-2.5 rounded-full bg-amber-400 shrink-0" />
+                            <div className="min-w-0">
+                              <span className="text-[#a8a093] block truncate">75% Pending</span>
+                              <strong className="text-white font-mono text-[10px]">{balPct}%</strong>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="h-2.5 w-2.5 rounded-full bg-rose-400 shrink-0" />
+                            <div className="min-w-0">
+                              <span className="text-[#a8a093] block truncate">Refunds</span>
+                              <strong className="text-white font-mono text-[10px]">{refPct}%</strong>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Chart 2: Order Pipeline Velocity by Stage */}
+                    <div className="lg:col-span-6 p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4 shadow-sm">
+                      <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
+                        <div>
+                          <h4 className="font-semibold text-xs text-white uppercase tracking-wider">
+                            Order Pipeline Milestone Velocity
+                          </h4>
+                          <p className="text-[11px] text-[#a8a093]">Consignments moving through active workshop gates</p>
+                        </div>
+                        <span className="text-[10px] font-mono text-emerald-400 font-bold">LIVE TELEMETRY</span>
+                      </div>
+
+                      {/* SVG Bar Chart */}
+                      <div className="h-24 w-full flex items-end justify-between gap-3 pt-3 pb-1 border-b border-[#2d2923]">
+                        {pipelineStages.map((stage) => {
+                          const heightPct = Math.max(12, Math.round((stage.count / maxStageCount) * 100));
+                          return (
+                            <div key={stage.label} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end group">
+                              <span className="text-[10px] font-bold text-white group-hover:text-[#c59b6d] transition-colors">
+                                {stage.count}
+                              </span>
+                              <div className="w-full max-w-[32px] bg-[#181715] rounded-t-md overflow-hidden h-full flex items-end">
+                                <div
+                                  style={{
+                                    height: `${heightPct}%`,
+                                    backgroundColor: stage.color,
+                                  }}
+                                  className="w-full rounded-t-md transition-all duration-500 hover:opacity-85"
+                                />
                               </div>
+                              <span className="text-[9px] text-[#a8a093] text-center truncate w-full group-hover:text-white transition-colors">
+                                {stage.label}
+                              </span>
                             </div>
                           );
                         })}
+                      </div>
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("PRODUCTION")}
-                      className="w-full py-2 px-3 rounded-xl bg-[#2a2722] hover:bg-[#35312b] text-[#c59b6d] border border-[#464037] text-xs font-semibold transition-colors text-center"
-                    >
-                      Manage Workshop Queue & Release Releases →
-                    </button>
                   </div>
 
-                  {/* Right: Logistics & Fulfilment Telemetry */}
-                  <div className="lg:col-span-5 p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4 shadow-sm flex flex-col justify-between">
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
-                        <h4 className="font-semibold text-xs text-white uppercase tracking-wider">
-                          Logistics & Dispatch
-                        </h4>
-                        <span className="text-[11px] text-[#a8a093]">Insured Transport Status</span>
+                  {/* Consignments Table & Inquiries (With Ledger Filters) */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    {/* Left: Consignments Mini-Table */}
+                    <div className="lg:col-span-8 p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4 shadow-sm">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#38332c] pb-3">
+                        <div>
+                          <h4 className="font-semibold text-xs text-white uppercase tracking-wider">
+                            Consignments by Financial Status
+                          </h4>
+                          <p className="text-[11px] text-[#a8a093]">Showing {filteredCommercialOrders.length} matching orders</p>
+                        </div>
+
+                        {/* Financial Ledger Filter Switcher */}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {[
+                            { id: "ALL" as const, label: `All (${orders.length})` },
+                            { id: "SETTLED" as const, label: `100% Settled (${commercialFinancials.settledOrders.length})` },
+                            { id: "STAGED" as const, label: `25% Adv / 75% Due (${commercialFinancials.stagedOrders.length})` },
+                            { id: "REFUND_PENDING" as const, label: `Refund Pending (${commercialFinancials.refundPendingOrders.length})` },
+                            { id: "REFUND_ISSUED" as const, label: `Refund Issued (${commercialFinancials.refundIssuedOrders.length})` },
+                          ].map((btn) => (
+                            <button
+                              key={btn.id}
+                              type="button"
+                              onClick={() => setCommercialLedgerFilter(btn.id)}
+                              className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${
+                                commercialLedgerFilter === btn.id
+                                  ? "bg-[#c59b6d] text-[#181715]"
+                                  : "bg-[#2a2722] text-[#a8a093] hover:text-white"
+                              }`}
+                            >
+                              {btn.label}
+                            </button>
+                          ))}
+                        </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="p-3 rounded-xl bg-[#1e1c19] border border-[#38332c] space-y-1">
-                          <span className="text-[10px] text-[#a8a093] block uppercase font-medium">Awaiting Dispatch</span>
-                          <span className="text-xl font-bold text-amber-300">
-                            {orders.filter((o) => o.status === "AWAITING_DISPATCH").length}
-                          </span>
-                        </div>
-                        <div className="p-3 rounded-xl bg-[#1e1c19] border border-[#38332c] space-y-1">
-                          <span className="text-[10px] text-[#a8a093] block uppercase font-medium">In Transit / AWB</span>
-                          <span className="text-xl font-bold text-blue-300">
-                            {orders.filter((o) => o.status === "DISPATCHED").length}
-                          </span>
-                        </div>
-                        <div className="p-3 rounded-xl bg-[#1e1c19] border border-[#38332c] space-y-1">
-                          <span className="text-[10px] text-[#a8a093] block uppercase font-medium">Delivered</span>
-                          <span className="text-xl font-bold text-emerald-400">
-                            {orders.filter((o) => o.status === "DELIVERED").length}
-                          </span>
-                        </div>
-                        <div className="p-3 rounded-xl bg-[#1e1c19] border border-[#38332c] space-y-1">
-                          <span className="text-[10px] text-[#a8a093] block uppercase font-medium">Delivery PINs</span>
-                          <span className="text-xl font-bold text-[#c59b6d]">
-                            {stats.serviceablePinsCount} Active
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Recent dispatches with AWB */}
-                      <div className="pt-2 space-y-2">
-                        <span className="text-[11px] font-semibold text-white block">Recent Dispatches:</span>
-                        {orders
-                          .filter((o) => o.awbNumber)
-                          .slice(0, 2)
-                          .map((o) => (
-                            <div key={o.id} className="p-2.5 rounded-lg bg-[#1e1c19] border border-[#38332c] text-xs flex justify-between items-center">
-                              <div>
-                                <span className="font-mono font-bold text-white">{o.orderNumber}</span>
-                                <p className="text-[10px] text-[#a8a093]">{o.carrierName || "Delhivery"} · {o.awbNumber}</p>
+                      <div className="divide-y divide-[#38332c]">
+                        {filteredCommercialOrders.slice(0, 5).map((order) => (
+                          <div
+                            key={order.id}
+                            onClick={() => setSelectedOrder(order)}
+                            className="py-3 px-2 -mx-2 rounded-lg hover:bg-[#282520] transition-colors cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-bold text-white">{order.orderNumber}</span>
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                                    order.mode === "READY_STOCK"
+                                      ? "bg-[#2a2722] text-[#c59b6d] border border-[#38332c]"
+                                      : "bg-amber-950/60 text-amber-300 border border-amber-800/60"
+                                  }`}
+                                >
+                                  {order.mode === "READY_STOCK" ? "Ready Stock" : "Made to Order"}
+                                </span>
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#1e1c19] text-[#a8a093]">
+                                  {order.status.replace(/_/g, " ")}
+                                </span>
                               </div>
-                              <span className="text-[10px] font-semibold text-[#10b981]">AWB Active</span>
+                              <p className="text-[#a8a093]">
+                                {order.customerName} · {order.city}, {order.state} ({order.pincode})
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-4 sm:self-center">
+                              <div className="text-right space-y-0.5">
+                                <span className="font-semibold text-white block">
+                                  {formatPrice(order.totalAmountRupees)}
+                                </span>
+                                {order.status === "CANCELLED" || order.status === "REFUNDED" ? (
+                                  <p className="text-[10px] text-rose-400 font-semibold">
+                                    Refund: {formatPrice(order.refund?.amountRupees ?? order.amountPaidRupees)}
+                                  </p>
+                                ) : (
+                                  <>
+                                    <p className="text-[10px] text-[#10b981]">Paid: {formatPrice(order.amountPaidRupees)}</p>
+                                    {order.balanceDueRupees > 0 && (
+                                      <p className="text-[10px] text-[#f59e0b]">Due: {formatPrice(order.balanceDueRupees)}</p>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedOrder(order);
+                                }}
+                                className="px-2.5 py-1 rounded bg-[#2a2722] hover:bg-[#35312b] text-[#c59b6d] border border-[#464037] text-[11px] font-semibold transition-colors"
+                              >
+                                Inspect →
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Right: Bespoke Quotes & Inquiries Snapshot */}
+                    <div className="lg:col-span-4 p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4 shadow-sm flex flex-col justify-between">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
+                          <h4 className="font-semibold text-xs text-white uppercase tracking-wider">
+                            Bespoke Quotes & RFQs
+                          </h4>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#2a2722] text-[#c59b6d]">
+                            {inquiries.length + proposals.length} Active
+                          </span>
+                        </div>
+
+                        <div className="space-y-2.5">
+                          {inquiries.slice(0, 3).map((inq) => (
+                            <div
+                              key={inq.id}
+                              className="p-3 rounded-xl bg-[#1e1c19] border border-[#38332c] text-xs space-y-1.5"
+                            >
+                              <div className="flex justify-between items-center text-[11px]">
+                                <strong className="text-white truncate">{inq.clientName}</strong>
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#2a2722] text-[#c59b6d] border border-[#38332c]">
+                                  {inq.status}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-[#a8a093] line-clamp-1">
+                                {inq.requestedEditions || `${inq.quantityUnits} unit(s)`} · {inq.destinationCity}
+                              </p>
                             </div>
                           ))}
-                      </div>
-                    </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("DISPATCH")}
-                      className="w-full mt-3 py-2 px-3 rounded-xl bg-[#2a2722] hover:bg-[#35312b] text-[#c59b6d] border border-[#464037] text-xs font-semibold transition-colors text-center"
-                    >
-                      Open Fulfilment & AWB Console →
-                    </button>
+                          {proposals.slice(0, 2).map((prop) => (
+                            <div
+                              key={prop.id}
+                              className="p-3 rounded-xl bg-[#1e1c19] border border-[#38332c] text-xs space-y-1.5"
+                            >
+                              <div className="flex justify-between items-center text-[11px]">
+                                <strong className="text-white truncate font-mono">{prop.quoteNumber}</strong>
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-950/70 text-amber-300 border border-amber-800/60">
+                                  {prop.status}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-[#a8a093] line-clamp-1">
+                                {prop.customerName} · {prop.versions?.[prop.versions.length - 1]?.quotedAmount ? formatPrice(prop.versions[prop.versions.length - 1].quotedAmount) : "Pending"}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {canViewProposals && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab("PROPOSALS")}
+                          className="w-full mt-3 py-2 px-3 rounded-xl bg-[#2a2722] hover:bg-[#35312b] text-[#c59b6d] border border-[#464037] text-xs font-semibold transition-colors text-center"
+                        >
+                          Open Inquiries & Quotes Console →
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* DOMAIN 3: CLIENT CARE & GOVERNANCE STREAM */}
-            {(overviewDomainFilter === "ALL" || overviewDomainFilter === "OPERATIONS") && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between border-b border-[#38332c] pb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">⚙️</span>
-                    <h3 className="font-bold text-sm text-white">Client Care & Governance Telemetry</h3>
-                    <span className="text-xs text-[#a8a093]">({stats.openTicketsCount} Open Tickets · {auditLogs.length} Audit Entries)</span>
+              {/* DOMAIN 2: WORKSHOP & FULFILMENT STREAM */}
+              {canViewWorkshop && (overviewDomainFilter === "ALL" || overviewDomainFilter === "WORKSHOP") && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-[#38332c] pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">🔨</span>
+                      <h3 className="font-bold text-sm text-white">Workshop & Fulfilment Pipeline</h3>
+                      <span className="text-xs text-[#a8a093]">({stats.mtoGraceCount} MTO Grace Holds · Logistics Telemetry)</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {canViewDispatch && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab("DISPATCH")}
+                          className="text-xs font-semibold text-[#a8a093] hover:text-[#c59b6d] transition-colors"
+                        >
+                          Logistics & AWB →
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab("PRODUCTION")}
+                        className="text-xs font-semibold text-[#c59b6d] hover:underline"
+                      >
+                        Workshop Grace Queue ({stats.mtoGraceCount}) →
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("AUDIT")}
-                      className="text-xs font-semibold text-[#a8a093] hover:text-[#c59b6d] transition-colors"
-                    >
-                      Audit Trail ({auditLogs.length}) →
-                    </button>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    {/* Left: 7-Day Grace Hold Monitor */}
+                    <div className="lg:col-span-7 p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4 shadow-sm">
+                      <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
+                        <div>
+                          <h4 className="font-semibold text-xs text-white uppercase tracking-wider">
+                            7-Day Grace Hold Queue
+                          </h4>
+                          <p className="text-[11px] text-[#a8a093]">
+                            Client alterations allowed during Days 1–7. Machining commences Day 8.
+                          </p>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-950/70 text-amber-300 border border-amber-800/60">
+                          {stats.mtoGraceCount} Active
+                        </span>
+                      </div>
+
+                      <div className="space-y-3">
+                        {orders
+                          .filter((o) => o.mode === "MADE_TO_ORDER" && o.isGraceActive)
+                          .slice(0, 4)
+                          .map((order) => {
+                            const daysRemaining = order.graceDaysRemaining ?? 0;
+                            const elapsedDays = Math.max(0, Math.min(7, 7 - daysRemaining));
+                            const percent = Math.round((elapsedDays / 7) * 100);
+                            return (
+                              <div
+                                key={order.id}
+                                className="p-3.5 rounded-xl bg-[#1e1c19] border border-[#38332c] space-y-2.5"
+                              >
+                                <div className="flex items-center justify-between text-xs">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono font-bold text-white">{order.orderNumber}</span>
+                                    <span className="text-[#a8a093]">({order.customerName})</span>
+                                  </div>
+                                  <span
+                                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                      daysRemaining === 0
+                                        ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                                        : daysRemaining <= 2
+                                        ? "bg-amber-950 text-amber-300 border border-amber-800"
+                                        : "bg-[#2a2722] text-[#c59b6d] border border-[#38332c]"
+                                    }`}
+                                  >
+                                    {daysRemaining === 0 ? "Release Ready Today" : `Day ${elapsedDays}/7 (${daysRemaining}d Left)`}
+                                  </span>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <div className="h-1.5 w-full bg-[#2a2722] rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full transition-all ${
+                                        daysRemaining === 0
+                                          ? "bg-emerald-500"
+                                          : daysRemaining <= 2
+                                          ? "bg-amber-400"
+                                          : "bg-[#c59b6d]"
+                                      }`}
+                                      style={{ width: `${percent}%` }}
+                                    />
+                                  </div>
+                                  <div className="flex justify-between text-[10px] text-[#787165]">
+                                    <span>Day 1 (Hold Placed)</span>
+                                    <span>Day 7 (Client Lock)</span>
+                                    <span>Day 8 (Machining Release)</span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab("PRODUCTION")}
+                        className="w-full py-2 px-3 rounded-xl bg-[#2a2722] hover:bg-[#35312b] text-[#c59b6d] border border-[#464037] text-xs font-semibold transition-colors text-center"
+                      >
+                        Manage Workshop Queue & Release Releases →
+                      </button>
+                    </div>
+
+                    {/* Right: Logistics & Fulfilment Telemetry */}
+                    <div className="lg:col-span-5 p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4 shadow-sm flex flex-col justify-between">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
+                          <h4 className="font-semibold text-xs text-white uppercase tracking-wider">
+                            Logistics & Dispatch
+                          </h4>
+                          <span className="text-[11px] text-[#a8a093]">Insured Transport Status</span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="p-3 rounded-xl bg-[#1e1c19] border border-[#38332c] space-y-1">
+                            <span className="text-[10px] text-[#a8a093] block uppercase font-medium">Awaiting Dispatch</span>
+                            <span className="text-xl font-bold text-amber-300">
+                              {orders.filter((o) => o.status === "AWAITING_DISPATCH").length}
+                            </span>
+                          </div>
+                          <div className="p-3 rounded-xl bg-[#1e1c19] border border-[#38332c] space-y-1">
+                            <span className="text-[10px] text-[#a8a093] block uppercase font-medium">In Transit / AWB</span>
+                            <span className="text-xl font-bold text-blue-300">
+                              {orders.filter((o) => o.status === "DISPATCHED").length}
+                            </span>
+                          </div>
+                          <div className="p-3 rounded-xl bg-[#1e1c19] border border-[#38332c] space-y-1">
+                            <span className="text-[10px] text-[#a8a093] block uppercase font-medium">Delivered</span>
+                            <span className="text-xl font-bold text-emerald-400">
+                              {orders.filter((o) => o.status === "DELIVERED").length}
+                            </span>
+                          </div>
+                          <div className="p-3 rounded-xl bg-[#1e1c19] border border-[#38332c] space-y-1">
+                            <span className="text-[10px] text-[#a8a093] block uppercase font-medium">Delivery PINs</span>
+                            <span className="text-xl font-bold text-[#c59b6d]">
+                              {stats.serviceablePinsCount} Active
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="pt-2 space-y-2">
+                          <span className="text-[11px] font-semibold text-white block">Recent Dispatches:</span>
+                          {orders
+                            .filter((o) => o.awbNumber)
+                            .slice(0, 2)
+                            .map((o) => (
+                              <div key={o.id} className="p-2.5 rounded-lg bg-[#1e1c19] border border-[#38332c] text-xs flex justify-between items-center">
+                                <div>
+                                  <span className="font-mono font-bold text-white">{o.orderNumber}</span>
+                                  <p className="text-[10px] text-[#a8a093]">{o.carrierName || "Delhivery"} · {o.awbNumber}</p>
+                                </div>
+                                <span className="text-[10px] font-semibold text-[#10b981]">AWB Active</span>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+
+                      {canViewDispatch && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab("DISPATCH")}
+                          className="w-full mt-3 py-2 px-3 rounded-xl bg-[#2a2722] hover:bg-[#35312b] text-[#c59b6d] border border-[#464037] text-xs font-semibold transition-colors text-center"
+                        >
+                          Open Fulfilment & AWB Console →
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* DOMAIN 3: CLIENT CARE & SUPPORT STREAM */}
+              {canViewTickets && (overviewDomainFilter === "ALL" || overviewDomainFilter === "OPERATIONS") && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-[#38332c] pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">⚙️</span>
+                      <h3 className="font-bold text-sm text-white">Client Care & Support Telemetry</h3>
+                      <span className="text-xs text-[#a8a093]">({stats.openTicketsCount} Open Tickets)</span>
+                    </div>
                     <button
                       type="button"
                       onClick={() => setActiveTab("TICKETS")}
@@ -2442,118 +2972,170 @@ export default function App() {
                       Open Support Desk ({stats.openTicketsCount}) →
                     </button>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                  {/* Left: Support Desk Queue */}
-                  <div className="lg:col-span-7 p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4 shadow-sm">
-                    <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
-                      <h4 className="font-semibold text-xs text-white uppercase tracking-wider">
-                        Active Support Requests
-                      </h4>
-                      <span className="text-[11px] text-[#a8a093]">Client alteration & delivery inquiries</span>
-                    </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <div className="lg:col-span-12 p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4 shadow-sm">
+                      <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
+                        <h4 className="font-semibold text-xs text-white uppercase tracking-wider">
+                          Active Support Requests & Alterations
+                        </h4>
+                        <span className="text-[11px] text-[#a8a093]">Click to reply directly</span>
+                      </div>
 
-                    <div className="space-y-2.5">
-                      {tickets
-                        .filter((t) => t.status !== "RESOLVED")
-                        .slice(0, 4)
-                        .map((ticket) => (
-                          <div
-                            key={ticket.id}
-                            onClick={() => {
-                              setSelectedTicket(ticket);
-                              setActiveTab("TICKETS");
-                            }}
-                            className="p-3.5 rounded-xl bg-[#1e1c19] border border-[#38332c] hover:bg-[#282520] transition-colors cursor-pointer flex items-center justify-between gap-3 text-xs"
-                          >
-                            <div className="space-y-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono font-bold text-white">{ticket.ticketNumber}</span>
-                                <span
-                                  className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
-                                    ticket.priority === "URGENT"
-                                      ? "bg-rose-950 text-rose-300 border border-rose-800"
-                                      : ticket.priority === "HIGH"
-                                      ? "bg-amber-950 text-amber-300 border border-amber-800"
-                                      : "bg-[#2a2722] text-[#a8a093] border border-[#38332c]"
-                                  }`}
-                                >
-                                  {ticket.priority}
-                                </span>
-                                <span className="text-[10px] text-[#c59b6d] truncate">
-                                  {ticket.category.replace(/_/g, " ")}
-                                </span>
-                              </div>
-                              <p className="text-white font-medium truncate">{ticket.subject}</p>
-                              <span className="text-[10px] text-[#a8a093] block">
-                                {ticket.customerName} · {ticket.createdAt}
-                              </span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {tickets
+                          .filter((t) => t.status !== "RESOLVED")
+                          .slice(0, 4)
+                          .map((ticket) => (
+                            <div
+                              key={ticket.id}
+                              onClick={() => {
                                 setSelectedTicket(ticket);
                                 setActiveTab("TICKETS");
                               }}
-                              className="shrink-0 px-2.5 py-1 rounded bg-[#2a2722] hover:bg-[#35312b] text-[#c59b6d] border border-[#464037] text-[11px] font-semibold transition-colors"
+                              className="p-3.5 rounded-xl bg-[#1e1c19] border border-[#38332c] hover:bg-[#282520] transition-colors cursor-pointer flex items-center justify-between gap-3 text-xs"
                             >
-                              Reply →
-                            </button>
-                          </div>
-                        ))}
+                              <div className="space-y-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-bold text-white">{ticket.ticketNumber}</span>
+                                  <span
+                                    className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                                      ticket.priority === "URGENT"
+                                        ? "bg-rose-950 text-rose-300 border border-rose-800"
+                                        : ticket.priority === "HIGH"
+                                        ? "bg-amber-950 text-amber-300 border border-amber-800"
+                                        : "bg-[#2a2722] text-[#a8a093] border border-[#38332c]"
+                                    }`}
+                                  >
+                                    {ticket.priority}
+                                  </span>
+                                  <span className="text-[10px] text-[#c59b6d] truncate">
+                                    {ticket.category.replace(/_/g, " ")}
+                                  </span>
+                                </div>
+                                <p className="text-white font-medium truncate">{ticket.subject}</p>
+                                <span className="text-[10px] text-[#a8a093] block">
+                                  {ticket.customerName} · {ticket.createdAt}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedTicket(ticket);
+                                  setActiveTab("TICKETS");
+                                }}
+                                className="shrink-0 px-2.5 py-1 rounded bg-[#2a2722] hover:bg-[#35312b] text-[#c59b6d] border border-[#464037] text-[11px] font-semibold transition-colors"
+                              >
+                                Reply →
+                              </button>
+                            </div>
+                          ))}
+                      </div>
                     </div>
+                  </div>
+                </div>
+              )}
 
+              {/* DOMAIN 4: DEDICATED AUDIT TRAIL STREAM / TAB */}
+              {canViewAudit && (overviewDomainFilter === "ALL" || overviewDomainFilter === "AUDIT") && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-[#38332c] pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">📜</span>
+                      <h3 className="font-bold text-sm text-white">Immutable Staff Governance & Audit Trail</h3>
+                      <span className="text-xs text-[#a8a093]">({auditLogs.length} Recorded Entries)</span>
+                    </div>
                     <button
                       type="button"
-                      onClick={() => setActiveTab("TICKETS")}
-                      className="w-full py-2 px-3 rounded-xl bg-[#2a2722] hover:bg-[#35312b] text-[#c59b6d] border border-[#464037] text-xs font-semibold transition-colors text-center"
+                      onClick={() => setActiveTab("AUDIT")}
+                      className="text-xs font-semibold text-[#c59b6d] hover:underline"
                     >
-                      View All Support Tickets ({stats.openTicketsCount}) →
+                      Open Full Audit Tab ({auditLogs.length}) →
                     </button>
                   </div>
 
-                  {/* Right: Staff Audit & Governance Feed */}
-                  <div className="lg:col-span-5 p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4 shadow-sm flex flex-col justify-between">
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
-                        <h4 className="font-semibold text-xs text-white uppercase tracking-wider">
-                          Latest Staff Audit Trail
-                        </h4>
-                        <span className="text-[11px] text-[#a8a093]">Immutable governance logs</span>
+                  <div className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4 shadow-sm">
+                    {/* Category Filter Pills & Search */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#38332c] pb-3">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {[
+                          { id: "ALL", label: `All (${auditLogs.length})` },
+                          { id: "ORDERS", label: `Orders (${auditCategoryCounts.ordersCount})` },
+                          { id: "LOGISTICS", label: `Logistics (${auditCategoryCounts.logisticsCount})` },
+                          { id: "SUPPORT", label: `Support (${auditCategoryCounts.supportCount})` },
+                          { id: "PROPOSALS", label: `Quotes (${auditCategoryCounts.quoteCount})` },
+                          { id: "SYSTEM", label: `System (${auditCategoryCounts.systemCount})` },
+                        ].map((btn) => (
+                          <button
+                            key={btn.id}
+                            type="button"
+                            onClick={() => setOverviewAuditCategory(btn.id)}
+                            className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                              overviewAuditCategory === btn.id
+                                ? "bg-[#c59b6d] text-[#181715]"
+                                : "bg-[#2a2722] text-[#a8a093] hover:text-white"
+                            }`}
+                          >
+                            {btn.label}
+                          </button>
+                        ))}
                       </div>
 
-                      <div className="space-y-2.5">
-                        {auditLogs.slice(0, 4).map((log) => (
+                      <input
+                        type="text"
+                        placeholder="Search audit actions, staff, ref..."
+                        value={overviewAuditSearch}
+                        onChange={(e) => setOverviewAuditSearch(e.target.value)}
+                        className="rounded-lg border border-[#464037] bg-[#181715] px-3 py-1 text-xs text-white placeholder-[#787165] focus:outline-none focus:border-[#c59b6d] w-full sm:w-60"
+                      />
+                    </div>
+
+                    {filteredOverviewAuditLogs.length === 0 ? (
+                      <div className="py-6 text-center text-xs text-[#a8a093]">
+                        No audit events match the selected category or query.
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {filteredOverviewAuditLogs.slice(0, 6).map((log) => (
                           <div
                             key={log.id}
-                            className="p-3 rounded-xl bg-[#1e1c19] border border-[#38332c] text-xs space-y-1"
+                            className="p-3 rounded-xl bg-[#1e1c19] border border-[#38332c] text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2"
                           >
-                            <div className="flex justify-between items-center text-[11px]">
-                              <strong className="text-[#c59b6d]">{log.action}</strong>
-                              <span className="text-[#a8a093] text-[10px]">{log.timestamp}</span>
+                            <div className="space-y-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-[#c59b6d] font-mono text-[11px]">{log.action}</span>
+                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#2a2722] text-[#a8a093] border border-[#38332c]">
+                                  {log.entityType || "System"}
+                                </span>
+                                {log.entityId && (
+                                  <span className="font-mono text-[10px] text-white/80">{log.entityId}</span>
+                                )}
+                              </div>
+                              <p className="text-[#eae6df] text-[11px] leading-relaxed">{log.details}</p>
                             </div>
-                            <p className="text-[#eae6df] text-[11px] leading-relaxed">{log.details}</p>
-                            <span className="text-[10px] text-[#787165] block">Staff: {log.staffName}</span>
+                            <div className="text-right shrink-0">
+                              <span className="text-[10px] text-[#a8a093] block">{log.timestamp}</span>
+                              <span className="text-[10px] font-semibold text-[#10b981]">By {log.staffName}</span>
+                            </div>
                           </div>
                         ))}
                       </div>
-                    </div>
+                    )}
 
                     <button
                       type="button"
                       onClick={() => setActiveTab("AUDIT")}
-                      className="w-full mt-3 py-2 px-3 rounded-xl bg-[#2a2722] hover:bg-[#35312b] text-[#c59b6d] border border-[#464037] text-xs font-semibold transition-colors text-center"
+                      className="w-full mt-2 py-2 px-3 rounded-xl bg-[#2a2722] hover:bg-[#35312b] text-[#c59b6d] border border-[#464037] text-xs font-semibold transition-colors text-center"
                     >
                       Open Full Audit Log ({auditLogs.length}) →
                     </button>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
-        )}
+              )}
+            </div>
+          );
+        })()}
 
         {/* TAB 2: ORDERS WORKLIST */}
         {activeTab === "ORDERS" && (
