@@ -259,6 +259,75 @@ export default function App() {
   const [customerDonutView, setCustomerDonutView] = useState<"TIER" | "ACCOUNT_TYPE">("TIER");
   const [hoveredCustomerSlice, setHoveredCustomerSlice] = useState<string | null>(null);
 
+  // Configurable Tier Thresholds
+  const [tierThresholds, setTierThresholds] = useState<{ enterpriseRupees: number; primeRupees: number }>(() => {
+    try {
+      const saved = localStorage.getItem("tavistra_admin_tier_thresholds");
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return { enterpriseRupees: 100000, primeRupees: 25000 };
+  });
+  const [isTierModalOpen, setIsTierModalOpen] = useState(false);
+  const [tempEnterprise, setTempEnterprise] = useState("100000");
+  const [tempPrime, setTempPrime] = useState("25000");
+
+  // Client Dossier Communication State
+  const [dossierTab, setDossierTab] = useState<"HISTORY" | "COMMUNICATIONS">("HISTORY");
+  const [composeSubject, setComposeSubject] = useState("");
+  const [composeBody, setComposeBody] = useState("");
+  const [simulateReplyBody, setSimulateReplyBody] = useState("");
+  const [customerCommunications, setCustomerCommunications] = useState<Array<{
+    id: string;
+    customerEmail: string;
+    sender: "STUDIO" | "CUSTOMER";
+    senderName: string;
+    subject: string;
+    body: string;
+    channel: "EMAIL";
+    timestamp: string;
+  }>>([
+    {
+      id: "comm_01",
+      customerEmail: "vikramaditya@studiovishnu.in",
+      sender: "STUDIO",
+      senderName: "Tavistra Studio Concierge",
+      subject: "Bespoke Walnut Console & Crating Schedule",
+      body: "Dear Ar. Vikramaditya, your custom walnut console table has completed final hand-rubbed wax finish and is scheduled for museum-grade timber crating tomorrow morning.",
+      channel: "EMAIL",
+      timestamp: "17 Nov 2026, 11:30 AM",
+    },
+    {
+      id: "comm_02",
+      customerEmail: "vikramaditya@studiovishnu.in",
+      sender: "CUSTOMER",
+      senderName: "Ar. Vikramaditya Sharma",
+      subject: "Re: Bespoke Walnut Console & Crating Schedule",
+      body: "Thank you for the update. Our site supervisor at Studio Vishnu will be present to receive and inspect the insured crate at our Hauz Khas facility.",
+      channel: "EMAIL",
+      timestamp: "17 Nov 2026, 02:15 PM",
+    },
+    {
+      id: "comm_03",
+      customerEmail: "vs@vs.vs",
+      sender: "STUDIO",
+      senderName: "Tavistra Studio Concierge",
+      subject: "Consignment Grace Period Confirmation",
+      body: "Greetings. Your made-to-order architectural consignment has entered the statutory 24-hour review window. Workshop fabrication begins automatically upon grace expiry.",
+      channel: "EMAIL",
+      timestamp: "18 Nov 2026, 09:00 AM",
+    },
+    {
+      id: "comm_04",
+      customerEmail: "fdsf@gfdg.hjg",
+      sender: "STUDIO",
+      senderName: "Tavistra Accounts Desk",
+      subject: "Statutory 100% Refund Processed",
+      body: "Dear Patron, your cancellation during the cooling grace period has been processed. Statutory 100% refund of ₹1,29,504 has been credited to your source account.",
+      channel: "EMAIL",
+      timestamp: "18 Nov 2026, 10:45 AM",
+    },
+  ]);
+
   // Product Review Modal
   const [reviewedProduct, setReviewedProduct] = useState<CatalogueItem | null>(null);
 
@@ -1236,7 +1305,10 @@ export default function App() {
     const repeatRate = activePatrons.length > 0 ? Math.round((repeatPatrons.length / activePatrons.length) * 100) : 0;
     const gstinCount = customers.filter((c) => Boolean(c.gstin)).length;
     const prospectsCount = customers.filter((c) => (c.totalOrders || 0) === 0).length;
-    const highValueCount = customers.filter((c) => (c.lifetimeSpendRupees || 0) >= 50000).length;
+    const highValueCount = customers.filter((c) => (c.lifetimeSpendRupees || 0) >= tierThresholds.enterpriseRupees).length;
+    const primeCount = customers.filter(
+      (c) => (c.lifetimeSpendRupees || 0) >= tierThresholds.primeRupees && (c.lifetimeSpendRupees || 0) < tierThresholds.enterpriseRupees
+    ).length;
     const totalOrdersCount = customers.reduce((sum, c) => sum + (c.totalOrders || 0), 0);
     const avgOrderValue = totalOrdersCount > 0 ? Math.round(totalLifetimeSpend / totalOrdersCount) : 0;
 
@@ -1249,24 +1321,53 @@ export default function App() {
       gstinCount,
       prospectsCount,
       highValueCount,
+      primeCount,
       totalOrdersCount,
       avgOrderValue,
     };
-  }, [customers]);
+  }, [customers, tierThresholds]);
 
   // Client Directory Donut Visual (100% mathematically consistent)
   const customersDonutData = useMemo(() => {
     if (customerDonutView === "TIER") {
-      const enterpriseCount = customers.filter((c) => (c.lifetimeSpendRupees || 0) >= 100000).length;
-      const primeCount = customers.filter((c) => (c.lifetimeSpendRupees || 0) >= 25000 && (c.lifetimeSpendRupees || 0) < 100000).length;
-      const studioCount = customers.filter((c) => (c.lifetimeSpendRupees || 0) > 0 && (c.lifetimeSpendRupees || 0) < 25000).length;
+      const enterpriseCount = customers.filter((c) => (c.lifetimeSpendRupees || 0) >= tierThresholds.enterpriseRupees).length;
+      const primeCount = customers.filter(
+        (c) => (c.lifetimeSpendRupees || 0) >= tierThresholds.primeRupees && (c.lifetimeSpendRupees || 0) < tierThresholds.enterpriseRupees
+      ).length;
+      const studioCount = customers.filter(
+        (c) => (c.lifetimeSpendRupees || 0) > 0 && (c.lifetimeSpendRupees || 0) < tierThresholds.primeRupees
+      ).length;
       const prospectCount = customers.filter((c) => (c.totalOrders || 0) === 0).length;
 
       const slices = [
-        { id: "ENTERPRISE", label: "Enterprise (₹1L+)", count: enterpriseCount, color: "#c59b6d", filterKey: "HIGH_VALUE" as const },
-        { id: "PRIME", label: "Prime (₹25k–₹1L)", count: primeCount, color: "#10b981", filterKey: "ACTIVE" as const },
-        { id: "STUDIO", label: "Studio (<₹25k)", count: studioCount, color: "#38bdf8", filterKey: "ACTIVE" as const },
-        { id: "PROSPECTS", label: "Registered Prospects", count: prospectCount, color: "#787165", filterKey: "PROSPECTS" as const },
+        {
+          id: "ENTERPRISE",
+          label: `Enterprise (${formatPrice(tierThresholds.enterpriseRupees)}+)`,
+          count: enterpriseCount,
+          color: "#c59b6d",
+          filterKey: "HIGH_VALUE" as const,
+        },
+        {
+          id: "PRIME",
+          label: `Prime (${formatPrice(tierThresholds.primeRupees)}–${formatPrice(tierThresholds.enterpriseRupees)})`,
+          count: primeCount,
+          color: "#10b981",
+          filterKey: "ACTIVE" as const,
+        },
+        {
+          id: "STUDIO",
+          label: `Studio (<${formatPrice(tierThresholds.primeRupees)})`,
+          count: studioCount,
+          color: "#38bdf8",
+          filterKey: "ACTIVE" as const,
+        },
+        {
+          id: "PROSPECTS",
+          label: "Registered Prospects",
+          count: prospectCount,
+          color: "#787165",
+          filterKey: "PROSPECTS" as const,
+        },
       ].filter((s) => s.count > 0);
 
       const totalCount = slices.reduce((acc, s) => acc + s.count, 0) || 1;
@@ -1303,13 +1404,13 @@ export default function App() {
         centerLabel: "Accounts",
       };
     }
-  }, [customers, customerDonutView]);
+  }, [customers, customerDonutView, tierThresholds]);
 
   // Filtered Customers
   const filteredCustomers = useMemo(() => {
     return customers.filter((c) => {
       if (customerFilter === "ACTIVE" && (c.totalOrders || 0) === 0) return false;
-      if (customerFilter === "HIGH_VALUE" && (c.lifetimeSpendRupees || 0) < 50000) return false;
+      if (customerFilter === "HIGH_VALUE" && (c.lifetimeSpendRupees || 0) < tierThresholds.enterpriseRupees) return false;
       if (customerFilter === "GSTIN" && !c.gstin) return false;
       if (customerFilter === "PROSPECTS" && (c.totalOrders || 0) > 0) return false;
 
@@ -5264,10 +5365,23 @@ export default function App() {
                   Architectural practices, corporate GSTIN identifiers, and lifetime consignment histories.
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="px-3 py-1 rounded-full bg-[#24211d] border border-[#38332c] text-xs font-mono text-[#c59b6d]">
                   {customersKpis.totalCount} Registered Accounts · {formatPrice(customersKpis.totalLifetimeSpend)} Directory Spend
                 </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTempEnterprise(String(tierThresholds.enterpriseRupees));
+                    setTempPrime(String(tierThresholds.primeRupees));
+                    setIsTierModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#181715] border border-[#38332c] text-xs font-semibold text-[#c59b6d] hover:bg-[#25221d] hover:text-white transition-colors"
+                  title="Configure threshold values for Enterprise & Prime tiers"
+                >
+                  <span>⚙ Configure Tiers</span>
+                  <span className="text-[10px] text-[#a8a093]">({formatPrice(tierThresholds.enterpriseRupees)}+)</span>
+                </button>
               </div>
             </div>
 
@@ -5524,7 +5638,7 @@ export default function App() {
                     [
                       { id: "ALL", label: `All (${customers.length})` },
                       { id: "ACTIVE", label: `Active Patrons (${customersKpis.activePatronsCount})` },
-                      { id: "HIGH_VALUE", label: `Enterprise ₹50k+ (${customersKpis.highValueCount})` },
+                      { id: "HIGH_VALUE", label: `Enterprise ${formatPrice(tierThresholds.enterpriseRupees)}+ (${customersKpis.highValueCount})` },
                       { id: "GSTIN", label: `GSTIN Verified (${customersKpis.gstinCount})` },
                       { id: "PROSPECTS", label: `Prospects (${customersKpis.prospectsCount})` },
                     ] as const
@@ -5603,9 +5717,9 @@ export default function App() {
                         {filteredCustomers.map((c) => {
                           const spend = c.lifetimeSpendRupees || 0;
                           const ordersCount = c.totalOrders || 0;
-                          const isHighValue = spend >= 100000;
-                          const isPrime = spend >= 25000 && spend < 100000;
-                          const isStudio = ordersCount > 0 && spend < 25000;
+                          const isHighValue = spend >= tierThresholds.enterpriseRupees;
+                          const isPrime = spend >= tierThresholds.primeRupees && spend < tierThresholds.enterpriseRupees;
+                          const isStudio = ordersCount > 0 && spend < tierThresholds.primeRupees;
 
                           return (
                             <tr key={c.id} className="hover:bg-[#2a2722]/40 transition-colors">
@@ -5644,9 +5758,9 @@ export default function App() {
                                       }`}
                                     >
                                       {isHighValue
-                                        ? "Enterprise (₹1L+)"
+                                        ? `Enterprise (${formatPrice(tierThresholds.enterpriseRupees)}+)`
                                         : isPrime
-                                        ? "Prime Patron"
+                                        ? `Prime (${formatPrice(tierThresholds.primeRupees)}+)`
                                         : isStudio
                                         ? "Studio Patron"
                                         : "Registered Prospect"}
@@ -6970,9 +7084,9 @@ export default function App() {
       </footer>
     </div>
 
-      {/* MODAL 1: Selected Order Slide-Over */}
+      {/* MODAL 1: Selected Order Slide-Over (Elevated z-[60] to stack over customer dossier) */}
       {selectedOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="w-full max-w-2xl rounded-2xl bg-[#24211d] border border-[#38332c] p-6 space-y-6 shadow-2xl">
             <div className="flex items-center justify-between border-b border-[#38332c] pb-4">
               <div>
@@ -7382,11 +7496,12 @@ export default function App() {
         const clientOrders = orders.filter((o) => (o.email || "").toLowerCase().trim() === clientEmail);
         const clientInquiries = inquiries.filter((i) => (i.email || "").toLowerCase().trim() === clientEmail);
         const clientProposals = proposals.filter((p) => (p.customerEmail || "").toLowerCase().trim() === clientEmail);
+        const clientMessages = customerCommunications.filter((m) => m.customerEmail.toLowerCase().trim() === clientEmail);
         const spend = selectedCustomer.lifetimeSpendRupees || 0;
         const totalOrders = selectedCustomer.totalOrders || clientOrders.length;
-        const isHighValue = spend >= 100000;
-        const isPrime = spend >= 25000 && spend < 100000;
-        const isStudio = totalOrders > 0 && spend < 25000;
+        const isHighValue = spend >= tierThresholds.enterpriseRupees;
+        const isPrime = spend >= tierThresholds.primeRupees && spend < tierThresholds.enterpriseRupees;
+        const isStudio = totalOrders > 0 && spend < tierThresholds.primeRupees;
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
@@ -7430,6 +7545,40 @@ export default function App() {
                 </button>
               </div>
 
+              {/* Dossier Tabs: Overview & Consignments vs Communications & Concierge Desk */}
+              <div className="flex items-center gap-1 bg-[#181715] p-1 rounded-xl border border-[#38332c]">
+                <button
+                  type="button"
+                  onClick={() => setDossierTab("HISTORY")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 ${
+                    dossierTab === "HISTORY"
+                      ? "bg-[#c59b6d] text-[#181715]"
+                      : "text-[#a8a093] hover:text-white"
+                  }`}
+                >
+                  <span>Dossier &amp; Consignments</span>
+                  <span className="text-[10px] opacity-80">({clientOrders.length} orders)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDossierTab("COMMUNICATIONS")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 ${
+                    dossierTab === "COMMUNICATIONS"
+                      ? "bg-[#c59b6d] text-[#181715]"
+                      : "text-[#a8a093] hover:text-white"
+                  }`}
+                >
+                  <span>Concierge Communications</span>
+                  <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded ${
+                    dossierTab === "COMMUNICATIONS" ? "bg-[#181715] text-[#c59b6d]" : "bg-[#24211d] text-[#c59b6d]"
+                  }`}>
+                    {clientMessages.length}
+                  </span>
+                </button>
+              </div>
+
+              {dossierTab === "HISTORY" ? (
+                <>
               {/* 4 Stat Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center text-xs">
                 <div className="p-3 rounded-xl bg-[#1e1c19] border border-[#38332c]">
@@ -7551,12 +7700,9 @@ export default function App() {
                           <span className="font-mono font-bold text-white text-xs">{formatPrice(ord.totalAmountRupees)}</span>
                           <button
                             type="button"
-                            onClick={() => {
-                              setSelectedOrder(ord);
-                              setSelectedCustomer(null);
-                              setActiveTab("ORDERS");
-                            }}
+                            onClick={() => setSelectedOrder(ord)}
                             className="px-2.5 py-1 rounded-lg bg-[#2a2722] text-[11px] font-semibold text-[#c59b6d] hover:bg-[#38332c] border border-[#464037]"
+                            title="Inspect order details in-place"
                           >
                             Inspect ↗
                           </button>
@@ -7592,12 +7738,9 @@ export default function App() {
                             <span className="font-mono font-bold text-white text-xs">{formatPrice(amt)}</span>
                             <button
                               type="button"
-                              onClick={() => {
-                                setSelectedProposal(p);
-                                setSelectedCustomer(null);
-                                setActiveTab("PROPOSALS");
-                              }}
+                              onClick={() => setSelectedProposal(p)}
                               className="px-2 py-0.5 rounded bg-[#2a2722] text-[10px] font-semibold text-[#c59b6d] hover:bg-[#38332c]"
+                              title="Inspect 30-day proposal in-place"
                             >
                               Inspect ↗
                             </button>
@@ -7618,12 +7761,9 @@ export default function App() {
                         </div>
                         <button
                           type="button"
-                          onClick={() => {
-                            setSelectedInquiry(inq);
-                            setSelectedCustomer(null);
-                            setActiveTab("PROPOSALS");
-                          }}
+                          onClick={() => setSelectedInquiry(inq)}
                           className="px-2 py-0.5 rounded bg-[#2a2722] text-[10px] font-semibold text-[#a8a093] hover:text-white"
+                          title="Inspect architectural inquiry in-place"
                         >
                           Inspect ↗
                         </button>
@@ -7671,6 +7811,253 @@ export default function App() {
                 </div>
               )}
 
+                </>
+              ) : (
+                /* Tab 2: Communications & Concierge Email Desk */
+                <div className="space-y-4 text-xs">
+                  {/* Notice Banner */}
+                  <div className="p-3 rounded-xl bg-[#1e1c19] border border-[#38332c] flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">✉️</span>
+                      <div>
+                        <span className="font-semibold text-white block">Concierge Email Desk</span>
+                        <span className="text-[11px] text-[#a8a093]">
+                          Direct client communications to <span className="text-white font-mono">{selectedCustomer.email}</span>. Replies are logged automatically.
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono">
+                      SMTP Active
+                    </span>
+                  </div>
+
+                  {/* Message History Timeline */}
+                  <div className="space-y-2">
+                    <span className="text-[10px] uppercase font-bold text-[#787165] tracking-wider block">
+                      Communication History ({clientMessages.length})
+                    </span>
+
+                    {clientMessages.length === 0 ? (
+                      <div className="p-4 rounded-xl bg-[#181715] border border-[#38332c] text-center text-[#787165]">
+                        No communications logged for this patron yet. Compose an email below to initiate correspondence.
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+                        {clientMessages.map((msg) => {
+                          const isStudio = msg.sender === "STUDIO";
+                          return (
+                            <div
+                              key={msg.id}
+                              className={`p-3 rounded-xl border space-y-1.5 ${
+                                isStudio
+                                  ? "bg-[#1f1d19] border-[#c59b6d]/40 ml-4"
+                                  : "bg-[#181c20] border-emerald-800/50 mr-4"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between text-[11px]">
+                                <div className="flex items-center gap-1.5">
+                                  <span
+                                    className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                                      isStudio
+                                        ? "bg-[#c59b6d] text-[#181715]"
+                                        : "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                                    }`}
+                                  >
+                                    {isStudio ? "Studio Concierge" : "Patron Inbound"}
+                                  </span>
+                                  <span className="font-semibold text-white">{msg.senderName}</span>
+                                </div>
+                                <span className="text-[10px] text-[#787165] font-mono">{msg.timestamp}</span>
+                              </div>
+                              <div className="font-semibold text-white text-[11px]">{msg.subject}</div>
+                              <p className="text-[#d0d0d8] text-[11px] leading-relaxed whitespace-pre-wrap">{msg.body}</p>
+                              <div className="text-[9px] text-[#787165] flex items-center justify-between pt-1 border-t border-[#38332c]/50">
+                                <span>Channel: {msg.channel} Dispatch</span>
+                                <span>{isStudio ? "✓ Dispatched & Logged" : "✓ Inbound Received"}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Compose Email Form */}
+                  <div className="p-3.5 rounded-xl bg-[#181715] border border-[#38332c] space-y-3">
+                    <span className="text-[10px] uppercase font-bold text-[#c59b6d] tracking-wider block">
+                      Compose Email to Patron
+                    </span>
+
+                    {/* Quick Subject Templates */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] text-[#787165]">Quick Templates:</span>
+                      {[
+                        "Bespoke Consignment Status Update",
+                        "Hand-Rubbed Patina Finish Approval",
+                        "Insured Freight & Site Crating Notice",
+                        "Architectural Specification Query",
+                      ].map((tmpl) => (
+                        <button
+                          key={tmpl}
+                          type="button"
+                          onClick={() => setComposeSubject(tmpl)}
+                          className="px-2 py-0.5 rounded text-[10px] bg-[#24211d] border border-[#38332c] text-[#a8a093] hover:text-white hover:border-[#c59b6d] transition-colors"
+                        >
+                          {tmpl}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="Email Subject Line..."
+                        value={composeSubject}
+                        onChange={(e) => setComposeSubject(e.target.value)}
+                        className="w-full rounded-xl border border-[#464037] bg-[#1e1c19] px-3 py-1.5 text-xs text-white placeholder-[#787165] focus:outline-none focus:border-[#c59b6d]"
+                      />
+                    </div>
+
+                    <div>
+                      <textarea
+                        rows={3}
+                        placeholder={`Write message to ${selectedCustomer.name}...`}
+                        value={composeBody}
+                        onChange={(e) => setComposeBody(e.target.value)}
+                        className="w-full rounded-xl border border-[#464037] bg-[#1e1c19] p-3 text-xs text-white placeholder-[#787165] focus:outline-none focus:border-[#c59b6d]"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-[#787165]">
+                        Recipient: <strong className="text-white font-mono">{selectedCustomer.email}</strong>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!composeBody.trim()) return;
+                          const newMsg = {
+                            id: `comm_${Date.now()}`,
+                            customerEmail: clientEmail,
+                            sender: "STUDIO" as const,
+                            senderName: "Tavistra Studio Concierge",
+                            subject: composeSubject.trim() || "Studio Consignment Notice",
+                            body: composeBody.trim(),
+                            channel: "EMAIL" as const,
+                            timestamp: new Date().toLocaleDateString("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            }),
+                          };
+                          setCustomerCommunications((prev) => [newMsg, ...prev]);
+                          setComposeSubject("");
+                          setComposeBody("");
+                          setActionFeedback({
+                            type: "success",
+                            text: `Email dispatched to ${selectedCustomer.email}. Message logged in patron dossier.`,
+                          });
+                        }}
+                        disabled={!composeBody.trim()}
+                        className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#181715] text-xs font-semibold hover:bg-[#d6aa7c] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Dispatch Email to Patron →
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Simulate Inbound Reply Tool */}
+                  <div className="p-3 rounded-xl bg-[#1e1c19] border border-[#38332c] space-y-2">
+                    <span className="text-[10px] uppercase font-bold text-[#787165] tracking-wider block">
+                      Record Inbound Patron Reply (Email Simulation &amp; Ingest)
+                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] text-[#787165]">Quick Replies:</span>
+                      {[
+                        "Thank you, our site supervisor is notified and will receive the crate.",
+                        "Dimensions and finish sample approved. Please proceed with waxing.",
+                        "Please confirm if transit insurance covers third-party unloading.",
+                      ].map((qr) => (
+                        <button
+                          key={qr}
+                          type="button"
+                          onClick={() => {
+                            const newMsg = {
+                              id: `comm_${Date.now()}`,
+                              customerEmail: clientEmail,
+                              sender: "CUSTOMER" as const,
+                              senderName: selectedCustomer.name,
+                              subject: composeSubject ? `Re: ${composeSubject}` : "Re: Studio Consignment",
+                              body: qr,
+                              channel: "EMAIL" as const,
+                              timestamp: new Date().toLocaleDateString("en-IN", {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              }),
+                            };
+                            setCustomerCommunications((prev) => [newMsg, ...prev]);
+                            setActionFeedback({
+                              type: "success",
+                              text: `Inbound patron reply logged from ${selectedCustomer.email}.`,
+                            });
+                          }}
+                          className="px-2 py-0.5 rounded text-[10px] bg-[#181715] border border-[#38332c] text-[#10b981] hover:bg-[#25221d] transition-colors"
+                        >
+                          "{qr.slice(0, 36)}..."
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1 border-t border-[#38332c]/60">
+                      <input
+                        type="text"
+                        placeholder="Or type custom inbound reply..."
+                        value={simulateReplyBody}
+                        onChange={(e) => setSimulateReplyBody(e.target.value)}
+                        className="flex-1 rounded-xl border border-[#464037] bg-[#181715] px-3 py-1.5 text-xs text-white placeholder-[#787165] focus:outline-none focus:border-[#c59b6d]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!simulateReplyBody.trim()) return;
+                          const newMsg = {
+                            id: `comm_${Date.now()}`,
+                            customerEmail: clientEmail,
+                            sender: "CUSTOMER" as const,
+                            senderName: selectedCustomer.name,
+                            subject: composeSubject ? `Re: ${composeSubject}` : "Re: Studio Consignment",
+                            body: simulateReplyBody.trim(),
+                            channel: "EMAIL" as const,
+                            timestamp: new Date().toLocaleDateString("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            }),
+                          };
+                          setCustomerCommunications((prev) => [newMsg, ...prev]);
+                          setSimulateReplyBody("");
+                          setActionFeedback({
+                            type: "success",
+                            text: `Inbound patron reply logged from ${selectedCustomer.email}.`,
+                          });
+                        }}
+                        disabled={!simulateReplyBody.trim()}
+                        className="px-3 py-1.5 rounded-xl bg-emerald-950 text-emerald-300 border border-emerald-800 text-xs font-semibold hover:bg-emerald-900 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Record Custom Reply →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Action Buttons */}
               <div className="flex items-center justify-between pt-2 border-t border-[#38332c]">
                 <div>
@@ -7700,6 +8087,135 @@ export default function App() {
           </div>
         );
       })()}
+
+      {/* MODAL: Configure Patron Tier Thresholds */}
+      {isTierModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl bg-[#24211d] border border-[#38332c] p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
+              <div>
+                <h3 className="font-semibold text-base text-white">Configure Patron Tier Thresholds</h3>
+                <p className="text-xs text-[#a8a093]">Set minimum lifetime spend values for automatic tier categorization.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsTierModalOpen(false)}
+                className="text-xs text-[#a8a093] hover:text-white"
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const ent = Math.max(1000, Number(tempEnterprise) || 100000);
+                const prime = Math.max(500, Number(tempPrime) || 25000);
+                const updated = { enterpriseRupees: ent, primeRupees: prime };
+                setTierThresholds(updated);
+                try {
+                  localStorage.setItem("tavistra_admin_tier_thresholds", JSON.stringify(updated));
+                } catch {}
+                setIsTierModalOpen(false);
+                setActionFeedback({
+                  type: "success",
+                  text: `Updated tier thresholds: Enterprise min ${formatPrice(ent)}, Prime min ${formatPrice(prime)}`,
+                });
+              }}
+              className="space-y-4 text-xs"
+            >
+              <div>
+                <label className="text-white font-semibold block mb-1">
+                  Enterprise Tier Minimum Spend (₹)
+                </label>
+                <input
+                  type="number"
+                  min="1000"
+                  step="1000"
+                  value={tempEnterprise}
+                  onChange={(e) => setTempEnterprise(e.target.value)}
+                  className="w-full rounded-xl border border-[#464037] bg-[#181715] px-3.5 py-2 text-xs text-white focus:outline-none focus:border-[#c59b6d] font-mono"
+                  required
+                />
+                <span className="text-[10px] text-[#787165] mt-1 block">
+                  Current: {formatPrice(Number(tempEnterprise) || 100000)}
+                </span>
+              </div>
+
+              <div>
+                <label className="text-white font-semibold block mb-1">
+                  Prime Patron Minimum Spend (₹)
+                </label>
+                <input
+                  type="number"
+                  min="500"
+                  step="500"
+                  value={tempPrime}
+                  onChange={(e) => setTempPrime(e.target.value)}
+                  className="w-full rounded-xl border border-[#464037] bg-[#181715] px-3.5 py-2 text-xs text-white focus:outline-none focus:border-[#c59b6d] font-mono"
+                  required
+                />
+                <span className="text-[10px] text-[#787165] mt-1 block">
+                  Current: {formatPrice(Number(tempPrime) || 25000)}
+                </span>
+              </div>
+
+              {/* Quick Preset Buttons */}
+              <div className="space-y-1.5 pt-1">
+                <span className="text-[10px] text-[#787165] uppercase font-bold block">Quick Presets:</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempEnterprise("100000");
+                      setTempPrime("25000");
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-[#181715] border border-[#38332c] text-[10px] text-[#a8a093] hover:text-white"
+                  >
+                    Standard (₹1L / ₹25k)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempEnterprise("200000");
+                      setTempPrime("50000");
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-[#181715] border border-[#38332c] text-[10px] text-[#a8a093] hover:text-white"
+                  >
+                    High-End (₹2L / ₹50k)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempEnterprise("50000");
+                      setTempPrime("15000");
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-[#181715] border border-[#38332c] text-[10px] text-[#a8a093] hover:text-white"
+                  >
+                    Accessible (₹50k / ₹15k)
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#38332c]">
+                <button
+                  type="button"
+                  onClick={() => setIsTierModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-[#2a2722] text-xs font-semibold text-[#a8a093] hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-[#c59b6d] text-[#181715] text-xs font-semibold hover:bg-[#d6aa7c] transition-colors"
+                >
+                  Save Thresholds
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* MODAL: WORKSHOP QC INSPECTION & CUSTOMER TRANSPARENCY */}
       {qcOrderModal && (
@@ -7884,7 +8400,7 @@ export default function App() {
             : parseInquiryLineItems(selectedInquiry.lineItemsJson, selectedInquiry.specifications);
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
             <div className="w-full max-w-2xl rounded-2xl bg-[#24211d] border border-[#38332c] p-6 space-y-5 shadow-2xl max-h-[92vh] overflow-y-auto">
               <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
                 <div>
@@ -8068,7 +8584,7 @@ export default function App() {
         const daysLeft = expiresMs > 0 ? Math.ceil((expiresMs - Date.now()) / (1000 * 60 * 60 * 24)) : null;
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
             <div className="w-full max-w-2xl rounded-2xl bg-[#24211d] border border-[#38332c] p-6 space-y-5 shadow-2xl max-h-[92vh] overflow-y-auto">
               <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
                 <div>

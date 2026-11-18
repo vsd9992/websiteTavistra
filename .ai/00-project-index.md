@@ -6,7 +6,7 @@ Milestone: Storefront Usability Batch 3 (Variant & SKU-Specific Client Wishlist,
 Status: Sets 0–8 verified live on `devMachine` (268/268 checks passing); All Runbook Phases (1–8) verified. Usability Batches 1 & 2 verified live. Batch 3 implemented & refined: Variant and SKU-specific client wishlist granularity (`WishlistItem` database relation with `variantId`, `/api/account/wishlist` endpoints resolving explicit variants, `WishlistContext` tracking variant IDs & SKUs, guest sign-in modal, `/account/wishlist` curated client dashboard displaying exact finish, SKU, and one-click "Move to Bag" of that exact variant), Universal PDP Share Piece modal (WhatsApp, system device apps, email, direct copy), PDP High-Resolution Zoom Lightbox with keyboard navigation (`Esc`, Arrow keys, zoom toggle, thumbnail strip), and PDP Mobile Sticky Action Bar with live variant finish selection and quick Add to Bag. Verified 0 TS errors and clean production build.
 
 ## Active Tasks
-- None (Batch 1 & Solidified Batch 2 Complete; Ready for Batch 3: Wishlist for Signed-in Clients, Universal Share Piece, and PDP Zoom Lightbox).
+- [.ai/tasks/active/admin-in-place-modals-and-navigation-overhaul.md](tasks/active/admin-in-place-modals-and-navigation-overhaul.md) — Admin In-Place Modal Inspection & Global Navigation Overhaul (Pre-Live Punchlist)
 
 ## Document Map
 - [AGENTS.md](../AGENTS.md) — Operating rules & memory policy
