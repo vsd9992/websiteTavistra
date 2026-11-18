@@ -108,6 +108,15 @@ export function parseQcImagesList(val: unknown): string[] {
   return [];
 }
 
+export function formatPrice(rupees: number | string | null | undefined): string {
+  const num = typeof rupees === "number" ? rupees : Number(rupees) || 0;
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(num);
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<AdminTabId>("OVERVIEW");
 
@@ -1910,13 +1919,6 @@ export default function App() {
     URL.revokeObjectURL(url);
     logAuditAction("DATA_EXPORT", "System", "ALL", "Downloaded complete operational state snapshot JSON.");
   };
-
-  const formatPrice = (rupees: number) =>
-    new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
-      maximumFractionDigits: 0,
-    }).format(rupees);
 
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
