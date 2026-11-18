@@ -83,6 +83,31 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return parsed as T;
 }
 
+export function parseQcImagesList(val: unknown): string[] {
+  if (!val) return [];
+  if (Array.isArray(val)) {
+    return val
+      .filter((u): u is string => typeof u === "string" && u.trim().length > 0)
+      .map((u) => u.trim());
+  }
+  if (typeof val === "string") {
+    try {
+      const parsed = JSON.parse(val);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((u): u is string => typeof u === "string" && u.trim().length > 0)
+          .map((u) => u.trim());
+      }
+    } catch {
+      return val
+        .split(/[\n,]/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+  }
+  return [];
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<AdminTabId>("OVERVIEW");
 
@@ -219,6 +244,7 @@ export default function App() {
   const [qcImageInput, setQcImageInput] = useState("");
   const [isUploadingQc, setIsUploadingQc] = useState(false);
   const [qcUploadError, setQcUploadError] = useState<string | null>(null);
+  const [isQcDraggingOver, setIsQcDraggingOver] = useState(false);
 
   // AWB Edit State
   const [editingAwbId, setEditingAwbId] = useState<string | null>(null);
@@ -324,6 +350,18 @@ export default function App() {
       });
     }, 1000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Global drag-and-drop shield: prevent browser from navigating away if a user drops a file anywhere
+  useEffect(() => {
+    const handleDragOver = (e: DragEvent) => e.preventDefault();
+    const handleDrop = (e: DragEvent) => e.preventDefault();
+    window.addEventListener("dragover", handleDragOver);
+    window.addEventListener("drop", handleDrop);
+    return () => {
+      window.removeEventListener("dragover", handleDragOver);
+      window.removeEventListener("drop", handleDrop);
+    };
   }, []);
 
   // Statistics
@@ -1064,30 +1102,54 @@ export default function App() {
   };
 
   // Upload local workshop QC images to /uploads/qc/<orderNumber>/
-  const handleQcFileUpload = async (files: FileList | null) => {
-    if (!qcOrderModal || !files || files.length === 0) return;
+  const handleQcFileUpload = async (files: FileList | File[] | null) => {
+    if (!qcOrderModal || !files) return;
+    const fileArray = Array.from(files);
+    if (fileArray.length === 0) return;
+
     setIsUploadingQc(true);
     setQcUploadError(null);
+
+    const validFiles: File[] = [];
+    for (const f of fileArray) {
+      const ext = f.name.slice(f.name.lastIndexOf(".")).toLowerCase();
+      if (![".jpg", ".jpeg", ".png", ".webp"].includes(ext)) {
+        setQcUploadError(`Unsupported format "${ext || "unknown"}". Allowed: .jpg, .jpeg, .png, .webp`);
+        setIsUploadingQc(false);
+        return;
+      }
+      if (f.size > 8 * 1024 * 1024) {
+        setQcUploadError(`File "${f.name}" exceeds 8MB (${(f.size / (1024 * 1024)).toFixed(1)}MB). Please resize before uploading.`);
+        setIsUploadingQc(false);
+        return;
+      }
+      validFiles.push(f);
+    }
+
     try {
       const formData = new FormData();
-      Array.from(files).forEach((f) => formData.append("files", f));
+      validFiles.forEach((f) => formData.append("files", f));
       const res = await fetch(`/api/admin/orders/${qcOrderModal.id}/qc-upload`, {
         method: "POST",
         body: formData,
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        setQcUploadError(`Upload failed (HTTP ${res.status}): ${text.slice(0, 120)}`);
+        return;
+      }
       if (!res.ok || !Array.isArray(data.urls)) {
         setQcUploadError(data.error || "Failed to upload workshop QC images.");
         return;
       }
-      const existing = qcImageInput
-        .split("\n")
-        .map((s) => s.trim())
-        .filter(Boolean);
+      const existing = parseQcImagesList(qcImageInput);
       const merged = Array.from(new Set([...existing, ...data.urls]));
       setQcImageInput(merged.join("\n"));
     } catch (err) {
-      setQcUploadError(`Upload failed: ${(err as Error).message}`);
+      setQcUploadError(`Upload network failure: ${(err as Error).message}`);
     } finally {
       setIsUploadingQc(false);
     }
@@ -1101,10 +1163,7 @@ export default function App() {
       setQcUploadError(`Unauthorized: Role '${currentStaff.role}' does not have permission to publish QC inspections. Requires Production Staff or Super Admin.`);
       return;
     }
-    const images = qcImageInput
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const images = parseQcImagesList(qcImageInput);
 
     try {
       const res = await fetch(`/api/orders/${qcOrderModal.id}`, {
@@ -1117,7 +1176,14 @@ export default function App() {
           staffName: currentStaff.name,
         }),
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        setQcUploadError(`Server response error (${res.status}): ${text.slice(0, 120)}`);
+        return;
+      }
       if (!res.ok) {
         setQcUploadError(data.message || data.error || "Unable to save QC inspection.");
         return;
@@ -4022,13 +4088,13 @@ export default function App() {
                                     onClick={() => {
                                       setQcOrderModal(order);
                                       setQcNotesInput(order.qcNotes || "");
-                                      setQcImageInput(order.qcImages?.join("\n") || "");
+                                      setQcImageInput(parseQcImagesList(order.qcImages).join("\n"));
                                       setQcUploadError(null);
                                     }}
                                     title="Inspect or upload workshop QC inspection photos"
                                     className="px-2 py-1 rounded-lg bg-[#24211d] hover:bg-[#2c2823] text-[#eae6df] border border-[#38332c] text-[11px] font-medium transition-colors shrink-0"
                                   >
-                                    📷 QC ({order.qcImages?.length || 0})
+                                    📷 QC ({parseQcImagesList(order.qcImages).length})
                                   </button>
                                 )}
 
@@ -4271,7 +4337,7 @@ export default function App() {
                               onClick={() => {
                                 setQcOrderModal(order);
                                 setQcNotesInput(order.qcNotes || "");
-                                setQcImageInput(order.qcImages?.join("\n") || "");
+                                setQcImageInput(parseQcImagesList(order.qcImages).join("\n"));
                                 setQcUploadError(null);
                               }}
                               className="w-full py-2.5 rounded-xl bg-[#2a2a30] border border-[#464037] text-xs font-semibold text-white hover:bg-[#34343c] transition-colors flex items-center justify-center gap-2"
@@ -4281,8 +4347,8 @@ export default function App() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                               </svg>
                               <span>
-                                {order.qcImages && order.qcImages.length > 0
-                                  ? `Manage QC Photos (${order.qcImages.length}) & Notes`
+                                {parseQcImagesList(order.qcImages).length > 0
+                                  ? `Manage QC Photos (${parseQcImagesList(order.qcImages).length}) & Notes`
                                   : "Upload Workshop QC Photos & Review"}
                               </span>
                             </button>
@@ -5766,13 +5832,13 @@ export default function App() {
                     {selectedOrder.carrierName} {selectedOrder.awbNumber ? `(${selectedOrder.awbNumber})` : "(Pending)"}
                   </strong>
                 </div>
-                {selectedOrder.qcImages && selectedOrder.qcImages.length > 0 && (
+                {parseQcImagesList(selectedOrder.qcImages).length > 0 && (
                   <div className="pt-2">
                     <span className="block mb-1.5 text-white font-semibold">
-                      Uploaded QC Inspection Photos ({selectedOrder.qcImages.length}):
+                      Uploaded QC Inspection Photos ({parseQcImagesList(selectedOrder.qcImages).length}):
                     </span>
                     <div className="grid grid-cols-3 gap-2">
-                      {selectedOrder.qcImages.map((img, i) => (
+                      {parseQcImagesList(selectedOrder.qcImages).map((img, i) => (
                         <img
                           key={i}
                           src={img}
@@ -5781,6 +5847,29 @@ export default function App() {
                         />
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {/* Inspect Details QC Action Trigger */}
+                {canViewWorkshop && selectedOrder.status !== "CANCELLED" && selectedOrder.status !== "REFUNDED" && (
+                  <div className="pt-2 border-t border-[#38332c]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQcOrderModal(selectedOrder);
+                        setQcNotesInput(selectedOrder.qcNotes || "");
+                        setQcImageInput(parseQcImagesList(selectedOrder.qcImages).join("\n"));
+                        setQcUploadError(null);
+                      }}
+                      className="w-full py-2 rounded-xl bg-[#2a2722] hover:bg-[#343029] border border-[#464037] text-xs font-semibold text-[#c59b6d] transition-colors flex items-center justify-center gap-2"
+                    >
+                      <span>📷</span>
+                      <span>
+                        {parseQcImagesList(selectedOrder.qcImages).length > 0
+                          ? `Manage QC Photos (${parseQcImagesList(selectedOrder.qcImages).length}) & Notes`
+                          : "Upload Workshop QC Photos & Review"}
+                      </span>
+                    </button>
                   </div>
                 )}
               </div>
@@ -6144,25 +6233,70 @@ export default function App() {
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="block text-white font-semibold">
-                    Workshop QC Photos (Upload from Computer or Paste URLs)
+                    Workshop QC Photos
                   </label>
-                  <label className="cursor-pointer rounded-lg bg-[#2a2a30] border border-[#464037] px-3 py-1.5 text-[11px] font-semibold text-[#c59b6d] hover:bg-[#34343c] transition-colors">
-                    {isUploadingQc ? "Uploading..." : "+ Upload Image Files"}
-                    <input
-                      type="file"
-                      accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
-                      multiple
-                      disabled={isUploadingQc}
-                      onChange={(e) => {
-                        void handleQcFileUpload(e.target.files);
-                        e.target.value = "";
-                      }}
-                      className="hidden"
-                    />
-                  </label>
+                  <span className="text-[10px] text-[#a8a093]">
+                    JPG, PNG, WebP up to 8MB per file
+                  </span>
+                </div>
+
+                {/* Drag & Drop Upload Zone */}
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsQcDraggingOver(true);
+                  }}
+                  onDragLeave={() => setIsQcDraggingOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsQcDraggingOver(false);
+                    if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+                      void handleQcFileUpload(e.dataTransfer.files);
+                    }
+                  }}
+                  className={`p-5 rounded-xl border-2 border-dashed transition-all text-center space-y-2 select-none ${
+                    isQcDraggingOver
+                      ? "border-[#c59b6d] bg-[#c59b6d]/15"
+                      : "border-[#464037] bg-[#181715]/70 hover:border-[#787165]"
+                  }`}
+                >
+                  <div className="flex flex-col items-center justify-center gap-1.5 py-1">
+                    <svg className="w-7 h-7 text-[#c59b6d]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <p className="text-xs text-[#eae6df]">
+                      {isUploadingQc ? (
+                        <span className="text-[#c59b6d] font-semibold animate-pulse">Uploading photos to workshop storage...</span>
+                      ) : (
+                        <>
+                          <span className="font-semibold text-[#c59b6d]">Drag & drop workshop photos here</span> or{" "}
+                          <label className="inline-block cursor-pointer font-semibold underline text-white hover:text-[#c59b6d] transition-colors">
+                            browse from computer
+                            <input
+                              type="file"
+                              accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                              multiple
+                              disabled={isUploadingQc}
+                              onChange={(e) => {
+                                const selected = e.target.files;
+                                if (selected && selected.length > 0) {
+                                  void handleQcFileUpload(selected);
+                                }
+                                e.target.value = "";
+                              }}
+                              className="hidden"
+                            />
+                          </label>
+                        </>
+                      )}
+                    </p>
+                    <p className="text-[10px] text-[#787165]">
+                      Stored securely under /uploads/qc/{qcOrderModal.orderNumber}/ for customer verification
+                    </p>
+                  </div>
                 </div>
 
                 {qcUploadError && (
@@ -6171,50 +6305,48 @@ export default function App() {
                   </div>
                 )}
 
-                {qcImageInput
-                  .split("\n")
-                  .map((s) => s.trim())
-                  .filter(Boolean).length > 0 && (
-                  <div className="grid grid-cols-3 gap-2">
-                    {qcImageInput
-                      .split("\n")
-                      .map((s) => s.trim())
-                      .filter(Boolean)
-                      .map((imgUrl, idx) => (
+                {parseQcImagesList(qcImageInput).length > 0 && (
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] uppercase font-semibold text-[#a8a093] block">
+                      Active Inspection Photos ({parseQcImagesList(qcImageInput).length})
+                    </span>
+                    <div className="grid grid-cols-3 gap-2">
+                      {parseQcImagesList(qcImageInput).map((imgUrl, idx) => (
                         <div key={idx} className="relative group rounded-lg overflow-hidden border border-[#38332c] aspect-[16/10] bg-[#181715]">
                           <img src={imgUrl} alt={`QC preview ${idx + 1}`} className="w-full h-full object-cover" />
                           <button
                             type="button"
                             onClick={() => {
-                              const next = qcImageInput
-                                .split("\n")
-                                .map((s) => s.trim())
-                                .filter((u, i) => u && i !== idx);
+                              const next = parseQcImagesList(qcImageInput).filter((_, i) => i !== idx);
                               setQcImageInput(next.join("\n"));
                             }}
                             className="absolute top-1 right-1 rounded bg-black/75 px-1.5 py-0.5 text-[10px] text-white opacity-90 hover:opacity-100"
+                            title="Remove photo"
                           >
                             ✕
                           </button>
                         </div>
                       ))}
+                    </div>
                   </div>
                 )}
 
-                <textarea
-                  rows={3}
-                  placeholder="/uploads/qc/TAV-.../photo-1.jpg&#10;https://.../photo-2.jpg"
-                  value={qcImageInput}
-                  onChange={(e) => setQcImageInput(e.target.value)}
-                  className="w-full rounded-xl border border-[#464037] bg-[#181715] p-3 text-xs font-mono text-white placeholder-[#787165] focus:outline-none focus:border-[#c59b6d]"
-                />
-                <p className="text-[11px] text-[#a8a093]">
-                  Uploaded photos are stored in `/uploads/qc/{qcOrderModal.orderNumber}/` and rendered inside the customer's /track and account order portal.
-                </p>
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-[#a8a093]">
+                    Direct Photo URLs (One per line)
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="/uploads/qc/TAV-.../photo-1.jpg&#10;https://.../photo-2.jpg"
+                    value={qcImageInput}
+                    onChange={(e) => setQcImageInput(e.target.value)}
+                    className="w-full rounded-xl border border-[#464037] bg-[#181715] p-2.5 text-xs font-mono text-white placeholder-[#787165] focus:outline-none focus:border-[#c59b6d]"
+                  />
+                </div>
               </div>
 
               <div className="p-3 rounded-xl bg-[#2a2722] border border-[#38332c] text-[11px] text-[#a8a093]">
-                Financial Status: Verified Advance ₹{qcOrderModal.amountPaidRupees.toLocaleString("en-IN")} · Balance Due: ₹{qcOrderModal.balanceDueRupees.toLocaleString("en-IN")}.
+                Financial Status: Verified Advance ₹{(Number(qcOrderModal.amountPaidRupees) || 0).toLocaleString("en-IN")} · Balance Due: ₹{(Number(qcOrderModal.balanceDueRupees) || 0).toLocaleString("en-IN")}.
               </div>
             </div>
 
