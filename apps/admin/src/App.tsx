@@ -182,6 +182,8 @@ export default function App() {
   const [orderSearch, setOrderSearch] = useState("");
   const [modeFilter, setModeFilter] = useState<"ALL" | "READY_STOCK" | "MADE_TO_ORDER">("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [ordersDonutView, setOrdersDonutView] = useState<"STATUS" | "MODE">("STATUS");
+  const [hoveredDonutSlice, setHoveredDonutSlice] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
   const [refundUtrInput, setRefundUtrInput] = useState("");
   const [isUpdatingRefund, setIsUpdatingRefund] = useState(false);
@@ -766,17 +768,99 @@ export default function App() {
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
       const matchesMode = modeFilter === "ALL" || order.mode === modeFilter;
-      const matchesStatus = statusFilter === "ALL" || order.status === statusFilter;
+      let matchesStatus = true;
+      if (statusFilter === "ALL") {
+        matchesStatus = true;
+      } else if (statusFilter === "CONFIRMED" || statusFilter === "GRACE") {
+        matchesStatus = order.status === "CONFIRMED" || order.status === "GRACE_PERIOD_ACTIVE";
+      } else if (statusFilter === "IN_PRODUCTION") {
+        matchesStatus = order.status === "IN_PRODUCTION" || order.status === "WORKSHOP_CRAFTING";
+      } else if (statusFilter === "CANCELLED") {
+        matchesStatus = order.status === "CANCELLED" || order.status === "REFUNDED";
+      } else {
+        matchesStatus = order.status === statusFilter;
+      }
+
       const query = orderSearch.toLowerCase().trim();
       const matchesSearch =
         !query ||
         order.orderNumber.toLowerCase().includes(query) ||
         order.customerName.toLowerCase().includes(query) ||
         order.email.toLowerCase().includes(query) ||
+        order.city.toLowerCase().includes(query) ||
+        order.phone.includes(query) ||
+        (order.quoteNumber && order.quoteNumber.toLowerCase().includes(query)) ||
         order.pincode.includes(query);
+
       return matchesMode && matchesStatus && matchesSearch;
     });
   }, [orders, modeFilter, statusFilter, orderSearch]);
+
+  // Orders & Production KPIs
+  const ordersKpis = useMemo(() => {
+    const activeOrders = orders.filter((o) => o.status !== "CANCELLED" && o.status !== "REFUNDED");
+    const activePipelineValue = activeOrders.reduce((sum, o) => sum + o.totalAmountRupees, 0);
+    const balanceReceivable = activeOrders.reduce((sum, o) => sum + o.balanceDueRupees, 0);
+    const settledRevenue = activeOrders.reduce((sum, o) => sum + o.amountPaidRupees, 0);
+
+    return {
+      activeOrdersCount: activeOrders.length,
+      activePipelineValue,
+      balanceReceivable,
+      settledRevenue,
+    };
+  }, [orders]);
+
+  // Orders & Production Donut Chart Data
+  const ordersDonutData = useMemo(() => {
+    if (ordersDonutView === "STATUS") {
+      const slices = [
+        { id: "GRACE", label: "Grace Hold", count: stats.mtoGraceCount, color: "#f59e0b", statusKey: "CONFIRMED" },
+        { id: "CRAFTING", label: "In Crafting", count: stats.inProductionCount, color: "#c59b6d", statusKey: "IN_PRODUCTION" },
+        { id: "QC", label: "QC Completed", count: orders.filter((o) => o.status === "PRODUCTION_COMPLETED").length, color: "#10b981", statusKey: "PRODUCTION_COMPLETED" },
+        { id: "READY_AWB", label: "Ready for AWB", count: orders.filter((o) => o.status === "AWAITING_DISPATCH").length, color: "#38bdf8", statusKey: "AWAITING_DISPATCH" },
+        { id: "TRANSIT", label: "In Transit", count: orders.filter((o) => o.status === "DISPATCHED").length, color: "#818cf8", statusKey: "DISPATCHED" },
+        { id: "DELIVERED", label: "Delivered", count: orders.filter((o) => o.status === "DELIVERED").length, color: "#34d399", statusKey: "DELIVERED" },
+        { id: "CANCELLED", label: "Cancelled / Refunded", count: stats.cancelledOrdersCount, color: "#f43f5e", statusKey: "CANCELLED" },
+      ].filter((s) => s.count > 0);
+
+      const totalCount = slices.reduce((acc, s) => acc + s.count, 0) || 1;
+      return {
+        slices: slices.map((s) => ({
+          ...s,
+          pct: Math.round((s.count / totalCount) * 100),
+        })),
+        totalCount,
+        title: "Lifecycle Gate Proportions",
+        centerNumber: orders.length,
+        centerLabel: "Total Orders",
+      };
+    } else {
+      const rsCount = orders.filter((o) => o.mode === "READY_STOCK" && o.status !== "CANCELLED" && o.status !== "REFUNDED").length;
+      const mtoStagedCount = orders.filter((o) => o.mode === "MADE_TO_ORDER" && o.balanceDueRupees > 0 && o.status !== "CANCELLED" && o.status !== "REFUNDED").length;
+      const mtoSettledCount = orders.filter((o) => o.mode === "MADE_TO_ORDER" && o.balanceDueRupees <= 0 && o.status !== "CANCELLED" && o.status !== "REFUNDED").length;
+      const cancelledCount = stats.cancelledOrdersCount;
+
+      const slices = [
+        { id: "RS", label: "Ready Stock (100% Settled)", count: rsCount, color: "#3b82f6", modeKey: "READY_STOCK" as const },
+        { id: "MTO_STAGED", label: "MTO (25% Adv / 75% Due)", count: mtoStagedCount, color: "#f59e0b", modeKey: "MADE_TO_ORDER" as const },
+        { id: "MTO_SETTLED", label: "MTO (100% Settled)", count: mtoSettledCount, color: "#10b981", modeKey: "MADE_TO_ORDER" as const },
+        { id: "CANCELLED", label: "Cancelled & Refunded", count: cancelledCount, color: "#f43f5e", statusKey: "CANCELLED" },
+      ].filter((s) => s.count > 0);
+
+      const totalCount = slices.reduce((acc, s) => acc + s.count, 0) || 1;
+      return {
+        slices: slices.map((s) => ({
+          ...s,
+          pct: Math.round((s.count / totalCount) * 100),
+        })),
+        totalCount,
+        title: "Mode & Settlement Breakdown",
+        centerNumber: stats.activeOrdersCount,
+        centerLabel: "Active Units",
+      };
+    }
+  }, [orders, ordersDonutView, stats]);
 
   // Filtered Support Tickets
   const filteredTickets = useMemo(() => {
@@ -3311,9 +3395,10 @@ export default function App() {
           );
         })()}
 
-        {/* TAB 2: ORDERS WORKLIST */}
+        {/* TAB 2: ORDERS & PRODUCTION MANAGEMENT CONSOLE */}
         {activeTab === "ORDERS" && (
           <div className="space-y-6">
+            {/* Action Feedback Banner */}
             {actionFeedback && (
               <div
                 className={`p-3.5 rounded-xl border text-xs flex items-center justify-between ${
@@ -3332,19 +3417,382 @@ export default function App() {
               </div>
             )}
 
+            {/* Header & Subtitle */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#38332c]">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#c59b6d] tracking-widest block">
+                  Studio Atelier & Commercial Orchestration
+                </span>
+                <h2 className="text-xl font-bold text-white tracking-tight">Orders & Production Management</h2>
+                <p className="text-xs text-[#a8a093]">
+                  End-to-end studio consignment ledger, craftsmanship milestone gating, balance collection, and direct workshop release controls.
+                </p>
+              </div>
+              <div className="flex items-center gap-2.5">
+                {canCreateQuote && (
+                  <button
+                    type="button"
+                    onClick={() => setIsProposalModalOpen(true)}
+                    className="px-3 py-1.5 rounded-lg bg-[#2a2722] hover:bg-[#332f29] text-[#eae6df] border border-[#464037] text-xs font-semibold transition-colors flex items-center gap-1.5"
+                  >
+                    <span>+</span>
+                    <span>New Custom Quote</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleManualSync}
+                  title="Refresh order telemetry immediately"
+                  className="px-3 py-1.5 rounded-lg bg-[#c59b6d] hover:bg-[#d6aa7c] text-[#181715] text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-sm"
+                >
+                  <span>↻</span>
+                  <span>Sync ({syncCountdown}s)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 4 Top-Tier Pulse Metric Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Card 1: Active Pipeline Value */}
+              <div className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-1.5 shadow-sm">
+                <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[#a8a093]">
+                  <span>Active Pipeline Value</span>
+                  <span className="text-[#10b981] font-mono text-[10px]">COMMITTED</span>
+                </div>
+                <p className="text-2xl font-bold text-white font-mono">
+                  {formatPrice(ordersKpis.activePipelineValue)}
+                </p>
+                <p className="text-[11px] text-[#a8a093]">
+                  Across {ordersKpis.activeOrdersCount} live active consignments
+                </p>
+              </div>
+
+              {/* Card 2: 75% Pre-Dispatch Balance Receivable */}
+              <div className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-1.5 shadow-sm">
+                <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[#a8a093]">
+                  <span>75% Balance Due</span>
+                  <span className="text-[#f59e0b] font-mono text-[10px]">PRE-AWB</span>
+                </div>
+                <p className="text-2xl font-bold text-[#f59e0b] font-mono">
+                  {formatPrice(ordersKpis.balanceReceivable)}
+                </p>
+                <p className="text-[11px] text-[#a8a093]">
+                  100% balance required before carrier booking
+                </p>
+              </div>
+
+              {/* Card 3: MTO Grace Holds & Day 8 Gate */}
+              <div
+                onClick={() => setStatusFilter("CONFIRMED")}
+                className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] hover:border-[#464037] hover:bg-[#282520] transition-all cursor-pointer group space-y-1.5 shadow-sm select-none"
+              >
+                <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[#a8a093]">
+                  <span>MTO Grace Queue</span>
+                  <span className="text-[#c59b6d] opacity-0 group-hover:opacity-100 transition-opacity">Filter →</span>
+                </div>
+                <p className="text-2xl font-bold text-[#c59b6d] font-mono">
+                  {stats.mtoGraceCount} Active Holds
+                </p>
+                <p className="text-[11px] text-[#a8a093]">
+                  {stats.minGraceDays !== null
+                    ? stats.minGraceDays === 0
+                      ? "Day 8 reached · Machining release ready"
+                      : `${stats.minGraceDays} day(s) until workshop machining`
+                    : "No active grace holds"}
+                </p>
+              </div>
+
+              {/* Card 4: Workshop Velocity & Fulfilment */}
+              <div
+                onClick={() => setStatusFilter("IN_PRODUCTION")}
+                className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] hover:border-[#464037] hover:bg-[#282520] transition-all cursor-pointer group space-y-1.5 shadow-sm select-none"
+              >
+                <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-[#a8a093]">
+                  <span>Workshop Crafting</span>
+                  <span className="text-[#c59b6d] opacity-0 group-hover:opacity-100 transition-opacity">Filter →</span>
+                </div>
+                <p className="text-2xl font-bold text-white font-mono group-hover:text-[#c59b6d] transition-colors">
+                  {stats.inProductionCount} in Workshop
+                </p>
+                <p className="text-[11px] text-[#a8a093]">
+                  {orders.filter((o) => o.status === "AWAITING_DISPATCH").length} Ready for AWB · {orders.filter((o) => o.status === "DISPATCHED").length} In Transit
+                </p>
+              </div>
+            </div>
+
+            {/* Visual Charts & Atelier Intelligence Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Left Column: Interactive Donut / Pie Chart */}
+              <div className="lg:col-span-7 p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4 shadow-sm flex flex-col justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#38332c] pb-3">
+                  <div>
+                    <h3 className="font-semibold text-xs text-white uppercase tracking-wider flex items-center gap-1.5">
+                      <span>📊</span>
+                      <span>Consignment Composition & Distribution</span>
+                    </h3>
+                    <p className="text-[11px] text-[#a8a093]">
+                      Interactive visual breakdown of studio pieces by operational lifecycle or mode
+                    </p>
+                  </div>
+
+                  {/* Donut Dimension Switcher */}
+                  <div className="flex items-center gap-1 bg-[#181715] p-1 rounded-xl border border-[#38332c]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOrdersDonutView("STATUS");
+                        setHoveredDonutSlice(null);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors ${
+                        ordersDonutView === "STATUS"
+                          ? "bg-[#c59b6d] text-[#181715]"
+                          : "text-[#a8a093] hover:text-white"
+                      }`}
+                    >
+                      Lifecycle Gates
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOrdersDonutView("MODE");
+                        setHoveredDonutSlice(null);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors ${
+                        ordersDonutView === "MODE"
+                          ? "bg-[#c59b6d] text-[#181715]"
+                          : "text-[#a8a093] hover:text-white"
+                      }`}
+                    >
+                      Mode & Settlement
+                    </button>
+                  </div>
+                </div>
+
+                {/* SVG Donut Graphic + Legend */}
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-6 py-2">
+                  {/* Donut SVG Ring */}
+                  <div className="relative w-44 h-44 shrink-0 flex items-center justify-center">
+                    {(() => {
+                      const r = 38;
+                      const circumference = 2 * Math.PI * r;
+                      let accumulatedOffset = 0;
+
+                      return (
+                        <svg viewBox="0 0 100 100" className="w-44 h-44 transform -rotate-90">
+                          {/* Track */}
+                          <circle
+                            cx="50"
+                            cy="50"
+                            r={r}
+                            fill="transparent"
+                            stroke="#181715"
+                            strokeWidth="13"
+                          />
+                          {/* Slices */}
+                          {ordersDonutData.slices.map((slice) => {
+                            const strokeLength = (slice.count / ordersDonutData.totalCount) * circumference;
+                            const strokeGap = circumference - strokeLength;
+                            const currentOffset = accumulatedOffset;
+                            accumulatedOffset += strokeLength;
+
+                            const isHovered = hoveredDonutSlice === slice.id;
+
+                            return (
+                              <circle
+                                key={slice.id}
+                                cx="50"
+                                cy="50"
+                                r={r}
+                                fill="transparent"
+                                stroke={slice.color}
+                                strokeWidth={isHovered ? 17 : 13}
+                                strokeDasharray={`${strokeLength} ${strokeGap}`}
+                                strokeDashoffset={-currentOffset}
+                                onMouseEnter={() => setHoveredDonutSlice(slice.id)}
+                                onMouseLeave={() => setHoveredDonutSlice(null)}
+                                onClick={() => {
+                                  if ('statusKey' in slice && slice.statusKey) {
+                                    setStatusFilter(slice.statusKey);
+                                  } else if ('modeKey' in slice && slice.modeKey) {
+                                    setModeFilter(slice.modeKey);
+                                  }
+                                }}
+                                className="transition-all duration-300 cursor-pointer"
+                                style={{
+                                  opacity: hoveredDonutSlice && !isHovered ? 0.45 : 1,
+                                }}
+                              >
+                                <title>{`${slice.label}: ${slice.count} (${slice.pct}%) - Click to filter`}</title>
+                              </circle>
+                            );
+                          })}
+                        </svg>
+                      );
+                    })()}
+
+                    {/* Donut Center Hub Info */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none text-center px-4">
+                      <span className="text-2xl font-mono font-bold text-white tracking-tight">
+                        {hoveredDonutSlice
+                          ? ordersDonutData.slices.find((s) => s.id === hoveredDonutSlice)?.count
+                          : ordersDonutData.centerNumber}
+                      </span>
+                      <span className="text-[9px] uppercase font-bold text-[#c59b6d] tracking-wider max-w-[85px] leading-tight mt-0.5 line-clamp-2">
+                        {hoveredDonutSlice
+                          ? ordersDonutData.slices.find((s) => s.id === hoveredDonutSlice)?.label
+                          : ordersDonutData.centerLabel}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Dynamic Legend List */}
+                  <div className="flex-1 w-full space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {ordersDonutData.slices.map((slice) => {
+                      const isHovered = hoveredDonutSlice === slice.id;
+                      return (
+                        <div
+                          key={slice.id}
+                          onMouseEnter={() => setHoveredDonutSlice(slice.id)}
+                          onMouseLeave={() => setHoveredDonutSlice(null)}
+                          onClick={() => {
+                            if ('statusKey' in slice && slice.statusKey) {
+                              setStatusFilter(slice.statusKey);
+                            } else if ('modeKey' in slice && slice.modeKey) {
+                              setModeFilter(slice.modeKey);
+                            }
+                          }}
+                          className={`flex items-center justify-between p-1.5 rounded-lg text-xs cursor-pointer transition-all ${
+                            isHovered ? "bg-[#2e2a24] text-white" : "hover:bg-[#25221d] text-[#a8a093]"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span
+                              className="h-2.5 w-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: slice.color }}
+                            />
+                            <span className="truncate text-[11px] font-medium">{slice.label}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="font-mono text-white text-[11px] font-bold">{slice.count}</span>
+                            <span className="text-[10px] text-[#787165] font-mono">({slice.pct}%)</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="border-t border-[#38332c] pt-2 flex items-center justify-between text-[11px] text-[#a8a093]">
+                  <span>💡 Tip: Click any slice or legend item to filter the table below.</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStatusFilter("ALL");
+                      setModeFilter("ALL");
+                      setOrderSearch("");
+                    }}
+                    className="text-[#c59b6d] hover:underline text-[10px] font-semibold"
+                  >
+                    Reset All Filters
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Column: Studio Production Protocols & Governance */}
+              <div className="lg:col-span-5 p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-3.5 shadow-sm flex flex-col justify-between">
+                <div className="border-b border-[#38332c] pb-2.5">
+                  <h3 className="font-semibold text-xs text-white uppercase tracking-wider flex items-center gap-1.5">
+                    <span>🛡️</span>
+                    <span>Studio Production Safeguards</span>
+                  </h3>
+                  <p className="text-[11px] text-[#a8a093]">
+                    Constitutional production milestones and payment settlement rules
+                  </p>
+                </div>
+
+                <div className="space-y-2.5 text-xs">
+                  {/* Protocol 1: 7-Day Grace Window */}
+                  <div className="p-3 rounded-xl bg-[#1e1c19] border border-amber-900/30 space-y-1">
+                    <div className="flex items-center justify-between text-amber-300 font-semibold text-[11px]">
+                      <span className="flex items-center gap-1.5">
+                        <span>⏳</span>
+                        <span>TAV-06: 7-Day Grace & Cutoff Gate</span>
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-950 border border-amber-800 text-amber-300 font-mono">
+                        DAY 8 RELEASE
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#a8a093] leading-relaxed">
+                      Made-to-Order pieces hold for 7 calendar days (IST). Pre-production client specification alterations and 100% statutory cancellations are honored during Days 1–7. Workshop machining strictly commences on Day 8.
+                    </p>
+                  </div>
+
+                  {/* Protocol 2: 100% Pre-Dispatch Balance */}
+                  <div className="p-3 rounded-xl bg-[#1e1c19] border border-emerald-900/30 space-y-1">
+                    <div className="flex items-center justify-between text-emerald-300 font-semibold text-[11px]">
+                      <span className="flex items-center gap-1.5">
+                        <span>🔒</span>
+                        <span>100% Balance Gate Pre-AWB</span>
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-950 border border-emerald-800 text-emerald-300 font-mono">
+                        25% / 75%
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#a8a093] leading-relaxed">
+                      MTO production commences upon 25% advance. Physical courier consignment booking is locked until the final 75% balance is verified settled. 1-click payment links can be sent directly to clients.
+                    </p>
+                  </div>
+
+                  {/* Protocol 3: Insured Logistics */}
+                  <div className="p-3 rounded-xl bg-[#1e1c19] border border-[#38332c] space-y-1">
+                    <div className="flex items-center justify-between text-[#eae6df] font-semibold text-[11px]">
+                      <span className="flex items-center gap-1.5">
+                        <span>📦</span>
+                        <span>Insured Fragile Logistics</span>
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#2a2722] border border-[#464037] text-[#c59b6d] font-mono">
+                        AIR / SURFACE
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#a8a093] leading-relaxed">
+                      All shipments are routed through Blue Dart and Safeexpress with mandatory transit insurance and automated tracking on /track.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-[#38332c] flex items-center justify-between text-[11px]">
+                  <span className="text-[#a8a093]">Enabled PIN Zones: {stats.serviceablePinsCount}</span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("PRODUCTION")}
+                    className="text-[#c59b6d] hover:underline font-semibold"
+                  >
+                    Open Workshop Grace Queue →
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter & Search Bar */}
             <div className="space-y-3 p-4 rounded-2xl bg-[#24211d] border border-[#38332c]">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                <input
-                  type="text"
-                  placeholder="Search order ref, client, or PIN..."
-                  value={orderSearch}
-                  onChange={(e) => setOrderSearch(e.target.value)}
-                  className="rounded-xl border border-[#464037] bg-[#181715] px-4 py-2 text-xs text-white placeholder-[#787165] w-full sm:w-72 focus:outline-none focus:border-[#c59b6d]"
-                />
+                <div className="relative w-full sm:w-80">
+                  <input
+                    type="text"
+                    placeholder="Search order ref, client, city, PIN, phone..."
+                    value={orderSearch}
+                    onChange={(e) => setOrderSearch(e.target.value)}
+                    className="rounded-xl border border-[#464037] bg-[#181715] pl-8 pr-4 py-2 text-xs text-white placeholder-[#787165] w-full focus:outline-none focus:border-[#c59b6d]"
+                  />
+                  <span className="absolute left-2.5 top-2.5 text-[#787165] text-xs">🔍</span>
+                </div>
+
+                {/* Mode Selector */}
                 <div className="flex items-center gap-2 self-start sm:self-auto">
                   {(["ALL", "READY_STOCK", "MADE_TO_ORDER"] as const).map((m) => (
                     <button
                       key={m}
+                      type="button"
                       onClick={() => setModeFilter(m)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                         modeFilter === m
@@ -3358,20 +3806,22 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Status Filter Pills with Live Counts */}
               <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-[#38332c]">
                 <span className="text-[10px] uppercase tracking-wider text-[#a8a093] mr-1">Status:</span>
                 {[
-                  { id: "ALL", label: "All" },
-                  { id: "CONFIRMED", label: "Confirmed" },
-                  { id: "IN_PRODUCTION", label: "In Production" },
-                  { id: "PRODUCTION_COMPLETED", label: "QC Completed" },
-                  { id: "AWAITING_DISPATCH", label: "Awaiting Dispatch" },
-                  { id: "DISPATCHED", label: "Dispatched" },
-                  { id: "DELIVERED", label: "Delivered" },
-                  { id: "CANCELLED", label: "Cancelled" },
+                  { id: "ALL", label: `All (${orders.length})` },
+                  { id: "CONFIRMED", label: `Grace Hold (${stats.mtoGraceCount})` },
+                  { id: "IN_PRODUCTION", label: `In Crafting (${stats.inProductionCount})` },
+                  { id: "PRODUCTION_COMPLETED", label: `QC Completed (${orders.filter((o) => o.status === "PRODUCTION_COMPLETED").length})` },
+                  { id: "AWAITING_DISPATCH", label: `Ready for AWB (${orders.filter((o) => o.status === "AWAITING_DISPATCH").length})` },
+                  { id: "DISPATCHED", label: `In Transit (${orders.filter((o) => o.status === "DISPATCHED").length})` },
+                  { id: "DELIVERED", label: `Delivered (${orders.filter((o) => o.status === "DELIVERED").length})` },
+                  { id: "CANCELLED", label: `Cancelled (${stats.cancelledOrdersCount})` },
                 ].map((st) => (
                   <button
                     key={st.id}
+                    type="button"
                     onClick={() => setStatusFilter(st.id)}
                     className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
                       statusFilter === st.id
@@ -3385,95 +3835,220 @@ export default function App() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-[#38332c] bg-[#24211d] overflow-hidden">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-[#1e1c19] border-b border-[#38332c] text-[11px] uppercase tracking-wider text-[#a8a093]">
-                  <tr>
-                    <th className="py-3 px-4">Order Reference</th>
-                    <th className="py-3 px-4">Mode</th>
-                    <th className="py-3 px-4">Client & Location</th>
-                    <th className="py-3 px-4">Financial Ledger</th>
-                    <th className="py-3 px-4">Milestone</th>
-                    <th className="py-3 px-4 text-right">Inspect</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#38332c]">
-                  {filteredOrders.map((order) => (
-                    <tr key={order.id} className="hover:bg-[#2a2722]/40 transition-colors">
-                      <td className="py-4 px-4 font-mono font-bold text-white">
-                        {order.orderNumber}
-                        <span className="block text-[10px] font-normal text-[#a8a093]">{order.placedAt}</span>
-                        {order.quoteNumber && (
-                          <a
-                            href={getStorefrontUrl(`/quote/${order.quoteNumber}`)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-block mt-1 px-1.5 py-0.5 rounded text-[9px] font-mono bg-amber-950/80 text-amber-300 border border-amber-800 hover:bg-amber-900"
-                          >
-                            Quote: {order.quoteNumber} ↗
-                          </a>
-                        )}
-                      </td>
-                      <td className="py-4 px-4">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${
-                            order.mode === "READY_STOCK"
-                              ? "bg-blue-950 text-blue-300 border border-blue-800"
-                              : "bg-amber-950 text-amber-300 border border-amber-800"
-                          }`}
-                        >
-                          {order.mode === "READY_STOCK" ? "Ready Stock" : "Made to Order"}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <p className="font-semibold text-white">{order.customerName}</p>
-                        <p className="text-[11px] text-[#a8a093]">
-                          {order.city}, {order.state} ({order.pincode})
-                        </p>
-                      </td>
-                      <td className="py-4 px-4">
-                        <p className="font-semibold text-white">{formatPrice(order.totalAmountRupees)}</p>
-                        {order.status === "CANCELLED" || order.status === "REFUNDED" ? (
-                          <>
-                            <p className="text-[11px] text-rose-400 font-semibold">
-                              Refund: {formatPrice(order.refund?.amountRupees ?? order.amountPaidRupees)}
-                            </p>
-                            <p className="text-[10px] text-[#a8a093] font-mono truncate max-w-[140px]" title={order.refund?.reference || "REF-COMPLETED"}>
-                              Ref: {order.refund?.reference || "REF-COMPLETED"}
-                            </p>
-                          </>
-                        ) : (
-                          <>
-                            <p className="text-[11px] text-[#10b981]">Paid: {formatPrice(order.amountPaidRupees)}</p>
-                            {order.balanceDueRupees > 0 && (
-                              <p className="text-[11px] text-[#f59e0b]">Due: {formatPrice(order.balanceDueRupees)}</p>
-                            )}
-                          </>
-                        )}
-                      </td>
-                      <td className="py-4 px-4">
-                        <span
-                          className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-semibold border ${
-                            order.status === "CANCELLED" || order.status === "REFUNDED"
-                              ? "bg-rose-950/80 text-rose-300 border-rose-800"
-                              : "bg-[#2a2722] text-white border-[#464037]"
-                          }`}
-                        >
-                          {order.status === "CANCELLED" ? "CANCELLED & REFUNDED" : order.status}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4 text-right">
-                        <button
-                          onClick={() => setSelectedOrder(order)}
-                          className="px-3 py-1.5 rounded-lg bg-[#2a2a30] text-xs font-semibold text-white hover:bg-[#34343c]"
-                        >
-                          Details
-                        </button>
-                      </td>
+            {/* Consignments Table with In-Line Operations Tray */}
+            <div className="rounded-2xl border border-[#38332c] bg-[#24211d] overflow-hidden shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#1e1c19] border-b border-[#38332c] text-[11px] uppercase tracking-wider text-[#a8a093]">
+                    <tr>
+                      <th className="py-3 px-4">Order Reference</th>
+                      <th className="py-3 px-4">Mode & Works</th>
+                      <th className="py-3 px-4">Client & Destination</th>
+                      <th className="py-3 px-4">Financial Ledger</th>
+                      <th className="py-3 px-4">Milestone</th>
+                      <th className="py-3 px-4 text-right">Operations & Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-[#38332c]">
+                    {filteredOrders.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-12 text-center text-xs text-[#a8a093] space-y-1">
+                          <p className="font-semibold text-white">No consignments match the current filter.</p>
+                          <p className="text-[11px]">Adjust your search query or select another milestone filter above.</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredOrders.map((order) => {
+                        const isCancelled = order.status === "CANCELLED" || order.status === "REFUNDED";
+                        const isConfirmedAwaitingRelease = order.status === "CONFIRMED" || order.status === "GRACE_PERIOD_ACTIVE";
+                        const isGraceWindowOpen = isConfirmedAwaitingRelease && (order.isGraceActive ?? (order.graceDaysRemaining ?? 0) > 0);
+
+                        return (
+                          <tr key={order.id} className="hover:bg-[#2a2722]/40 transition-colors">
+                            {/* Column 1: Order Reference & Links */}
+                            <td className="py-4 px-4 font-mono font-bold text-white">
+                              <div className="flex items-center gap-1.5">
+                                <span>{order.orderNumber}</span>
+                                {isCancelled && (
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-rose-950 text-rose-300 border border-rose-800">
+                                    CANCELLED
+                                  </span>
+                                )}
+                              </div>
+                              <span className="block text-[10px] font-normal text-[#a8a093]">{order.placedAt}</span>
+
+                              <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                {order.quoteNumber && (
+                                  <a
+                                    href={getStorefrontUrl(`/quote/${order.quoteNumber}`)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-block px-1.5 py-0.5 rounded text-[9px] font-mono bg-amber-950/80 text-amber-300 border border-amber-800 hover:bg-amber-900 transition-colors"
+                                  >
+                                    Quote: {order.quoteNumber} ↗
+                                  </a>
+                                )}
+                                <a
+                                  href={getStorefrontUrl(`/orders/${order.id}/invoice`)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-block px-1.5 py-0.5 rounded text-[9px] font-medium bg-[#1e1c19] text-[#a8a093] hover:text-[#c59b6d] border border-[#38332c] transition-colors"
+                                  title="View official studio tax invoice on storefront"
+                                >
+                                  Invoice ↗
+                                </a>
+                              </div>
+                            </td>
+
+                            {/* Column 2: Mode & Works Ordered */}
+                            <td className="py-4 px-4">
+                              <span
+                                className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold mb-1 ${
+                                  order.mode === "READY_STOCK"
+                                    ? "bg-blue-950 text-blue-300 border border-blue-800"
+                                    : "bg-amber-950 text-amber-300 border border-amber-800"
+                                }`}
+                              >
+                                {order.mode === "READY_STOCK" ? "Ready Stock" : "Made to Order"}
+                              </span>
+                              <p className="text-[11px] text-[#eae6df] line-clamp-2 leading-relaxed">
+                                {order.items.map((i) => `${i.name} (×${i.quantity})`).join(", ")}
+                              </p>
+                            </td>
+
+                            {/* Column 3: Client & Destination */}
+                            <td className="py-4 px-4">
+                              <p className="font-semibold text-white">{order.customerName}</p>
+                              <p className="text-[11px] text-[#a8a093]">
+                                {order.city}, {order.state} ({order.pincode})
+                              </p>
+                              <span className="text-[10px] text-[#787165] block font-mono">{order.phone}</span>
+                            </td>
+
+                            {/* Column 4: Financial Ledger */}
+                            <td className="py-4 px-4">
+                              <p className="font-semibold text-white">{formatPrice(order.totalAmountRupees)}</p>
+                              {isCancelled ? (
+                                <>
+                                  <p className="text-[11px] text-rose-400 font-semibold">
+                                    Refund: {formatPrice(order.refund?.amountRupees ?? order.amountPaidRupees)}
+                                  </p>
+                                  <p className="text-[10px] text-[#a8a093] font-mono truncate max-w-[130px]" title={order.refund?.reference || "REF-COMPLETED"}>
+                                    {order.refund?.reference || "Refund Recorded"}
+                                  </p>
+                                </>
+                              ) : (
+                                <>
+                                  <p className="text-[11px] text-[#10b981]">Paid: {formatPrice(order.amountPaidRupees)}</p>
+                                  {order.balanceDueRupees > 0 ? (
+                                    <p className="text-[11px] text-[#f59e0b] font-medium">Due: {formatPrice(order.balanceDueRupees)}</p>
+                                  ) : (
+                                    <p className="text-[10px] text-emerald-400/80">100% Settled</p>
+                                  )}
+                                </>
+                              )}
+                            </td>
+
+                            {/* Column 5: Milestone / Status */}
+                            <td className="py-4 px-4">
+                              <span
+                                className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-semibold border ${
+                                  isCancelled
+                                    ? "bg-rose-950/80 text-rose-300 border-rose-800"
+                                    : order.status === "CONFIRMED" || order.status === "GRACE_PERIOD_ACTIVE"
+                                    ? "bg-amber-950/80 text-amber-300 border-amber-800"
+                                    : order.status === "PRODUCTION_COMPLETED" || order.status === "AWAITING_DISPATCH"
+                                    ? "bg-sky-950/80 text-sky-300 border-sky-800"
+                                    : order.status === "DISPATCHED"
+                                    ? "bg-indigo-950/80 text-indigo-300 border-indigo-800"
+                                    : order.status === "DELIVERED"
+                                    ? "bg-emerald-950/80 text-emerald-300 border-emerald-800"
+                                    : "bg-[#2a2722] text-white border-[#464037]"
+                                }`}
+                              >
+                                {isCancelled
+                                  ? "CANCELLED"
+                                  : isConfirmedAwaitingRelease
+                                  ? isGraceWindowOpen
+                                    ? `Grace Day ${7 - (order.graceDaysRemaining ?? 0)}/7`
+                                    : "Day 8 Release Ready"
+                                  : order.status.replace(/_/g, " ")}
+                              </span>
+                              {order.awbNumber && (
+                                <span className="block font-mono text-[9px] text-[#a8a093] mt-1 truncate max-w-[120px]" title={order.awbNumber}>
+                                  AWB: {order.awbNumber}
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Column 6: Direct In-Line Operations Tray */}
+                            <td className="py-4 px-4 text-right">
+                              <div className="flex flex-col sm:flex-row items-center justify-end gap-1.5">
+                                {/* 1-Click Copy Balance Link */}
+                                {order.balanceDueRupees > 0 && !isCancelled && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyBalanceLink(order)}
+                                    title="Copy 75% balance collection link for client"
+                                    className="px-2.5 py-1 rounded-lg bg-[#2a2722] hover:bg-[#35312b] text-[#c59b6d] border border-[#464037] text-[11px] font-semibold transition-colors flex items-center gap-1 shrink-0"
+                                  >
+                                    <span>{copiedLinkOrderId === order.id ? "✓ Copied" : "Copy 75% Link"}</span>
+                                  </button>
+                                )}
+
+                                {/* Workshop Release for MTO orders that concluded grace */}
+                                {canViewWorkshop && order.mode === "MADE_TO_ORDER" && isConfirmedAwaitingRelease && (
+                                  <button
+                                    type="button"
+                                    disabled={isGraceWindowOpen}
+                                    onClick={() => handleReleaseToProduction(order.id)}
+                                    title={
+                                      isGraceWindowOpen
+                                        ? `Locked during 7-day grace (${order.graceDaysRemaining}d remaining)`
+                                        : "Release piece to workshop machining"
+                                    }
+                                    className="px-2.5 py-1 rounded-lg bg-[#c59b6d] hover:bg-[#d6aa7c] text-[#181715] text-[11px] font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                                  >
+                                    {isGraceWindowOpen
+                                      ? `Locked (${order.graceDaysRemaining}d)`
+                                      : "Release to Shop →"}
+                                  </button>
+                                )}
+
+                                {/* Workshop QC Photos Trigger */}
+                                {canViewWorkshop && !isCancelled && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setQcOrderModal(order);
+                                      setQcNotesInput(order.qcNotes || "");
+                                      setQcImageInput(order.qcImages?.join("\n") || "");
+                                      setQcUploadError(null);
+                                    }}
+                                    title="Inspect or upload workshop QC inspection photos"
+                                    className="px-2 py-1 rounded-lg bg-[#24211d] hover:bg-[#2c2823] text-[#eae6df] border border-[#38332c] text-[11px] font-medium transition-colors shrink-0"
+                                  >
+                                    📷 QC ({order.qcImages?.length || 0})
+                                  </button>
+                                )}
+
+                                {/* Inspect Details Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedOrder(order)}
+                                  className="px-2.5 py-1 rounded-lg bg-[#2a2a30] hover:bg-[#34343c] text-white text-[11px] font-semibold transition-colors shrink-0"
+                                >
+                                  Inspect →
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
