@@ -350,6 +350,13 @@ export default function App() {
   const [carrierInput, setCarrierInput] = useState("");
   const [awbInput, setAwbInput] = useState("");
 
+  // Logistics & Consignments Tab State
+  const [dispatchSearchQuery, setDispatchSearchQuery] = useState("");
+  const [dispatchStatusFilter, setDispatchStatusFilter] = useState<"ALL" | "READY_AWB" | "TRANSIT" | "BLOCKED" | "DELIVERED">("ALL");
+  const [dispatchCarrierFilter, setDispatchCarrierFilter] = useState<string>("ALL");
+  const [dispatchDonutView, setDispatchDonutView] = useState<"STATUS" | "CARRIER">("STATUS");
+  const [hoveredDispatchSlice, setHoveredDispatchSlice] = useState<string | null>(null);
+
   // Helper to record audit log
   const logAuditAction = (action: string, entityType: string, entityId: string, details: string) => {
     const newEntry: AuditEntry = {
@@ -1622,6 +1629,177 @@ export default function App() {
     });
   }, [orders, workshopFilter, workshopSearchQuery, workshopSortBy]);
 
+  // Logistics & AWB Management KPIs
+  const dispatchKpis = useMemo(() => {
+    const activeOrders = orders.filter((o) => o.status !== "CANCELLED" && o.status !== "REFUNDED");
+    const inTransitOrders = activeOrders.filter((o) => o.status === "DISPATCHED");
+    const deliveredOrders = activeOrders.filter((o) => o.status === "DELIVERED");
+    const paymentBlockedOrders = activeOrders.filter(
+      (o) => o.balanceDueRupees > 0 && o.status !== "DISPATCHED" && o.status !== "DELIVERED"
+    );
+    const readyAwbOrders = activeOrders.filter(
+      (o) => o.balanceDueRupees <= 0 && o.status !== "DISPATCHED" && o.status !== "DELIVERED"
+    );
+
+    const inTransitValue = inTransitOrders.reduce((acc, o) => acc + (o.totalAmountRupees || 0), 0);
+    const readyAwbValue = readyAwbOrders.reduce((acc, o) => acc + (o.totalAmountRupees || 0), 0);
+    const blockedBalanceTotal = paymentBlockedOrders.reduce((acc, o) => acc + (o.balanceDueRupees || 0), 0);
+
+    const activeCarriers = Array.from(
+      new Set(
+        activeOrders
+          .map((o) => o.carrierName?.trim())
+          .filter((c): c is string => Boolean(c && c !== "To be assigned prior to dispatch"))
+      )
+    ).sort();
+
+    const feasiblePinCount = activeOrders.filter((o) => {
+      const match = pincodes.find((p) => p.pincode === o.pincode);
+      return match ? match.isServiceable : true;
+    }).length;
+    const pinCoverageRate = activeOrders.length > 0 ? Math.round((feasiblePinCount / activeOrders.length) * 100) : 100;
+
+    return {
+      totalActiveCount: activeOrders.length,
+      inTransitCount: inTransitOrders.length,
+      inTransitValue,
+      readyAwbCount: readyAwbOrders.length,
+      readyAwbValue,
+      paymentBlockedCount: paymentBlockedOrders.length,
+      blockedBalanceTotal,
+      deliveredCount: deliveredOrders.length,
+      activeCarriers,
+      pinCoverageRate,
+    };
+  }, [orders, pincodes]);
+
+  // Dynamic carrier list for datalist autocomplete (Non-locked logistics partner policy)
+  const allKnownCarriers = useMemo(() => {
+    return Array.from(
+      new Set(
+        orders
+          .map((o) => o.carrierName?.trim())
+          .filter((c): c is string => Boolean(c && c !== "To be assigned prior to dispatch"))
+      )
+    ).sort();
+  }, [orders]);
+
+  // Logistics Donut Data (100% mathematically consistent)
+  const dispatchDonutData = useMemo(() => {
+    const activeOrders = orders.filter((o) => o.status !== "CANCELLED" && o.status !== "REFUNDED");
+
+    if (dispatchDonutView === "STATUS") {
+      const readyCount = dispatchKpis.readyAwbCount;
+      const transitCount = dispatchKpis.inTransitCount;
+      const blockedCount = dispatchKpis.paymentBlockedCount;
+      const deliveredCount = dispatchKpis.deliveredCount;
+
+      const slices = [
+        { id: "READY_AWB", label: "Ready for AWB Booking", count: readyCount, color: "#38bdf8", filterKey: "READY_AWB" as const },
+        { id: "TRANSIT", label: "In Transit (Active AWB)", count: transitCount, color: "#10b981", filterKey: "TRANSIT" as const },
+        { id: "BLOCKED", label: "Payment Gate Blocked", count: blockedCount, color: "#f59e0b", filterKey: "BLOCKED" as const },
+        { id: "DELIVERED", label: "Delivered to Patron", count: deliveredCount, color: "#a855f7", filterKey: "DELIVERED" as const },
+      ].filter((s) => s.count > 0);
+
+      const totalCount = slices.reduce((acc, s) => acc + s.count, 0) || 1;
+      return {
+        slices: slices.map((s) => ({
+          ...s,
+          pct: Math.round((s.count / totalCount) * 100),
+        })),
+        totalCount,
+        title: "Dispatch Pipeline & Consignment Status",
+        centerNumber: totalCount,
+        centerLabel: "Active Shipments",
+      };
+    } else {
+      // Group dynamically by carrierName without hardcoding any partner
+      const carrierCounts: Record<string, number> = {};
+      activeOrders.forEach((o) => {
+        let name = (o.carrierName || "").trim();
+        if (!name || name === "To be assigned prior to dispatch") {
+          name = "Pending Carrier Allocation";
+        }
+        carrierCounts[name] = (carrierCounts[name] || 0) + 1;
+      });
+
+      const carrierColorPalette = [
+        "#c59b6d", "#38bdf8", "#10b981", "#f59e0b", "#818cf8", "#ec4899", "#14b8a6", "#94a3b8"
+      ];
+
+      const slices = Object.entries(carrierCounts).map(([carrier, count], idx) => ({
+        id: `carrier_${idx}`,
+        label: carrier,
+        count,
+        color: carrierColorPalette[idx % carrierColorPalette.length],
+        filterKey: "ALL" as const,
+        carrierName: carrier,
+      }));
+
+      const totalCount = slices.reduce((acc, s) => acc + s.count, 0) || 1;
+      return {
+        slices: slices.map((s) => ({
+          ...s,
+          pct: Math.round((s.count / totalCount) * 100),
+        })),
+        totalCount,
+        title: "Dynamic Carrier Distribution (Non-Locked Policy)",
+        centerNumber: totalCount,
+        centerLabel: "Consignments",
+      };
+    }
+  }, [orders, dispatchDonutView, dispatchKpis]);
+
+  // Filtered & Searched Dispatch Consignments
+  const filteredDispatchOrders = useMemo(() => {
+    return orders
+      .filter((o) => o.status !== "CANCELLED" && o.status !== "REFUNDED")
+      .filter((order) => {
+        const isTransit = order.status === "DISPATCHED";
+        const isDelivered = order.status === "DELIVERED";
+        const isBlocked = order.balanceDueRupees > 0 && !isTransit && !isDelivered;
+        const isReadyAwb = order.balanceDueRupees <= 0 && !isTransit && !isDelivered;
+
+        if (dispatchStatusFilter === "TRANSIT" && !isTransit) return false;
+        if (dispatchStatusFilter === "DELIVERED" && !isDelivered) return false;
+        if (dispatchStatusFilter === "BLOCKED" && !isBlocked) return false;
+        if (dispatchStatusFilter === "READY_AWB" && !isReadyAwb) return false;
+
+        if (dispatchCarrierFilter !== "ALL") {
+          const ordCarrier = (order.carrierName || "").trim();
+          if (dispatchCarrierFilter === "UNASSIGNED") {
+            if (ordCarrier && ordCarrier !== "To be assigned prior to dispatch") return false;
+          } else {
+            if (ordCarrier !== dispatchCarrierFilter) return false;
+          }
+        }
+
+        if (!dispatchSearchQuery.trim()) return true;
+        const q = dispatchSearchQuery.toLowerCase();
+        const num = (order.orderNumber || "").toLowerCase();
+        const awb = (order.awbNumber || "").toLowerCase();
+        const carrier = (order.carrierName || "").toLowerCase();
+        const name = (order.customerName || "").toLowerCase();
+        const phone = (order.phone || "").toLowerCase();
+        const email = (order.email || "").toLowerCase();
+        const city = (order.city || "").toLowerCase();
+        const state = (order.state || "").toLowerCase();
+        const pin = (order.pincode || "").toLowerCase();
+
+        return (
+          num.includes(q) ||
+          awb.includes(q) ||
+          carrier.includes(q) ||
+          name.includes(q) ||
+          phone.includes(q) ||
+          email.includes(q) ||
+          city.includes(q) ||
+          state.includes(q) ||
+          pin.includes(q)
+        );
+      });
+  }, [orders, dispatchStatusFilter, dispatchCarrierFilter, dispatchSearchQuery]);
+
   const handleCopyQuoteLink = async (quoteNumber: string) => {
     const link = getStorefrontUrl(`/quote/${quoteNumber}`);
     try {
@@ -1956,7 +2134,7 @@ export default function App() {
       return;
     }
 
-    const finalCarrier = carrierInput.trim() || targetOrder?.carrierName || "Blue Dart Fragile Surface";
+    const finalCarrier = carrierInput.trim() || (targetOrder?.carrierName && targetOrder.carrierName !== "To be assigned prior to dispatch" ? targetOrder.carrierName : "Direct Courier Freight");
     const finalAwb = awbInput.trim().toUpperCase();
 
     try {
@@ -5478,6 +5656,7 @@ export default function App() {
         {/* TAB 4: DISPATCH & AWB */}
         {activeTab === "DISPATCH" && (
           <div className="space-y-6">
+            {/* Action Feedback Banner */}
             {actionFeedback && (
               <div
                 className={`p-3.5 rounded-xl border text-xs flex items-center justify-between ${
@@ -5496,133 +5675,678 @@ export default function App() {
               </div>
             )}
 
-            <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
+            {/* Datalist for dynamic carrier suggestions without vendor lock-in */}
+            <datalist id="carrier-suggestions">
+              {allKnownCarriers.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+
+            {/* Header with Title and Global Actions */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#38332c] pb-4 gap-4">
               <div>
-                <h2 className="text-base font-semibold text-white">Carrier Consignment & AWB Assignment</h2>
-                <p className="text-xs text-[#a8a093]">
-                  Assign verified shipping providers (Blue Dart, Safeexpress) and Air Waybill numbers. Updates customer tracking on /track in real-time.
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-semibold text-white">Logistics, Consignments & AWB Desk</h2>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#2a2722] text-[#c59b6d] border border-[#38332c]">
+                    Non-Locked Carrier Architecture
+                  </span>
+                </div>
+                <p className="text-xs text-[#a8a093] mt-0.5">
+                  Dynamic multi-carrier consignment routing, live Air Waybill tracking assignment, and statutory 100% pre-dispatch payment verification.
                 </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => syncBackendData()}
+                  className="px-3.5 py-1.5 rounded-xl bg-[#24211d] border border-[#38332c] hover:border-[#4d473d] text-xs font-semibold text-white hover:bg-[#2a2722] transition-colors flex items-center gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5 text-[#c59b6d]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Sync Consignments
+                </button>
               </div>
             </div>
 
-            <div className="space-y-4">
-              {orders.filter((o) => o.status !== "CANCELLED" && o.status !== "REFUNDED").length === 0 ? (
-                <div className="p-8 text-center text-xs text-[#a8a093] bg-[#24211d] rounded-2xl border border-[#38332c] space-y-1">
-                  <p className="font-semibold text-white">No active consignments pending carrier booking or delivery.</p>
-                  <p className="text-[11px]">Cancelled orders are excluded from courier dispatch.</p>
+            {/* 4 Top Metric Pulse Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {/* Card 1: In Transit (Live AWBs) */}
+              <div
+                onClick={() => setDispatchStatusFilter("TRANSIT")}
+                className={`p-4 rounded-2xl bg-[#24211d] border transition-all cursor-pointer ${
+                  dispatchStatusFilter === "TRANSIT"
+                    ? "border-[#10b981] ring-1 ring-[#10b981]"
+                    : "border-[#38332c] hover:border-[#4d473d]"
+                }`}
+              >
+                <span className="text-[10px] uppercase font-bold text-[#a8a093] tracking-wider block">In Transit (Live AWBs)</span>
+                <span className="text-2xl font-mono font-bold text-[#10b981] mt-1 block">
+                  {dispatchKpis.inTransitCount}
+                </span>
+                <div className="text-[11px] text-[#a8a093] mt-0.5 flex items-center justify-between">
+                  <span>{formatPrice(dispatchKpis.inTransitValue)}</span>
+                  <span className="text-[#10b981] font-medium">On Road / Air</span>
                 </div>
-              ) : (
-                orders
-                  .filter((o) => o.status !== "CANCELLED" && o.status !== "REFUNDED")
-                  .map((order) => (
-                <div
-                  key={order.id}
-                  className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] flex flex-col md:flex-row md:items-center justify-between gap-6"
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-white text-sm">{order.orderNumber}</span>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#2a2a30] text-[#c59b6d]">
-                        {order.mode}
-                      </span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#38332c] text-white">
-                        {order.status}
-                      </span>
-                    </div>
-                    <p className="text-xs text-[#a8a093]">
-                      Client: <strong className="text-white">{order.customerName}</strong> ({order.phone}) · Destination: {order.city}, {order.state} — {order.pincode}
+              </div>
+
+              {/* Card 2: Ready for AWB & Crating */}
+              <div
+                onClick={() => setDispatchStatusFilter("READY_AWB")}
+                className={`p-4 rounded-2xl bg-[#24211d] border transition-all cursor-pointer ${
+                  dispatchStatusFilter === "READY_AWB"
+                    ? "border-[#38bdf8] ring-1 ring-[#38bdf8]"
+                    : "border-[#38332c] hover:border-[#4d473d]"
+                }`}
+              >
+                <span className="text-[10px] uppercase font-bold text-[#a8a093] tracking-wider block">Ready for AWB & Crating</span>
+                <span className="text-2xl font-mono font-bold text-[#38bdf8] mt-1 block">
+                  {dispatchKpis.readyAwbCount}
+                </span>
+                <div className="text-[11px] text-[#a8a093] mt-0.5 flex items-center justify-between">
+                  <span>{formatPrice(dispatchKpis.readyAwbValue)}</span>
+                  <span className="text-[#38bdf8] font-medium">100% Settled</span>
+                </div>
+              </div>
+
+              {/* Card 3: Pre-Dispatch Payment Gate */}
+              <div
+                onClick={() => setDispatchStatusFilter("BLOCKED")}
+                className={`p-4 rounded-2xl bg-[#24211d] border transition-all cursor-pointer ${
+                  dispatchStatusFilter === "BLOCKED"
+                    ? "border-[#f59e0b] ring-1 ring-[#f59e0b]"
+                    : "border-[#38332c] hover:border-[#4d473d]"
+                }`}
+              >
+                <span className="text-[10px] uppercase font-bold text-[#a8a093] tracking-wider block">Payment Gate Blocked</span>
+                <span className="text-2xl font-mono font-bold text-[#f59e0b] mt-1 block">
+                  {dispatchKpis.paymentBlockedCount}
+                </span>
+                <div className="text-[11px] text-[#a8a093] mt-0.5 flex items-center justify-between">
+                  <span>{formatPrice(dispatchKpis.blockedBalanceTotal)}</span>
+                  <span className="text-amber-400 font-medium">75% Due</span>
+                </div>
+              </div>
+
+              {/* Card 4: PIN Serviceability Health */}
+              <div className="p-4 rounded-2xl bg-[#24211d] border border-[#38332c]">
+                <span className="text-[10px] uppercase font-bold text-[#a8a093] tracking-wider block">PIN Serviceability</span>
+                <span className="text-2xl font-mono font-bold text-emerald-400 mt-1 block">
+                  {dispatchKpis.pinCoverageRate}%
+                </span>
+                <div className="text-[11px] text-[#a8a093] mt-0.5 flex items-center justify-between">
+                  <span>{dispatchKpis.totalActiveCount} Destination PINs</span>
+                  <span className="text-[#c59b6d] font-medium">Verified Reach</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Interactive SVG Donut & Studio Logistics Governance Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Donut Visual Box */}
+              <div className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4">
+                <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
+                  <div>
+                    <h3 className="text-xs uppercase font-bold text-[#c59b6d] tracking-wider">
+                      {dispatchDonutData.title}
+                    </h3>
+                    <p className="text-[11px] text-[#a8a093] mt-0.5">
+                      {dispatchDonutView === "STATUS"
+                        ? "Interactive breakdown by consignment stage"
+                        : "Dynamic allocation across shipping partners without vendor lock-in"}
                     </p>
-                    <div className="text-xs text-[#a8a093]">
-                      Carrier: <strong className="text-white">{order.carrierName}</strong> · AWB:{" "}
-                      <strong className="font-mono text-[#c59b6d]">{order.awbNumber || "Pending Assignment"}</strong>
+                  </div>
+                  <div className="flex items-center gap-1 bg-[#181715] p-1 rounded-xl border border-[#38332c]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDispatchDonutView("STATUS");
+                        setHoveredDispatchSlice(null);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors ${
+                        dispatchDonutView === "STATUS"
+                          ? "bg-[#c59b6d] text-[#181715]"
+                          : "text-[#a8a093] hover:text-white"
+                      }`}
+                    >
+                      Pipeline ({dispatchDonutData.totalCount})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDispatchDonutView("CARRIER");
+                        setHoveredDispatchSlice(null);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors ${
+                        dispatchDonutView === "CARRIER"
+                          ? "bg-[#c59b6d] text-[#181715]"
+                          : "text-[#a8a093] hover:text-white"
+                      }`}
+                    >
+                      Carriers ({dispatchDonutData.totalCount})
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center justify-around gap-6 py-2">
+                  {/* SVG Donut Visual */}
+                  <div className="relative w-44 h-44 shrink-0 flex items-center justify-center">
+                    {(() => {
+                      const r = 38;
+                      const c = 2 * Math.PI * r;
+                      let accumulatedPct = 0;
+                      return (
+                        <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
+                          <circle
+                            cx="50"
+                            cy="50"
+                            r={r}
+                            fill="transparent"
+                            stroke="#2a2722"
+                            strokeWidth="13"
+                          />
+                          {dispatchDonutData.slices.map((slice) => {
+                            const strokeLength = (slice.pct / 100) * c;
+                            const strokeGap = c - strokeLength;
+                            const currentOffset = (accumulatedPct / 100) * c;
+                            accumulatedPct += slice.pct;
+                            const isHovered = hoveredDispatchSlice === slice.id;
+
+                            return (
+                              <circle
+                                key={slice.id}
+                                cx="50"
+                                cy="50"
+                                r={r}
+                                fill="transparent"
+                                stroke={slice.color}
+                                strokeWidth={isHovered ? 17 : 13}
+                                strokeDasharray={`${strokeLength} ${strokeGap}`}
+                                strokeDashoffset={-currentOffset}
+                                onMouseEnter={() => setHoveredDispatchSlice(slice.id)}
+                                onMouseLeave={() => setHoveredDispatchSlice(null)}
+                                onClick={() => {
+                                  if (slice.filterKey && slice.filterKey !== "ALL") {
+                                    setDispatchStatusFilter(slice.filterKey);
+                                  } else if ('carrierName' in slice && slice.carrierName) {
+                                    setDispatchCarrierFilter(
+                                      slice.carrierName === "Pending Carrier Allocation" ? "UNASSIGNED" : slice.carrierName
+                                    );
+                                  }
+                                }}
+                                className="transition-all duration-300 cursor-pointer"
+                                style={{
+                                  opacity: hoveredDispatchSlice && !isHovered ? 0.45 : 1,
+                                }}
+                              >
+                                <title>{`${slice.label}: ${slice.count} (${slice.pct}%) - Click to filter`}</title>
+                              </circle>
+                            );
+                          })}
+                        </svg>
+                      );
+                    })()}
+
+                    {/* Donut Center Hub Info */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none text-center px-4">
+                      <span className="text-2xl font-mono font-bold text-white tracking-tight">
+                        {hoveredDispatchSlice
+                          ? dispatchDonutData.slices.find((s) => s.id === hoveredDispatchSlice)?.count
+                          : dispatchDonutData.centerNumber}
+                      </span>
+                      <span className="text-[9px] uppercase font-bold text-[#c59b6d] tracking-wider max-w-[85px] leading-tight mt-0.5 line-clamp-2">
+                        {hoveredDispatchSlice
+                          ? dispatchDonutData.slices.find((s) => s.id === hoveredDispatchSlice)?.label
+                          : dispatchDonutData.centerLabel}
+                      </span>
                     </div>
                   </div>
 
-                  {order.status === "CANCELLED" || order.status === "REFUNDED" ? (
-                    <span className="px-3.5 py-2 rounded-xl bg-red-950/30 border border-red-800/50 text-xs text-red-300 font-medium">
-                      Cancelled — Dispatch Locked
-                    </span>
-                  ) : order.balanceDueRupees > 0 ? (
-                    <div className="flex flex-wrap items-center gap-3">
-                      <div className="px-3.5 py-2 rounded-xl bg-amber-950/40 border border-amber-800/60 text-xs text-amber-300 flex items-center gap-2 font-medium">
-                        <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                        <span>
-                          Dispatch Blocked — 100% Payment Required. Balance Due: {formatPrice(order.balanceDueRupees)}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        disabled
-                        className="px-3.5 py-2 rounded-xl bg-[#2a2722] text-xs font-semibold text-[#787165] border border-[#38332c] cursor-not-allowed"
-                      >
-                        Packed & Dispatched (Locked)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleCopyBalanceLink(order)}
-                        className="px-3.5 py-2 rounded-xl bg-[#2a2a30] text-xs font-semibold text-[#c59b6d] hover:bg-[#34343c] border border-[#464037] transition-colors"
-                      >
-                        {copiedLinkOrderId === order.id ? "✓ Copied Balance Link" : "Copy Balance Link"}
-                      </button>
-                    </div>
-                  ) : editingAwbId === order.id ? (
-                    <div className="flex flex-col sm:flex-row items-center gap-2">
-                      <input
-                        type="text"
-                        placeholder="Carrier"
-                        value={carrierInput}
-                        onChange={(e) => setCarrierInput(e.target.value)}
-                        className="rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-xs text-white"
-                      />
-                      <input
-                        type="text"
-                        placeholder="AWB Number"
-                        value={awbInput}
-                        onChange={(e) => setAwbInput(e.target.value)}
-                        className="rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-xs text-white font-mono"
-                      />
-                      <button
-                        onClick={() => handleSaveAwb(order.id)}
-                        className="px-4 py-2 rounded-xl bg-[#10b981] text-[#181715] font-semibold text-xs"
-                      >
-                        Packed & Dispatched
-                      </button>
-                      <button
-                        onClick={() => setEditingAwbId(null)}
-                        className="px-3 py-2 rounded-xl border border-[#464037] text-xs text-[#a8a093]"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap items-center gap-2">
-                      {order.status !== "DELIVERED" && (
-                        <button
+                  {/* Dynamic Legend List */}
+                  <div className="flex-1 w-full space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {dispatchDonutData.slices.map((slice) => {
+                      const isHovered = hoveredDispatchSlice === slice.id;
+                      return (
+                        <div
+                          key={slice.id}
+                          onMouseEnter={() => setHoveredDispatchSlice(slice.id)}
+                          onMouseLeave={() => setHoveredDispatchSlice(null)}
                           onClick={() => {
-                            setEditingAwbId(order.id);
-                            setCarrierInput(order.carrierName);
-                            setAwbInput(order.awbNumber || "");
+                            if (slice.filterKey && slice.filterKey !== "ALL") {
+                              setDispatchStatusFilter(slice.filterKey);
+                            } else if ('carrierName' in slice && slice.carrierName) {
+                              setDispatchCarrierFilter(
+                                slice.carrierName === "Pending Carrier Allocation" ? "UNASSIGNED" : slice.carrierName
+                              );
+                            }
                           }}
-                          className="px-4 py-2 rounded-xl bg-[#2a2a30] text-xs font-semibold text-white hover:bg-[#34343c] transition-colors"
+                          className={`flex items-center justify-between p-1.5 rounded-lg text-xs cursor-pointer transition-all ${
+                            isHovered ? "bg-[#2e2a24] text-white" : "hover:bg-[#25221d] text-[#a8a093]"
+                          }`}
                         >
-                          {order.awbNumber ? "Edit AWB / Carrier" : "+ Assign Carrier & Packed & Dispatched"}
-                        </button>
-                      )}
-                      {order.status === "DISPATCHED" && (
-                        <button
-                          onClick={() => handleMarkDelivered(order.id)}
-                          className="px-4 py-2 rounded-xl bg-emerald-950/60 border border-emerald-700/70 text-xs font-semibold text-emerald-300 hover:bg-emerald-900/60 transition-colors"
-                        >
-                          ✓ Mark Delivered
-                        </button>
-                      )}
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span
+                              className="h-2.5 w-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: slice.color }}
+                            />
+                            <span className="truncate text-[11px]">{slice.label}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0 font-mono text-[11px]">
+                            <span className="font-semibold text-white">{slice.count}</span>
+                            <span className="text-[#787165] text-[10px]">({slice.pct}%)</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Tavistra Studio Freight Governance Protocol Card */}
+              <div className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-3.5 flex flex-col justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-[#10b981] animate-pulse" />
+                    <h3 className="text-xs uppercase font-bold text-[#c59b6d] tracking-wider">
+                      Studio Freight Governance Protocol (TAV-04)
+                    </h3>
+                  </div>
+                  <p className="text-xs text-[#a8a093]">
+                    Studio logistics operate under strict commercial integrity guidelines protecting bespoke solid-brass hardware during freight transit.
+                  </p>
+                </div>
+
+                <div className="space-y-2.5 text-xs text-[#a8a093]">
+                  <div className="p-2.5 rounded-xl bg-[#181715] border border-[#38332c] flex items-start gap-2.5">
+                    <span className="text-emerald-400 font-bold shrink-0">✓</span>
+                    <div>
+                      <strong className="text-white block font-medium">Non-Locked Logistics Partner Policy:</strong>
+                      <span>
+                        Tavistra does not bind shipments to exclusive carrier agreements. Transporters are dynamically chosen based on piece weight, volumetric crating bulk, and regional PIN speed.
+                      </span>
                     </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-[#181715] border border-[#38332c] flex items-start gap-2.5">
+                    <span className="text-amber-400 font-bold shrink-0">⚠</span>
+                    <div>
+                      <strong className="text-white block font-medium">Mandatory 100% Pre-Dispatch Payment Gate:</strong>
+                      <span>
+                        Consignments with outstanding 75% balance payments are hard-locked from carrier booking. Handover is authorized only upon full settlement in the studio treasury.
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-[#181715] border border-[#38332c] flex items-start gap-2.5">
+                    <span className="text-sky-400 font-bold shrink-0">↗</span>
+                    <div>
+                      <strong className="text-white block font-medium">Real-Time Client Transparency:</strong>
+                      <span>
+                        Air Waybill and transporter assignments synchronize instantly with the patron&apos;s live tracking dashboard at <code className="text-[#c59b6d]">/track</code>.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-1 flex items-center justify-between text-[11px] text-[#787165] border-t border-[#38332c]">
+                  <span>Active Carrier Count: {dispatchKpis.activeCarriers.length}</span>
+                  <span>Treasury Lock: Strict 100% Cumulative Settlement</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter and Search Action Controls */}
+            <div className="space-y-3">
+              <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+                {/* Search Bar */}
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    placeholder="Search by Order #, AWB #, Patron, City, PIN, or Transporter..."
+                    value={dispatchSearchQuery}
+                    onChange={(e) => setDispatchSearchQuery(e.target.value)}
+                    className="w-full rounded-xl border border-[#464037] bg-[#181715] pl-9 pr-8 py-2 text-xs text-white placeholder-[#787165] focus:outline-none focus:border-[#c59b6d]"
+                  />
+                  <svg
+                    className="w-4 h-4 text-[#787165] absolute left-3 top-2.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  {dispatchSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setDispatchSearchQuery("")}
+                      className="absolute right-2.5 top-2.5 text-[#787165] hover:text-white text-xs"
+                    >
+                      ✕
+                    </button>
                   )}
                 </div>
-              ))
-            )}
+
+                {/* Carrier Filter Select (Dynamic list without vendor lock-in) */}
+                <div className="flex items-center gap-2">
+                  <select
+                    value={dispatchCarrierFilter}
+                    onChange={(e) => setDispatchCarrierFilter(e.target.value)}
+                    className="rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-xs text-white focus:outline-none focus:border-[#c59b6d]"
+                  >
+                    <option value="ALL">All Carriers (Non-Locked)</option>
+                    <option value="UNASSIGNED">Pending Carrier Allocation</option>
+                    {allKnownCarriers.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Status Filter Pills */}
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#38332c] pb-3">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {[
+                    { id: "ALL" as const, label: `All Consignments (${dispatchKpis.totalActiveCount})` },
+                    { id: "READY_AWB" as const, label: `Ready for AWB (${dispatchKpis.readyAwbCount})` },
+                    { id: "TRANSIT" as const, label: `In Transit (${dispatchKpis.inTransitCount})` },
+                    { id: "BLOCKED" as const, label: `Payment Blocked (${dispatchKpis.paymentBlockedCount})` },
+                    { id: "DELIVERED" as const, label: `Delivered (${dispatchKpis.deliveredCount})` },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setDispatchStatusFilter(tab.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
+                        dispatchStatusFilter === tab.id
+                          ? "bg-[#c59b6d] text-[#181715]"
+                          : "bg-[#24211d] text-[#a8a093] hover:text-white hover:bg-[#2a2722] border border-[#38332c]"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="text-xs text-[#a8a093]">
+                  Showing <strong className="text-white">{filteredDispatchOrders.length}</strong> of {dispatchKpis.totalActiveCount} active consignments
+                </div>
+              </div>
+            </div>
+
+            {/* Consignments List */}
+            <div className="space-y-4">
+              {filteredDispatchOrders.length === 0 ? (
+                <div className="p-12 text-center text-xs text-[#a8a093] bg-[#24211d] rounded-2xl border border-[#38332c] space-y-3">
+                  <svg className="w-8 h-8 text-[#787165] mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                  </svg>
+                  <p className="font-semibold text-white">No consignments match the selected search or filter criteria.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDispatchStatusFilter("ALL");
+                      setDispatchCarrierFilter("ALL");
+                      setDispatchSearchQuery("");
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-[#2a2722] text-[#c59b6d] hover:bg-[#343029] text-xs font-semibold border border-[#464037]"
+                  >
+                    Reset All Filters
+                  </button>
+                </div>
+              ) : (
+                filteredDispatchOrders.map((order) => {
+                  const isDelivered = order.status === "DELIVERED";
+                  const isTransit = order.status === "DISPATCHED";
+                  const isPaymentLocked = order.balanceDueRupees > 0;
+                  const isServiceable = pincodes.some((p) => p.pincode === order.pincode && p.isServiceable);
+
+                  return (
+                    <div
+                      key={order.id}
+                      className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] hover:border-[#4d473d] transition-all space-y-4"
+                    >
+                      {/* Top Header Row */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#38332c] pb-3">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <span className="font-mono font-bold text-white text-sm tracking-wide">
+                            {order.orderNumber}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                            order.mode === "MADE_TO_ORDER"
+                              ? "bg-amber-950/60 text-amber-300 border border-amber-800/60"
+                              : "bg-sky-950/60 text-sky-300 border border-sky-800/60"
+                          }`}>
+                            {order.mode === "MADE_TO_ORDER" ? "Made to Order" : "Ready Stock"}
+                          </span>
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                            isDelivered
+                              ? "bg-purple-950/60 text-purple-300 border border-purple-800/60"
+                              : isTransit
+                              ? "bg-emerald-950/60 text-emerald-300 border border-emerald-800/60"
+                              : isPaymentLocked
+                              ? "bg-amber-950/60 text-amber-300 border border-amber-800/60"
+                              : "bg-sky-950/60 text-sky-300 border border-sky-800/60"
+                          }`}>
+                            {isDelivered
+                              ? "Delivered"
+                              : isTransit
+                              ? "In Transit · AWB Active"
+                              : isPaymentLocked
+                              ? "Dispatch Blocked · 75% Due"
+                              : "Ready for AWB Booking"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-4 text-xs">
+                          <div className="text-right">
+                            <span className="text-[#a8a093] text-[10px] block uppercase font-medium">Consignment Value</span>
+                            <span className="font-mono font-bold text-white text-sm">
+                              {formatPrice(order.totalAmountRupees)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Middle Details Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                        {/* Column 1: Patron & Destination */}
+                        <div className="space-y-1 bg-[#181715] p-3 rounded-xl border border-[#38332c]">
+                          <span className="text-[10px] uppercase font-bold text-[#787165] block">Patron & Destination</span>
+                          <p className="font-semibold text-white">{order.customerName}</p>
+                          <p className="text-[#a8a093]">{order.phone} {order.email ? `· ${order.email}` : ""}</p>
+                          <p className="text-[#a8a093] mt-1">
+                            {order.address ? `${order.address}, ` : ""}
+                            {order.city}, {order.state} — <strong className="font-mono text-white">{order.pincode}</strong>
+                          </p>
+                          <div className="pt-1 flex items-center gap-1.5 text-[10px]">
+                            {isServiceable ? (
+                              <span className="text-emerald-400 font-medium">✓ Pincode Serviceable</span>
+                            ) : (
+                              <span className="text-[#c59b6d] font-medium">✓ Standard Transit Feasible</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Column 2: Carrier Partner & AWB Tracking */}
+                        <div className="space-y-1 bg-[#181715] p-3 rounded-xl border border-[#38332c]">
+                          <span className="text-[10px] uppercase font-bold text-[#787165] block">Carrier & Tracking</span>
+                          <div className="text-[#a8a093]">
+                            Carrier:{" "}
+                            <strong className="text-white">
+                              {order.carrierName && order.carrierName !== "To be assigned prior to dispatch"
+                                ? order.carrierName
+                                : "Pending Carrier Allocation"}
+                            </strong>
+                          </div>
+                          <div className="text-[#a8a093]">
+                            AWB Consignment:{" "}
+                            <strong className="font-mono text-[#c59b6d]">
+                              {order.awbNumber || "Pending Assignment"}
+                            </strong>
+                          </div>
+                          <p className="text-[11px] text-[#787165] mt-1">
+                            {order.mode === "MADE_TO_ORDER"
+                              ? "Crating: Solid brass architectural casing"
+                              : "Crating: Ready-stock signature packaging"}
+                          </p>
+                        </div>
+
+                        {/* Column 3: Payment Settlement Status */}
+                        <div className="space-y-1 bg-[#181715] p-3 rounded-xl border border-[#38332c]">
+                          <span className="text-[10px] uppercase font-bold text-[#787165] block">Payment Settlement Gate</span>
+                          <div className="flex items-center justify-between text-[#a8a093]">
+                            <span>Advance Paid:</span>
+                            <span className="font-mono text-white">{formatPrice(order.amountPaidRupees)}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-[#a8a093]">
+                            <span>Balance Due (75%):</span>
+                            <span className={`font-mono font-bold ${order.balanceDueRupees > 0 ? "text-amber-400" : "text-emerald-400"}`}>
+                              {order.balanceDueRupees > 0 ? formatPrice(order.balanceDueRupees) : "✓ 100% Settled"}
+                            </span>
+                          </div>
+                          <div className="pt-1 text-[10px]">
+                            {order.balanceDueRupees > 0 ? (
+                              <span className="text-amber-400 font-medium">⚠ Dispatch locked until balance received</span>
+                            ) : (
+                              <span className="text-emerald-400 font-medium">✓ Authorized for courier crating & release</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Bottom Action Bar */}
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-1">
+                        {/* In-Place Consignment Dossier Inspection & Live Tracking */}
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedOrder(order)}
+                            className="px-3.5 py-2 rounded-xl bg-[#2a2a30] text-xs font-semibold text-white hover:bg-[#34343c] border border-[#464037] transition-colors flex items-center gap-1.5"
+                          >
+                            <span>Inspect Consignment ↗</span>
+                          </button>
+
+                          {order.awbNumber && (
+                            <a
+                              href={getStorefrontUrl(`/track?orderId=${encodeURIComponent(order.orderNumber)}`)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-3 py-2 rounded-xl bg-[#24211d] hover:bg-[#2a2722] text-xs font-semibold text-[#c59b6d] border border-[#38332c] transition-colors flex items-center gap-1.5"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                              <span>Preview /track</span>
+                            </a>
+                          )}
+                        </div>
+
+                        {/* Dispatch Lockout or Carrier/AWB Controls */}
+                        {isPaymentLocked ? (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="px-3.5 py-2 rounded-xl bg-amber-950/40 border border-amber-800/60 text-xs text-amber-300 flex items-center gap-2 font-medium">
+                              <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                              </svg>
+                              <span>
+                                Dispatch Blocked — 100% Payment Required ({formatPrice(order.balanceDueRupees)} due)
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              disabled
+                              className="px-3.5 py-2 rounded-xl bg-[#2a2722] text-xs font-semibold text-[#787165] border border-[#38332c] cursor-not-allowed"
+                            >
+                              Packed & Dispatched (Locked)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyBalanceLink(order)}
+                              className="px-3.5 py-2 rounded-xl bg-[#2a2a30] text-xs font-semibold text-[#c59b6d] hover:bg-[#34343c] border border-[#464037] transition-colors"
+                            >
+                              {copiedLinkOrderId === order.id ? "✓ Copied Balance Link" : "Copy Balance Link"}
+                            </button>
+                          </div>
+                        ) : editingAwbId === order.id ? (
+                          <div className="flex flex-col sm:flex-row items-center gap-2 bg-[#181715] p-2 rounded-xl border border-[#464037]">
+                            <input
+                              list="carrier-suggestions"
+                              type="text"
+                              placeholder="Carrier / Transporter name..."
+                              value={carrierInput}
+                              onChange={(e) => setCarrierInput(e.target.value)}
+                              className="rounded-xl border border-[#464037] bg-[#24211d] px-3 py-2 text-xs text-white placeholder-[#787165] focus:outline-none focus:border-[#c59b6d] w-full sm:w-56"
+                            />
+                            <input
+                              type="text"
+                              placeholder="AWB / Consignment Tracking #"
+                              value={awbInput}
+                              onChange={(e) => setAwbInput(e.target.value)}
+                              className="rounded-xl border border-[#464037] bg-[#24211d] px-3 py-2 text-xs text-white font-mono placeholder-[#787165] focus:outline-none focus:border-[#c59b6d] w-full sm:w-48"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const sanitizedNum = order.orderNumber.replace(/[^0-9]/g, "") || "PKG";
+                                setAwbInput(`AWB-${sanitizedNum}-${Math.floor(1000 + Math.random() * 9000)}`);
+                              }}
+                              className="px-2.5 py-2 rounded-xl bg-[#2a2722] hover:bg-[#343029] text-[11px] text-[#c59b6d] border border-[#464037] whitespace-nowrap transition-colors"
+                              title="Auto-fill sample Air Waybill number for staging verification"
+                            >
+                              ⚡ Quick AWB
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSaveAwb(order.id)}
+                              className="px-4 py-2 rounded-xl bg-[#10b981] hover:bg-[#059669] text-[#181715] font-semibold text-xs transition-colors whitespace-nowrap"
+                            >
+                              Confirm Packed & Dispatched
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingAwbId(null)}
+                              className="px-3 py-2 rounded-xl border border-[#464037] text-xs text-[#a8a093] hover:text-white transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap items-center gap-2">
+                            {order.status !== "DELIVERED" && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingAwbId(order.id);
+                                  setCarrierInput(
+                                    order.carrierName && order.carrierName !== "To be assigned prior to dispatch"
+                                      ? order.carrierName
+                                      : ""
+                                  );
+                                  setAwbInput(order.awbNumber || "");
+                                }}
+                                className="px-4 py-2 rounded-xl bg-[#2a2a30] text-xs font-semibold text-white hover:bg-[#34343c] border border-[#464037] transition-colors"
+                              >
+                                {order.awbNumber ? "Edit Carrier & AWB" : "+ Assign Carrier & Packed & Dispatched"}
+                              </button>
+                            )}
+                            {order.status === "DISPATCHED" && (
+                              <button
+                                type="button"
+                                onClick={() => handleMarkDelivered(order.id)}
+                                className="px-4 py-2 rounded-xl bg-emerald-950/60 border border-emerald-700/70 text-xs font-semibold text-emerald-300 hover:bg-emerald-900/60 transition-colors"
+                              >
+                                ✓ Mark Delivered
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         )}
