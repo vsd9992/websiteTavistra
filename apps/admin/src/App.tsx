@@ -176,6 +176,17 @@ export default function App() {
   });
   const [isSubmittingRevision, setIsSubmittingRevision] = useState(false);
 
+  // Proposal & Inquiry View Controls (TAV-07)
+  const [proposalViewSegment, setProposalViewSegment] = useState<"ALL" | "PROPOSALS" | "INQUIRIES">("ALL");
+  const [proposalSearchQuery, setProposalSearchQuery] = useState("");
+  const [proposalStatusFilter, setProposalStatusFilter] = useState<"ALL" | "ACTIVE" | "ACCEPTED" | "EXPIRED">("ALL");
+  const [inquiryStatusFilter, setInquiryStatusFilter] = useState<"ALL" | "NEW" | "QUOTE_ISSUED" | "ORDER_CONFIRMED">("ALL");
+  const [selectedInquiry, setSelectedInquiry] = useState<BulkInquiry | null>(null);
+  const [selectedProposal, setSelectedProposal] = useState<AdminProposal | null>(null);
+  const [copiedQuoteNumber, setCopiedQuoteNumber] = useState<string | null>(null);
+  const [proposalsDonutView, setProposalsDonutView] = useState<"PIPELINE" | "STATUS">("PIPELINE");
+  const [hoveredProposalSlice, setHoveredProposalSlice] = useState<string | null>(null);
+
   // Markdown Product Importer State
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [markdownInput, setMarkdownInput] = useState("");
@@ -960,6 +971,236 @@ export default function App() {
     setTimeout(() => {
       setCopiedLinkOrderId((prev) => (prev === order.id ? null : prev));
     }, 4000);
+  };
+
+  // Filtered Proposals (TAV-07)
+  const filteredProposals = useMemo(() => {
+    const now = Date.now();
+    return proposals.filter((p) => {
+      const isAccepted = p.status === "ACCEPTED";
+      const expiresMs = p.expiresAt ? new Date(p.expiresAt).getTime() : 0;
+      const isExpired = p.status === "EXPIRED" || (!isAccepted && expiresMs > 0 && expiresMs < now);
+      const isActive = !isAccepted && !isExpired;
+
+      if (proposalStatusFilter === "ACTIVE" && !isActive) return false;
+      if (proposalStatusFilter === "ACCEPTED" && !isAccepted) return false;
+      if (proposalStatusFilter === "EXPIRED" && !isExpired) return false;
+
+      if (!proposalSearchQuery.trim()) return true;
+      const q = proposalSearchQuery.trim().toLowerCase();
+      const latestVer = p.versions?.[0];
+      const specs = (p.projectSpecifications || latestVer?.specifications || "").toLowerCase();
+
+      return (
+        p.quoteNumber.toLowerCase().includes(q) ||
+        p.customerName.toLowerCase().includes(q) ||
+        p.customerEmail.toLowerCase().includes(q) ||
+        (p.customerPhone && p.customerPhone.toLowerCase().includes(q)) ||
+        (p.deliveryPincode && p.deliveryPincode.includes(q)) ||
+        (p.linkedOrderNumber && p.linkedOrderNumber.toLowerCase().includes(q)) ||
+        specs.includes(q)
+      );
+    });
+  }, [proposals, proposalStatusFilter, proposalSearchQuery]);
+
+  // Filtered Inquiries (TAV-07)
+  const filteredInquiries = useMemo(() => {
+    return inquiries.filter((inq) => {
+      if (inquiryStatusFilter === "NEW" && inq.status !== "NEW" && inq.status !== "IN_REVIEW") return false;
+      if (inquiryStatusFilter === "QUOTE_ISSUED" && inq.status !== "QUOTE_ISSUED") return false;
+      if (inquiryStatusFilter === "ORDER_CONFIRMED" && inq.status !== "ORDER_CONFIRMED") return false;
+
+      if (!proposalSearchQuery.trim()) return true;
+      const q = proposalSearchQuery.trim().toLowerCase();
+      const inqNum = (inq.inquiryNumber || inq.id).toLowerCase();
+      const client = (inq.clientName || "").toLowerCase();
+      const studio = (inq.practiceOrStudio || "").toLowerCase();
+      const email = (inq.email || "").toLowerCase();
+      const phone = (inq.phone || "").toLowerCase();
+      const city = (inq.destinationCity || "").toLowerCase();
+      const pin = inq.destinationPincode || "";
+      const editions = (inq.requestedEditions || "").toLowerCase();
+      const specs = (inq.specifications || "").toLowerCase();
+      const quote = (inq.quoteNumber || "").toLowerCase();
+      const order = (inq.orderNumber || "").toLowerCase();
+
+      return (
+        inqNum.includes(q) ||
+        client.includes(q) ||
+        studio.includes(q) ||
+        email.includes(q) ||
+        phone.includes(q) ||
+        city.includes(q) ||
+        pin.includes(q) ||
+        editions.includes(q) ||
+        specs.includes(q) ||
+        quote.includes(q) ||
+        order.includes(q)
+      );
+    });
+  }, [inquiries, inquiryStatusFilter, proposalSearchQuery]);
+
+  // Inquiries & Proposals KPIs
+  const proposalsKpis = useMemo(() => {
+    const now = Date.now();
+    let activePipelineValue = 0;
+    let activeCount = 0;
+    let acceptedValue = 0;
+    let acceptedCount = 0;
+    let expiredCount = 0;
+    let nearingExpiryCount = 0;
+
+    proposals.forEach((p) => {
+      const latestVer = p.versions?.[0];
+      const amount = latestVer ? Number(latestVer.quotedAmount) || 0 : 0;
+      const isAccepted = p.status === "ACCEPTED";
+      const expiresMs = p.expiresAt ? new Date(p.expiresAt).getTime() : 0;
+      const isExpired = p.status === "EXPIRED" || (!isAccepted && expiresMs > 0 && expiresMs < now);
+      const daysLeft = expiresMs > 0 ? Math.ceil((expiresMs - now) / (1000 * 60 * 60 * 24)) : 30;
+
+      if (isAccepted) {
+        acceptedCount++;
+        acceptedValue += amount;
+      } else if (isExpired) {
+        expiredCount++;
+      } else {
+        activeCount++;
+        activePipelineValue += amount;
+        if (daysLeft <= 7 && daysLeft > 0) {
+          nearingExpiryCount++;
+        }
+      }
+    });
+
+    const totalClosedOrActive = acceptedCount + activeCount + expiredCount;
+    const acceptanceRate = totalClosedOrActive > 0 ? Math.round((acceptedCount / totalClosedOrActive) * 100) : 0;
+
+    const newInquiriesCount = inquiries.filter((i) => i.status === "NEW" || i.status === "IN_REVIEW").length;
+    const quoteIssuedInquiriesCount = inquiries.filter((i) => i.status === "QUOTE_ISSUED").length;
+    const convertedInquiriesCount = inquiries.filter((i) => i.status === "ORDER_CONFIRMED").length;
+
+    return {
+      activePipelineValue,
+      activeCount,
+      acceptedValue,
+      acceptedCount,
+      expiredCount,
+      nearingExpiryCount,
+      acceptanceRate,
+      newInquiriesCount,
+      quoteIssuedInquiriesCount,
+      convertedInquiriesCount,
+      totalInquiriesCount: inquiries.length,
+      totalProposalsCount: proposals.length,
+    };
+  }, [proposals, inquiries]);
+
+  // Proposals & Inquiries Donut Data
+  const proposalsDonutData = useMemo(() => {
+    if (proposalsDonutView === "PIPELINE") {
+      const newInquiries = proposalsKpis.newInquiriesCount;
+      const activeOffers = proposalsKpis.activeCount;
+      const convertedOrders = proposalsKpis.acceptedCount + proposalsKpis.convertedInquiriesCount;
+      const expiredOffers = proposalsKpis.expiredCount;
+
+      const slices = [
+        { id: "NEW_INQUIRIES", label: "New Inquiries", count: newInquiries, color: "#f59e0b", segment: "INQUIRIES" as const },
+        { id: "ACTIVE_OFFERS", label: "Active 30-Day Offers", count: activeOffers, color: "#c59b6d", segment: "PROPOSALS" as const },
+        { id: "CONVERTED", label: "Converted to Order", count: convertedOrders, color: "#10b981", segment: "ALL" as const },
+        { id: "EXPIRED", label: "Expired Offers", count: expiredOffers, color: "#f43f5e", segment: "PROPOSALS" as const },
+      ].filter((s) => s.count > 0);
+
+      const totalCount = slices.reduce((acc, s) => acc + s.count, 0) || 1;
+      return {
+        slices: slices.map((s) => ({
+          ...s,
+          pct: Math.round((s.count / totalCount) * 100),
+        })),
+        totalCount,
+        title: "Commercial Conversion Funnel",
+        centerNumber: proposals.length + inquiries.length,
+        centerLabel: "Total Records",
+      };
+    } else {
+      const activeCount = proposalsKpis.activeCount;
+      const acceptedCount = proposalsKpis.acceptedCount;
+      const expiredCount = proposalsKpis.expiredCount;
+
+      const slices = [
+        { id: "ACTIVE", label: "Active 30-Day Guarantee", count: activeCount, color: "#c59b6d", statusKey: "ACTIVE" as const },
+        { id: "ACCEPTED", label: "Accepted by Client", count: acceptedCount, color: "#10b981", statusKey: "ACCEPTED" as const },
+        { id: "EXPIRED", label: "Offer Expired", count: expiredCount, color: "#f43f5e", statusKey: "EXPIRED" as const },
+      ].filter((s) => s.count > 0);
+
+      const totalCount = slices.reduce((acc, s) => acc + s.count, 0) || 1;
+      return {
+        slices: slices.map((s) => ({
+          ...s,
+          pct: Math.round((s.count / totalCount) * 100),
+        })),
+        totalCount,
+        title: "Quotation Commitment Status",
+        centerNumber: proposals.length,
+        centerLabel: "Proposals",
+      };
+    }
+  }, [proposalsDonutView, proposalsKpis, proposals.length, inquiries.length]);
+
+  const handleCopyQuoteLink = async (quoteNumber: string) => {
+    const link = getStorefrontUrl(`/quote/${quoteNumber}`);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(link);
+      }
+    } catch {
+      // Clipboard fallback
+    }
+    setCopiedQuoteNumber(quoteNumber);
+    setActionFeedback({
+      type: "success",
+      text: `Copied proposal URL for ${quoteNumber}: ${link}`,
+    });
+    setTimeout(() => {
+      setCopiedQuoteNumber((curr) => (curr === quoteNumber ? null : curr));
+    }, 4000);
+  };
+
+  const handleOpenProposalFromInquiry = (inq: BulkInquiry) => {
+    const parsedItems =
+      inq.lineItems && inq.lineItems.length > 0
+        ? inq.lineItems
+        : parseInquiryLineItems(inq.lineItemsJson, inq.specifications);
+
+    const units = Math.max(1, inq.quantityUnits || 10);
+    const resolvedLineItems =
+      parsedItems.length > 0
+        ? parsedItems.map((item) => ({
+            name: item.name,
+            finish: item.finish || "Studio Hand-Crafted Patina Finish",
+            quantity: Math.max(1, Number(item.quantity) || 1),
+            unitPriceRupees: Math.max(1, Number(item.unitPriceRupees) || 1000),
+          }))
+        : [
+            {
+              name: inq.requestedEditions || "Bespoke Architectural Editions",
+              finish: "Studio Hand-Crafted Patina Finish",
+              quantity: units,
+              unitPriceRupees: Math.round(125000 / units),
+            },
+          ];
+
+    setProposalForm({
+      inquiryId: inq.id,
+      customerName: inq.clientName,
+      customerEmail: inq.email,
+      customerPhone: inq.phone,
+      deliveryPincode: inq.destinationPincode || "110001",
+      lineItems: resolvedLineItems,
+      deliveryChargeRupees: 4500,
+      estimatedLeadWeeks: 6,
+      notes: `Client Inquiry Brief (${inq.inquiryNumber || inq.id}):\n${inq.specifications || "Trade / hospitality consignment"}`,
+    });
+    setIsProposalModalOpen(true);
   };
 
   // Release MTO order to workshop (strict Day 8 IST enforcement)
@@ -4885,306 +5126,716 @@ export default function App() {
 
         {/* TAB: INQUIRIES & PROPOSALS (TAV-07) */}
         {activeTab === "PROPOSALS" && (
-          <div className="space-y-8">
+          <div className="space-y-6">
             {/* Header */}
             <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#38332c] pb-4">
               <div>
-                <h2 className="text-base font-semibold text-white">Commercial Inquiries & 30-Day Architectural Proposals</h2>
-                <p className="text-xs text-[#a8a093]">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-semibold text-white">Commercial Inquiries &amp; 30-Day Architectural Proposals</h2>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-[#2e2a24] text-[#c59b6d] border border-[#464037]">
+                    TAV-07 Price Protection
+                  </span>
+                </div>
+                <p className="text-xs text-[#a8a093] mt-0.5">
                   Architectural trade inquiries, locked 30-day proposals (TAV-07), and verified 25% production advance conversions.
                 </p>
               </div>
-              <button
-                onClick={() => {
-                  setProposalForm({
-                    inquiryId: "",
-                    customerName: "",
-                    customerEmail: "",
-                    customerPhone: "",
-                    deliveryPincode: "110001",
-                    lineItems: [
-                      {
-                        name: "Bespoke Walnut Credenza with aged brass trim",
-                        finish: "Hand-rubbed oil & antiqued brass",
-                        quantity: 1,
-                        unitPriceRupees: 65000,
-                      },
-                    ],
-                    deliveryChargeRupees: 3500,
-                    estimatedLeadWeeks: 6,
-                    notes: "",
-                  });
-                  setIsProposalModalOpen(true);
-                }}
-                className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#181715] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors shadow-sm"
-              >
-                + Issue Bespoke 30-Day Proposal
-              </button>
+              <div className="flex items-center gap-2">
+                {canCreateQuote ? (
+                  <button
+                    onClick={() => {
+                      setProposalForm({
+                        inquiryId: "",
+                        customerName: "",
+                        customerEmail: "",
+                        customerPhone: "",
+                        deliveryPincode: "110001",
+                        lineItems: [
+                          {
+                            name: "Bespoke Walnut Credenza with aged brass trim",
+                            finish: "Hand-rubbed oil & antiqued brass",
+                            quantity: 1,
+                            unitPriceRupees: 65000,
+                          },
+                        ],
+                        deliveryChargeRupees: 3500,
+                        estimatedLeadWeeks: 6,
+                        notes: "",
+                      });
+                      setIsProposalModalOpen(true);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#181715] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors shadow-sm"
+                  >
+                    + Issue Bespoke 30-Day Proposal
+                  </button>
+                ) : (
+                  <div className="px-3 py-1.5 rounded-xl bg-[#24211d] border border-[#38332c] text-[11px] text-[#787165]">
+                    Requires Commerce Admin to Formulate Quotes
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Top Metric Pulse Cards (4 Cards) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Card 1: Active Quoted Pipeline */}
+              <div className="rounded-2xl border border-[#38332c] bg-[#24211d] p-4 space-y-1">
+                <div className="flex items-center justify-between text-xs text-[#a8a093]">
+                  <span>Active Quoted Pipeline</span>
+                  <span className="text-[#c59b6d]">●</span>
+                </div>
+                <div className="text-xl font-bold font-mono text-white">
+                  {formatPrice(proposalsKpis.activePipelineValue)}
+                </div>
+                <div className="text-[11px] text-[#a8a093]">
+                  {proposalsKpis.activeCount} active 30-day offers · 25% queue commitments
+                </div>
+              </div>
+
+              {/* Card 2: Converted Trade Volume */}
+              <div className="rounded-2xl border border-[#38332c] bg-[#24211d] p-4 space-y-1">
+                <div className="flex items-center justify-between text-xs text-[#a8a093]">
+                  <span>Converted Trade Volume</span>
+                  <span className="text-emerald-400">●</span>
+                </div>
+                <div className="text-xl font-bold font-mono text-emerald-400">
+                  {formatPrice(proposalsKpis.acceptedValue)}
+                </div>
+                <div className="text-[11px] text-[#a8a093]">
+                  {proposalsKpis.acceptedCount} converted ({proposalsKpis.acceptanceRate}% acceptance rate)
+                </div>
+              </div>
+
+              {/* Card 3: Incoming Inquiries */}
+              <div className="rounded-2xl border border-[#38332c] bg-[#24211d] p-4 space-y-1">
+                <div className="flex items-center justify-between text-xs text-[#a8a093]">
+                  <span>Architectural Inquiries</span>
+                  <span className={proposalsKpis.newInquiriesCount > 0 ? "text-amber-400" : "text-[#787165]"}>●</span>
+                </div>
+                <div className="text-xl font-bold font-mono text-white">
+                  {proposalsKpis.newInquiriesCount} <span className="text-xs font-normal text-[#a8a093]">New Briefs</span>
+                </div>
+                <div className="text-[11px] text-[#a8a093]">
+                  {proposalsKpis.newInquiriesCount > 0
+                    ? "Requires bespoke quotation formulation"
+                    : `${inquiries.length} total briefs tracked`}
+                </div>
+              </div>
+
+              {/* Card 4: 30-Day Price Protection Clock */}
+              <div className="rounded-2xl border border-[#38332c] bg-[#24211d] p-4 space-y-1">
+                <div className="flex items-center justify-between text-xs text-[#a8a093]">
+                  <span>Price Protection Clock</span>
+                  <span className="text-sky-400">●</span>
+                </div>
+                <div className="text-xl font-bold font-mono text-sky-400">
+                  {proposalsKpis.nearingExpiryCount} <span className="text-xs font-normal text-[#a8a093]">Nearing Expiry</span>
+                </div>
+                <div className="text-[11px] text-[#a8a093]">
+                  TAV-07 guarantee · {proposalsKpis.expiredCount} expired offers
+                </div>
+              </div>
+            </div>
+
+            {/* Visual Intelligence Section: Donut + Studio Policy Card */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+              {/* Donut Chart Panel (7 cols) */}
+              <div className="lg:col-span-7 rounded-2xl bg-[#24211d] border border-[#38332c] p-5 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#38332c] pb-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">{proposalsDonutData.title}</h3>
+                    <p className="text-[11px] text-[#a8a093]">Interactive distribution across commercial lifecycle</p>
+                  </div>
+                  <div className="flex items-center gap-1 bg-[#181715] p-1 rounded-xl border border-[#38332c]">
+                    <button
+                      onClick={() => {
+                        setProposalsDonutView("PIPELINE");
+                        setHoveredProposalSlice(null);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors ${
+                        proposalsDonutView === "PIPELINE"
+                          ? "bg-[#c59b6d] text-[#181715]"
+                          : "text-[#a8a093] hover:text-white"
+                      }`}
+                    >
+                      Funnel Pipeline
+                    </button>
+                    <button
+                      onClick={() => {
+                        setProposalsDonutView("STATUS");
+                        setHoveredProposalSlice(null);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors ${
+                        proposalsDonutView === "STATUS"
+                          ? "bg-[#c59b6d] text-[#181715]"
+                          : "text-[#a8a093] hover:text-white"
+                      }`}
+                    >
+                      Quotation Status
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-6 py-2">
+                  {/* SVG Donut Ring */}
+                  <div className="relative w-44 h-44 shrink-0 flex items-center justify-center">
+                    {(() => {
+                      const r = 38;
+                      const circumference = 2 * Math.PI * r;
+                      let accumulatedOffset = 0;
+
+                      return (
+                        <svg viewBox="0 0 100 100" className="w-44 h-44 transform -rotate-90">
+                          <circle
+                            cx="50"
+                            cy="50"
+                            r={r}
+                            fill="transparent"
+                            stroke="#181715"
+                            strokeWidth="13"
+                          />
+                          {proposalsDonutData.slices.map((slice) => {
+                            const strokeLength = (slice.count / proposalsDonutData.totalCount) * circumference;
+                            const strokeGap = circumference - strokeLength;
+                            const currentOffset = accumulatedOffset;
+                            accumulatedOffset += strokeLength;
+
+                            const isHovered = hoveredProposalSlice === slice.id;
+
+                            return (
+                              <circle
+                                key={slice.id}
+                                cx="50"
+                                cy="50"
+                                r={r}
+                                fill="transparent"
+                                stroke={slice.color}
+                                strokeWidth={isHovered ? 17 : 13}
+                                strokeDasharray={`${strokeLength} ${strokeGap}`}
+                                strokeDashoffset={-currentOffset}
+                                onMouseEnter={() => setHoveredProposalSlice(slice.id)}
+                                onMouseLeave={() => setHoveredProposalSlice(null)}
+                                onClick={() => {
+                                  if ('statusKey' in slice && slice.statusKey) {
+                                    setProposalStatusFilter(slice.statusKey as any);
+                                  } else if ('segment' in slice && slice.segment) {
+                                    setProposalViewSegment(slice.segment as any);
+                                  }
+                                }}
+                                className="transition-all duration-300 cursor-pointer"
+                                style={{
+                                  opacity: hoveredProposalSlice && !isHovered ? 0.45 : 1,
+                                }}
+                              >
+                                <title>{`${slice.label}: ${slice.count} (${slice.pct}%) - Click to filter`}</title>
+                              </circle>
+                            );
+                          })}
+                        </svg>
+                      );
+                    })()}
+
+                    {/* Donut Center Hub Info */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none text-center px-4">
+                      <span className="text-2xl font-mono font-bold text-white tracking-tight">
+                        {hoveredProposalSlice
+                          ? proposalsDonutData.slices.find((s) => s.id === hoveredProposalSlice)?.count
+                          : proposalsDonutData.centerNumber}
+                      </span>
+                      <span className="text-[9px] uppercase font-bold text-[#c59b6d] tracking-wider max-w-[85px] leading-tight mt-0.5 line-clamp-2">
+                        {hoveredProposalSlice
+                          ? proposalsDonutData.slices.find((s) => s.id === hoveredProposalSlice)?.label
+                          : proposalsDonutData.centerLabel}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Dynamic Legend List */}
+                  <div className="flex-1 w-full space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {proposalsDonutData.slices.map((slice) => {
+                      const isHovered = hoveredProposalSlice === slice.id;
+                      return (
+                        <div
+                          key={slice.id}
+                          onMouseEnter={() => setHoveredProposalSlice(slice.id)}
+                          onMouseLeave={() => setHoveredProposalSlice(null)}
+                          onClick={() => {
+                            if ('statusKey' in slice && slice.statusKey) {
+                              setProposalStatusFilter(slice.statusKey as any);
+                            } else if ('segment' in slice && slice.segment) {
+                              setProposalViewSegment(slice.segment as any);
+                            }
+                          }}
+                          className={`flex items-center justify-between p-1.5 rounded-lg text-xs cursor-pointer transition-all ${
+                            isHovered ? "bg-[#2e2a24] text-white" : "hover:bg-[#25221d] text-[#a8a093]"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span
+                              className="h-2.5 w-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: slice.color }}
+                            />
+                            <span className="truncate text-[11px] font-medium">{slice.label}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="font-mono text-white text-[11px] font-bold">{slice.count}</span>
+                            <span className="text-[10px] text-[#787165] font-mono">({slice.pct}%)</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Studio Policy & Governance Card (5 cols) */}
+              <div className="lg:col-span-5 rounded-2xl bg-[#24211d] border border-[#38332c] p-5 space-y-3.5">
+                <div className="border-b border-[#38332c] pb-2.5">
+                  <h3 className="text-sm font-semibold text-white">Studio Commercial Governance</h3>
+                  <p className="text-[11px] text-[#a8a093]">Contractual safeguards &amp; offer clock rules</p>
+                </div>
+                <div className="space-y-2.5 text-xs">
+                  <div className="p-2.5 rounded-xl bg-[#1e1c19] border border-[#38332c]/80 flex gap-2.5">
+                    <span className="text-[#c59b6d] font-mono font-bold text-xs shrink-0 mt-0.5">01</span>
+                    <div>
+                      <strong className="text-white block text-[11px]">TAV-07 30-Day Price Guarantee</strong>
+                      <p className="text-[10px] text-[#a8a093] leading-relaxed">
+                        Material quotes, crating fees, and unit prices remain strictly fixed for 30 calendar days from the date of quotation issue.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-[#1e1c19] border border-[#38332c]/80 flex gap-2.5">
+                    <span className="text-[#c59b6d] font-mono font-bold text-xs shrink-0 mt-0.5">02</span>
+                    <div>
+                      <strong className="text-white block text-[11px]">25% Production Advance Queue</strong>
+                      <p className="text-[10px] text-[#a8a093] leading-relaxed">
+                        Patron acceptance locks production scheduling upon 25% payment confirmation. The remaining 75% balance is due after QC sign-off.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-[#1e1c19] border border-[#38332c]/80 flex gap-2.5">
+                    <span className="text-[#c59b6d] font-mono font-bold text-xs shrink-0 mt-0.5">03</span>
+                    <div>
+                      <strong className="text-white block text-[11px]">Revision Clock Preservation (QOT-05)</strong>
+                      <p className="text-[10px] text-[#a8a093] leading-relaxed">
+                        Scope or item revisions (v2, v3) inherit the original offer's expiry timestamp to prevent indefinite price extensions.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Segment Switcher + Search & Filter Controls */}
+            <div className="rounded-2xl bg-[#24211d] border border-[#38332c] p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                {/* Segment Switcher */}
+                <div className="flex items-center gap-1 bg-[#181715] p-1 rounded-xl border border-[#38332c]">
+                  <button
+                    onClick={() => setProposalViewSegment("ALL")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                      proposalViewSegment === "ALL"
+                        ? "bg-[#c59b6d] text-[#181715]"
+                        : "text-[#a8a093] hover:text-white"
+                    }`}
+                  >
+                    All Records ({proposals.length + inquiries.length})
+                  </button>
+                  <button
+                    onClick={() => setProposalViewSegment("PROPOSALS")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                      proposalViewSegment === "PROPOSALS"
+                        ? "bg-[#c59b6d] text-[#181715]"
+                        : "text-[#a8a093] hover:text-white"
+                    }`}
+                  >
+                    30-Day Formal Quotations ({proposals.length})
+                  </button>
+                  <button
+                    onClick={() => setProposalViewSegment("INQUIRIES")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                      proposalViewSegment === "INQUIRIES"
+                        ? "bg-[#c59b6d] text-[#181715]"
+                        : "text-[#a8a093] hover:text-white"
+                    }`}
+                  >
+                    Trade &amp; Bulk Inquiries ({inquiries.length})
+                  </button>
+                </div>
+
+                {/* Search Input */}
+                <div className="relative min-w-[260px] flex-1 max-w-md">
+                  <input
+                    type="text"
+                    placeholder="Search client, studio, quote #, inquiry #, PIN..."
+                    value={proposalSearchQuery}
+                    onChange={(e) => setProposalSearchQuery(e.target.value)}
+                    className="w-full rounded-xl border border-[#464037] bg-[#181715] px-3.5 py-1.5 text-xs text-white placeholder-[#787165] focus:outline-none focus:border-[#c59b6d]"
+                  />
+                  {proposalSearchQuery && (
+                    <button
+                      onClick={() => setProposalSearchQuery("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#a8a093] hover:text-white"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Status Filter Pills */}
+              <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-[#38332c]/60 text-xs">
+                {(proposalViewSegment === "ALL" || proposalViewSegment === "PROPOSALS") && (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] uppercase font-bold text-[#787165] tracking-wider mr-1">Quote Filter:</span>
+                    {(["ALL", "ACTIVE", "ACCEPTED", "EXPIRED"] as const).map((st) => (
+                      <button
+                        key={st}
+                        onClick={() => setProposalStatusFilter(st)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
+                          proposalStatusFilter === st
+                            ? "bg-[#c59b6d] text-[#181715]"
+                            : "bg-[#181715] text-[#a8a093] hover:text-white border border-[#38332c]"
+                        }`}
+                      >
+                        {st === "ALL" ? `All (${proposals.length})` : st === "ACTIVE" ? `Active (${proposalsKpis.activeCount})` : st === "ACCEPTED" ? `Accepted (${proposalsKpis.acceptedCount})` : `Expired (${proposalsKpis.expiredCount})`}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {(proposalViewSegment === "ALL" || proposalViewSegment === "INQUIRIES") && (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] uppercase font-bold text-[#787165] tracking-wider mr-1">Inquiry Filter:</span>
+                    {(["ALL", "NEW", "QUOTE_ISSUED", "ORDER_CONFIRMED"] as const).map((st) => (
+                      <button
+                        key={st}
+                        onClick={() => setInquiryStatusFilter(st)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
+                          inquiryStatusFilter === st
+                            ? "bg-[#c59b6d] text-[#181715]"
+                            : "bg-[#181715] text-[#a8a093] hover:text-white border border-[#38332c]"
+                        }`}
+                      >
+                        {st === "ALL" ? `All (${inquiries.length})` : st === "NEW" ? `New Briefs (${proposalsKpis.newInquiriesCount})` : st === "QUOTE_ISSUED" ? `Quote Issued (${proposalsKpis.quoteIssuedInquiriesCount})` : `Converted (${proposalsKpis.convertedInquiriesCount})`}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Section 1: Active 30-Day Quotations */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                <span>Formal 30-Day Locked Proposals ({proposals.length})</span>
-                <span className="text-[10px] text-[#c59b6d] font-normal">TAV-07 Independent 30-Day Clock</span>
-              </h3>
-
-              {proposals.length === 0 ? (
-                <div className="p-8 rounded-2xl bg-[#24211d] border border-[#38332c] text-center text-xs text-[#a8a093]">
-                  No formal proposals issued yet. Issue a bespoke proposal from incoming inquiries below.
+            {(proposalViewSegment === "ALL" || proposalViewSegment === "PROPOSALS") && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                    <span>Formal 30-Day Locked Proposals ({filteredProposals.length})</span>
+                    <span className="text-[10px] text-[#c59b6d] font-normal">TAV-07 Independent Clock</span>
+                  </h3>
                 </div>
-              ) : (
-                <div className="rounded-2xl border border-[#38332c] bg-[#24211d] overflow-hidden">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-[#1e1c19] border-b border-[#38332c] text-[11px] uppercase tracking-wider text-[#a8a093]">
-                      <tr>
-                        <th className="py-3 px-4">Quote Number</th>
-                        <th className="py-3 px-4">Client & Pincode</th>
-                        <th className="py-3 px-4">Quoted Amount</th>
-                        <th className="py-3 px-4">25% Advance</th>
-                        <th className="py-3 px-4">Status & Clock</th>
-                        <th className="py-3 px-4 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#38332c]">
-                      {proposals.map((p) => {
-                        const latestVer = p.versions?.[0];
-                        const amount = latestVer ? Number(latestVer.quotedAmount) : 0;
-                        const advance = latestVer ? Number(latestVer.advanceRequired) : 0;
-                        const isAccepted = p.status === "ACCEPTED";
-                        const isExpired = p.status === "EXPIRED";
 
-                        return (
-                          <tr key={p.id} className="hover:bg-[#2a2722]/40 transition-colors">
-                            <td className="py-4 px-4 font-mono font-bold text-white">
-                              {p.quoteNumber}
-                              <span className="block text-[10px] font-sans text-[#a8a093]">
-                                Rev {latestVer?.versionNumber || 1}
-                              </span>
-                            </td>
-                            <td className="py-4 px-4 text-white">
-                              {p.customerName}
-                              <span className="block text-[10px] text-[#a8a093]">
-                                {p.customerEmail} · PIN {p.deliveryPincode}
-                              </span>
-                            </td>
-                            <td className="py-4 px-4 font-semibold text-white">{formatPrice(amount)}</td>
-                            <td className="py-4 px-4 font-semibold text-[#c59b6d]">{formatPrice(advance)}</td>
-                            <td className="py-4 px-4">
-                              <span
-                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
-                                  isAccepted
-                                    ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
-                                    : isExpired
-                                    ? "bg-rose-950 text-rose-300 border border-rose-800"
-                                    : "bg-amber-950 text-amber-300 border border-amber-800"
-                                }`}
-                              >
-                                {isAccepted ? "Accepted & Order Active" : isExpired ? "Offer Expired" : "30-Day Offer Active"}
-                              </span>
-                              {(p.linkedOrderNumber || p.linkedOrderId) && (
-                                <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                                  <button
-                                    onClick={() => {
-                                      const found = orders.find(
-                                        (o) =>
-                                          (p.linkedOrderNumber && o.orderNumber === p.linkedOrderNumber) ||
-                                          (p.linkedOrderId && o.id === p.linkedOrderId)
-                                      );
-                                      if (found) setSelectedOrder(found);
-                                    }}
-                                    className="text-[10px] font-mono font-semibold text-[#10b981] hover:underline"
-                                    title="Inspect converted order"
-                                  >
-                                    Order: {p.linkedOrderNumber || `${p.linkedOrderId?.slice(0, 12)}...`} ↗
-                                  </button>
-                                  {p.linkedOrderStatus && (
-                                    <span
-                                      className={`px-1.5 py-0.2 rounded text-[9px] font-semibold border ${
-                                        p.linkedOrderStatus === "CANCELLED" || p.linkedOrderStatus === "REFUNDED"
-                                          ? "bg-rose-950 text-rose-300 border-rose-800"
-                                          : "bg-emerald-950 text-emerald-300 border-emerald-800"
-                                      }`}
-                                    >
-                                      {p.linkedOrderStatus === "CANCELLED" ? "CANCELLED & REFUNDED" : p.linkedOrderStatus}
+                {filteredProposals.length === 0 ? (
+                  <div className="p-8 rounded-2xl bg-[#24211d] border border-[#38332c] text-center text-xs text-[#a8a093]">
+                    No formal proposals match the active filters or search query.
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-[#38332c] bg-[#24211d] overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-[#1e1c19] border-b border-[#38332c] text-[11px] uppercase tracking-wider text-[#a8a093]">
+                          <tr>
+                            <th className="py-3 px-4">Quote Number</th>
+                            <th className="py-3 px-4">Client &amp; Destination</th>
+                            <th className="py-3 px-4">Quoted Amount</th>
+                            <th className="py-3 px-4">25% Advance</th>
+                            <th className="py-3 px-4">Status &amp; Clock</th>
+                            <th className="py-3 px-4 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#38332c]">
+                          {filteredProposals.map((p) => {
+                            const latestVer = p.versions?.[0];
+                            const amount = latestVer ? Number(latestVer.quotedAmount) : 0;
+                            const advance = latestVer ? Number(latestVer.advanceRequired) : 0;
+                            const isAccepted = p.status === "ACCEPTED";
+                            const expiresMs = p.expiresAt ? new Date(p.expiresAt).getTime() : 0;
+                            const isExpired = p.status === "EXPIRED" || (!isAccepted && expiresMs > 0 && expiresMs < Date.now());
+                            const daysLeft = expiresMs > 0 ? Math.ceil((expiresMs - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+
+                            return (
+                              <tr key={p.id} className="hover:bg-[#2a2722]/40 transition-colors">
+                                <td className="py-4 px-4 font-mono font-bold text-white">
+                                  <div className="flex items-center gap-1.5">
+                                    <span>{p.quoteNumber}</span>
+                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-[#38332c] text-[#a8a093]">
+                                      v{latestVer?.versionNumber || 1}
+                                    </span>
+                                  </div>
+                                  {p.versions && p.versions.length > 1 && (
+                                    <span className="block text-[10px] font-sans text-[#c59b6d] mt-0.5">
+                                      {p.versions.length} revisions on record
                                     </span>
                                   )}
-                                </div>
-                              )}
-                            </td>
-                            <td className="py-4 px-4 text-right space-x-2">
-                              {!isAccepted && !isExpired && (
-                                <button
-                                  onClick={() => handleOpenRevisionModal(p)}
-                                  className="px-3 py-1.5 rounded-lg bg-[#c59b6d] text-[#181715] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors"
-                                >
-                                  + Issue Revision (v{(latestVer?.versionNumber || 1) + 1})
-                                </button>
-                              )}
-                              <a
-                                href={getStorefrontUrl(`/quote/${p.quoteNumber}`)}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="px-3 py-1.5 rounded-lg bg-[#2a2a30] text-xs font-semibold text-[#c59b6d] hover:bg-[#34343c]"
-                              >
-                                View Proposal ↗
-                              </a>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+                                </td>
+                                <td className="py-4 px-4 text-white">
+                                  <span className="font-medium">{p.customerName}</span>
+                                  <span className="block text-[10px] text-[#a8a093]">
+                                    {p.customerEmail} · PIN {p.deliveryPincode}
+                                  </span>
+                                </td>
+                                <td className="py-4 px-4 font-semibold text-white font-mono">{formatPrice(amount)}</td>
+                                <td className="py-4 px-4 font-semibold text-[#c59b6d] font-mono">{formatPrice(advance)}</td>
+                                <td className="py-4 px-4">
+                                  <span
+                                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${
+                                      isAccepted
+                                        ? "bg-emerald-950 text-emerald-300 border-emerald-800"
+                                        : isExpired
+                                        ? "bg-rose-950 text-rose-300 border-rose-800"
+                                        : daysLeft !== null && daysLeft <= 7
+                                        ? "bg-amber-950 text-amber-300 border-amber-800"
+                                        : "bg-amber-950/70 text-amber-200 border-amber-700"
+                                    }`}
+                                  >
+                                    {isAccepted
+                                      ? "Accepted & Order Active"
+                                      : isExpired
+                                      ? "Offer Expired"
+                                      : daysLeft !== null
+                                      ? daysLeft <= 1
+                                        ? "Expires Today"
+                                        : `Active (${daysLeft}d left)`
+                                      : "30-Day Offer Active"}
+                                  </span>
 
-            {/* Section 2: Incoming Bulk & Architectural Inquiries */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-white">Incoming Commercial & Bulk Inquiries ({inquiries.length})</h3>
-              <div className="rounded-2xl border border-[#38332c] bg-[#24211d] overflow-hidden">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-[#1e1c19] border-b border-[#38332c] text-[11px] uppercase tracking-wider text-[#a8a093]">
-                    <tr>
-                      <th className="py-3 px-4">Inquiry Ref</th>
-                      <th className="py-3 px-4">Client / Studio</th>
-                      <th className="py-3 px-4">Requested Editions</th>
-                      <th className="py-3 px-4">Units</th>
-                      <th className="py-3 px-4">Destination</th>
-                      <th className="py-3 px-4">Status</th>
-                      <th className="py-3 px-4 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#38332c]">
-                    {inquiries.map((inq) => (
-                      <tr key={inq.id} className="hover:bg-[#2a2722]/40 transition-colors">
-                        <td className="py-4 px-4 font-mono font-bold text-white">
-                          {inq.inquiryNumber || inq.id}
-                          {inq.quoteNumber && (
-                            <div className="mt-1">
-                              <a
-                                href={getStorefrontUrl(`/quote/${inq.quoteNumber}`)}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-block px-1.5 py-0.5 rounded text-[9px] font-mono text-amber-300 bg-amber-950/80 border border-amber-800 hover:bg-amber-900"
-                              >
-                                Quote: {inq.quoteNumber} ↗
-                              </a>
-                            </div>
-                          )}
-                          {inq.orderNumber && (
-                            <div className="mt-1 flex flex-wrap items-center gap-1">
-                              <button
-                                onClick={() => {
-                                  const found = orders.find(
-                                    (o) => o.orderNumber === inq.orderNumber || (inq.orderId && o.id === inq.orderId)
-                                  );
-                                  if (found) setSelectedOrder(found);
-                                }}
-                                className="inline-block px-1.5 py-0.5 rounded text-[9px] font-mono text-emerald-300 bg-emerald-950/80 border border-emerald-800 hover:underline"
-                                title="Inspect converted order"
-                              >
-                                Order: {inq.orderNumber} ↗
-                              </button>
-                              {inq.orderStatus && (
+                                  {(p.linkedOrderNumber || p.linkedOrderId) && (
+                                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                      <button
+                                        onClick={() => {
+                                          const found = orders.find(
+                                            (o) =>
+                                              (p.linkedOrderNumber && o.orderNumber === p.linkedOrderNumber) ||
+                                              (p.linkedOrderId && o.id === p.linkedOrderId)
+                                          );
+                                          if (found) {
+                                            setSelectedOrder(found);
+                                            setActiveTab("ORDERS");
+                                          }
+                                        }}
+                                        className="text-[10px] font-mono font-semibold text-[#10b981] hover:underline"
+                                        title="Inspect converted order"
+                                      >
+                                        Order: {p.linkedOrderNumber || `${p.linkedOrderId?.slice(0, 12)}...`} ↗
+                                      </button>
+                                      {p.linkedOrderStatus && (
+                                        <span
+                                          className={`px-1.5 py-0.2 rounded text-[9px] font-semibold border ${
+                                            p.linkedOrderStatus === "CANCELLED" || p.linkedOrderStatus === "REFUNDED"
+                                              ? "bg-rose-950 text-rose-300 border-rose-800"
+                                              : "bg-emerald-950 text-emerald-300 border-emerald-800"
+                                          }`}
+                                        >
+                                          {p.linkedOrderStatus === "CANCELLED" ? "CANCELLED & REFUNDED" : p.linkedOrderStatus}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="py-4 px-4 text-right space-x-1.5 whitespace-nowrap">
+                                  <button
+                                    onClick={() => handleCopyQuoteLink(p.quoteNumber)}
+                                    className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+                                      copiedQuoteNumber === p.quoteNumber
+                                        ? "bg-emerald-900/50 border-emerald-600 text-emerald-300"
+                                        : "bg-[#181715] border-[#38332c] text-[#a8a093] hover:text-white hover:border-[#464037]"
+                                    }`}
+                                    title="Copy public quotation link"
+                                  >
+                                    {copiedQuoteNumber === p.quoteNumber ? "✓ Copied" : "Copy Link"}
+                                  </button>
+
+                                  <button
+                                    onClick={() => setSelectedProposal(p)}
+                                    className="px-2.5 py-1.5 rounded-lg bg-[#2a2a30] text-xs font-semibold text-[#c59b6d] hover:bg-[#34343c]"
+                                    title="Inspect itemized line items and specifications"
+                                  >
+                                    Inspect Specs
+                                  </button>
+
+                                  {!isAccepted && !isExpired && canCreateQuote && (
+                                    <button
+                                      onClick={() => handleOpenRevisionModal(p)}
+                                      className="px-2.5 py-1.5 rounded-lg bg-[#c59b6d] text-[#181715] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors"
+                                      title="Issue revision vN+1 (preserves 30-day clock)"
+                                    >
+                                      + Rev (v{(latestVer?.versionNumber || 1) + 1})
+                                    </button>
+                                  )}
+
+                                  <a
+                                    href={getStorefrontUrl(`/quote/${p.quoteNumber}`)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="px-2.5 py-1.5 rounded-lg bg-[#1e1c19] text-xs font-semibold text-[#a8a093] hover:text-white border border-[#38332c]"
+                                  >
+                                    View ↗
+                                  </a>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* SECTION 2: Incoming Bulk & Architectural Inquiries */}
+            {(proposalViewSegment === "ALL" || proposalViewSegment === "INQUIRIES") && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-white">
+                    Incoming Commercial &amp; Bulk Inquiries ({filteredInquiries.length})
+                  </h3>
+                </div>
+
+                {filteredInquiries.length === 0 ? (
+                  <div className="p-8 rounded-2xl bg-[#24211d] border border-[#38332c] text-center text-xs text-[#a8a093]">
+                    No architectural inquiries match the active filters or search query.
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-[#38332c] bg-[#24211d] overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-[#1e1c19] border-b border-[#38332c] text-[11px] uppercase tracking-wider text-[#a8a093]">
+                          <tr>
+                            <th className="py-3 px-4">Inquiry Ref</th>
+                            <th className="py-3 px-4">Client / Studio</th>
+                            <th className="py-3 px-4">Requested Editions</th>
+                            <th className="py-3 px-4">Units</th>
+                            <th className="py-3 px-4">Destination</th>
+                            <th className="py-3 px-4">Status</th>
+                            <th className="py-3 px-4 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#38332c]">
+                          {filteredInquiries.map((inq) => (
+                            <tr key={inq.id} className="hover:bg-[#2a2722]/40 transition-colors">
+                              <td className="py-4 px-4 font-mono font-bold text-white">
+                                {inq.inquiryNumber || inq.id}
+                                {inq.quoteNumber && (
+                                  <div className="mt-1">
+                                    <button
+                                      onClick={() => {
+                                        const matched = proposals.find((p) => p.quoteNumber === inq.quoteNumber);
+                                        if (matched) setSelectedProposal(matched);
+                                      }}
+                                      className="inline-block px-1.5 py-0.5 rounded text-[9px] font-mono text-amber-300 bg-amber-950/80 border border-amber-800 hover:bg-amber-900"
+                                    >
+                                      Quote: {inq.quoteNumber} ↗
+                                    </button>
+                                  </div>
+                                )}
+                                {inq.orderNumber && (
+                                  <div className="mt-1 flex flex-wrap items-center gap-1">
+                                    <button
+                                      onClick={() => {
+                                        const found = orders.find(
+                                          (o) => o.orderNumber === inq.orderNumber || (inq.orderId && o.id === inq.orderId)
+                                        );
+                                        if (found) {
+                                          setSelectedOrder(found);
+                                          setActiveTab("ORDERS");
+                                        }
+                                      }}
+                                      className="inline-block px-1.5 py-0.5 rounded text-[9px] font-mono text-emerald-300 bg-emerald-950/80 border border-emerald-800 hover:underline"
+                                      title="Inspect converted order"
+                                    >
+                                      Order: {inq.orderNumber} ↗
+                                    </button>
+                                    {inq.orderStatus && (
+                                      <span
+                                        className={`px-1.5 py-0.2 rounded text-[9px] font-semibold border ${
+                                          inq.orderStatus === "CANCELLED" || inq.orderStatus === "REFUNDED"
+                                            ? "bg-rose-950 text-rose-300 border-rose-800"
+                                            : "bg-emerald-950 text-emerald-300 border-emerald-800"
+                                        }`}
+                                      >
+                                        {inq.orderStatus === "CANCELLED" ? "CANCELLED" : inq.orderStatus}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-4 px-4 text-white">
+                                <span className="font-medium">{inq.clientName}</span>
+                                <span className="block text-[10px] text-[#c59b6d]">{inq.practiceOrStudio || "Private Patron"}</span>
+                                <span className="block text-[10px] text-[#a8a093]">{inq.email}</span>
+                              </td>
+                              <td className="py-4 px-4 text-white max-w-xs truncate" title={inq.requestedEditions}>
+                                {inq.requestedEditions}
+                              </td>
+                              <td className="py-4 px-4 font-bold text-white font-mono">{inq.quantityUnits}</td>
+                              <td className="py-4 px-4 text-[#a8a093]">
+                                {inq.destinationCity} (PIN {inq.destinationPincode})
+                              </td>
+                              <td className="py-4 px-4">
                                 <span
-                                  className={`px-1.5 py-0.2 rounded text-[9px] font-semibold border ${
-                                    inq.orderStatus === "CANCELLED" || inq.orderStatus === "REFUNDED"
+                                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${
+                                    inq.status === "ORDER_CANCELLED"
                                       ? "bg-rose-950 text-rose-300 border-rose-800"
-                                      : "bg-emerald-950 text-emerald-300 border-emerald-800"
+                                      : inq.status === "ORDER_CONFIRMED"
+                                      ? "bg-emerald-950 text-emerald-300 border-emerald-800"
+                                      : inq.status === "QUOTE_ISSUED"
+                                      ? "bg-blue-950 text-blue-300 border border-blue-800"
+                                      : inq.status === "NEW"
+                                      ? "bg-amber-950 text-amber-300 border border-amber-800"
+                                      : "bg-[#2a2722] text-[#a8a093] border border-[#464037]"
                                   }`}
                                 >
-                                  {inq.orderStatus === "CANCELLED" ? "CANCELLED" : inq.orderStatus}
+                                  {inq.status === "ORDER_CANCELLED"
+                                    ? "Order Cancelled & Refunded"
+                                    : inq.status === "ORDER_CONFIRMED"
+                                    ? "Converted to Order"
+                                    : inq.status === "QUOTE_ISSUED"
+                                    ? "Proposal Issued"
+                                    : inq.status === "NEW"
+                                    ? "New Inquiry"
+                                    : inq.status}
                                 </span>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-4 px-4 text-white">
-                          {inq.clientName}
-                          <span className="block text-[10px] text-[#c59b6d]">{inq.practiceOrStudio || "Private Patron"}</span>
-                          <span className="block text-[10px] text-[#a8a093]">{inq.email}</span>
-                        </td>
-                        <td className="py-4 px-4 text-white max-w-xs">{inq.requestedEditions}</td>
-                        <td className="py-4 px-4 font-bold text-white">{inq.quantityUnits}</td>
-                        <td className="py-4 px-4 text-[#a8a093]">
-                          {inq.destinationCity} (PIN {inq.destinationPincode})
-                        </td>
-                        <td className="py-4 px-4">
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${
-                              inq.status === "ORDER_CANCELLED"
-                                ? "bg-rose-950 text-rose-300 border-rose-800"
-                                : inq.status === "ORDER_CONFIRMED"
-                                ? "bg-emerald-950 text-emerald-300 border-emerald-800"
-                                : inq.status === "QUOTE_ISSUED"
-                                ? "bg-blue-950 text-blue-300 border border-blue-800"
-                                : inq.status === "NEW"
-                                ? "bg-amber-950 text-amber-300 border border-amber-800"
-                                : "bg-[#2a2722] text-[#a8a093] border border-[#464037]"
-                            }`}
-                          >
-                            {inq.status === "ORDER_CANCELLED"
-                              ? "Order Cancelled & Refunded"
-                              : inq.status === "ORDER_CONFIRMED"
-                              ? "Converted to Order"
-                              : inq.status === "QUOTE_ISSUED"
-                              ? "Proposal Issued"
-                              : inq.status === "NEW"
-                              ? "New Inquiry"
-                              : inq.status}
-                          </span>
-                        </td>
-                        <td className="py-4 px-4 text-right">
-                          <button
-                            onClick={() => {
-                              const parsedItems =
-                                inq.lineItems && inq.lineItems.length > 0
-                                  ? inq.lineItems
-                                  : parseInquiryLineItems(inq.lineItemsJson, inq.specifications);
+                              </td>
+                              <td className="py-4 px-4 text-right space-x-1.5 whitespace-nowrap">
+                                <button
+                                  onClick={() => setSelectedInquiry(inq)}
+                                  className="px-2.5 py-1.5 rounded-lg bg-[#2a2a30] text-xs font-semibold text-[#c59b6d] hover:bg-[#34343c]"
+                                  title="Inspect client brief and architectural specifications"
+                                >
+                                  Inspect Brief
+                                </button>
 
-                              const units = Math.max(1, inq.quantityUnits || 10);
-                              const resolvedLineItems =
-                                parsedItems.length > 0
-                                  ? parsedItems.map((item) => ({
-                                      name: item.name,
-                                      finish: item.finish || "Studio Hand-Crafted Patina Finish",
-                                      quantity: Math.max(1, Number(item.quantity) || 1),
-                                      unitPriceRupees: Math.max(1, Number(item.unitPriceRupees) || 1000),
-                                    }))
-                                  : [
-                                      {
-                                        name: inq.requestedEditions || "Bespoke Architectural Editions",
-                                        finish: "Studio Hand-Crafted Patina Finish",
-                                        quantity: units,
-                                        unitPriceRupees: Math.round(125000 / units),
-                                      },
-                                    ];
-
-                              setProposalForm({
-                                inquiryId: inq.id,
-                                customerName: inq.clientName,
-                                customerEmail: inq.email,
-                                customerPhone: inq.phone,
-                                deliveryPincode: inq.destinationPincode || "110001",
-                                lineItems: resolvedLineItems,
-                                deliveryChargeRupees: 4500,
-                                estimatedLeadWeeks: 6,
-                                notes: `Client Inquiry Brief (${inq.inquiryNumber || inq.id}):\n${inq.specifications || "Trade / hospitality consignment"}`,
-                              });
-                              setIsProposalModalOpen(true);
-                            }}
-                            className="px-3 py-1.5 rounded-lg bg-[#c59b6d] text-[#181715] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors"
-                          >
-                            Issue 30-Day Proposal
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                                {canCreateQuote && (
+                                  <button
+                                    onClick={() => handleOpenProposalFromInquiry(inq)}
+                                    className="px-3 py-1.5 rounded-lg bg-[#c59b6d] text-[#181715] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors"
+                                  >
+                                    Issue 30-Day Proposal →
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -6371,6 +7022,404 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* MODAL: Inspect Inquiry Brief & Scope (TAV-07) */}
+      {selectedInquiry && (() => {
+        const parsedItems =
+          selectedInquiry.lineItems && selectedInquiry.lineItems.length > 0
+            ? selectedInquiry.lineItems
+            : parseInquiryLineItems(selectedInquiry.lineItemsJson, selectedInquiry.specifications);
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="w-full max-w-2xl rounded-2xl bg-[#24211d] border border-[#38332c] p-6 space-y-5 shadow-2xl max-h-[92vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] uppercase font-bold text-[#c59b6d] tracking-wider block">
+                      Architectural Inquiry Dossier
+                    </span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#181715] text-[#a8a093] border border-[#38332c]">
+                      {selectedInquiry.inquiryNumber || selectedInquiry.id}
+                    </span>
+                  </div>
+                  <h3 className="font-semibold text-base text-white mt-0.5">
+                    {selectedInquiry.clientName} {selectedInquiry.practiceOrStudio ? `· ${selectedInquiry.practiceOrStudio}` : ""}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedInquiry(null)}
+                  className="text-xs text-[#a8a093] hover:text-white"
+                >
+                  ✕ Close
+                </button>
+              </div>
+
+              {/* Client & Destination Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="p-3 rounded-xl bg-[#181715] border border-[#38332c] space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-[#787165] block">Client Contact</span>
+                  <div className="font-semibold text-white">{selectedInquiry.clientName}</div>
+                  <div className="text-[#a8a093]">{selectedInquiry.email}</div>
+                  <div className="text-[#a8a093]">{selectedInquiry.phone || "No phone provided"}</div>
+                </div>
+                <div className="p-3 rounded-xl bg-[#181715] border border-[#38332c] space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-[#787165] block">Destination &amp; Volumes</span>
+                  <div className="font-semibold text-white">
+                    {selectedInquiry.destinationCity} (PIN {selectedInquiry.destinationPincode})
+                  </div>
+                  <div className="text-[#a8a093] font-mono font-bold">
+                    Volume: {selectedInquiry.quantityUnits || 1} units requested
+                  </div>
+                  <div className="text-[11px] text-[#c59b6d]">
+                    Status: {selectedInquiry.status}
+                  </div>
+                </div>
+              </div>
+
+              {/* Scope & Brief */}
+              <div className="space-y-1.5">
+                <span className="text-xs font-semibold text-white block">Client Brief &amp; Specifications</span>
+                <div className="p-3 rounded-xl bg-[#181715] border border-[#38332c] text-xs text-[#eae6df] whitespace-pre-wrap leading-relaxed">
+                  {selectedInquiry.specifications || "No specifications attached."}
+                </div>
+              </div>
+
+              {/* Parsed Line Items (if any) */}
+              {parsedItems && parsedItems.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-xs font-semibold text-white block">Requested Line Items ({parsedItems.length})</span>
+                  <div className="rounded-xl border border-[#38332c] overflow-hidden bg-[#181715]">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-[#1e1c19] text-[10px] uppercase text-[#a8a093] border-b border-[#38332c]">
+                        <tr>
+                          <th className="py-2 px-3">Item Name</th>
+                          <th className="py-2 px-3">Finish</th>
+                          <th className="py-2 px-3 text-right">Qty</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#38332c]">
+                        {parsedItems.map((it, idx) => (
+                          <tr key={idx}>
+                            <td className="py-2 px-3 text-white font-medium">{it.name}</td>
+                            <td className="py-2 px-3 text-[#a8a093]">{it.finish || "Standard Patina"}</td>
+                            <td className="py-2 px-3 text-right font-mono text-white">{it.quantity}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Cross-Link Badges if exists */}
+              {(selectedInquiry.quoteNumber || selectedInquiry.orderNumber) && (
+                <div className="p-3 rounded-xl bg-[#1e1c19] border border-[#38332c] flex flex-wrap items-center gap-3 text-xs">
+                  {selectedInquiry.quoteNumber && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[#a8a093]">Linked Proposal:</span>
+                      <button
+                        onClick={() => {
+                          const matched = proposals.find((p) => p.quoteNumber === selectedInquiry.quoteNumber);
+                          if (matched) {
+                            setSelectedProposal(matched);
+                            setSelectedInquiry(null);
+                          }
+                        }}
+                        className="px-2 py-0.5 rounded text-[10px] font-mono text-amber-300 bg-amber-950/80 border border-amber-800 hover:underline"
+                      >
+                        {selectedInquiry.quoteNumber} ↗
+                      </button>
+                    </div>
+                  )}
+                  {selectedInquiry.orderNumber && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[#a8a093]">Converted Order:</span>
+                      <button
+                        onClick={() => {
+                          const found = orders.find((o) => o.orderNumber === selectedInquiry.orderNumber);
+                          if (found) {
+                            setSelectedOrder(found);
+                            setActiveTab("ORDERS");
+                            setSelectedInquiry(null);
+                          }
+                        }}
+                        className="px-2 py-0.5 rounded text-[10px] font-mono text-emerald-300 bg-emerald-950/80 border border-emerald-800 hover:underline"
+                      >
+                        {selectedInquiry.orderNumber} ↗
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#38332c]">
+                <button
+                  type="button"
+                  onClick={() => setSelectedInquiry(null)}
+                  className="px-4 py-2 rounded-xl border border-[#464037] text-xs text-[#a8a093] hover:text-white"
+                >
+                  Close
+                </button>
+                {canCreateQuote && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const inq = selectedInquiry;
+                      setSelectedInquiry(null);
+                      handleOpenProposalFromInquiry(inq);
+                    }}
+                    className="px-5 py-2 rounded-xl bg-[#c59b6d] text-[#181715] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors"
+                  >
+                    Issue 30-Day Proposal →
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL: Inspect Proposal Specifications & Line Items (TAV-07) */}
+      {selectedProposal && (() => {
+        const latestVer = selectedProposal.versions?.[0];
+        let items: ProposalLineItemInput[] = [];
+        if (latestVer?.lineItemsJson) {
+          try {
+            const parsed = JSON.parse(latestVer.lineItemsJson);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              items = parsed;
+            }
+          } catch {
+            // Fallback
+          }
+        }
+        const subtotal = items.reduce(
+          (sum, it) => sum + (Number(it.quantity) || 1) * (Number(it.unitPriceRupees) || 0),
+          0
+        );
+        const delivery = latestVer?.deliveryCharge ? Number(latestVer.deliveryCharge) : 0;
+        const total = latestVer ? Number(latestVer.quotedAmount) : subtotal + delivery;
+        const advance = latestVer ? Number(latestVer.advanceRequired) : Math.round(total * 0.25);
+        const balance = total - advance;
+
+        const isAccepted = selectedProposal.status === "ACCEPTED";
+        const expiresMs = selectedProposal.expiresAt ? new Date(selectedProposal.expiresAt).getTime() : 0;
+        const isExpired = selectedProposal.status === "EXPIRED" || (!isAccepted && expiresMs > 0 && expiresMs < Date.now());
+        const daysLeft = expiresMs > 0 ? Math.ceil((expiresMs - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="w-full max-w-2xl rounded-2xl bg-[#24211d] border border-[#38332c] p-6 space-y-5 shadow-2xl max-h-[92vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] uppercase font-bold text-[#c59b6d] tracking-wider block">
+                      30-Day Locked Quotation Dossier
+                    </span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#181715] text-[#a8a093] border border-[#38332c]">
+                      {selectedProposal.quoteNumber} (v{latestVer?.versionNumber || 1})
+                    </span>
+                  </div>
+                  <h3 className="font-semibold text-base text-white mt-0.5">
+                    {selectedProposal.customerName}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedProposal(null)}
+                  className="text-xs text-[#a8a093] hover:text-white"
+                >
+                  ✕ Close
+                </button>
+              </div>
+
+              {/* Status & Clock Banner */}
+              <div className="p-3.5 rounded-xl bg-[#1e1c19] border border-[#38332c] flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div>
+                  <div className="text-[10px] uppercase text-[#787165] font-bold">Offer Validity &amp; Clock</div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                        isAccepted
+                          ? "bg-emerald-950 text-emerald-300 border-emerald-800"
+                          : isExpired
+                          ? "bg-rose-950 text-rose-300 border-rose-800"
+                          : "bg-amber-950 text-amber-300 border-amber-800"
+                      }`}
+                    >
+                      {isAccepted
+                        ? "Accepted by Patron"
+                        : isExpired
+                        ? "Offer Expired"
+                        : daysLeft !== null
+                        ? `${daysLeft} Days Remaining`
+                        : "30-Day Window Active"}
+                    </span>
+                    {selectedProposal.expiresAt && (
+                      <span className="text-[#a8a093] text-[11px]">
+                        Valid until {new Date(selectedProposal.expiresAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <div className="text-[10px] uppercase text-[#787165] font-bold">Estimated Lead Time</div>
+                  <div className="font-mono text-white text-xs font-semibold mt-0.5">
+                    {latestVer?.estimatedLeadDays ? `${Math.round(latestVer.estimatedLeadDays / 7)} Weeks (${latestVer.estimatedLeadDays} Days)` : "4–6 Weeks"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Client & Destination Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="p-3 rounded-xl bg-[#181715] border border-[#38332c] space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-[#787165] block">Client Contact</span>
+                  <div className="font-semibold text-white">{selectedProposal.customerName}</div>
+                  <div className="text-[#a8a093]">{selectedProposal.customerEmail}</div>
+                  <div className="text-[#a8a093]">{selectedProposal.customerPhone || "No phone registered"}</div>
+                </div>
+                <div className="p-3 rounded-xl bg-[#181715] border border-[#38332c] space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-[#787165] block">Delivery Pincode &amp; Dispatch</span>
+                  <div className="font-semibold text-white font-mono">PIN {selectedProposal.deliveryPincode}</div>
+                  <div className="text-[#a8a093]">Insured architectural freight</div>
+                  {selectedProposal.linkedOrderNumber && (
+                    <div className="text-emerald-400 font-mono text-[11px] pt-0.5">
+                      Order: {selectedProposal.linkedOrderNumber} ↗
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Itemized Line Items Table */}
+              <div className="space-y-1.5">
+                <span className="text-xs font-semibold text-white block">Quoted Specifications &amp; Line Items</span>
+                <div className="rounded-xl border border-[#38332c] overflow-hidden bg-[#181715]">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#1e1c19] text-[10px] uppercase text-[#a8a093] border-b border-[#38332c]">
+                      <tr>
+                        <th className="py-2.5 px-3">Item / Edition</th>
+                        <th className="py-2.5 px-3">Finish / Patina</th>
+                        <th className="py-2.5 px-3 text-right">Unit Price</th>
+                        <th className="py-2.5 px-3 text-right">Qty</th>
+                        <th className="py-2.5 px-3 text-right">Line Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#38332c]">
+                      {items.map((it, idx) => {
+                        const lineTotal = (Number(it.quantity) || 1) * (Number(it.unitPriceRupees) || 0);
+                        return (
+                          <tr key={idx} className="hover:bg-[#25221d]/40">
+                            <td className="py-2.5 px-3 text-white font-medium">{it.name}</td>
+                            <td className="py-2.5 px-3 text-[#a8a093]">{it.finish || "Studio Hand-Crafted Patina"}</td>
+                            <td className="py-2.5 px-3 text-right font-mono text-white">{formatPrice(Number(it.unitPriceRupees) || 0)}</td>
+                            <td className="py-2.5 px-3 text-right font-mono text-white">{it.quantity}</td>
+                            <td className="py-2.5 px-3 text-right font-mono text-[#c59b6d] font-semibold">{formatPrice(lineTotal)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Financial Ledger Breakdown */}
+              <div className="p-4 rounded-xl bg-[#181715] border border-[#38332c] space-y-1.5 text-xs">
+                <div className="flex justify-between text-[#a8a093]">
+                  <span>Items Subtotal:</span>
+                  <span className="font-semibold text-white font-mono">{formatPrice(subtotal)}</span>
+                </div>
+                <div className="flex justify-between text-[#a8a093]">
+                  <span>Insured Crating &amp; Transport:</span>
+                  <span className="font-semibold text-white font-mono">{delivery === 0 ? "Complimentary" : formatPrice(delivery)}</span>
+                </div>
+                <div className="flex justify-between text-white font-bold pt-1.5 border-t border-[#38332c]">
+                  <span>Total Quoted Commitment:</span>
+                  <span className="text-[#c59b6d] font-mono text-sm">{formatPrice(total)}</span>
+                </div>
+                <div className="flex justify-between text-[#c59b6d] font-semibold pt-1">
+                  <span>25% Advance Required to Reserve Bench:</span>
+                  <span className="font-mono">{formatPrice(advance)}</span>
+                </div>
+                <div className="flex justify-between text-[#a8a093]">
+                  <span>75% Final Balance Upon QC Sign-Off:</span>
+                  <span className="font-mono">{formatPrice(balance)}</span>
+                </div>
+              </div>
+
+              {/* Version History List (if revisions exist) */}
+              {selectedProposal.versions && selectedProposal.versions.length > 1 && (
+                <div className="space-y-1.5 text-xs">
+                  <span className="text-[10px] uppercase font-bold text-[#787165]">Revision History</span>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedProposal.versions.map((ver) => (
+                      <span
+                        key={ver.id}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-mono border ${
+                          ver.versionNumber === (latestVer?.versionNumber || 1)
+                            ? "bg-[#c59b6d]/20 text-[#c59b6d] border-[#c59b6d]"
+                            : "bg-[#181715] text-[#a8a093] border-[#38332c]"
+                        }`}
+                      >
+                        v{ver.versionNumber}: {formatPrice(Number(ver.quotedAmount))}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[#38332c]">
+                <button
+                  type="button"
+                  onClick={() => handleCopyQuoteLink(selectedProposal.quoteNumber)}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all border ${
+                    copiedQuoteNumber === selectedProposal.quoteNumber
+                      ? "bg-emerald-900/50 border-emerald-600 text-emerald-300"
+                      : "bg-[#181715] border-[#464037] text-white hover:border-[#c59b6d]"
+                  }`}
+                >
+                  {copiedQuoteNumber === selectedProposal.quoteNumber ? "✓ Copied Proposal Link" : "Copy Quote Link"}
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <a
+                    href={getStorefrontUrl(`/quote/${selectedProposal.quoteNumber}`)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-4 py-2 rounded-xl bg-[#2a2a30] text-xs font-semibold text-[#c59b6d] hover:bg-[#34343c]"
+                  >
+                    Open Live Quote ↗
+                  </a>
+                  {!isAccepted && !isExpired && canCreateQuote && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const p = selectedProposal;
+                        setSelectedProposal(null);
+                        handleOpenRevisionModal(p);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#181715] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors"
+                    >
+                      + Issue Revision (v{(latestVer?.versionNumber || 1) + 1})
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedProposal(null)}
+                    className="px-4 py-2 rounded-xl border border-[#464037] text-xs text-[#a8a093] hover:text-white"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* MODAL 5: Issue 30-Day Formal Architectural Proposal (TAV-07) */}
       {isProposalModalOpen && (() => {
