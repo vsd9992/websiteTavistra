@@ -195,6 +195,7 @@ export default function App() {
   const [overviewAuditCategory, setOverviewAuditCategory] = useState<string>("ALL");
   const [overviewAuditSearch, setOverviewAuditSearch] = useState<string>("");
   const [syncCountdown, setSyncCountdown] = useState<number>(60);
+  const [workshopStatusFilter, setWorkshopStatusFilter] = useState<"ACTIVE" | "CANCELLED" | "ALL">("ACTIVE");
 
   // Ticket detail view & filters
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
@@ -327,6 +328,7 @@ export default function App() {
   const stats = useMemo(() => {
     const grossRevenue = orders.reduce((acc, o) => acc + o.amountPaidRupees, 0);
     const cancelledOrders = orders.filter((o) => o.status === "CANCELLED" || o.status === "REFUNDED");
+    const activeOrders = orders.filter((o) => o.status !== "CANCELLED" && o.status !== "REFUNDED");
     const totalRefunded = cancelledOrders.reduce(
       (acc, o) => acc + (o.refund?.amountRupees ?? o.amountPaidRupees),
       0
@@ -343,7 +345,12 @@ export default function App() {
     const serviceablePinsCount = pincodes.filter((p) => p.isServiceable).length;
 
     const activeGraceOrders = orders.filter(
-      (o) => o.mode === "MADE_TO_ORDER" && o.isGraceActive && o.graceDaysRemaining !== undefined
+      (o) =>
+        o.mode === "MADE_TO_ORDER" &&
+        o.isGraceActive &&
+        o.graceDaysRemaining !== undefined &&
+        o.status !== "CANCELLED" &&
+        o.status !== "REFUNDED"
     );
     const minGraceDays =
       activeGraceOrders.length > 0
@@ -356,6 +363,7 @@ export default function App() {
       totalRefunded,
       netRevenue,
       cancelledOrdersCount: cancelledOrders.length,
+      activeOrdersCount: activeOrders.length,
       mtoGraceCount,
       inProductionCount,
       openTicketsCount,
@@ -436,7 +444,7 @@ export default function App() {
   // Urgent Cases / Action Required Telemetry (Honoring User Authority)
   interface UrgentCase {
     id: string;
-    category: "GRACE_RELEASE" | "BALANCE_DUE" | "URGENT_TICKET" | "PENDING_QUOTE" | "AWAITING_DISPATCH";
+    category: "GRACE_RELEASE" | "BALANCE_DUE" | "REFUND_PENDING" | "URGENT_TICKET" | "PENDING_QUOTE" | "AWAITING_DISPATCH";
     categoryLabel: string;
     title: string;
     description: string;
@@ -447,14 +455,61 @@ export default function App() {
     onAction: () => void;
   }
 
+  const URGENT_CATEGORIES_CONFIG = [
+    {
+      id: "GRACE_RELEASE" as const,
+      label: "Grace Releases",
+      icon: "⏳",
+      title: "Made-to-Order 7-Day Grace Releases",
+      subtitle: "Orders completing client alteration window, eligible for physical workshop machining release (Day 8)",
+    },
+    {
+      id: "BALANCE_DUE" as const,
+      label: "Balance Due",
+      icon: "💰",
+      title: "Final 75% Balance Collection",
+      subtitle: "QC inspection complete; pre-dispatch balance settlement required before courier AWB booking",
+    },
+    {
+      id: "REFUND_PENDING" as const,
+      label: "Refund Actions",
+      icon: "🔄",
+      title: "Cancelled Orders · Refund Processing Required",
+      subtitle: "Pre-production cancellations requiring payment refund issuance or bank UTR verification",
+    },
+    {
+      id: "URGENT_TICKET" as const,
+      label: "Support Tickets",
+      icon: "🎫",
+      title: "Priority Client Support Inquiries",
+      subtitle: "Urgent tickets, alteration requests, or active client escalations requiring immediate staff response",
+    },
+    {
+      id: "PENDING_QUOTE" as const,
+      label: "Quotes & RFQs",
+      icon: "📐",
+      title: "Bespoke RFQs & Quotation Formulation",
+      subtitle: "Custom architectural trade inquiries awaiting proposal pricing and official issuance",
+    },
+    {
+      id: "AWAITING_DISPATCH" as const,
+      label: "Dispatch AWB",
+      icon: "📦",
+      title: "Consignments Awaiting Carrier Booking",
+      subtitle: "Packaged pieces awaiting carrier booking and consignment tracking assignment",
+    },
+  ];
+
   const allUrgentCases = useMemo<UrgentCase[]>(() => {
     const list: UrgentCase[] = [];
 
-    // 1. MTO Grace Ending Soon (only if role has PRODUCTION tab permission)
+    // 1. MTO Grace Ending Soon (only if role has PRODUCTION tab permission, excluding cancelled/refunded)
     if (canViewWorkshop) {
       orders
         .filter(
           (o) =>
+            o.status !== "CANCELLED" &&
+            o.status !== "REFUNDED" &&
             o.mode === "MADE_TO_ORDER" &&
             o.isGraceActive &&
             o.graceDaysRemaining !== undefined &&
@@ -480,11 +535,13 @@ export default function App() {
         });
     }
 
-    // 2. 75% Balance Collection Pending (only if role can view financial/commercial orders)
+    // 2. 75% Balance Collection Pending (only if role can view financial/commercial orders, excluding cancelled)
     if (canViewFinancials) {
       orders
         .filter(
           (o) =>
+            o.status !== "CANCELLED" &&
+            o.status !== "REFUNDED" &&
             (o.status === "PRODUCTION_COMPLETED" || o.status === "QC_INSPECTION") &&
             (o.balanceDueRupees > 0 || !o.isFullyPaid)
         )
@@ -506,7 +563,33 @@ export default function App() {
         });
     }
 
-    // 3. High-Priority or Alteration Support Tickets (only if role has TICKETS permission)
+    // 3. Cancelled Orders with Pending Refund (only if role has financial authority)
+    if (canViewFinancials) {
+      orders
+        .filter(
+          (o) =>
+            o.status === "CANCELLED" &&
+            (!o.refund || (o.refund.status !== "COMPLETED" && o.refund.status !== "PROCESSED"))
+        )
+        .forEach((o) => {
+          list.push({
+            id: `rfp-${o.id}`,
+            category: "REFUND_PENDING",
+            categoryLabel: "Refund Action",
+            title: `Refund Pending: ${o.orderNumber}`,
+            description: `${o.customerName} · Cancelled order with ${formatPrice(
+              o.refund?.amountRupees ?? o.amountPaidRupees
+            )} awaiting payment settlement / ledger verification`,
+            badge: "Refund Due",
+            badgeColor: "rose",
+            timestamp: o.cancelledAt || o.placedAt,
+            actionLabel: "Open Order & Process Refund →",
+            onAction: () => setSelectedOrder(o),
+          });
+        });
+    }
+
+    // 4. High-Priority or Alteration Support Tickets (only if role has TICKETS permission)
     if (canViewTickets) {
       tickets
         .filter(
@@ -537,7 +620,7 @@ export default function App() {
         });
     }
 
-    // 4. Inbound Bespoke Inquiries & Draft Proposals (only if role has PROPOSALS permission & quote authority)
+    // 5. Inbound Bespoke Inquiries & Draft Proposals (only if role has PROPOSALS permission & quote authority)
     if (canViewProposals && canCreateQuote) {
       inquiries
         .filter((i) => i.status === "NEW" || i.status === "IN_REVIEW")
@@ -576,10 +659,16 @@ export default function App() {
         });
     }
 
-    // 5. Ready for Dispatch (Packaged & awaiting courier booking, only if DISPATCH permitted)
+    // 6. Ready for Dispatch (Packaged & awaiting courier booking, only if DISPATCH permitted, excluding cancelled)
     if (canViewDispatch) {
       orders
-        .filter((o) => o.status === "AWAITING_DISPATCH" && !o.awbNumber)
+        .filter(
+          (o) =>
+            o.status !== "CANCELLED" &&
+            o.status !== "REFUNDED" &&
+            o.status === "AWAITING_DISPATCH" &&
+            !o.awbNumber
+        )
         .forEach((o) => {
           list.push({
             id: `dsp-${o.id}`,
@@ -603,6 +692,16 @@ export default function App() {
     if (urgentCategoryFilter === "ALL") return allUrgentCases;
     return allUrgentCases.filter((c) => c.category === urgentCategoryFilter);
   }, [allUrgentCases, urgentCategoryFilter]);
+
+  const groupedUrgentCases = useMemo(() => {
+    return URGENT_CATEGORIES_CONFIG.map((catConfig) => {
+      const items = filteredUrgentCases.filter((c) => c.category === catConfig.id);
+      return {
+        ...catConfig,
+        items,
+      };
+    }).filter((group) => group.items.length > 0);
+  }, [filteredUrgentCases]);
 
   // Overview Audit Log Category Filtering
   const filteredOverviewAuditLogs = useMemo(() => {
@@ -2022,7 +2121,8 @@ export default function App() {
           const balPct = Math.round((commercialFinancials.balancePending / totalCashFlow) * 100);
           const refPct = Math.max(0, 100 - (settledPct + advPct + balPct));
 
-          // Pipeline stage counts for velocity chart
+          // Pipeline stage counts for velocity chart (strictly active pipeline, excluding cancelled/refunded)
+          // Pipeline stage counts for velocity chart (strictly active production gates)
           const pipelineStages = [
             { label: "Grace Hold", count: stats.mtoGraceCount, color: "#f59e0b" },
             { label: "Crafting", count: stats.inProductionCount, color: "#c59b6d" },
@@ -2163,7 +2263,7 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Card 2: Active Pipeline */}
+                {/* Card 2: Active Pipeline (Excluding Cancelled) */}
                 <div
                   onClick={() => setActiveTab("ORDERS")}
                   className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] hover:border-[#464037] hover:bg-[#282520] transition-all cursor-pointer group space-y-2 select-none shadow-sm"
@@ -2173,10 +2273,10 @@ export default function App() {
                     <span className="text-[#c59b6d] opacity-0 group-hover:opacity-100 transition-opacity">View Orders →</span>
                   </div>
                   <p className="text-2xl font-bold text-white group-hover:text-[#c59b6d] transition-colors">
-                    {orders.length} Consignments
+                    {stats.activeOrdersCount} Active Consignments
                   </p>
                   <p className="text-[11px] text-[#a8a093]">
-                    {orders.filter((o) => o.mode === "READY_STOCK").length} Ready Stock · {orders.filter((o) => o.mode === "MADE_TO_ORDER").length} Made to Order
+                    {orders.filter((o) => o.mode === "READY_STOCK" && o.status !== "CANCELLED" && o.status !== "REFUNDED").length} Ready Stock · {orders.filter((o) => o.mode === "MADE_TO_ORDER" && o.status !== "CANCELLED" && o.status !== "REFUNDED").length} Made to Order ({stats.cancelledOrdersCount} cancelled excluded)
                   </p>
                 </div>
 
@@ -2256,9 +2356,9 @@ export default function App() {
                 </div>
               </div>
 
-              {/* ATTENTION REQUIRED SHELF (The Exception-Based Cockpit) */}
+              {/* ATTENTION REQUIRED SHELF (The Exception-Based Cockpit with Categorical Grouping & Dividers) */}
               {(overviewDomainFilter === "URGENT" || (overviewDomainFilter === "ALL" && allUrgentCases.length > 0)) && (
-                <div className="p-6 rounded-2xl bg-[#24211d] border border-amber-900/40 shadow-md space-y-4">
+                <div className="p-6 rounded-2xl bg-[#24211d] border border-amber-900/40 shadow-md space-y-5">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#38332c] pb-3">
                     <div className="flex items-center gap-2.5">
                       <span className="text-lg">🚨</span>
@@ -2272,27 +2372,37 @@ export default function App() {
 
                     {/* Sub-filters for urgent items */}
                     <div className="flex flex-wrap items-center gap-1.5">
-                      {[
-                        { id: "ALL", label: `All (${allUrgentCases.length})` },
-                        { id: "GRACE_RELEASE", label: "Grace Releases" },
-                        { id: "BALANCE_DUE", label: "Balance Due" },
-                        { id: "URGENT_TICKET", label: "Tickets" },
-                        { id: "PENDING_QUOTE", label: "Quotes" },
-                        { id: "AWAITING_DISPATCH", label: "Dispatch" },
-                      ].map((sub) => (
-                        <button
-                          key={sub.id}
-                          type="button"
-                          onClick={() => setUrgentCategoryFilter(sub.id)}
-                          className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
-                            urgentCategoryFilter === sub.id
-                              ? "bg-[#c59b6d] text-[#181715]"
-                              : "bg-[#2a2722] text-[#a8a093] hover:text-white"
-                          }`}
-                        >
-                          {sub.label}
-                        </button>
-                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setUrgentCategoryFilter("ALL")}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                          urgentCategoryFilter === "ALL"
+                            ? "bg-[#c59b6d] text-[#181715]"
+                            : "bg-[#2a2722] text-[#a8a093] hover:text-white"
+                        }`}
+                      >
+                        All ({allUrgentCases.length})
+                      </button>
+                      {URGENT_CATEGORIES_CONFIG.map((sub) => {
+                        const count = allUrgentCases.filter((c) => c.category === sub.id).length;
+                        if (count === 0) return null;
+                        return (
+                          <button
+                            key={sub.id}
+                            type="button"
+                            onClick={() => setUrgentCategoryFilter(sub.id)}
+                            className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors flex items-center gap-1 ${
+                              urgentCategoryFilter === sub.id
+                                ? "bg-[#c59b6d] text-[#181715]"
+                                : "bg-[#2a2722] text-[#a8a093] hover:text-white"
+                            }`}
+                          >
+                            <span>{sub.icon}</span>
+                            <span>{sub.label}</span>
+                            <span className="opacity-80 text-[10px]">({count})</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -2303,51 +2413,81 @@ export default function App() {
                       <p className="text-[11px]">All queues within your authority are currently on schedule.</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                      {filteredUrgentCases.map((item) => (
-                        <div
-                          key={item.id}
-                          className={`p-4 rounded-xl bg-[#1e1c19] border flex flex-col justify-between space-y-3 transition-all hover:bg-[#23201b] ${
-                            item.badgeColor === "rose"
-                              ? "border-l-4 border-l-rose-500 border-y border-r border-[#38332c]"
-                              : item.badgeColor === "amber"
-                              ? "border-l-4 border-l-amber-500 border-y border-r border-[#38332c]"
-                              : item.badgeColor === "emerald"
-                              ? "border-l-4 border-l-emerald-500 border-y border-r border-[#38332c]"
-                              : "border-l-4 border-l-[#c59b6d] border-y border-r border-[#38332c]"
-                          }`}
-                        >
-                          <div className="space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] uppercase font-bold tracking-wider text-[#a8a093]">
-                                {item.categoryLabel}
-                              </span>
-                              <span
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                  item.badgeColor === "rose"
-                                    ? "bg-rose-950 text-rose-300 border border-rose-800"
-                                    : item.badgeColor === "amber"
-                                    ? "bg-amber-950 text-amber-300 border border-amber-800"
-                                    : item.badgeColor === "emerald"
-                                    ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
-                                    : "bg-[#2a2722] text-[#c59b6d] border border-[#38332c]"
-                                }`}
-                              >
-                                {item.badge}
+                    <div className="space-y-6">
+                      {groupedUrgentCases.map((group, groupIdx) => (
+                        <div key={group.id} className="space-y-3">
+                          {/* Divider line when next type of card starts */}
+                          {groupIdx > 0 && (
+                            <div className="border-t border-[#38332c] pt-4 mt-2" />
+                          )}
+
+                          {/* Category Group Header */}
+                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 pb-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm">{group.icon}</span>
+                              <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                                {group.title}
+                              </h4>
+                              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-[#2a2722] text-[#c59b6d] border border-[#38332c]">
+                                {group.items.length} {group.items.length === 1 ? "case" : "cases"}
                               </span>
                             </div>
-                            <h4 className="text-xs font-bold text-white line-clamp-1">{item.title}</h4>
-                            <p className="text-[11px] text-[#a8a093] line-clamp-2 leading-relaxed">
-                              {item.description}
-                            </p>
+                            {group.subtitle && (
+                              <p className="text-[11px] text-[#a8a093]">
+                                {group.subtitle}
+                              </p>
+                            )}
                           </div>
-                          <button
-                            type="button"
-                            onClick={item.onAction}
-                            className="w-full py-2 px-3 rounded-lg bg-[#2a2722] hover:bg-[#35312b] text-[#c59b6d] hover:text-[#d6aa7c] border border-[#464037] text-xs font-semibold text-center transition-colors flex items-center justify-center gap-1"
-                          >
-                            <span>{item.actionLabel}</span>
-                          </button>
+
+                          {/* Grid of cards in this category */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                            {group.items.map((item) => (
+                              <div
+                                key={item.id}
+                                className={`p-4 rounded-xl bg-[#1e1c19] border flex flex-col justify-between space-y-3 transition-all hover:bg-[#23201b] ${
+                                  item.badgeColor === "rose"
+                                    ? "border-l-4 border-l-rose-500 border-y border-r border-[#38332c]"
+                                    : item.badgeColor === "amber"
+                                    ? "border-l-4 border-l-amber-500 border-y border-r border-[#38332c]"
+                                    : item.badgeColor === "emerald"
+                                    ? "border-l-4 border-l-emerald-500 border-y border-r border-[#38332c]"
+                                    : "border-l-4 border-l-[#c59b6d] border-y border-r border-[#38332c]"
+                                }`}
+                              >
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[10px] uppercase font-bold tracking-wider text-[#a8a093]">
+                                      {item.categoryLabel}
+                                    </span>
+                                    <span
+                                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                        item.badgeColor === "rose"
+                                          ? "bg-rose-950 text-rose-300 border border-rose-800"
+                                          : item.badgeColor === "amber"
+                                          ? "bg-amber-950 text-amber-300 border border-amber-800"
+                                          : item.badgeColor === "emerald"
+                                          ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                                          : "bg-[#2a2722] text-[#c59b6d] border border-[#38332c]"
+                                      }`}
+                                    >
+                                      {item.badge}
+                                    </span>
+                                  </div>
+                                  <h4 className="text-xs font-bold text-white line-clamp-1">{item.title}</h4>
+                                  <p className="text-[11px] text-[#a8a093] line-clamp-2 leading-relaxed">
+                                    {item.description}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={item.onAction}
+                                  className="w-full py-2 px-3 rounded-lg bg-[#2a2722] hover:bg-[#35312b] text-[#c59b6d] hover:text-[#d6aa7c] border border-[#464037] text-xs font-semibold text-center transition-colors flex items-center justify-center gap-1"
+                                >
+                                  <span>{item.actionLabel}</span>
+                                </button>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -2576,42 +2716,69 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Chart 2: Order Pipeline Velocity by Stage */}
-                    <div className="lg:col-span-6 p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4 shadow-sm">
+                    {/* Chart 2: Order Pipeline Velocity by Stage (Fixed Visible X-Axis Labels) */}
+                    <div className="lg:col-span-6 p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4 shadow-sm flex flex-col justify-between">
                       <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
                         <div>
                           <h4 className="font-semibold text-xs text-white uppercase tracking-wider">
                             Order Pipeline Milestone Velocity
                           </h4>
-                          <p className="text-[11px] text-[#a8a093]">Consignments moving through active workshop gates</p>
+                          <p className="text-[11px] text-[#a8a093]">
+                            Active consignments across 6 production gates ({stats.activeOrdersCount} live · {stats.cancelledOrdersCount} cancelled excluded)
+                          </p>
                         </div>
                         <span className="text-[10px] font-mono text-emerald-400 font-bold">LIVE TELEMETRY</span>
                       </div>
 
-                      {/* SVG Bar Chart */}
-                      <div className="h-24 w-full flex items-end justify-between gap-3 pt-3 pb-1 border-b border-[#2d2923]">
-                        {pipelineStages.map((stage) => {
-                          const heightPct = Math.max(12, Math.round((stage.count / maxStageCount) * 100));
-                          return (
-                            <div key={stage.label} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end group">
-                              <span className="text-[10px] font-bold text-white group-hover:text-[#c59b6d] transition-colors">
-                                {stage.count}
-                              </span>
-                              <div className="w-full max-w-[32px] bg-[#181715] rounded-t-md overflow-hidden h-full flex items-end">
-                                <div
-                                  style={{
-                                    height: `${heightPct}%`,
-                                    backgroundColor: stage.color,
-                                  }}
-                                  className="w-full rounded-t-md transition-all duration-500 hover:opacity-85"
-                                />
+                      {/* Bar Columns & Dedicated Visible X-Axis Labels */}
+                      <div className="pt-2">
+                        {/* Upper Section: Bar Columns and Numeric Heights */}
+                        <div className="h-28 w-full flex items-end justify-between gap-2 px-1">
+                          {pipelineStages.map((stage) => {
+                            const heightPct = Math.max(12, Math.round((stage.count / maxStageCount) * 100));
+                            return (
+                              <div
+                                key={stage.label}
+                                className="flex-1 flex flex-col items-center justify-end h-full group cursor-default"
+                              >
+                                <span className="text-[11px] font-mono font-bold text-white group-hover:text-[#c59b6d] transition-colors mb-1.5">
+                                  {stage.count}
+                                </span>
+                                <div className="w-full max-w-[32px] h-20 bg-[#181715] rounded-t-md overflow-hidden flex items-end border border-[#38332c]/60 p-0.5">
+                                  <div
+                                    style={{
+                                      height: `${heightPct}%`,
+                                      backgroundColor: stage.color,
+                                    }}
+                                    className="w-full rounded-t-sm transition-all duration-500 hover:brightness-110"
+                                    title={`${stage.label}: ${stage.count} active consignments`}
+                                  />
+                                </div>
                               </div>
-                              <span className="text-[9px] text-[#a8a093] text-center truncate w-full group-hover:text-white transition-colors">
+                            );
+                          })}
+                        </div>
+
+                        {/* Baseline Axis Rule */}
+                        <div className="w-full border-b border-[#38332c] mt-1" />
+
+                        {/* Lower Section: X-Axis Labels (Dedicated Row, Guaranteed Visible) */}
+                        <div className="flex items-start justify-between gap-2 px-1 pt-2">
+                          {pipelineStages.map((stage) => (
+                            <div
+                              key={stage.label}
+                              className="flex-1 flex flex-col items-center text-center group cursor-default"
+                            >
+                              <span className="text-[10px] font-semibold text-[#a8a093] group-hover:text-white transition-colors leading-tight whitespace-normal break-words">
                                 {stage.label}
                               </span>
+                              <span
+                                className="h-1 w-3 rounded-full mt-1 opacity-70 group-hover:opacity-100 transition-opacity"
+                                style={{ backgroundColor: stage.color }}
+                              />
                             </div>
-                          );
-                        })}
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2824,10 +2991,16 @@ export default function App() {
                       </div>
 
                       <div className="space-y-3">
-                        {orders
-                          .filter((o) => o.mode === "MADE_TO_ORDER" && o.isGraceActive)
-                          .slice(0, 4)
-                          .map((order) => {
+                        {orders.filter((o) => o.mode === "MADE_TO_ORDER" && o.isGraceActive && o.status !== "CANCELLED" && o.status !== "REFUNDED").length === 0 ? (
+                          <div className="py-6 text-center text-xs text-[#a8a093] bg-[#1e1c19] rounded-xl border border-[#38332c] space-y-1">
+                            <p className="font-semibold text-white">No active Made-to-Order grace holds.</p>
+                            <p className="text-[11px]">All confirmed orders have passed Day 7 and commenced physical machining.</p>
+                          </div>
+                        ) : (
+                          orders
+                            .filter((o) => o.mode === "MADE_TO_ORDER" && o.isGraceActive && o.status !== "CANCELLED" && o.status !== "REFUNDED")
+                            .slice(0, 4)
+                            .map((order) => {
                             const daysRemaining = order.graceDaysRemaining ?? 0;
                             const elapsedDays = Math.max(0, Math.min(7, 7 - daysRemaining));
                             const percent = Math.round((elapsedDays / 7) * 100);
@@ -2875,7 +3048,8 @@ export default function App() {
                                 </div>
                               </div>
                             );
-                          })}
+                          })
+                        )}
                       </div>
 
                       <button
@@ -3334,9 +3508,68 @@ export default function App() {
               </p>
             </div>
 
+            {/* Filter between Active Crafting vs Cancelled */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#38332c] pb-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-[#a8a093] font-semibold uppercase tracking-wider mr-1">Queue Filter:</span>
+                <button
+                  type="button"
+                  onClick={() => setWorkshopStatusFilter("ACTIVE")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    workshopStatusFilter === "ACTIVE"
+                      ? "bg-[#c59b6d] text-[#181715]"
+                      : "bg-[#2a2722] text-[#a8a093] hover:text-white"
+                  }`}
+                >
+                  Active Workshop Works ({orders.filter((o) => o.mode === "MADE_TO_ORDER" && o.status !== "CANCELLED" && o.status !== "REFUNDED").length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWorkshopStatusFilter("CANCELLED")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    workshopStatusFilter === "CANCELLED"
+                      ? "bg-rose-900 text-rose-100"
+                      : "bg-[#2a2722] text-[#a8a093] hover:text-white"
+                  }`}
+                >
+                  Pre-Production Cancellations ({orders.filter((o) => o.mode === "MADE_TO_ORDER" && (o.status === "CANCELLED" || o.status === "REFUNDED")).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWorkshopStatusFilter("ALL")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    workshopStatusFilter === "ALL"
+                      ? "bg-white text-[#181715]"
+                      : "bg-[#2a2722] text-[#a8a093] hover:text-white"
+                  }`}
+                >
+                  All MTO Records ({orders.filter((o) => o.mode === "MADE_TO_ORDER").length})
+                </button>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {orders
                 .filter((o) => o.mode === "MADE_TO_ORDER")
+                .filter((o) => {
+                  const isCancelled = o.status === "CANCELLED" || o.status === "REFUNDED";
+                  if (workshopStatusFilter === "ACTIVE") return !isCancelled;
+                  if (workshopStatusFilter === "CANCELLED") return isCancelled;
+                  return true;
+                }).length === 0 && (
+                <div className="col-span-1 md:col-span-2 py-10 text-center text-xs text-[#a8a093] bg-[#24211d] rounded-2xl border border-[#38332c] space-y-1">
+                  <p className="font-semibold text-white">No orders matching this workshop filter.</p>
+                  <p className="text-[11px]">All made-to-order consignments in this category are clear.</p>
+                </div>
+              )}
+              {orders
+                .filter((o) => o.mode === "MADE_TO_ORDER")
+                .filter((o) => {
+                  const isCancelled = o.status === "CANCELLED" || o.status === "REFUNDED";
+                  if (workshopStatusFilter === "ACTIVE") return !isCancelled;
+                  if (workshopStatusFilter === "CANCELLED") return isCancelled;
+                  return true;
+                })
                 .map((order) => {
                   const isCancelled = order.status === "CANCELLED" || order.status === "REFUNDED";
                   const isConfirmedAwaitingRelease =
@@ -3519,7 +3752,15 @@ export default function App() {
             </div>
 
             <div className="space-y-4">
-              {orders.map((order) => (
+              {orders.filter((o) => o.status !== "CANCELLED" && o.status !== "REFUNDED").length === 0 ? (
+                <div className="p-8 text-center text-xs text-[#a8a093] bg-[#24211d] rounded-2xl border border-[#38332c] space-y-1">
+                  <p className="font-semibold text-white">No active consignments pending carrier booking or delivery.</p>
+                  <p className="text-[11px]">Cancelled orders are excluded from courier dispatch.</p>
+                </div>
+              ) : (
+                orders
+                  .filter((o) => o.status !== "CANCELLED" && o.status !== "REFUNDED")
+                  .map((order) => (
                 <div
                   key={order.id}
                   className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] flex flex-col md:flex-row md:items-center justify-between gap-6"
@@ -3626,7 +3867,8 @@ export default function App() {
                     </div>
                   )}
                 </div>
-              ))}
+              ))
+            )}
             </div>
           </div>
         )}
