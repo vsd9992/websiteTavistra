@@ -5473,31 +5473,7 @@ export default function App() {
               )}
             </div>
           </div>
-        )}"""
-
-# Normalise \r\n to \n for matching
-text_lf = text.replace("\r\n", "\n")
-
-replacements = [
-    (target_state, replacement_state, "Workshop state declarations"),
-    (target_hooks, replacement_hooks, "Workshop hooks insertion"),
-    (target_production_tab, replacement_production_tab, "Upgraded Workshop Queue UI"),
-]
-
-for tgt, repl, name in replacements:
-    tgt_lf = tgt.replace("\r\n", "\n")
-    repl_lf = repl.replace("\r\n", "\n")
-    if tgt_lf in text_lf:
-        text_lf = text_lf.replace(tgt_lf, repl_lf, 1)
-        print(f"[OK] Applied: {name}")
-    else:
-        print(f"[FAIL] Target not found: {name}")
-
-final_text = text_lf.replace("\n", "\r\n")
-with open(path, "wb") as f:
-    f.write(final_text.encode("utf-8"))
-
-print("Workshop upgrade applied.
+        )}
 
         {/* TAB 4: DISPATCH & AWB */}
         {activeTab === "DISPATCH" && (
