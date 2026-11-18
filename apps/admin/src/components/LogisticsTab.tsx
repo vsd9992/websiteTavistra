@@ -119,8 +119,8 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
   const [calcPin, setCalcPin] = useState<string>("560001");
   const [calcResult, setCalcResult] = useState<any | null>(null);
 
-  // Visual View Mode: MAP vs DONUT vs PROTOCOL
-  const [visualMode, setVisualMode] = useState<"MAP" | "DONUT" | "PROTOCOL">("MAP");
+  // Visual View Mode: MAP vs DONUT vs PROTOCOL (Default to DONUT for reliable live DB telemetry)
+  const [visualMode, setVisualMode] = useState<"MAP" | "DONUT" | "PROTOCOL">("DONUT");
   const [pincodeDonutView, setPincodeDonutView] = useState<"ZONE" | "STATUS">("ZONE");
   const [hoveredPincodeSlice, setHoveredPincodeSlice] = useState<string | null>(null);
   const [hoveredMapRegion, setHoveredMapRegion] = useState<string | null>(null);
@@ -913,9 +913,10 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
             </div>
           </div>
 
-          {/* Visual Section: Interactive India Map / Donut / Protocol Switcher */}
-          <div className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#38332c] pb-3">
+          {/* Visual Section: Interactive India Map / Donut / Protocol Switcher (Collapses on Region Drill-down) */}
+          {!activeRegionGroup && (
+            <div className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#38332c] pb-3">
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-xs uppercase font-bold text-[#c59b6d] tracking-wider">
@@ -1394,6 +1395,7 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
               </div>
             )}
           </div>
+          )}
 
           {/* Live 6-Digit Resolution Simulator */}
           <div className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4">
@@ -1421,6 +1423,20 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                 >
                   {simLoading ? "Testing..." : "Simulate"}
                 </button>
+                {(simResult || simPin) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSimResult(null);
+                      setSimPin("");
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-[#2a2722] hover:bg-[#38332c] text-[#a8a093] hover:text-white border border-[#464037] text-xs font-semibold transition-colors flex items-center gap-1"
+                    title="Reset Simulation"
+                  >
+                    <span>✕</span>
+                    <span>Reset</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1478,6 +1494,18 @@ export function LogisticsTab({ staffName, staffRole, onLogAudit, onPincodesUpdat
                 </div>
 
                     <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSimResult(null);
+                      setSimPin("");
+                    }}
+                    className="px-3 py-2 rounded-lg bg-[#24211d] hover:bg-[#2e2a24] text-[#a8a093] hover:text-white border border-[#38332c] text-xs font-semibold transition-colors flex items-center gap-1.5"
+                    title="Clear simulated result"
+                  >
+                    <span>✕</span>
+                    <span>Reset Simulation</span>
+                  </button>
                   <button
                     onClick={() =>
                       openModalForPin({
