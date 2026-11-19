@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
 /* =========================================================================
    TAVISTRA ATELIER DESIGN SYSTEM — 8+ HOUR WORKSTATION ERGONOMICS
    Dual Theme Engine:
@@ -16,25 +18,25 @@
   :root,
   :root:not([data-theme="dark"]),
   [data-theme="light"] {
-    --theme-bg-canvas: #F8F7F4;       /* Soothing Warm Stone Alabaster (No glare) */
-    --theme-bg-surface: #FFFFFF;      /* Crisp Elevated Card / Modal */
-    --theme-bg-sidebar: #F0EDE6;      /* Recessed Navigation Canvas */
-    --theme-bg-subtle: #EBE6DC;       /* Table Headers, Inset Wells */
-    --theme-bg-hover: #E3DDD2;        /* Distinct Interactive Hover */
-    --theme-bg-active: #D9D2C4;       /* Pressed State */
+    --theme-bg-canvas: #F8FAFC;       /* Radix Slate 50 - Zero-glare enterprise canvas */
+    --theme-bg-surface: #FFFFFF;      /* Pure Crisp White Card / Modal Surface */
+    --theme-bg-sidebar: #F1F5F9;      /* Slate 100 Navigation Canvas */
+    --theme-bg-subtle: #F1F5F9;       /* Slate 100 Table Headers, Inset Wells */
+    --theme-bg-hover: #E2E8F0;        /* Slate 200 Interactive Hover */
+    --theme-bg-active: #CBD5E1;       /* Slate 300 Pressed State */
     
-    --theme-border: #E2DDD5;          /* Crisp Hairline Dividing Lines */
-    --theme-border-subtle: #ECE8E1;   /* Inset Table Dividers */
-    --theme-border-strong: #CDC6BA;   /* Emphasized Outlines */
+    --theme-border: #E2E8F0;          /* Slate 200 Hairline Borders */
+    --theme-border-subtle: #F1F5F9;   /* Slate 100 Inset Table Dividers */
+    --theme-border-strong: #CBD5E1;   /* Slate 300 Emphasized Outlines */
     
-    --theme-text-primary: #18181B;    /* Stone Charcoal (16:1 Contrast on White) */
-    --theme-text-secondary: #52525B;  /* Slate Stone (7.5:1 Contrast, WCAG AAA) */
-    --theme-text-muted: #71717A;      /* Legible Timestamps & Metadata (4.8:1) */
+    --theme-text-primary: #0F172A;    /* Slate 900 (16:1 Contrast on White) */
+    --theme-text-secondary: #475569;  /* Slate 600 (7.5:1 Contrast, WCAG AAA) */
+    --theme-text-muted: #64748B;      /* Slate 500 Metadata (4.8:1) */
     
     --theme-accent-brass: #9E7238;    /* Burnished Atelier Brass */
     --theme-accent-hover: #855E28;
-    --theme-accent-bg: #F8F2E8;       /* Subtle Warm Brass Tint */
-    --theme-accent-border: #E6D5BD;
+    --theme-accent-bg: #F8F4EE;       /* Subtle Warm Brass Tint */
+    --theme-accent-border: #E4D8C7;
     --theme-accent-text: #825821;     /* High Contrast Brass Text on Light */
 
     /* Semantic Status Accents - Light Mode (Soft Pastels with Deep Authoritative Text) */

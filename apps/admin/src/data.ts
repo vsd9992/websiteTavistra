@@ -147,6 +147,7 @@ export interface CatalogueVariantItem {
   materialFinish?: string;
   color?: string;
   imageUrl?: string | null;
+  imageUrls?: string[];
   priceRupees: number;
   stock: number;
   description?: string;
@@ -529,6 +530,10 @@ export const INITIAL_CATALOGUE: CatalogueItem[] = [
         title: "Matte Obsidian & Brushed Brass",
         materialFinish: "Anodised Matte Obsidian Body with Unlacquered Brushed Brass Hands",
         imageUrl: "/uploads/products/monolith-minimalist-wall-clock/monolith-obsidian-hero.svg",
+        imageUrls: [
+          "/uploads/products/monolith-minimalist-wall-clock/monolith-obsidian-hero.svg",
+          "/uploads/products/monolith-minimalist-wall-clock/monolith-obsidian-detail.svg",
+        ],
         priceRupees: 14500,
         stock: 4,
         description: "Precision-milled aerospace aluminium chassis in deep non-reflective matte obsidian, contrasted with living satin brushed brass hands.",
@@ -542,6 +547,10 @@ export const INITIAL_CATALOGUE: CatalogueItem[] = [
         title: "Raw Brushed Aluminium & Natural Brass",
         materialFinish: "Raw Monolithic Aluminium with Satin Directional Brush",
         imageUrl: "/uploads/products/monolith-minimalist-wall-clock/monolith-raw-hero.svg",
+        imageUrls: [
+          "/uploads/products/monolith-minimalist-wall-clock/monolith-raw-hero.svg",
+          "/uploads/products/monolith-minimalist-wall-clock/monolith-raw-detail.svg",
+        ],
         priceRupees: 16200,
         stock: 4,
         description: "Machine-finished monolithic aerospace aluminium displaying continuous radial grain toolpaths and natural metallic luster.",
@@ -589,6 +598,10 @@ export const INITIAL_CATALOGUE: CatalogueItem[] = [
         title: "Standard Edition (600 × 900 mm)",
         materialFinish: "Hand-Rolled Architectural Solid Brass with Satin Mitred Joinery",
         imageUrl: "/uploads/products/arc-solid-brass-wall-mirror/arc-mirror-hero.svg",
+        imageUrls: [
+          "/uploads/products/arc-solid-brass-wall-mirror/arc-mirror-hero.svg",
+          "/uploads/products/arc-solid-brass-wall-mirror/arc-mirror-detail.svg",
+        ],
         priceRupees: 38000,
         stock: 0,
         description: "Balanced residential proportion featuring heavy-gauge brass frame and French cleat mounting bracket.",
@@ -602,6 +615,10 @@ export const INITIAL_CATALOGUE: CatalogueItem[] = [
         title: "Grand Vanity Edition (800 × 1200 mm)",
         materialFinish: "Heavy-Gauge Crated Architectural Solid Brass",
         imageUrl: "/uploads/products/arc-solid-brass-wall-mirror/arc-mirror-grand-hero.svg",
+        imageUrls: [
+          "/uploads/products/arc-solid-brass-wall-mirror/arc-mirror-grand-hero.svg",
+          "/uploads/products/arc-solid-brass-wall-mirror/arc-mirror-grand-detail.svg",
+        ],
         priceRupees: 52000,
         stock: 0,
         description: "Architectural focal mirror for grand master suites and hotel suites with reinforced internal steel bracing.",
@@ -648,6 +665,10 @@ export const INITIAL_CATALOGUE: CatalogueItem[] = [
         title: "Warm Charcoal Mineral Stone & Bronze",
         materialFinish: "Weighted Mineral Composite with Hard-Anodised Bronze Channel",
         imageUrl: "/uploads/products/strata-modular-desk-organiser/strata-hero.svg",
+        imageUrls: [
+          "/uploads/products/strata-modular-desk-organiser/strata-hero.svg",
+          "/uploads/products/strata-modular-desk-organiser/strata-detail.svg",
+        ],
         priceRupees: 8200,
         stock: 12,
         description: "Deep architectural charcoal stone base with natural anti-scratch wool felt underside.",
@@ -661,6 +682,10 @@ export const INITIAL_CATALOGUE: CatalogueItem[] = [
         title: "Natural Sand Stone & Raw Aluminium",
         materialFinish: "Fine Cast Mineral Sand Stone with Clear Anodised Aluminium",
         imageUrl: "/uploads/products/strata-modular-desk-organiser/strata-detail.svg",
+        imageUrls: [
+          "/uploads/products/strata-modular-desk-organiser/strata-detail.svg",
+          "/uploads/products/strata-modular-desk-organiser/strata-sand-macro.svg",
+        ],
         priceRupees: 8200,
         stock: 10,
         description: "Warm sandstone textured body echoing desert rammed-earth architecture.",
@@ -707,6 +732,10 @@ export const INITIAL_CATALOGUE: CatalogueItem[] = [
         title: "Gunmetal & Brushed Brass",
         materialFinish: "Gunmetal Stainless Steel Counterweight Arm with Living Brass Details",
         imageUrl: "/uploads/products/aether-kinetic-desk-lamp/aether-hero.svg",
+        imageUrls: [
+          "/uploads/products/aether-kinetic-desk-lamp/aether-hero.svg",
+          "/uploads/products/aether-kinetic-desk-lamp/aether-detail.svg",
+        ],
         priceRupees: 42500,
         stock: 0,
         description: "Dynamic mechanical counterbalance mechanism with calibrated rotational brass dimmer.",
@@ -720,6 +749,9 @@ export const INITIAL_CATALOGUE: CatalogueItem[] = [
         title: "Monolithic Patinated Brass",
         materialFinish: "Living Raw Brass with Micro-Crystalline Studio Wax",
         imageUrl: "/uploads/products/aether-kinetic-desk-lamp/aether-brass-hero.svg",
+        imageUrls: [
+          "/uploads/products/aether-kinetic-desk-lamp/aether-brass-hero.svg",
+        ],
         priceRupees: 46000,
         stock: 0,
         description: "All-brass kinetic luminaire intended to develop rich natural golden and antique patina over decades.",
@@ -766,6 +798,10 @@ export const INITIAL_CATALOGUE: CatalogueItem[] = [
         title: "Natural Raw Brushed Brass",
         materialFinish: "Lost-Wax Cast Solid Brass with Directional Satin Linishing",
         imageUrl: "/uploads/products/torus-sculptural-brass-key-tag/torus-hero.svg",
+        imageUrls: [
+          "/uploads/products/torus-sculptural-brass-key-tag/torus-hero.svg",
+          "/uploads/products/torus-sculptural-brass-key-tag/torus-natural-detail.svg",
+        ],
         priceRupees: 3400,
         stock: 20,
         description: "Warm tactile pocket pebble with threaded grade-5 titanium wire cable.",
@@ -779,6 +815,9 @@ export const INITIAL_CATALOGUE: CatalogueItem[] = [
         title: "Studio Smoked Patina Brass",
         materialFinish: "Hand-Torched Chemical Dark Patina with Sealed Matte Wax",
         imageUrl: "/uploads/products/torus-sculptural-brass-key-tag/torus-detail.svg",
+        imageUrls: [
+          "/uploads/products/torus-sculptural-brass-key-tag/torus-detail.svg",
+        ],
         priceRupees: 3800,
         stock: 15,
         description: "Antique bronze smoked finish providing high contrast with engraved numbering.",

@@ -4111,11 +4111,11 @@ export default function App() {
   })();
 
   return (
-    <div className="min-h-screen flex bg-[#181715] text-[#eae6df]">
+    <div className="min-h-screen flex bg-[#F8FAFC] dark:bg-[#181715] text-[#0F172A] dark:text-[#eae6df]">
       {/* LEFT SIDEBAR: PIANO STYLE */}
-      <aside className="w-64 xl:w-72 shrink-0 bg-[#1e1c19] border-r border-[#38332c] flex flex-col justify-between sticky top-0 h-screen z-40 select-none">
+      <aside className="w-64 xl:w-72 shrink-0 bg-[#F1F5F9] dark:bg-[#1e1c19] border-r border-[#CBD5E1] dark:border-[#38332c] flex flex-col justify-between sticky top-0 h-screen z-40 select-none">
         {/* Top: Showcase Brand Logo */}
-        <div className="p-5 border-b border-[#38332c] bg-[#1a1816]/80 flex items-center justify-between">
+        <div className="p-5 border-b border-[#CBD5E1] dark:border-[#38332c] bg-white/80 dark:bg-[#1a1816]/80 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <img
               src="/logo-name.png"
@@ -4123,7 +4123,7 @@ export default function App() {
               className="h-8 w-auto object-contain max-w-[140px]"
             />
           </div>
-          <span className="text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded bg-[#2a2722] text-[#c59b6d] border border-[#38332c]">
+          <span className="text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded bg-white dark:bg-[#2a2722] text-[#9E7238] dark:text-[#c59b6d] border border-[#CBD5E1] dark:border-[#38332c] shadow-2xs">
             Admin
           </span>
         </div>
@@ -4149,24 +4149,24 @@ export default function App() {
                   onClick={() => toggleGroup(group.id)}
                   className={`w-full px-3 py-2 rounded-lg flex items-center justify-between text-left transition-all ${
                     isGroupActive
-                      ? "bg-[#25221d] text-[#eae6df] border border-[#464037]"
-                      : "bg-[#1f1c19] text-[#a8a093] hover:bg-[#25221d] hover:text-[#eae6df] border border-transparent"
+                      ? "bg-slate-200/60 text-[#0F172A] border border-[#CBD5E1] dark:bg-[#25221d] dark:text-[#eae6df] dark:border-[#464037]"
+                      : "bg-transparent text-[#475569] hover:bg-slate-200/40 hover:text-[#0F172A] dark:bg-[#1f1c19] dark:text-[#a8a093] dark:hover:bg-[#25221d] dark:hover:text-[#eae6df] border border-transparent"
                   }`}
                 >
                   <div className="flex items-center gap-2">
                     <span className="text-xs">{group.icon}</span>
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#d5cfc5]">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#0F172A] dark:text-[#d5cfc5]">
                       {group.title}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     {totalGroupBadge > 0 && (
-                      <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-[#2e2a24] text-[#c59b6d] border border-[#3e3830]">
+                      <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-white dark:bg-[#2e2a24] text-[#9E7238] dark:text-[#c59b6d] border border-[#CBD5E1] dark:border-[#3e3830]">
                         {totalGroupBadge}
                       </span>
                     )}
                     <span
-                      className={`text-[9px] text-[#787165] transition-transform duration-200 ${
+                      className={`text-[9px] text-[#64748B] dark:text-[#787165] transition-transform duration-200 ${
                         isCollapsed ? "-rotate-90" : "rotate-0"
                       }`}
                     >
@@ -4187,8 +4187,8 @@ export default function App() {
                           onClick={() => setActiveTab(item.id)}
                           className={`group relative flex items-center justify-between w-full px-3 py-2 text-xs rounded-md transition-all select-none ${
                             isActive
-                              ? "bg-[#EDE9E1] text-[#18181B] dark:bg-[#2A2E39] dark:text-[#F8FAFC] border-l-4 border-l-[#9E7238] dark:border-l-[#E0B26E] border-y border-r border-[#D6CFC4] dark:border-[#384152] shadow-xs pl-2.5 font-bold"
-                              : "text-[#5C5549] dark:text-[#94A3B8] hover:text-[#18181B] dark:hover:text-[#F8FAFC] hover:bg-[#F2EFE9] dark:hover:bg-[#1E222B] border-l-4 border-l-transparent border-y border-r border-transparent hover:border-[#D6CFC4] dark:hover:border-[#332f28] font-medium"
+                              ? "bg-white text-[#0F172A] dark:bg-[#2A2E39] dark:text-[#F8FAFC] border-l-4 border-l-[#9E7238] dark:border-l-[#E0B26E] border-y border-r border-[#CBD5E1] dark:border-[#384152] shadow-xs pl-2.5 font-bold"
+                              : "text-[#475569] dark:text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-[#F8FAFC] hover:bg-slate-200/50 dark:hover:bg-[#1E222B] border-l-4 border-l-transparent border-y border-r border-transparent hover:border-[#CBD5E1] dark:hover:border-[#332f28] font-medium"
                           }`}
                         >
                           <span className="truncate">{item.label}</span>
@@ -4201,7 +4201,7 @@ export default function App() {
                                   ? "bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-800/60"
                                   : item.badgeColor === "rose"
                                   ? "bg-rose-100 text-rose-900 border border-rose-300 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-800/60"
-                                  : "bg-[#E2DDD5] text-[#825821] dark:bg-[#2a2722] dark:text-[#c59b6d] border border-[#D6CFC4] dark:border-[#38332c]"
+                                  : "bg-white dark:bg-[#2a2722] text-[#9E7238] dark:text-[#c59b6d] border border-[#CBD5E1] dark:border-[#38332c]"
                               }`}
                             >
                               {item.badge}
@@ -10127,62 +10127,62 @@ export default function App() {
                   setCatalogueModeFilter("ALL");
                   setCatalogueCategoryFilter("ALL");
                 }}
-                className={`p-4 rounded-2xl bg-[#24211d] border transition-all cursor-pointer ${
+                className={`p-4 rounded-2xl bg-white dark:bg-[#1E222B] border transition-all cursor-pointer shadow-xs ${
                   catalogueModeFilter === "ALL" && catalogueCategoryFilter === "ALL"
-                    ? "border-[#c59b6d] ring-1 ring-[#c59b6d]"
-                    : "border-[#38332c] hover:border-[#4d473d]"
+                    ? "border-[#9E7238] ring-1 ring-[#9E7238]"
+                    : "border-[#E2E8F0] dark:border-[#2E3442] hover:border-[#CBD5E1]"
                 }`}
               >
-                <span className="text-[10px] uppercase font-bold text-[#a8a093] tracking-wider block">Catalogue Editions</span>
-                <span className="text-2xl font-mono font-bold text-white mt-1 block">
+                <span className="text-[10px] uppercase font-bold text-[#64748B] dark:text-[#94A3B8] tracking-wider block">Catalogue Editions</span>
+                <span className="text-2xl font-mono font-bold text-[#0F172A] dark:text-[#F8FAFC] mt-1 block">
                   {catalogueKpis.totalEditions}
                 </span>
-                <div className="text-[11px] text-[#a8a093] mt-0.5 flex items-center justify-between">
+                <div className="text-[11px] text-[#64748B] dark:text-[#94A3B8] mt-0.5 flex items-center justify-between">
                   <span>{catalogueKpis.publishedCount} Published</span>
-                  <span className="text-emerald-400 font-medium">100% Live</span>
+                  <span className="text-emerald-700 dark:text-emerald-400 font-semibold">100% Live</span>
                 </div>
               </div>
 
               {/* Card 2: Configured Variants */}
-              <div className="p-4 rounded-2xl bg-[#24211d] border border-[#38332c]">
-                <span className="text-[10px] uppercase font-bold text-[#a8a093] tracking-wider block">Configured Variants</span>
-                <span className="text-2xl font-mono font-bold text-[#38bdf8] mt-1 block">
+              <div className="p-4 rounded-2xl bg-white dark:bg-[#1E222B] border border-[#E2E8F0] dark:border-[#2E3442] shadow-xs">
+                <span className="text-[10px] uppercase font-bold text-[#64748B] dark:text-[#94A3B8] tracking-wider block">Configured Variants</span>
+                <span className="text-2xl font-mono font-bold text-sky-700 dark:text-[#38bdf8] mt-1 block">
                   {catalogueKpis.totalVariants}
                 </span>
-                <div className="text-[11px] text-[#a8a093] mt-0.5 flex items-center justify-between">
+                <div className="text-[11px] text-[#64748B] dark:text-[#94A3B8] mt-0.5 flex items-center justify-between">
                   <span>Across {catalogueKpis.totalEditions} Works</span>
-                  <span className="text-[#c59b6d] font-medium">Finishes & Sizes</span>
+                  <span className="text-[#9E7238] dark:text-[#E0B26E] font-medium">Finishes &amp; Sizes</span>
                 </div>
               </div>
 
               {/* Card 3: Ready-Stock Warehouse Ledger */}
               <div
                 onClick={() => setCatalogueModeFilter("READY_STOCK")}
-                className={`p-4 rounded-2xl bg-[#24211d] border transition-all cursor-pointer ${
+                className={`p-4 rounded-2xl bg-white dark:bg-[#1E222B] border transition-all cursor-pointer shadow-xs ${
                   catalogueModeFilter === "READY_STOCK"
-                    ? "border-[#10b981] ring-1 ring-[#10b981]"
-                    : "border-[#38332c] hover:border-[#4d473d]"
+                    ? "border-emerald-600 ring-1 ring-emerald-600"
+                    : "border-[#E2E8F0] dark:border-[#2E3442] hover:border-[#CBD5E1]"
                 }`}
               >
-                <span className="text-[10px] uppercase font-bold text-[#a8a093] tracking-wider block">Ready-Stock Warehouse</span>
-                <span className="text-2xl font-mono font-bold text-[#10b981] mt-1 block">
+                <span className="text-[10px] uppercase font-bold text-[#64748B] dark:text-[#94A3B8] tracking-wider block">Ready-Stock Warehouse</span>
+                <span className="text-2xl font-mono font-bold text-emerald-700 dark:text-emerald-400 mt-1 block">
                   {catalogueKpis.totalAvailableStock} Units
                 </span>
-                <div className="text-[11px] text-[#a8a093] mt-0.5 flex items-center justify-between">
-                  <span>{formatPrice(catalogueKpis.readyStockValuation)}</span>
-                  <span className="text-emerald-400 font-medium">Available</span>
+                <div className="text-[11px] text-[#64748B] dark:text-[#94A3B8] mt-0.5 flex items-center justify-between">
+                  <span className="font-mono">{formatPrice(catalogueKpis.readyStockValuation)}</span>
+                  <span className="text-emerald-700 dark:text-emerald-400 font-semibold">Available</span>
                 </div>
               </div>
 
               {/* Card 4: Price Band Spectrum */}
-              <div className="p-4 rounded-2xl bg-[#24211d] border border-[#38332c]">
-                <span className="text-[10px] uppercase font-bold text-[#a8a093] tracking-wider block">Price Band Spectrum</span>
-                <span className="text-lg font-mono font-bold text-white mt-1.5 block truncate">
+              <div className="p-4 rounded-2xl bg-white dark:bg-[#1E222B] border border-[#E2E8F0] dark:border-[#2E3442] shadow-xs">
+                <span className="text-[10px] uppercase font-bold text-[#64748B] dark:text-[#94A3B8] tracking-wider block">Price Band Spectrum</span>
+                <span className="text-lg font-mono font-bold text-[#0F172A] dark:text-[#F8FAFC] mt-1.5 block truncate">
                   {formatPrice(catalogueKpis.minPrice)} – {formatPrice(catalogueKpis.maxPrice)}
                 </span>
-                <div className="text-[11px] text-[#a8a093] mt-0.5 flex items-center justify-between">
+                <div className="text-[11px] text-[#64748B] dark:text-[#94A3B8] mt-0.5 flex items-center justify-between">
                   <span>5 Studio Collections</span>
-                  <span className="text-[#c59b6d] font-medium">Architectural Range</span>
+                  <span className="text-[#9E7238] dark:text-[#E0B26E] font-medium">Architectural Range</span>
                 </div>
               </div>
             </div>
@@ -10190,19 +10190,19 @@ export default function App() {
             {/* Interactive SVG Donut & Studio Catalogue Governance Card */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Donut Visual Box */}
-              <div className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4">
-                <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
+              <div className="p-5 rounded-2xl bg-white dark:bg-[#1E222B] border border-[#E2E8F0] dark:border-[#2E3442] shadow-xs space-y-4">
+                <div className="flex items-center justify-between border-b border-[#E2E8F0] dark:border-[#2E3442] pb-3">
                   <div>
-                    <h3 className="text-xs uppercase font-bold text-[#c59b6d] tracking-wider">
+                    <h3 className="text-xs uppercase font-bold text-[#9E7238] dark:text-[#E0B26E] tracking-wider">
                       {catalogueDonutData.title}
                     </h3>
-                    <p className="text-[11px] text-[#a8a093] mt-0.5">
+                    <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] mt-0.5">
                       {catalogueDonutView === "MODE"
                         ? "Interactive breakdown by commercial fulfillment mode"
                         : "Distribution across curated architectural collections"}
                     </p>
                   </div>
-                  <div className="flex items-center gap-1 bg-[#181715] p-1 rounded-xl border border-[#38332c]">
+                  <div className="flex items-center gap-1 bg-[#F1F5F9] dark:bg-[#181B22] p-1 rounded-xl border border-[#E2E8F0] dark:border-[#2E3442]">
                     <button
                       type="button"
                       onClick={() => {
@@ -10211,8 +10211,8 @@ export default function App() {
                       }}
                       className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors ${
                         catalogueDonutView === "MODE"
-                          ? "bg-[#c59b6d] text-[#181715]"
-                          : "text-[#a8a093] hover:text-white"
+                          ? "bg-white dark:bg-[#252B37] text-[#0F172A] dark:text-[#F8FAFC] shadow-2xs font-bold"
+                          : "text-[#64748B] dark:text-[#94A3B8] hover:text-[#0F172A]"
                       }`}
                     >
                       Modes ({catalogueDonutData.totalCount})
@@ -10225,8 +10225,8 @@ export default function App() {
                       }}
                       className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors ${
                         catalogueDonutView === "CATEGORY"
-                          ? "bg-[#c59b6d] text-[#181715]"
-                          : "text-[#a8a093] hover:text-white"
+                          ? "bg-white dark:bg-[#252B37] text-[#0F172A] dark:text-[#F8FAFC] shadow-2xs font-bold"
+                          : "text-[#64748B] dark:text-[#94A3B8] hover:text-[#0F172A]"
                       }`}
                     >
                       Collections ({catalogueDonutData.totalCount})
@@ -10323,7 +10323,7 @@ export default function App() {
                             }
                           }}
                           className={`flex items-center justify-between p-1.5 rounded-lg text-xs cursor-pointer transition-all ${
-                            isHovered ? "bg-[#2e2a24] text-white" : "hover:bg-[#25221d] text-[#a8a093]"
+                            isHovered ? "bg-[#F1F5F9] dark:bg-[#252B37] text-[#0F172A] dark:text-white" : "hover:bg-[#F8FAFC] dark:hover:bg-[#1A1D25] text-[#475569] dark:text-[#94A3B8]"
                           }`}
                         >
                           <div className="flex items-center gap-2 min-w-0">
@@ -10331,11 +10331,11 @@ export default function App() {
                               className="h-2.5 w-2.5 rounded-full shrink-0"
                               style={{ backgroundColor: slice.color }}
                             />
-                            <span className="truncate text-[11px]">{slice.label}</span>
+                            <span className="truncate text-[11px] font-medium">{slice.label}</span>
                           </div>
                           <div className="flex items-center gap-2 shrink-0 font-mono text-[11px]">
-                            <span className="font-semibold text-white">{slice.count}</span>
-                            <span className="text-[#787165] text-[10px]">({slice.pct}%)</span>
+                            <span className="font-bold text-[#0F172A] dark:text-white">{slice.count}</span>
+                            <span className="text-[#64748B] dark:text-[#787165] text-[10px]">({slice.pct}%)</span>
                           </div>
                         </div>
                       );
@@ -10345,15 +10345,15 @@ export default function App() {
               </div>
 
               {/* Tavistra Studio Catalogue Architecture (TAV-02 & TAV-05) */}
-              <div className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-3.5 flex flex-col justify-between">
+              <div className="p-5 rounded-2xl bg-white dark:bg-[#1E222B] border border-[#E2E8F0] dark:border-[#2E3442] shadow-xs space-y-3.5 flex flex-col justify-between">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-[#c59b6d] animate-pulse" />
-                    <h3 className="text-xs uppercase font-bold text-[#c59b6d] tracking-wider">
-                      Studio Catalogue Architecture (TAV-02 & TAV-05)
+                    <span className="h-2 w-2 rounded-full bg-[#9E7238] animate-pulse" />
+                    <h3 className="text-xs uppercase font-bold text-[#9E7238] dark:text-[#E0B26E] tracking-wider">
+                      Studio Catalogue Architecture (TAV-02 &amp; TAV-05)
                     </h3>
                   </div>
-                  <p className="text-xs text-[#a8a093]">
+                  <p className="text-xs text-[#64748B] dark:text-[#94A3B8]">
                     Products and edition variants are governed by Markdown architectural specifications mirrored directly to PostgreSQL.
                   </p>
                 </div>
@@ -10369,20 +10369,20 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="p-2.5 rounded-xl bg-[#181715] border border-[#38332c] flex items-start gap-2.5">
-                    <span className="text-emerald-400 font-bold shrink-0">📦</span>
+                  <div className="p-2.5 rounded-xl bg-[#F8FAFC] dark:bg-[#181715] border border-[#E2E8F0] dark:border-[#38332c] flex items-start gap-2.5 text-xs text-[#475569] dark:text-[#a8a093]">
+                    <span className="text-emerald-600 font-bold shrink-0">📦</span>
                     <div>
-                      <strong className="text-white block font-medium">Dual-Mode Inventory Ledger:</strong>
+                      <strong className="text-[#0F172A] dark:text-white block font-semibold">Dual-Mode Inventory Ledger:</strong>
                       <span>
                         Ready Stock pieces utilize atomic inventory reservations with strict zero-overselling gates, while Made-to-Order pieces feed directly into the 7-day Workshop Grace queue.
                       </span>
                     </div>
                   </div>
 
-                  <div className="p-2.5 rounded-xl bg-[#181715] border border-[#38332c] flex items-start gap-2.5">
-                    <span className="text-sky-400 font-bold shrink-0">✨</span>
+                  <div className="p-2.5 rounded-xl bg-[#F8FAFC] dark:bg-[#181715] border border-[#E2E8F0] dark:border-[#38332c] flex items-start gap-2.5 text-xs text-[#475569] dark:text-[#a8a093]">
+                    <span className="text-sky-600 font-bold shrink-0">✨</span>
                     <div>
-                      <strong className="text-white block font-medium">Variant & SKU-Specific Granularity:</strong>
+                      <strong className="text-[#0F172A] dark:text-white block font-semibold">Variant &amp; SKU-Specific Granularity:</strong>
                       <span>
                         Every finish option (Obsidian, Brushed Brass, Sand Stone, Gunmetal) has a distinct SKU, finish title, weight, and dedicated inventory ledger.
                       </span>
@@ -10390,7 +10390,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="pt-1 flex items-center justify-between text-[11px] text-[#787165] border-t border-[#38332c]">
+                <div className="pt-1 flex items-center justify-between text-[11px] text-[#64748B] dark:text-[#787165] border-t border-[#E2E8F0] dark:border-[#38332c]">
                   <span>Total Works: {catalogueKpis.totalEditions}</span>
                   <span>Configured Variants: {catalogueKpis.totalVariants}</span>
                 </div>
@@ -10407,10 +10407,10 @@ export default function App() {
                     placeholder="Search works by title, SKU, slug, finish, or materials..."
                     value={catalogueSearchQuery}
                     onChange={(e) => setCatalogueSearchQuery(e.target.value)}
-                    className="w-full rounded-xl border border-[#464037] bg-[#181715] pl-9 pr-8 py-2 text-xs text-white placeholder-[#787165] focus:outline-none focus:border-[#c59b6d]"
+                    className="w-full rounded-xl border border-[#CBD5E1] dark:border-[#464037] bg-white dark:bg-[#181715] pl-9 pr-8 py-2 text-xs text-[#0F172A] dark:text-white placeholder-[#94A3B8] focus:outline-none focus:border-[#9E7238] shadow-2xs"
                   />
                   <svg
-                    className="w-4 h-4 text-[#787165] absolute left-3 top-2.5"
+                    className="w-4 h-4 text-[#94A3B8] absolute left-3 top-2.5"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -10421,7 +10421,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setCatalogueSearchQuery("")}
-                      className="absolute right-2.5 top-2.5 text-[#787165] hover:text-white text-xs"
+                      className="absolute right-2.5 top-2.5 text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-white text-xs"
                     >
                       ✕
                     </button>
@@ -10433,7 +10433,7 @@ export default function App() {
                   <select
                     value={catalogueCategoryFilter}
                     onChange={(e) => setCatalogueCategoryFilter(e.target.value)}
-                    className="rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-xs text-white focus:outline-none focus:border-[#c59b6d]"
+                    className="rounded-xl border border-[#CBD5E1] dark:border-[#464037] bg-white dark:bg-[#181715] px-3 py-2 text-xs text-[#0F172A] dark:text-white focus:outline-none focus:border-[#9E7238] shadow-2xs"
                   >
                     <option value="ALL">All Categories ({catalogueKpis.totalEditions})</option>
                     {catalogueKpis.categories.map((cat) => (
@@ -10446,7 +10446,7 @@ export default function App() {
               </div>
 
               {/* Mode Filter Pills */}
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#38332c] pb-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E2E8F0] dark:border-[#38332c] pb-3">
                 <div className="flex flex-wrap items-center gap-1.5">
                   {[
                     { id: "ALL" as const, label: `All Works (${catalogueKpis.totalEditions})` },
@@ -10458,10 +10458,10 @@ export default function App() {
                       key={tab.id}
                       type="button"
                       onClick={() => setCatalogueModeFilter(tab.id)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all shadow-2xs ${
                         catalogueModeFilter === tab.id
-                          ? "bg-[#c59b6d] text-[#181715]"
-                          : "bg-[#24211d] text-[#a8a093] hover:text-white hover:bg-[#2a2722] border border-[#38332c]"
+                          ? "bg-[#0F172A] text-white dark:bg-[#E0B26E] dark:text-[#0E1013] shadow-xs font-bold"
+                          : "bg-white dark:bg-[#1E222B] text-[#475569] dark:text-[#94A3B8] hover:text-[#0F172A] hover:bg-[#F1F5F9] dark:hover:bg-[#252B37] border border-[#CBD5E1] dark:border-[#38332c]"
                       }`}
                     >
                       {tab.label}
@@ -10469,32 +10469,32 @@ export default function App() {
                   ))}
                 </div>
 
-                <div className="text-xs text-[#a8a093]">
-                  Showing <strong className="text-white">{filteredCatalogue.length}</strong> of {catalogueKpis.totalEditions} works
+                <div className="text-xs text-[#64748B] dark:text-[#a8a093]">
+                  Showing <strong className="text-[#0F172A] dark:text-white font-bold">{filteredCatalogue.length}</strong> of {catalogueKpis.totalEditions} works
                 </div>
               </div>
             </div>
 
             {/* Catalogue Table with Expandable Variant Trays */}
-            <div className="rounded-2xl border border-[#38332c] bg-[#24211d] overflow-hidden">
+            <div className="rounded-2xl border border-[#E2E8F0] dark:border-[#2E3442] bg-white dark:bg-[#1E222B] shadow-xs overflow-hidden">
               <table className="w-full text-left text-xs">
-                <thead className="bg-[#1e1c19] border-b border-[#38332c] text-[11px] uppercase tracking-wider text-[#a8a093]">
+                <thead className="bg-[#F8FAFC] dark:bg-[#181B22] border-b border-[#E2E8F0] dark:border-[#2E3442] text-[11px] uppercase tracking-wider text-[#475569] dark:text-[#94A3B8] font-bold">
                   <tr>
-                    <th className="py-3 px-4">Product Work</th>
-                    <th className="py-3 px-4">Category / Taxon</th>
-                    <th className="py-3 px-4">Purchase Mode</th>
-                    <th className="py-3 px-4">Pricing</th>
-                    <th className="py-3 px-4">Variants / Editions</th>
-                    <th className="py-3 px-4">Stock Ledger</th>
-                    <th className="py-3 px-4">Delivery Zones (A–E)</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
+                    <th className="py-3.5 px-4">Product Work</th>
+                    <th className="py-3.5 px-4">Category / Taxon</th>
+                    <th className="py-3.5 px-4">Purchase Mode</th>
+                    <th className="py-3.5 px-4">Pricing</th>
+                    <th className="py-3.5 px-4">Variants / Editions</th>
+                    <th className="py-3.5 px-4">Stock Ledger</th>
+                    <th className="py-3.5 px-4">Delivery Zones (A–E)</th>
+                    <th className="py-3.5 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#38332c]">
+                <tbody className="divide-y divide-[#E2E8F0] dark:divide-[#2E3442]">
                   {filteredCatalogue.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-12 text-center text-xs text-[#a8a093]">
-                        <p className="font-semibold text-white">No catalogue works match the selected search or filter criteria.</p>
+                      <td colSpan={8} className="py-12 text-center text-xs text-[#64748B] dark:text-[#a8a093]">
+                        <p className="font-semibold text-[#0F172A] dark:text-white">No catalogue works match the selected search or filter criteria.</p>
                         <button
                           type="button"
                           onClick={() => {
@@ -10502,7 +10502,7 @@ export default function App() {
                             setCatalogueCategoryFilter("ALL");
                             setCatalogueSearchQuery("");
                           }}
-                          className="mt-2 px-3 py-1.5 rounded-xl bg-[#2a2722] text-[#c59b6d] hover:bg-[#343029] text-xs font-semibold border border-[#464037]"
+                          className="mt-2 px-3 py-1.5 rounded-xl bg-white dark:bg-[#2a2722] text-[#9E7238] dark:text-[#c59b6d] hover:bg-[#F1F5F9] dark:hover:bg-[#343029] text-xs font-semibold border border-[#CBD5E1] dark:border-[#464037] shadow-2xs"
                         >
                           Reset Filters
                         </button>
@@ -10515,43 +10515,43 @@ export default function App() {
 
                       return (
                         <Fragment key={item.id}>
-                          <tr className={`hover:bg-[#2a2722]/40 transition-colors ${isExpanded ? "bg-[#2a2722]/30" : ""}`}>
-                            <td className="py-4 px-4 font-semibold text-white">
+                          <tr className={`transition-colors ${isExpanded ? "bg-[#F8FAFC] dark:bg-[#181B22]" : "hover:bg-[#F8FAFC]/90 dark:hover:bg-[#1A1D25]"}`}>
+                            <td className="py-4 px-4 font-semibold text-[#0F172A] dark:text-[#F8FAFC]">
                               <div className="flex items-center gap-3">
                                 {item.primaryImageUrl ? (
                                   <img
                                     src={item.primaryImageUrl}
                                     alt={item.name}
-                                    className="h-10 w-10 rounded-lg object-cover border border-[#464037] shrink-0"
+                                    className="h-10 w-10 rounded-lg object-contain bg-[#F8FAFC] dark:bg-[#181715] border border-[#E2E8F0] dark:border-[#464037] p-0.5 shrink-0"
                                   />
                                 ) : (
-                                  <div className="h-10 w-10 rounded-lg bg-[#2a2722] border border-[#464037] flex items-center justify-center text-[10px] text-[#c59b6d] font-bold shrink-0">
+                                  <div className="h-10 w-10 rounded-lg bg-[#F1F5F9] dark:bg-[#2a2722] border border-[#CBD5E1] dark:border-[#464037] flex items-center justify-center text-[10px] text-[#9E7238] dark:text-[#c59b6d] font-bold shrink-0">
                                     ED
                                   </div>
                                 )}
                                 <div>
                                   <div className="flex items-center gap-2">
-                                    <span className="text-[#18181B] dark:text-[#F8FAFC] font-semibold block">{item.name}</span>
+                                    <span className="text-[#0F172A] dark:text-[#F8FAFC] font-bold block">{item.name}</span>
                                     <a
                                       href={getStorefrontUrl(`/product/${item.slug}`)}
                                       target="_blank"
                                       rel="noreferrer"
-                                      className="text-[10px] text-[#c59b6d] hover:underline flex items-center gap-0.5 font-normal"
+                                      className="text-[10px] text-[#9E7238] dark:text-[#c59b6d] hover:underline flex items-center gap-0.5 font-normal"
                                       title="Open live storefront PDP"
                                     >
                                       ↗
                                     </a>
                                   </div>
-                                  <span className="block text-[10px] font-mono text-[#a8a093]">
+                                  <span className="block text-[10px] font-mono text-[#64748B] dark:text-[#a8a093]">
                                     {item.sku ? `${item.sku} · ` : ""}{item.slug}
                                   </span>
                                 </div>
                               </div>
                             </td>
-                            <td className="py-4 px-4 text-[#a8a093]">
-                              <span className="text-[#18181B] dark:text-[#F8FAFC] block">{item.category}</span>
+                            <td className="py-4 px-4 text-[#475569] dark:text-[#a8a093]">
+                              <span className="text-[#0F172A] dark:text-[#F8FAFC] font-semibold block">{item.category}</span>
                               {item.subcategory && (
-                                <span className="text-[10px] text-[#c59b6d] block">{item.subcategory}</span>
+                                <span className="text-[10px] text-[#9E7238] dark:text-[#c59b6d] font-medium block">{item.subcategory}</span>
                               )}
                             </td>
                             <td className="py-4 px-4">
@@ -10565,7 +10565,7 @@ export default function App() {
                                 {item.mode === "READY_STOCK" ? "Ready Stock" : item.mode === "MADE_TO_ORDER" ? "Made to Order" : "Bespoke Quote"}
                               </span>
                             </td>
-                            <td className="py-4 px-4 font-bold text-[#18181B] dark:text-[#F8FAFC]">
+                            <td className="py-4 px-4 font-mono font-bold text-[#0F172A] dark:text-[#F8FAFC] text-xs">
                               {item.isVariablePrice && item.minPriceRupees
                                 ? `From ${formatPrice(item.minPriceRupees)}`
                                 : formatPrice(item.priceRupees)}
@@ -10575,26 +10575,26 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={() => toggleCatalogueItemExpanded(item.id)}
-                                  className="px-2.5 py-1 rounded-lg bg-white dark:bg-[#1E222B] hover:bg-[#F4F1EA] dark:hover:bg-[#282F3D] border border-[#D6CFC4] dark:border-[#384152] text-[11px] text-[#825821] dark:text-[#E0B26E] font-medium flex items-center gap-1.5 transition-colors shadow-2xs"
+                                  className="px-2.5 py-1 rounded-lg bg-white dark:bg-[#1E222B] hover:bg-[#F1F5F9] dark:hover:bg-[#282F3D] border border-[#CBD5E1] dark:border-[#384152] text-[11px] text-[#9E7238] dark:text-[#E0B26E] font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
                                 >
                                   <span>{isExpanded ? "▲ Hide" : "▼ View"}</span>
-                                  <span className="font-bold text-[#18181B] dark:text-[#F8FAFC]">{item.variants?.length}</span>
+                                  <span className="font-bold text-[#0F172A] dark:text-[#F8FAFC]">{item.variants?.length}</span>
                                   <span>Editions</span>
                                 </button>
                               ) : (
-                                <span className="text-[11px] text-[#787165]">Standard Edition</span>
+                                <span className="text-[11px] text-[#64748B] dark:text-[#787165]">Standard Edition</span>
                               )}
                             </td>
                             <td className="py-4 px-4">
                               {item.mode === "READY_STOCK" ? (
                                 <div className="text-[11px]">
-                                  <span className="text-[#10b981] font-semibold">{item.availableStock} Available</span>
+                                  <span className="text-emerald-700 dark:text-emerald-400 font-bold">{item.availableStock} Available</span>
                                   {item.reservedStock > 0 && (
-                                    <span className="text-[#f59e0b] block">({item.reservedStock} Reserved)</span>
+                                    <span className="text-amber-700 dark:text-[#f59e0b] block font-medium">({item.reservedStock} Reserved)</span>
                                   )}
                                 </div>
                               ) : (
-                                <span className="text-[11px] text-[#a8a093]">Workshop On-Demand</span>
+                                <span className="text-[11px] text-[#64748B] dark:text-[#a8a093] font-medium">Workshop On-Demand</span>
                               )}
                             </td>
                             <td className="py-4 px-4">
@@ -10610,7 +10610,7 @@ export default function App() {
                                       className={`h-5 w-5 rounded text-[10px] font-bold font-mono transition-all flex items-center justify-center ${
                                         isAllowed
                                           ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/60 shadow-2xs hover:scale-105"
-                                          : "bg-rose-100/60 dark:bg-rose-950/30 text-rose-700/60 dark:text-rose-400/50 border border-rose-200 dark:border-rose-900/40 line-through opacity-70 hover:opacity-100"
+                                          : "bg-slate-100 text-slate-400 border border-slate-200 dark:bg-slate-800/40 dark:text-slate-500 line-through opacity-70 hover:opacity-100"
                                       }`}
                                     >
                                       {z.letter}
@@ -10623,7 +10623,7 @@ export default function App() {
                               <button
                                 type="button"
                                 onClick={() => setReviewedProduct(item)}
-                                className="px-3 py-1 rounded-lg bg-white dark:bg-[#222733] text-[#18181B] dark:text-[#F1F3F5] border border-[#CDC6BA] dark:border-[#3A4354] text-xs font-semibold hover:bg-[#F0EDE6] dark:hover:bg-[#2C3342] transition-colors shadow-2xs"
+                                className="px-3 py-1 rounded-lg bg-white dark:bg-[#222733] text-[#0F172A] dark:text-[#F1F3F5] border border-[#CBD5E1] dark:border-[#3A4354] text-xs font-semibold hover:bg-[#F1F5F9] dark:hover:bg-[#2C3342] transition-colors shadow-2xs"
                               >
                                 Review Specs ↗
                               </button>
@@ -10632,8 +10632,8 @@ export default function App() {
                                 onClick={() => handleTogglePublish(item.id)}
                                 className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
                                   item.isPublished
-                                    ? "bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-900"
-                                    : "bg-[#EDE9E1] hover:bg-[#E2DDD5] text-[#5C5549] border border-[#D6CFC4] dark:bg-[#2a2a30] dark:text-[#94A3B8] dark:border-[#384152] dark:hover:text-white"
+                                    ? "bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800"
+                                    : "bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-300 dark:bg-[#2a2a30] dark:text-[#94A3B8] dark:border-[#384152]"
                                 }`}
                               >
                                 {item.isPublished ? "Published" : "Draft"}
@@ -10643,20 +10643,20 @@ export default function App() {
 
                           {/* Expandable Variant Tray */}
                           {isExpanded && hasVariants && (
-                            <tr className="bg-[#F4F1EA] dark:bg-[#13161C] border-b border-[#E2DDD5] dark:border-[#29303D]">
+                            <tr className="bg-[#F8FAFC] dark:bg-[#111318] border-b border-[#E2E8F0] dark:border-[#262C38]">
                               <td colSpan={8} className="p-4 pl-12">
                                 <div className="space-y-3">
-                                  <div className="flex items-center justify-between border-b border-[#E2DDD5] dark:border-[#29303D] pb-2">
+                                  <div className="flex items-center justify-between border-b border-[#E2E8F0] dark:border-[#262C38] pb-2">
                                     <div className="flex items-center gap-2">
-                                      <span className="text-[10px] uppercase font-bold text-[#c59b6d] tracking-wider">
+                                      <span className="text-[10px] uppercase font-bold text-[#9E7238] dark:text-[#E0B26E] tracking-wider">
                                         Configured Variant Editions for {item.name}
                                       </span>
-                                      <span className="text-[10px] text-[#a8a093]">
+                                      <span className="text-[10px] text-[#64748B] dark:text-[#94A3B8]">
                                         ({item.variants?.length} unique finishes)
                                       </span>
                                     </div>
-                                    <span className="text-[10px] text-[#787165]">
-                                      Wishlist & Cart Granular SKU Mapping
+                                    <span className="text-[10px] text-[#64748B] dark:text-[#94A3B8]">
+                                      Wishlist &amp; Cart Granular SKU Mapping
                                     </span>
                                   </div>
 
@@ -10664,7 +10664,7 @@ export default function App() {
                                     {item.variants?.map((v) => (
                                       <div
                                         key={v.id}
-                                        className="p-3 rounded-xl bg-white dark:bg-[#1A1D25] border border-[#E2DDD5] dark:border-[#29303D] space-y-2 hover:border-[#CDC6BA] dark:hover:border-[#3E4657] transition-all text-xs shadow-2xs"
+                                        className="p-3.5 rounded-xl bg-white dark:bg-[#1E222B] border border-[#E2E8F0] dark:border-[#2E3442] space-y-2 hover:border-[#CBD5E1] dark:hover:border-[#3E4657] transition-all text-xs shadow-xs"
                                       >
                                         <div className="flex items-start justify-between gap-3">
                                           <div className="flex items-center gap-3">
@@ -10672,40 +10672,40 @@ export default function App() {
                                               <img
                                                 src={v.imageUrl}
                                                 alt={v.title}
-                                                className="h-10 w-10 rounded-lg object-cover border border-[#464037] shrink-0"
+                                                className="h-12 w-12 rounded-lg object-contain bg-[#F8FAFC] dark:bg-[#111318] border border-[#E2E8F0] dark:border-[#2E3442] p-1 shrink-0"
                                               />
                                             ) : (
-                                              <div className="h-10 w-10 rounded-lg bg-[#181715] border border-[#464037] flex items-center justify-center text-[10px] text-[#c59b6d] font-bold shrink-0">
+                                              <div className="h-12 w-12 rounded-lg bg-[#F1F5F9] dark:bg-[#181B22] border border-[#E2E8F0] dark:border-[#2E3442] flex items-center justify-center text-[10px] text-[#9E7238] dark:text-[#c59b6d] font-bold shrink-0">
                                                 VAR
                                               </div>
                                             )}
                                             <div>
-                                              <strong className="text-[#18181B] dark:text-[#F8FAFC] block font-semibold">{v.title}</strong>
-                                              <span className="font-mono text-[10px] text-[#825821] dark:text-[#E0B26E] block">{v.sku}</span>
+                                              <strong className="text-[#0F172A] dark:text-[#F8FAFC] block font-bold text-xs">{v.title}</strong>
+                                              <span className="font-mono text-[10px] text-[#9E7238] dark:text-[#E0B26E] block font-medium">{v.sku}</span>
                                             </div>
                                           </div>
                                           <div className="text-right">
-                                            <span className="font-mono font-bold text-[#18181B] dark:text-[#F8FAFC] block">
+                                            <span className="font-mono font-bold text-[#0F172A] dark:text-[#F8FAFC] block text-xs">
                                               {formatPrice(v.priceRupees)}
                                             </span>
                                             {item.mode === "READY_STOCK" ? (
-                                              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                                              <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold">
                                                 {v.stock} in stock
                                               </span>
                                             ) : (
-                                              <span className="text-[10px] text-[#5C5549] dark:text-[#a8a093]">Workshop On-Demand</span>
+                                              <span className="text-[10px] text-[#64748B] dark:text-[#a8a093]">Workshop On-Demand</span>
                                             )}
                                           </div>
                                         </div>
 
                                         {v.materialFinish && (
-                                          <div className="text-[11px] text-[#5C5549] dark:text-[#94A3B8] bg-[#F8F7F4] dark:bg-[#12141A] p-2 rounded-lg border border-[#E2DDD5] dark:border-[#29303D]">
-                                            <span className="text-[#8C827A] dark:text-[#787165] block text-[9px] uppercase font-bold">Material & Finish</span>
-                                            <span className="text-[#18181B] dark:text-[#F8FAFC] font-medium">{v.materialFinish}</span>
+                                          <div className="text-[11px] text-[#475569] dark:text-[#94A3B8] bg-[#F8FAFC] dark:bg-[#181B22] p-2 rounded-lg border border-[#E2E8F0] dark:border-[#2E3442]">
+                                            <span className="text-[#64748B] dark:text-[#787165] block text-[9px] uppercase font-bold">Material &amp; Finish</span>
+                                            <span className="text-[#0F172A] dark:text-[#F8FAFC] font-medium">{v.materialFinish}</span>
                                           </div>
                                         )}
 
-                                        <div className="flex items-center justify-between text-[10px] text-[#787165] pt-1 border-t border-[#38332c]">
+                                        <div className="flex items-center justify-between text-[10px] text-[#64748B] dark:text-[#787165] pt-1 border-t border-[#E2E8F0] dark:border-[#2E3442]">
                                           <span>{v.dimensions ? `Dims: ${v.dimensions}` : "Dimensions standard"}</span>
                                           <span>{v.weightGrams ? `${(v.weightGrams / 1000).toFixed(2)} kg` : ""}</span>
                                         </div>
@@ -11713,11 +11713,25 @@ export default function App() {
           new Set([
             reviewedProduct.primaryImageUrl,
             ...(reviewedProduct.imageUrls || []),
-            ...(reviewedProduct.variants?.map((v) => v.imageUrl) || []),
+            ...(reviewedProduct.variants?.flatMap((v) => [v.imageUrl, ...(v.imageUrls || [])]) || []),
           ])
         ).filter(Boolean) as string[];
 
-        const currentDisplayImage = reviewActiveImage || allMediaUrls[0] || null;
+        // Compute images visible based on currently selected variant
+        const selectedVariant = reviewSelectedVariantId && reviewSelectedVariantId !== "ALL"
+          ? reviewedProduct.variants?.find((v) => v.id === reviewSelectedVariantId)
+          : null;
+
+        const visibleMediaUrls = selectedVariant
+          ? ((selectedVariant.imageUrls && selectedVariant.imageUrls.length > 0)
+              ? selectedVariant.imageUrls
+              : (selectedVariant.imageUrl ? [selectedVariant.imageUrl] : []))
+          : allMediaUrls;
+
+        const currentDisplayImage = reviewActiveImage && visibleMediaUrls.includes(reviewActiveImage)
+          ? reviewActiveImage
+          : (visibleMediaUrls[0] || allMediaUrls[0] || null);
+
         const currentAllowedZones = reviewedProduct.allowedDeliveryZones || [
           "ZONE_A",
           "ZONE_B",
@@ -11788,6 +11802,55 @@ export default function App() {
                     )}
                   </div>
 
+                  {/* Variant Selection Tabs directly above Gallery Viewport */}
+                  {reviewedProduct.variants && reviewedProduct.variants.length > 0 && (
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1">
+                      <span className="text-[10px] uppercase font-bold text-[#64748B] dark:text-[#94A3B8] tracking-wider shrink-0 mr-1">
+                        View By Variant:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReviewSelectedVariantId("ALL");
+                          setReviewActiveImage(reviewedProduct.primaryImageUrl || allMediaUrls[0]);
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all shrink-0 flex items-center gap-1.5 ${
+                          reviewSelectedVariantId === "ALL" || !reviewSelectedVariantId
+                            ? "bg-[#0F172A] text-white dark:bg-[#E0B26E] dark:text-[#0E1013] shadow-xs"
+                            : "bg-white dark:bg-[#1E222B] text-[#475569] dark:text-[#94A3B8] hover:text-[#0F172A] border border-[#CBD5E1] dark:border-[#333C4D]"
+                        }`}
+                      >
+                        <span>🖼️ All Views</span>
+                        <span className="font-mono text-[10px] opacity-80">({allMediaUrls.length})</span>
+                      </button>
+                      {reviewedProduct.variants.map((v) => {
+                        const isSelected = reviewSelectedVariantId === v.id;
+                        const vImgs = (v.imageUrls && v.imageUrls.length > 0) ? v.imageUrls : (v.imageUrl ? [v.imageUrl] : []);
+                        return (
+                          <button
+                            key={v.id}
+                            type="button"
+                            onClick={() => {
+                              setReviewSelectedVariantId(v.id);
+                              if (vImgs.length > 0) setReviewActiveImage(vImgs[0]);
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all shrink-0 flex items-center gap-1.5 ${
+                              isSelected
+                                ? "bg-[#0F172A] text-white dark:bg-[#E0B26E] dark:text-[#0E1013] shadow-xs font-bold"
+                                : "bg-white dark:bg-[#1E222B] text-[#475569] dark:text-[#94A3B8] hover:text-[#0F172A] border border-[#CBD5E1] dark:border-[#333C4D]"
+                            }`}
+                          >
+                            {v.imageUrl && (
+                              <img src={v.imageUrl} alt="" className="h-4 w-4 rounded object-contain bg-slate-100" />
+                            )}
+                            <span>{v.title}</span>
+                            <span className="font-mono text-[10px] opacity-80">({vImgs.length})</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   {/* Main Large Viewport */}
                   <div className="relative w-full h-72 rounded-xl bg-white dark:bg-[#0E1013] border border-[#E2DDD5] dark:border-[#2E3442] overflow-hidden flex items-center justify-center group shadow-xs">
                     {currentDisplayImage ? (
@@ -11808,18 +11871,35 @@ export default function App() {
                       <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-md text-[10px] text-white flex items-center gap-2 font-mono">
                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
                         <span className="truncate max-w-xs">{currentDisplayImage.split("/").pop()}</span>
+                        {selectedVariant && (
+                          <span className="text-[#E0B26E] font-sans font-medium">· {selectedVariant.title}</span>
+                        )}
                       </div>
                     )}
                   </div>
 
                   {/* Thumbnail Row */}
-                  {allMediaUrls.length > 1 && (
+                  {visibleMediaUrls.length > 1 && (
                     <div className="space-y-1.5 pt-1">
-                      <span className="text-[10px] uppercase font-bold text-[#71717A] dark:text-[#707887] tracking-wider block">
-                        Media Reel ({allMediaUrls.length} Views):
-                      </span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] uppercase font-bold text-[#71717A] dark:text-[#707887] tracking-wider block">
+                          {selectedVariant ? `${selectedVariant.title} Views` : "All Product Views"} ({visibleMediaUrls.length}):
+                        </span>
+                        {selectedVariant && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReviewSelectedVariantId("ALL");
+                              setReviewActiveImage(allMediaUrls[0]);
+                            }}
+                            className="text-[10px] text-[#9E7238] dark:text-[#E0B26E] hover:underline"
+                          >
+                            Show All Angles ({allMediaUrls.length}) ↗
+                          </button>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                        {allMediaUrls.map((url, i) => {
+                        {visibleMediaUrls.map((url, i) => {
                           const isSelected = currentDisplayImage === url;
                           return (
                             <button
@@ -11848,20 +11928,19 @@ export default function App() {
                       </span>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                         {reviewedProduct.variants.map((v) => {
-                          const isSelected =
-                            reviewSelectedVariantId === v.id ||
-                            (v.imageUrl && currentDisplayImage === v.imageUrl);
+                          const isSelected = reviewSelectedVariantId === v.id;
+                          const vImgs = (v.imageUrls && v.imageUrls.length > 0) ? v.imageUrls : (v.imageUrl ? [v.imageUrl] : []);
                           return (
                             <button
                               key={v.id}
                               type="button"
                               onClick={() => {
                                 setReviewSelectedVariantId(v.id);
-                                if (v.imageUrl) setReviewActiveImage(v.imageUrl);
+                                if (vImgs.length > 0) setReviewActiveImage(vImgs[0]);
                               }}
                               className={`p-3 rounded-xl border text-left transition-all flex items-start gap-3 w-full ${
                                 isSelected
-                                  ? "bg-white dark:bg-[#1E222B] border-l-4 border-l-[#9E7238] dark:border-l-[#E0B26E] border-y border-r border-[#CDC6BA] dark:border-[#3A4354] shadow-xs"
+                                  ? "bg-white dark:bg-[#1E222B] border-l-4 border-l-[#9E7238] dark:border-l-[#E0B26E] border-y border-r border-[#CBD5E1] dark:border-[#3A4354] shadow-xs"
                                   : "bg-white/60 dark:bg-[#181B22] border-l-4 border-l-transparent border-y border-r border-[#E2DDD5] dark:border-[#29303D] hover:bg-white dark:hover:bg-[#1E222B]"
                               }`}
                             >
