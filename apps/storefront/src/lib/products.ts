@@ -58,6 +58,7 @@ export interface MockProduct {
   returnPolicyText: string;
   features: string[];
   careInstructions?: string;
+  isPublished?: boolean;
 }
 
 export const MOCK_PRODUCTS: MockProduct[] = [

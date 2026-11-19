@@ -66,20 +66,35 @@ export async function GET() {
           p.isReturnable && typeof p.returnWindowDays === "number" && p.returnWindowDays > 0
             ? `${p.returnWindowDays}-Day Return Guarantee`
             : "Crafted to Order / Non-returnable",
-        variants: p.variants.map((v) => ({
-          id: v.id,
-          sku: v.sku,
-          title: v.title,
-          materialFinish: v.materialFinish,
-          color: v.color,
-          imageUrl: v.imageUrl,
-          priceRupees: Number(v.taxInclusivePrice),
-          stock: v.inventoryLedger?.availableStock ?? 0,
-          description: v.description || undefined,
-          dimensions: v.dimensions || undefined,
-          weightGrams: v.weightGrams ?? undefined,
-          isPublished: v.isPublished,
-        })),
+        variants: p.variants.map((v) => {
+          let variantImages: string[] = [];
+          if (v.imageUrls) {
+            try {
+              const parsed = JSON.parse(v.imageUrls);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                variantImages = parsed;
+              }
+            } catch {}
+          }
+          if (variantImages.length === 0 && v.imageUrl) {
+            variantImages = [v.imageUrl];
+          }
+          return {
+            id: v.id,
+            sku: v.sku,
+            title: v.title,
+            materialFinish: v.materialFinish,
+            color: v.color,
+            imageUrl: v.imageUrl,
+            imageUrls: variantImages,
+            priceRupees: Number(v.taxInclusivePrice),
+            stock: v.inventoryLedger?.availableStock ?? 0,
+            description: v.description || undefined,
+            dimensions: v.dimensions || undefined,
+            weightGrams: v.weightGrams ?? undefined,
+            isPublished: v.isPublished,
+          };
+        }),
         markdownFile: `docs/products/${p.slug}/${p.slug}.md`,
       };
     });

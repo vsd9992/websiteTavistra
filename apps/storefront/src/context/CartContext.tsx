@@ -73,7 +73,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [readyStockItems, mtoItems]);
 
   const addToCart = (product: MockProduct) => {
-    if (product.mode === "QUOTE_ONLY") return;
+    if (product.mode === "QUOTE_ONLY" || product.isPublished === false) return;
 
     if (product.mode === "READY_STOCK") {
       setReadyStockItems((prev) => upsertCartItem(prev, product));

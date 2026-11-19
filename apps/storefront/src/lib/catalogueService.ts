@@ -190,6 +190,7 @@ export async function getPublishedProducts(): Promise<MockProduct[]> {
           priceLabel: isVariablePrice
             ? `From ₹${minPrice.toLocaleString("en-IN")}`
             : `₹${Number(p.taxInclusivePrice).toLocaleString("en-IN")}`,
+          isPublished: p.isPublished,
           primaryImageUrl: primaryImage ? primaryImage.url : null,
           images: p.images.map((img) => ({
             url: img.url,
@@ -269,8 +270,12 @@ export async function getPublishedProductBySlug(slug: string): Promise<MockProdu
     // 1. Check if markdown file on disk is newer and sync if needed
     const existing = await prisma.product.findFirst({
       where: { slug },
-      select: { updatedAt: true },
+      select: { isPublished: true, updatedAt: true },
     });
+    // If product exists in database and is set to Draft (unpublished), block storefront access immediately
+    if (existing && !existing.isPublished) {
+      return null;
+    }
     await syncProductMarkdownIfUpdated(slug, existing?.updatedAt);
 
     // 2. Query freshly updated DB record
@@ -341,6 +346,7 @@ export async function getPublishedProductBySlug(slug: string): Promise<MockProdu
         priceLabel: isVariablePrice
           ? `From ₹${minPrice.toLocaleString("en-IN")}`
           : `₹${Number(p.taxInclusivePrice).toLocaleString("en-IN")}`,
+        isPublished: p.isPublished,
         primaryImageUrl: primaryImage ? primaryImage.url : null,
         images: p.images.map((img) => ({
           url: img.url,

@@ -441,7 +441,8 @@ export default function App() {
   const [catalogueSearchQuery, setCatalogueSearchQuery] = useState("");
   const [catalogueModeFilter, setCatalogueModeFilter] = useState<"ALL" | "READY_STOCK" | "MADE_TO_ORDER" | "QUOTE_ONLY">("ALL");
   const [catalogueCategoryFilter, setCatalogueCategoryFilter] = useState<string>("ALL");
-  const [catalogueDonutView, setCatalogueDonutView] = useState<"MODE" | "CATEGORY">("MODE");
+  const [catalogueStatusFilter, setCatalogueStatusFilter] = useState<"ALL" | "PUBLISHED" | "DRAFT">("ALL");
+  const [catalogueDonutView, setCatalogueDonutView] = useState<"MODE" | "CATEGORY" | "STATUS">("MODE");
   const [hoveredCatalogueSlice, setHoveredCatalogueSlice] = useState<string | null>(null);
   const [expandedCatalogueItemIds, setExpandedCatalogueItemIds] = useState<Set<string>>(new Set());
 
@@ -2224,7 +2225,27 @@ export default function App() {
 
   // Catalogue Donut Data (100% mathematically consistent)
   const catalogueDonutData = useMemo(() => {
-    if (catalogueDonutView === "MODE") {
+    if (catalogueDonutView === "STATUS") {
+      const publishedCount = catalogueKpis.publishedCount;
+      const draftCount = catalogueKpis.draftCount;
+
+      const slices = [
+        { id: "PUBLISHED", label: "Live Published on Storefront", count: publishedCount, color: "#10b981", filterKey: "ALL" as const, statusFilter: "PUBLISHED" as const },
+        { id: "DRAFT", label: "Draft (Unpublished / In Studio Review)", count: draftCount, color: "#f59e0b", filterKey: "ALL" as const, statusFilter: "DRAFT" as const },
+      ].filter((s) => s.count > 0);
+
+      const totalCount = slices.reduce((acc, s) => acc + s.count, 0) || 1;
+      return {
+        slices: slices.map((s) => ({
+          ...s,
+          pct: Math.round((s.count / totalCount) * 100),
+        })),
+        totalCount,
+        title: "Publication Status & Commercial Readiness",
+        centerNumber: totalCount,
+        centerLabel: "Editions",
+      };
+    } else if (catalogueDonutView === "MODE") {
       const readyCount = catalogueKpis.readyStockCount;
       const mtoCount = catalogueKpis.mtoCount;
       const quoteCount = catalogueKpis.quoteOnlyCount;
@@ -2283,6 +2304,8 @@ export default function App() {
     return catalogue.filter((item) => {
       if (catalogueModeFilter !== "ALL" && item.mode !== catalogueModeFilter) return false;
       if (catalogueCategoryFilter !== "ALL" && item.category !== catalogueCategoryFilter) return false;
+      if (catalogueStatusFilter === "PUBLISHED" && !item.isPublished) return false;
+      if (catalogueStatusFilter === "DRAFT" && item.isPublished) return false;
 
       if (!catalogueSearchQuery.trim()) return true;
       const q = catalogueSearchQuery.toLowerCase();
@@ -10126,20 +10149,50 @@ export default function App() {
                 onClick={() => {
                   setCatalogueModeFilter("ALL");
                   setCatalogueCategoryFilter("ALL");
+                  setCatalogueStatusFilter("ALL");
                 }}
                 className={`p-4 rounded-2xl bg-white dark:bg-[#1E222B] border transition-all cursor-pointer shadow-xs ${
-                  catalogueModeFilter === "ALL" && catalogueCategoryFilter === "ALL"
+                  catalogueModeFilter === "ALL" && catalogueCategoryFilter === "ALL" && catalogueStatusFilter === "ALL"
                     ? "border-[#9E7238] ring-1 ring-[#9E7238]"
                     : "border-[#E2E8F0] dark:border-[#2E3442] hover:border-[#CBD5E1]"
                 }`}
               >
-                <span className="text-[10px] uppercase font-bold text-[#64748B] dark:text-[#94A3B8] tracking-wider block">Catalogue Editions</span>
-                <span className="text-2xl font-mono font-bold text-[#0F172A] dark:text-[#F8FAFC] mt-1 block">
-                  {catalogueKpis.totalEditions}
-                </span>
-                <div className="text-[11px] text-[#64748B] dark:text-[#94A3B8] mt-0.5 flex items-center justify-between">
-                  <span>{catalogueKpis.publishedCount} Published</span>
-                  <span className="text-emerald-700 dark:text-emerald-400 font-semibold">100% Live</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase font-bold text-[#64748B] dark:text-[#94A3B8] tracking-wider block">Catalogue Editions</span>
+                  <span className="text-[10px] font-mono font-bold text-[#9E7238] dark:text-[#E0B26E]">
+                    {catalogueKpis.totalEditions} Total
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <span className="text-2xl font-mono font-bold text-[#0F172A] dark:text-[#F8FAFC]">
+                    {catalogueKpis.publishedCount}
+                  </span>
+                  <span className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold">Live Published</span>
+                  {catalogueKpis.draftCount > 0 && (
+                    <span className="text-xs text-amber-700 dark:text-amber-400 font-semibold font-mono">
+                      · {catalogueKpis.draftCount} Draft
+                    </span>
+                  )}
+                </div>
+                <div className="text-[11px] text-[#64748B] dark:text-[#94A3B8] mt-1.5 flex items-center justify-between border-t border-[#E2E8F0] dark:border-[#2E3442] pt-1">
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCatalogueStatusFilter(catalogueStatusFilter === "PUBLISHED" ? "ALL" : "PUBLISHED");
+                    }}
+                    className={`hover:underline cursor-pointer font-medium ${catalogueStatusFilter === "PUBLISHED" ? "text-emerald-700 dark:text-emerald-400 font-bold" : ""}`}
+                  >
+                    ● {catalogueKpis.publishedCount} Published
+                  </span>
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCatalogueStatusFilter(catalogueStatusFilter === "DRAFT" ? "ALL" : "DRAFT");
+                    }}
+                    className={`hover:underline cursor-pointer font-medium ${catalogueStatusFilter === "DRAFT" ? "text-amber-700 dark:text-amber-400 font-bold" : ""}`}
+                  >
+                    ● {catalogueKpis.draftCount} Draft
+                  </span>
                 </div>
               </div>
 
@@ -10199,6 +10252,8 @@ export default function App() {
                     <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] mt-0.5">
                       {catalogueDonutView === "MODE"
                         ? "Interactive breakdown by commercial fulfillment mode"
+                        : catalogueDonutView === "STATUS"
+                        ? "Publication readiness and draft status breakdown"
                         : "Distribution across curated architectural collections"}
                     </p>
                   </div>
@@ -10215,7 +10270,21 @@ export default function App() {
                           : "text-[#64748B] dark:text-[#94A3B8] hover:text-[#0F172A]"
                       }`}
                     >
-                      Modes ({catalogueDonutData.totalCount})
+                      Modes ({catalogueKpis.totalEditions})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCatalogueDonutView("STATUS");
+                        setHoveredCatalogueSlice(null);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors ${
+                        catalogueDonutView === "STATUS"
+                          ? "bg-white dark:bg-[#252B37] text-[#0F172A] dark:text-[#F8FAFC] shadow-2xs font-bold"
+                          : "text-[#64748B] dark:text-[#94A3B8] hover:text-[#0F172A]"
+                      }`}
+                    >
+                      Status ({catalogueKpis.totalEditions})
                     </button>
                     <button
                       type="button"
@@ -10229,7 +10298,7 @@ export default function App() {
                           : "text-[#64748B] dark:text-[#94A3B8] hover:text-[#0F172A]"
                       }`}
                     >
-                      Collections ({catalogueDonutData.totalCount})
+                      Collections ({catalogueKpis.totalEditions})
                     </button>
                   </div>
                 </div>
@@ -10273,10 +10342,12 @@ export default function App() {
                                 onMouseEnter={() => setHoveredCatalogueSlice(slice.id)}
                                 onMouseLeave={() => setHoveredCatalogueSlice(null)}
                                 onClick={() => {
-                                  if (slice.filterKey && slice.filterKey !== "ALL") {
+                                  if ('statusFilter' in slice && slice.statusFilter) {
+                                    setCatalogueStatusFilter(slice.statusFilter as "PUBLISHED" | "DRAFT");
+                                  } else if (slice.filterKey && slice.filterKey !== "ALL") {
                                     setCatalogueModeFilter(slice.filterKey);
                                   } else if ('categoryName' in slice && slice.categoryName) {
-                                    setCatalogueCategoryFilter(slice.categoryName);
+                                    setCatalogueCategoryFilter(slice.categoryName as string);
                                   }
                                 }}
                                 className="transition-all duration-300 cursor-pointer"
@@ -10317,10 +10388,12 @@ export default function App() {
                           onMouseEnter={() => setHoveredCatalogueSlice(slice.id)}
                           onMouseLeave={() => setHoveredCatalogueSlice(null)}
                           onClick={() => {
-                            if (slice.filterKey && slice.filterKey !== "ALL") {
+                            if ('statusFilter' in slice && slice.statusFilter) {
+                              setCatalogueStatusFilter(slice.statusFilter as "PUBLISHED" | "DRAFT");
+                            } else if (slice.filterKey && slice.filterKey !== "ALL") {
                               setCatalogueModeFilter(slice.filterKey);
                             } else if ('categoryName' in slice && slice.categoryName) {
-                              setCatalogueCategoryFilter(slice.categoryName);
+                              setCatalogueCategoryFilter(slice.categoryName as string);
                             }
                           }}
                           className={`flex items-center justify-between p-1.5 rounded-lg text-xs cursor-pointer transition-all ${
@@ -10400,45 +10473,82 @@ export default function App() {
 
             {/* Filter and Search Action Controls */}
             <div className="space-y-3 pt-1">
-              <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
-                {/* Segmented Mode Control Bar */}
-                <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-[#F1F5F9] dark:bg-[#151921] border border-[#CBD5E1] dark:border-[#272F3E] shadow-2xs">
-                  {[
-                    { id: "ALL" as const, label: "All Works", count: catalogueKpis.totalEditions, dotColor: "bg-slate-400 dark:bg-slate-400" },
-                    { id: "READY_STOCK" as const, label: "Ready Stock", count: catalogueKpis.readyStockCount, dotColor: "bg-emerald-500" },
-                    { id: "MADE_TO_ORDER" as const, label: "Made to Order", count: catalogueKpis.mtoCount, dotColor: "bg-amber-500" },
-                    { id: "QUOTE_ONLY" as const, label: "Bespoke Quote", count: catalogueKpis.quoteOnlyCount, dotColor: "bg-purple-500" },
-                  ].map((tab) => {
-                    const isActive = catalogueModeFilter === tab.id;
-                    return (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => setCatalogueModeFilter(tab.id)}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
-                          isActive
-                            ? "bg-white dark:bg-[#252B37] text-[#0F172A] dark:text-[#F8FAFC] shadow-sm font-semibold border border-[#E2E8F0] dark:border-[#384252]"
-                            : "text-[#475569] dark:text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-[#F8FAFC] hover:bg-white/60 dark:hover:bg-[#1E222B] font-medium border border-transparent"
-                        }`}
-                      >
-                        <span className={`h-1.5 w-1.5 rounded-full ${tab.dotColor}`} />
-                        <span>{tab.label}</span>
-                        <span
-                          className={`font-mono text-[10px] px-1.5 py-0.5 rounded-md ${
+              <div className="flex flex-col 2xl:flex-row items-stretch 2xl:items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Segmented Mode Control Bar */}
+                  <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-[#F1F5F9] dark:bg-[#151921] border border-[#CBD5E1] dark:border-[#272F3E] shadow-2xs">
+                    {[
+                      { id: "ALL" as const, label: "All Works", count: catalogueKpis.totalEditions, dotColor: "bg-slate-400 dark:bg-slate-400" },
+                      { id: "READY_STOCK" as const, label: "Ready Stock", count: catalogueKpis.readyStockCount, dotColor: "bg-emerald-500" },
+                      { id: "MADE_TO_ORDER" as const, label: "Made to Order", count: catalogueKpis.mtoCount, dotColor: "bg-amber-500" },
+                      { id: "QUOTE_ONLY" as const, label: "Bespoke Quote", count: catalogueKpis.quoteOnlyCount, dotColor: "bg-purple-500" },
+                    ].map((tab) => {
+                      const isActive = catalogueModeFilter === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setCatalogueModeFilter(tab.id)}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
                             isActive
-                              ? "bg-[#F1F5F9] dark:bg-[#181B22] text-[#0F172A] dark:text-[#F8FAFC] font-bold"
-                              : "text-[#64748B] dark:text-[#94A3B8]"
+                              ? "bg-white dark:bg-[#252B37] text-[#0F172A] dark:text-[#F8FAFC] shadow-sm font-semibold border border-[#E2E8F0] dark:border-[#384252]"
+                              : "text-[#475569] dark:text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-[#F8FAFC] hover:bg-white/60 dark:hover:bg-[#1E222B] font-medium border border-transparent"
                           }`}
                         >
-                          {tab.count}
-                        </span>
-                      </button>
-                    );
-                  })}
+                          <span className={`h-1.5 w-1.5 rounded-full ${tab.dotColor}`} />
+                          <span>{tab.label}</span>
+                          <span
+                            className={`font-mono text-[10px] px-1.5 py-0.5 rounded-md ${
+                              isActive
+                                ? "bg-[#F1F5F9] dark:bg-[#181B22] text-[#0F172A] dark:text-[#F8FAFC] font-bold"
+                                : "text-[#64748B] dark:text-[#94A3B8]"
+                            }`}
+                          >
+                            {tab.count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Segmented Publication Status Bar */}
+                  <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-[#F1F5F9] dark:bg-[#151921] border border-[#CBD5E1] dark:border-[#272F3E] shadow-2xs">
+                    {[
+                      { id: "ALL" as const, label: "All Status", count: catalogueKpis.totalEditions, dotColor: "bg-slate-400" },
+                      { id: "PUBLISHED" as const, label: "Live Published", count: catalogueKpis.publishedCount, dotColor: "bg-emerald-500" },
+                      { id: "DRAFT" as const, label: "Drafts", count: catalogueKpis.draftCount, dotColor: "bg-amber-500" },
+                    ].map((tab) => {
+                      const isActive = catalogueStatusFilter === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setCatalogueStatusFilter(tab.id)}
+                          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
+                            isActive
+                              ? "bg-white dark:bg-[#252B37] text-[#0F172A] dark:text-[#F8FAFC] shadow-sm font-semibold border border-[#E2E8F0] dark:border-[#384252]"
+                              : "text-[#475569] dark:text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-[#F8FAFC] hover:bg-white/60 dark:hover:bg-[#1E222B] font-medium border border-transparent"
+                          }`}
+                        >
+                          <span className={`h-1.5 w-1.5 rounded-full ${tab.dotColor}`} />
+                          <span>{tab.label}</span>
+                          <span
+                            className={`font-mono text-[10px] px-1.5 py-0.5 rounded-md ${
+                              isActive
+                                ? "bg-[#F1F5F9] dark:bg-[#181B22] text-[#0F172A] dark:text-[#F8FAFC] font-bold"
+                                : "text-[#64748B] dark:text-[#94A3B8]"
+                            }`}
+                          >
+                            {tab.count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* Search & Category Filter */}
-                <div className="flex items-center gap-2 flex-1 xl:max-w-md justify-end">
+                <div className="flex items-center gap-2 flex-1 2xl:max-w-md justify-end">
                   <div className="relative flex-1">
                     <input
                       type="text"
@@ -10489,12 +10599,13 @@ export default function App() {
                   <span>
                     Showing <strong className="text-[#0F172A] dark:text-white font-bold">{filteredCatalogue.length}</strong> of {catalogueKpis.totalEditions} works
                   </span>
-                  {(catalogueModeFilter !== "ALL" || catalogueCategoryFilter !== "ALL" || catalogueSearchQuery) && (
+                  {(catalogueModeFilter !== "ALL" || catalogueCategoryFilter !== "ALL" || catalogueStatusFilter !== "ALL" || catalogueSearchQuery) && (
                     <button
                       type="button"
                       onClick={() => {
                         setCatalogueModeFilter("ALL");
                         setCatalogueCategoryFilter("ALL");
+                        setCatalogueStatusFilter("ALL");
                         setCatalogueSearchQuery("");
                       }}
                       className="text-[11px] text-[#9E7238] dark:text-[#E0B26E] font-medium hover:underline flex items-center gap-1 cursor-pointer"
@@ -10531,6 +10642,7 @@ export default function App() {
                           onClick={() => {
                             setCatalogueModeFilter("ALL");
                             setCatalogueCategoryFilter("ALL");
+                            setCatalogueStatusFilter("ALL");
                             setCatalogueSearchQuery("");
                           }}
                           className="mt-2 px-3 py-1.5 rounded-xl bg-white dark:bg-[#2a2722] text-[#9E7238] dark:text-[#c59b6d] hover:bg-[#F1F5F9] dark:hover:bg-[#343029] text-xs font-semibold border border-[#CBD5E1] dark:border-[#464037] shadow-2xs"
@@ -11476,19 +11588,20 @@ export default function App() {
       </main>
 
       {/* Workspace Footer with Parent Entity */}
-      <footer className="mt-auto px-8 py-4 border-t border-[#38332c] text-[11px] text-[#787165] flex flex-wrap items-center justify-between gap-4 bg-[#1a1816]/60">
+      <footer className="mt-auto px-8 py-3.5 border-t border-[#E2E8F0] dark:border-[#2E3442] text-[11px] text-[#64748B] dark:text-[#94A3B8] flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-[#13161C] shadow-2xs">
         <div className="flex items-center gap-2">
-          <span>Tavistra Studio Admin</span>
-          <span>·</span>
+          <span className="font-semibold text-[#0F172A] dark:text-[#F8FAFC]">Tavistra Studio Admin</span>
+          <span className="text-[#CBD5E1] dark:text-[#384252]">·</span>
           <span>A business unit of</span>
           <img
             src="/vdesign-dark.png"
             alt="VDesign"
-            className="h-3.5 w-auto object-contain invert opacity-70"
+            className="h-3.5 w-auto object-contain dark:invert opacity-80"
           />
         </div>
-        <div>
-          <span>Active Session: {currentStaff.name} ({currentStaff.roleLabel})</span>
+        <div className="flex items-center gap-2 font-mono text-[11px]">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
+          <span>Active Session: <strong className="font-semibold text-[#0F172A] dark:text-[#F8FAFC]">{currentStaff.name}</strong> ({currentStaff.roleLabel})</span>
         </div>
       </footer>
     </div>
@@ -11835,50 +11948,68 @@ export default function App() {
 
                   {/* Variant Selection Tabs directly above Gallery Viewport */}
                   {reviewedProduct.variants && reviewedProduct.variants.length > 0 && (
-                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1">
-                      <span className="text-[10px] uppercase font-bold text-[#64748B] dark:text-[#94A3B8] tracking-wider shrink-0 mr-1">
+                    <div className="flex flex-wrap items-center gap-2 pb-1 pt-1">
+                      <span className="text-[10px] uppercase font-bold text-[#64748B] dark:text-[#94A3B8] tracking-wider shrink-0">
                         View By Variant:
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setReviewSelectedVariantId("ALL");
-                          setReviewActiveImage(reviewedProduct.primaryImageUrl || allMediaUrls[0]);
-                        }}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all shrink-0 flex items-center gap-1.5 ${
-                          reviewSelectedVariantId === "ALL" || !reviewSelectedVariantId
-                            ? "bg-[#0F172A] text-white dark:bg-[#E0B26E] dark:text-[#0E1013] shadow-xs"
-                            : "bg-white dark:bg-[#1E222B] text-[#475569] dark:text-[#94A3B8] hover:text-[#0F172A] border border-[#CBD5E1] dark:border-[#333C4D]"
-                        }`}
-                      >
-                        <span>🖼️ All Views</span>
-                        <span className="font-mono text-[10px] opacity-80">({allMediaUrls.length})</span>
-                      </button>
-                      {reviewedProduct.variants.map((v) => {
-                        const isSelected = reviewSelectedVariantId === v.id;
-                        const vImgs = (v.imageUrls && v.imageUrls.length > 0) ? v.imageUrls : (v.imageUrl ? [v.imageUrl] : []);
-                        return (
-                          <button
-                            key={v.id}
-                            type="button"
-                            onClick={() => {
-                              setReviewSelectedVariantId(v.id);
-                              if (vImgs.length > 0) setReviewActiveImage(vImgs[0]);
-                            }}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all shrink-0 flex items-center gap-1.5 ${
-                              isSelected
-                                ? "bg-[#0F172A] text-white dark:bg-[#E0B26E] dark:text-[#0E1013] shadow-xs font-bold"
-                                : "bg-white dark:bg-[#1E222B] text-[#475569] dark:text-[#94A3B8] hover:text-[#0F172A] border border-[#CBD5E1] dark:border-[#333C4D]"
+                      <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-[#F1F5F9] dark:bg-[#151921] border border-[#CBD5E1] dark:border-[#272F3E] shadow-2xs">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReviewSelectedVariantId("ALL");
+                            setReviewActiveImage(reviewedProduct.primaryImageUrl || allMediaUrls[0]);
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                            reviewSelectedVariantId === "ALL" || !reviewSelectedVariantId
+                              ? "bg-white dark:bg-[#252B37] text-[#0F172A] dark:text-[#F8FAFC] shadow-sm font-semibold border border-[#E2E8F0] dark:border-[#384252]"
+                              : "text-[#475569] dark:text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-[#F8FAFC] hover:bg-white/60 dark:hover:bg-[#1E222B] font-medium border border-transparent"
+                          }`}
+                        >
+                          <span>🖼️ All Views</span>
+                          <span
+                            className={`font-mono text-[10px] px-1.5 py-0.2 rounded-md ${
+                              reviewSelectedVariantId === "ALL" || !reviewSelectedVariantId
+                                ? "bg-[#F1F5F9] dark:bg-[#181B22] text-[#0F172A] dark:text-[#F8FAFC] font-bold"
+                                : "text-[#64748B] dark:text-[#94A3B8]"
                             }`}
                           >
-                            {v.imageUrl && (
-                              <img src={v.imageUrl} alt="" className="h-4 w-4 rounded object-contain bg-slate-100" />
-                            )}
-                            <span>{v.title}</span>
-                            <span className="font-mono text-[10px] opacity-80">({vImgs.length})</span>
-                          </button>
-                        );
-                      })}
+                            {allMediaUrls.length}
+                          </span>
+                        </button>
+                        {reviewedProduct.variants.map((v) => {
+                          const isSelected = reviewSelectedVariantId === v.id;
+                          const vImgs = (v.imageUrls && v.imageUrls.length > 0) ? v.imageUrls : (v.imageUrl ? [v.imageUrl] : []);
+                          return (
+                            <button
+                              key={v.id}
+                              type="button"
+                              onClick={() => {
+                                setReviewSelectedVariantId(v.id);
+                                if (vImgs.length > 0) setReviewActiveImage(vImgs[0]);
+                              }}
+                              className={`px-3 py-1.5 rounded-lg text-xs transition-all shrink-0 flex items-center gap-2 cursor-pointer ${
+                                isSelected
+                                  ? "bg-white dark:bg-[#252B37] text-[#0F172A] dark:text-[#F8FAFC] shadow-sm font-semibold border border-[#E2E8F0] dark:border-[#384252]"
+                                  : "text-[#475569] dark:text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-[#F8FAFC] hover:bg-white/60 dark:hover:bg-[#1E222B] font-medium border border-transparent"
+                              }`}
+                            >
+                              {v.imageUrl && (
+                                <img src={v.imageUrl} alt="" className="h-4 w-4 rounded object-contain bg-slate-100 dark:bg-slate-800 shrink-0" />
+                              )}
+                              <span>{v.title}</span>
+                              <span
+                                className={`font-mono text-[10px] px-1.5 py-0.2 rounded-md ${
+                                  isSelected
+                                    ? "bg-[#F1F5F9] dark:bg-[#181B22] text-[#0F172A] dark:text-[#F8FAFC] font-bold"
+                                    : "text-[#64748B] dark:text-[#94A3B8]"
+                                }`}
+                              >
+                                {vImgs.length}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 
