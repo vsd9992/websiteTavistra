@@ -58,7 +58,7 @@ export function ThemeSwitcher({ className = "", onThemeChange }: ThemeSwitcherPr
       className={`group relative flex items-center p-1 rounded-full border transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[#9E7238]/40 ${
         isLight
           ? "bg-[#EDE9E1] hover:bg-[#E5E0D6] border-[#D6CFC4] shadow-[inset_0_1px_3px_rgba(0,0,0,0.08)]"
-          : "bg-[#181614] hover:bg-[#201D1A] border-[#38332C] shadow-[inset_0_1px_3px_rgba(0,0,0,0.4)]"
+          : "bg-[#12151B] hover:bg-[#1A1E27] border-[#2C3342] shadow-[inset_0_1px_3px_rgba(0,0,0,0.4)]"
       } ${className}`}
       style={{ width: "66px", height: "32px" }}
       aria-label={`Toggle visual mode. Current: ${isLight ? "Daylight" : "Nocturne"}`}

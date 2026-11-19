@@ -4142,7 +4142,7 @@ export default function App() {
                           onClick={() => setActiveTab(item.id)}
                           className={`group relative flex items-center justify-between w-full px-3 py-2 text-xs font-medium rounded-md transition-all select-none ${
                             isActive
-                              ? "bg-[#2a2620] text-white border-l-4 border-l-[#c59b6d] border-y border-r border-[#38332c] shadow-[0_2px_6px_rgba(0,0,0,0.3)] pl-2.5 font-semibold"
+                              ? "bg-[#2a2620] border-l-4 border-l-[#c59b6d] border-y border-r border-[#38332c] shadow-[0_2px_6px_rgba(0,0,0,0.3)] pl-2.5 font-semibold"
                               : "text-[#a8a093] hover:text-[#eae6df] hover:bg-[#24211d] border-l-4 border-l-transparent border-y border-r border-transparent hover:border-[#332f28]"
                           }`}
                         >
@@ -4402,7 +4402,7 @@ export default function App() {
                       }}
                       className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 ${
                         isActive
-                          ? "bg-[#2a2620] text-white border-l-2 border-l-[#c59b6d] border-y border-r border-[#464037] shadow-sm"
+                          ? "bg-[#2a2620] border-l-2 border-l-[#c59b6d] border-y border-r border-[#464037] shadow-sm"
                           : "text-[#a8a093] hover:text-[#eae6df] hover:bg-[#24211d] border border-transparent"
                       }`}
                     >
