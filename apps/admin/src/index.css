@@ -153,6 +153,21 @@ body {
   .bg-\[\#1f1c19\] { background-color: var(--theme-bg-sidebar) !important; }
   .bg-\[\#2a2a30\] { background-color: var(--theme-bg-subtle) !important; }
   .bg-\[\#2e2a24\] { background-color: var(--theme-bg-subtle) !important; }
+  .bg-\[\#1a1815\] { background-color: #F4F1EA !important; }
+  .bg-\[\#38332c\] { 
+    background-color: var(--theme-bg-subtle) !important; 
+    color: var(--theme-text-primary) !important;
+    border-color: var(--theme-border-strong) !important;
+  }
+  .bg-\[\#38332c\] *,
+  button.bg-\[\#38332c\] * {
+    color: var(--theme-text-primary) !important;
+  }
+  .bg-\[\#464037\] {
+    background-color: var(--theme-bg-hover) !important;
+    color: var(--theme-text-primary) !important;
+    border-color: var(--theme-border-strong) !important;
+  }
 
   /* Interactive Hover States */
   .hover\:bg-\[\#25221d\]:hover { background-color: var(--theme-bg-hover) !important; }
@@ -202,6 +217,14 @@ body {
   }
   button.text-white:not([class*="bg-emerald"]):not([class*="bg-rose"]):not([class*="bg-amber"]):not([class*="bg-[#c59b6d]"]):not([class*="bg-[#9E7238]"]):not([class*="bg-black"]) * {
     color: var(--theme-text-primary) !important;
+  }
+
+  /* Primary Brass Action Buttons & Badges (e.g. Done, Save Specs, Primary Actions) */
+  .bg-\[\#9E7238\],
+  .bg-\[\#9E7238\] *,
+  button.bg-\[\#9E7238\],
+  button.bg-\[\#9E7238\] * {
+    color: #FFFFFF !important;
   }
 
   /* Structural Borders & Table Dividers */
@@ -308,6 +331,28 @@ body {
   .text-blue-300 { color: var(--theme-blue-badge-text) !important; }
   .text-blue-400 { color: var(--theme-blue-text) !important; }
 
+  /* Purple / Bespoke Badges in Dark Mode */
+  .bg-purple-950,
+  .bg-purple-950\/60,
+  .bg-purple-950\/70,
+  .bg-purple-950\/80 {
+    background-color: rgba(168, 85, 247, 0.2) !important;
+    color: #D8B4FE !important;
+    border-color: rgba(192, 132, 252, 0.4) !important;
+  }
+  .text-purple-300 { color: #D8B4FE !important; }
+
+  /* Purple / Bespoke Badges in Light Mode */
+  .bg-purple-950,
+  .bg-purple-950\/60,
+  .bg-purple-950\/70,
+  .bg-purple-950\/80 {
+    background-color: #F3E8FF !important;
+    color: #6B21A8 !important;
+    border-color: #D8B4FE !important;
+  }
+  .text-purple-300 { color: #6B21A8 !important; }
+
   /* Form Controls & Inputs */
   input:not([type="checkbox"]):not([type="radio"]),
   select,
@@ -360,6 +405,21 @@ body {
   .bg-\[\#1f1c19\] { background-color: #171A21 !important; }
   .bg-\[\#2a2a30\] { background-color: var(--theme-bg-subtle) !important; }
   .bg-\[\#2e2a24\] { background-color: var(--theme-bg-subtle) !important; }
+  .bg-\[\#1a1815\] { background-color: #12141A !important; }
+  .bg-\[\#38332c\] { 
+    background-color: #272C39 !important; 
+    color: #F8FAFC !important;
+    border-color: #3A4354 !important;
+  }
+  .bg-\[\#38332c\] *,
+  button.bg-\[\#38332c\] * {
+    color: #F8FAFC !important;
+  }
+  .bg-\[\#464037\] {
+    background-color: #323847 !important;
+    color: #F8FAFC !important;
+    border-color: #4A5568 !important;
+  }
 
   /* Active Navigation / Filter Buttons in Dark Mode */
   .bg-\[\#2a2620\] {
@@ -379,6 +439,14 @@ body {
   .bg-\[\#2a2620\] .bg-\[\#38332c\] {
     background-color: var(--theme-accent-brass) !important;
     color: #0E1013 !important;
+  }
+
+  /* Primary Brass Action Buttons & Badges in Dark Mode */
+  .bg-\[\#9E7238\],
+  .bg-\[\#9E7238\] *,
+  button.bg-\[\#9E7238\],
+  button.bg-\[\#9E7238\] * {
+    color: #FFFFFF !important;
   }
 
   /* Interactive Hover States in Dark Mode */
@@ -483,6 +551,17 @@ body {
   }
   .text-blue-300 { color: var(--theme-blue-badge-text) !important; }
   .text-blue-400 { color: var(--theme-blue-text) !important; }
+
+  /* Purple / Bespoke Badges in Dark Mode */
+  .bg-purple-950,
+  .bg-purple-950\/60,
+  .bg-purple-950\/70,
+  .bg-purple-950\/80 {
+    background-color: rgba(168, 85, 247, 0.2) !important;
+    color: #D8B4FE !important;
+    border-color: rgba(192, 132, 252, 0.4) !important;
+  }
+  .text-purple-300 { color: #D8B4FE !important; }
 
   /* Form Controls in Dark Mode */
   input:not([type="checkbox"]):not([type="radio"]),

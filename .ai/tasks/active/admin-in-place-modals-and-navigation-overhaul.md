@@ -32,6 +32,17 @@ This created undesired, disruptive navigation away from the staff member's worki
   - Workshop Queue: `Actionable Only` vs `Full Pipeline` toggle with explicit `Authorize Foundry Casting` stage pass gate.
   - Dispatch Queue: `Ready for Dispatch` vs `Full Pipeline` toggle with explicit `Authorize Crating` stage pass gate once 100% balance is verified.
 - [x] **Backup, Disaster Recovery & Schema Upgrades:** Instant server database snapshot generator (`handleTriggerDatabaseBackup`), JSON operational state download (`handleExportStateSnapshot`), Prisma schema migration status tracker, and staff maintenance bypass preview token generator (`handleGenerateBypassToken`).
+- [x] **Catalogue & Variants Deep Dive (Studio Review & Zone Governance):**
+  - **Studio Review & Gallery Modal:** Full high-definition product preview with interactive variant edition selector, real-time image viewport switching, zoom/inspect toggle, and fullscreen lightbox overlay.
+  - **Delivery Zone Logistics Matrix (Zones A to E):** Granular zone-level governance (Zone A Intra-City Metro, Zone B Regional Tier-1, Zone C Rest of India Tier-2, Zone D Special Terrains, Zone E White-Glove Heavy Freight) with instant click-to-toggle allowed/restricted status on every catalogue row and within the review modal, logging `ZONE_GOVERNANCE_UPDATE` audit events.
+- [x] **Light & Dark Theme Comprehensive Contrast Resolution (7-Issue Punchlist):**
+  - **Sidebar Active Key (Image 1):** Active tab ("Studio Overview") styled with crisp dark charcoal text (`#18181B`), warm paper background (`#EDE9E1`), and burnished brass indicator tab (`#9E7238`), eliminating white-on-beige illegibility.
+  - **Domain Filter Bar (Image 2):** Active domain pill ("All Domains") styled as elevated white card with `#18181B` charcoal text and brass accent tab.
+  - **Urgent Bottlenecks Stat Card (Image 3):** Upgraded from muddy dark-950 tint to soft warm rose (`#FFF1F2` canvas, `#FECDD3` border) with authoritative high-contrast ruby typography (`text-rose-700` / `text-rose-800`, AAA contrast ratio 7.8:1).
+  - **Import / Sync Markdown Action (Image 4):** Restyled with warm brass pill tint (`bg-[#9E7238]/10 text-[#825821] border-[#9E7238]/30`), eliminating black-on-black smudge.
+  - **Catalogue Table Badges & Headers (Image 5):** "Ready Stock" (emerald), "Made to Order" (amber), and "Bespoke Quote" (purple) badges upgraded with crisp pastel fills, distinct borders, and high-contrast typography; prices and edition buttons given explicit contrast.
+  - **Review Specs Modal Done Action (Image 6):** Prominent Burnished Brass action button (`bg-[#9E7238] hover:bg-[#855E28] text-white`).
+  - **Expanded Variant Tray Row (Image 7):** Remapped table row from pitch-black `#1a1815` to warm sub-surface `#F4F1EA` (light mode) / `#13161C` (dark mode) with elevated white/dark variant cards and clean typography.
 - [x] **Candidate A Ergonomic Design System & Dual Theme Engine:**
   - Implemented 8+ hour continuous workstation ergonomics: zero-glare warm stone alabaster canvas (`#F8F7F4`), elevated warm cards (`#FFFFFF`), non-pure-black charcoal espresso dark mode with true layer elevation (`#0E1013` canvas, `#13161C` sidebar, `#1A1D25` cards, `#2C3342` borders, `#F1F3F5` text), stone typography (`#18181B` / `#52525B`), and burnished brass accents (`#9E7238` / `#E0B26E`).
   - Resolved active tab contrast: active items ("Studio Overview", "All Domains") render crisp elevated surface with `#18181B` charcoal text and brass indicator, eliminating white-on-beige illegibility.
