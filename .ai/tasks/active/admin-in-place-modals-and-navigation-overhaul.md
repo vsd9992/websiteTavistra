@@ -33,9 +33,12 @@ This created undesired, disruptive navigation away from the staff member's worki
   - Dispatch Queue: `Ready for Dispatch` vs `Full Pipeline` toggle with explicit `Authorize Crating` stage pass gate once 100% balance is verified.
 - [x] **Backup, Disaster Recovery & Schema Upgrades:** Instant server database snapshot generator (`handleTriggerDatabaseBackup`), JSON operational state download (`handleExportStateSnapshot`), Prisma schema migration status tracker, and staff maintenance bypass preview token generator (`handleGenerateBypassToken`).
 - [x] **Candidate A Ergonomic Design System & Dual Theme Engine:**
-  - Implemented 8+ hour continuous workstation ergonomics: zero-glare warm stone alabaster canvas (`#F7F6F3`), elevated warm cards (`#FFFFFF`), non-pure-black charcoal espresso dark mode (`#141312` / `#1E1C19`), stone typography (`#1C1917` / `#57534E`), and burnished brass accents (`#9E7238` / `#D4A366`).
+  - Implemented 8+ hour continuous workstation ergonomics: zero-glare warm stone alabaster canvas (`#F8F7F4`), elevated warm cards (`#FFFFFF`), non-pure-black charcoal espresso dark mode with true layer elevation (`#0E1013` canvas, `#13161C` sidebar, `#1A1D25` cards, `#2C3342` borders, `#F1F3F5` text), stone typography (`#18181B` / `#52525B`), and burnished brass accents (`#9E7238` / `#E0B26E`).
+  - Resolved active tab contrast: active items ("Studio Overview", "All Domains") render crisp elevated surface with `#18181B` charcoal text and brass indicator, eliminating white-on-beige illegibility.
+  - Resolved hover state text: `.hover:text-white` properly remaps to dark charcoal in light mode, preventing text from vanishing on hover.
+  - Resolved exception shelf & badges: Urgent Bottlenecks card and alert badges remap from muddy `-950` tints to soft pastels with authoritative high-contrast text (`#BE123C` / `#9F1239` in light mode; luminous ruby in dark mode).
   - Set Light Theme as default on initial load; persistent `localStorage` (`tavistra_admin_theme`) synchronization and `data-theme` HTML attribute binding.
-  - Bespoke Astrolabe & Solar Chronometer Theme Switcher (`ThemeSwitcher.tsx`): Custom architectural draftsmanship glyphs (replaces standard emoji/generic icons), kinetic coin flip/spin with `cubic-bezier(0.34, 1.56, 0.64, 1)` spring physics, and `Alt+T` keyboard shortcut.
+  - Bespoke Astrolabe & Solar Chronometer Theme Switcher (`ThemeSwitcher.tsx`): Custom architectural draftsmanship glyphs, kinetic coin flip/spin with `cubic-bezier(0.34, 1.56, 0.64, 1)` spring physics, and `Alt+T` keyboard shortcut.
   - Decision 0007 Strictly Enforced: 0 modifications to `apps/storefront/`.
 
 ---
@@ -43,5 +46,5 @@ This created undesired, disruptive navigation away from the staff member's worki
 ## 3. Verification Criteria
 1. All inspected modals stack cleanly without backdrop glitches or layout shifts.
 2. Closing child inspection modals restores exact prior scroll position and parent modal state.
-3. Zero TypeScript or Vite bundling errors (`tsc && vite build` built clean in 2.63s).
+3. Zero TypeScript or Vite bundling errors (`tsc && vite build` built clean in 2.69s).
 4. Live verified on `devMachine` (`192.168.1.100:3002` Admin and `:3001` Storefront returning HTTP 200).
