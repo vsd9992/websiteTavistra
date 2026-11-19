@@ -217,6 +217,62 @@ export interface AuditEntry {
   details: string;
 }
 
+export interface ReturnRmaItem {
+  id: string;
+  rmaNumber: string; // e.g. RMA-2026-0042
+  orderId: string;
+  orderNumber: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string;
+  productTitle: string;
+  sku: string;
+  amountRupees: number;
+  trackType: "GRACE_COOLING" | "TRANSIT_DAMAGE" | "STATUTORY_DEFECT";
+  status: "REQUESTED" | "REVERSE_AWB_ISSUED" | "INTAKE_INSPECTED" | "REFUND_PROCESSED" | "REJECTED";
+  reverseCarrier?: string;
+  reverseAwbNumber?: string;
+  inspectionVerdict?: "RESTOCK_TO_INVENTORY" | "RE_MACHINE_OR_POLISH" | "SCRAP_TO_FOUNDRY";
+  inspectionNotes?: string;
+  creditNoteNumber?: string; // Statutory Rule 53 e.g. CN-2026-0012
+  refundUtr?: string;
+  gatewayRefundId?: string;
+  createdAt: string;
+  resolvedAt?: string;
+}
+
+export interface InventoryItem {
+  id: string;
+  variantId: string;
+  productId: string;
+  productName: string;
+  variantTitle: string;
+  sku: string;
+  finishName: string;
+  category: string;
+  onHandStock: number;
+  reservedStock: number;
+  availableStock: number; // onHandStock - reservedStock
+  lowStockThreshold: number;
+  warehouseLocation: string; // e.g. "Delhi Hub (110062) - Bay A3"
+  priceRupees: number;
+  imageUrl?: string;
+}
+
+export interface StockMovementRecord {
+  id: string;
+  inventoryId: string;
+  sku: string;
+  productName: string;
+  type: "INITIAL_STOCK" | "RESTOCK" | "ORDER_FULFILLED" | "RETURN_RESTOCK" | "MANUAL_ADJUSTMENT" | "FOUNDRY_RECEIPT" | "SCRAP_DISCREPANCY" | "COMMITTED_RESERVE";
+  quantity: number; // positive for addition, negative for deduction
+  balanceAfter: number;
+  referenceId?: string; // Order #, RMA #, or Adjustment Ticket
+  notes: string;
+  staffName: string;
+  timestamp: string;
+}
+
 export const INITIAL_ORDERS: AdminOrder[] = [
   {
     id: "ord_1001",
@@ -714,5 +770,260 @@ export const INITIAL_AUDIT_LOGS: AuditEntry[] = [
     entityId: "TCK-2026-802",
     timestamp: "Nov 5, 2026 11:30 IST",
     details: "Logged concierge afternoon delivery instruction for Blue Dart courier.",
+  },
+];
+
+export const INITIAL_INVENTORY: InventoryItem[] = [
+  {
+    id: "inv_01",
+    variantId: "var_01_a",
+    productId: "cat_01",
+    productName: "Monolith Minimalist Wall Clock",
+    variantTitle: "Brushed Brass Dial",
+    sku: "TAV-CLK-01-BRS",
+    finishName: "Unlacquered Brushed Brass",
+    category: "Home Décor & Objects",
+    onHandStock: 8,
+    reservedStock: 1,
+    availableStock: 7,
+    lowStockThreshold: 3,
+    warehouseLocation: "Delhi Studio Hub (110062) - Bay A1",
+    priceRupees: 14500,
+    imageUrl: "/products/monolith-wall-clock.png",
+  },
+  {
+    id: "inv_02",
+    variantId: "var_01_b",
+    productId: "cat_01",
+    productName: "Monolith Minimalist Wall Clock",
+    variantTitle: "Aero Black Aluminium",
+    sku: "TAV-CLK-01-BLK",
+    finishName: "Matte Anodised Black",
+    category: "Home Décor & Objects",
+    onHandStock: 5,
+    reservedStock: 0,
+    availableStock: 5,
+    lowStockThreshold: 2,
+    warehouseLocation: "Delhi Studio Hub (110062) - Bay A2",
+    priceRupees: 14500,
+    imageUrl: "/products/monolith-wall-clock.png",
+  },
+  {
+    id: "inv_03",
+    variantId: "var_02_a",
+    productId: "cat_02",
+    productName: "Aether Solid Brass Pendant Lamp",
+    variantTitle: "Hand-Spun Raw Brass",
+    sku: "TAV-LGT-02-RAW",
+    finishName: "Natural Living Patina",
+    category: "Lighting & Luminaires",
+    onHandStock: 3,
+    reservedStock: 2,
+    availableStock: 1,
+    lowStockThreshold: 2,
+    warehouseLocation: "Delhi Studio Hub (110062) - Lighting Cage L1",
+    priceRupees: 28000,
+    imageUrl: "/products/aether-pendant.png",
+  },
+  {
+    id: "inv_04",
+    variantId: "var_02_b",
+    productId: "cat_02",
+    productName: "Aether Solid Brass Pendant Lamp",
+    variantTitle: "Antique Smoked Bronze",
+    sku: "TAV-LGT-02-SMK",
+    finishName: "Oxidized Charcoal Patina",
+    category: "Lighting & Luminaires",
+    onHandStock: 1,
+    reservedStock: 1,
+    availableStock: 0,
+    lowStockThreshold: 2,
+    warehouseLocation: "Delhi Studio Hub (110062) - Lighting Cage L2",
+    priceRupees: 31500,
+    imageUrl: "/products/aether-pendant.png",
+  },
+  {
+    id: "inv_05",
+    variantId: "var_03_a",
+    productId: "cat_03",
+    productName: "Strata Modular Desk Organiser",
+    variantTitle: "Solid Sand-Cast Brass",
+    sku: "TAV-DSK-03-BRS",
+    finishName: "Hand-Rubbed Micro-Crystalline Wax",
+    category: "Objects & Sculptures",
+    onHandStock: 14,
+    reservedStock: 2,
+    availableStock: 12,
+    lowStockThreshold: 4,
+    warehouseLocation: "Delhi Studio Hub (110062) - Shelf S3",
+    priceRupees: 8200,
+    imageUrl: "/products/strata-desk.png",
+  },
+  {
+    id: "inv_06",
+    variantId: "var_04_a",
+    productId: "cat_04",
+    productName: "Kroma Architectural Lever Handle",
+    variantTitle: "Pair · Satin Gold Finish",
+    sku: "TAV-HRD-04-SAT",
+    finishName: "Satin Brushed Lacquered",
+    category: "Architectural Hardware",
+    onHandStock: 22,
+    reservedStock: 0,
+    availableStock: 22,
+    lowStockThreshold: 5,
+    warehouseLocation: "Delhi Studio Hub (110062) - Hardware Bin H1",
+    priceRupees: 6400,
+    imageUrl: "/products/kroma-lever.png",
+  },
+  {
+    id: "inv_07",
+    variantId: "var_05_a",
+    productId: "cat_05",
+    productName: "Voxel Solid Teak & Brass Stool",
+    variantTitle: "CP Teak & Brass Dowels",
+    sku: "TAV-FUR-05-TEK",
+    finishName: "Hand-Polished Linseed Oil",
+    category: "Furniture & Seating",
+    onHandStock: 2,
+    reservedStock: 0,
+    availableStock: 2,
+    lowStockThreshold: 2,
+    warehouseLocation: "Delhi Studio Hub (110062) - Furniture Mezzanine",
+    priceRupees: 42000,
+    imageUrl: "/products/voxel-stool.png",
+  },
+];
+
+export const INITIAL_STOCK_MOVEMENTS: StockMovementRecord[] = [
+  {
+    id: "sm_01",
+    inventoryId: "inv_01",
+    sku: "TAV-CLK-01-BRS",
+    productName: "Monolith Minimalist Wall Clock (Brushed Brass)",
+    type: "INITIAL_STOCK",
+    quantity: 10,
+    balanceAfter: 10,
+    referenceId: "BATCH-2026-OCT-01",
+    notes: "Initial inventory migration from foundry CNC run.",
+    staffName: "Ar. Vikramaditya (Admin)",
+    timestamp: "28 Oct 2026, 10:00 IST",
+  },
+  {
+    id: "sm_02",
+    inventoryId: "inv_01",
+    sku: "TAV-CLK-01-BRS",
+    productName: "Monolith Minimalist Wall Clock (Brushed Brass)",
+    type: "ORDER_FULFILLED",
+    quantity: -1,
+    balanceAfter: 9,
+    referenceId: "TAV-RS-2026-1001",
+    notes: "Consignment allocated and dispatched via Blue Dart.",
+    staffName: "System Automation",
+    timestamp: "04 Nov 2026, 14:22 IST",
+  },
+  {
+    id: "sm_03",
+    inventoryId: "inv_03",
+    sku: "TAV-LGT-02-RAW",
+    productName: "Aether Solid Brass Pendant Lamp (Raw Brass)",
+    type: "RESTOCK",
+    quantity: 4,
+    balanceAfter: 5,
+    referenceId: "FOUNDRY-DEL-402",
+    notes: "Received batch of 4 hand-spun brass shades from Moradabad workshop.",
+    staffName: "Rajesh Sharma",
+    timestamp: "08 Nov 2026, 11:15 IST",
+  },
+  {
+    id: "sm_04",
+    inventoryId: "inv_04",
+    sku: "TAV-LGT-02-SMK",
+    productName: "Aether Solid Brass Pendant Lamp (Antique Smoked)",
+    type: "ORDER_FULFILLED",
+    quantity: -1,
+    balanceAfter: 1,
+    referenceId: "TAV-RS-2026-1008",
+    notes: "Allocated to residential project order.",
+    staffName: "Kavita Rao",
+    timestamp: "12 Nov 2026, 16:00 IST",
+  },
+  {
+    id: "sm_05",
+    inventoryId: "inv_05",
+    sku: "TAV-DSK-03-BRS",
+    productName: "Strata Modular Desk Organiser",
+    type: "RETURN_RESTOCK",
+    quantity: 1,
+    balanceAfter: 14,
+    referenceId: "RMA-2026-0012",
+    notes: "Restocked after studio unboxing inspection; pristine condition in original crate.",
+    staffName: "Grace Hopper (Workshop QC)",
+    timestamp: "16 Nov 2026, 15:45 IST",
+  },
+];
+
+export const INITIAL_RMAS: ReturnRmaItem[] = [
+  {
+    id: "rma_01",
+    rmaNumber: "RMA-2026-0012",
+    orderId: "ord_1009",
+    orderNumber: "TAV-RS-2026-1009",
+    customerName: "Rohan Varma",
+    customerEmail: "rohan@varma.in",
+    customerPhone: "+91 99112 33445",
+    productTitle: "Strata Modular Desk Organiser",
+    sku: "TAV-DSK-03-BRS",
+    amountRupees: 8200,
+    trackType: "STATUTORY_DEFECT",
+    status: "REFUND_PROCESSED",
+    reverseCarrier: "Blue Dart Return Freight",
+    reverseAwbNumber: "BD-RET-7749102",
+    inspectionVerdict: "RESTOCK_TO_INVENTORY",
+    inspectionNotes: "Inspected at Delhi Hub. Minor carton scuff but brass module is immaculate. Restocked to shelf S3.",
+    creditNoteNumber: "CN-2026-0012",
+    refundUtr: "CMS20261116778942",
+    gatewayRefundId: "PHONEPE_RF_9812401",
+    createdAt: "14 Nov 2026",
+    resolvedAt: "16 Nov 2026",
+  },
+  {
+    id: "rma_02",
+    rmaNumber: "RMA-2026-0015",
+    orderId: "ord_2004",
+    orderNumber: "TAV-MTO-2026-2004",
+    customerName: "Radhika Merchant & Associates",
+    customerEmail: "rmerchant@designstudio.com",
+    customerPhone: "+91 98200 44556",
+    productTitle: "Voxel Teak & Brass Stool (Custom)",
+    sku: "TAV-FUR-05-TEK",
+    amountRupees: 31500,
+    trackType: "GRACE_COOLING",
+    status: "REFUND_PROCESSED",
+    inspectionVerdict: "RESTOCK_TO_INVENTORY",
+    inspectionNotes: "Pre-production 7-day grace cancellation. Timber milling had not commenced. 100% advance refunded per statute.",
+    creditNoteNumber: "CN-2026-0015",
+    refundUtr: "HDFC000123984511",
+    gatewayRefundId: "PHONEPE_RF_9812402",
+    createdAt: "15 Nov 2026",
+    resolvedAt: "15 Nov 2026",
+  },
+  {
+    id: "rma_03",
+    rmaNumber: "RMA-2026-0018",
+    orderId: "ord_1012",
+    orderNumber: "TAV-RS-2026-1012",
+    customerName: "Studio Lotus Interior Architecture",
+    customerEmail: "procurement@studiolotus.in",
+    customerPhone: "+91 98101 22334",
+    productTitle: "Aether Solid Brass Pendant Lamp",
+    sku: "TAV-LGT-02-SMK",
+    amountRupees: 31500,
+    trackType: "TRANSIT_DAMAGE",
+    status: "REVERSE_AWB_ISSUED",
+    reverseCarrier: "Safeexpress Surface Reverse",
+    reverseAwbNumber: "SF-RET-9902144",
+    inspectionNotes: "Transit crate impacted during courier transit to Bengaluru. Reverse pickup scheduled for damage assessment.",
+    createdAt: "18 Nov 2026",
   },
 ];

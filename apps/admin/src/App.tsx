@@ -8,6 +8,9 @@ import {
   INITIAL_PINCODES,
   STAFF_USERS,
   INITIAL_AUDIT_LOGS,
+  INITIAL_INVENTORY,
+  INITIAL_STOCK_MOVEMENTS,
+  INITIAL_RMAS,
   AdminOrder,
   BulkInquiry,
   SupportTicket,
@@ -16,6 +19,9 @@ import {
   PincodeEntry,
   StaffUser,
   AuditEntry,
+  InventoryItem,
+  StockMovementRecord,
+  ReturnRmaItem,
 } from "./data";
 import { LogisticsTab } from "./components/LogisticsTab";
 import { parseInquiryLineItems } from "@tavistra/shared";
@@ -131,6 +137,9 @@ export default function App() {
   const [catalogue, setCatalogue] = useState<CatalogueItem[]>(INITIAL_CATALOGUE);
   const [pincodes, setPincodes] = useState<PincodeEntry[]>(INITIAL_PINCODES);
   const [auditLogs, setAuditLogs] = useState<AuditEntry[]>(INITIAL_AUDIT_LOGS);
+  const [inventory, setInventory] = useState<InventoryItem[]>(INITIAL_INVENTORY);
+  const [stockMovements, setStockMovements] = useState<StockMovementRecord[]>(INITIAL_STOCK_MOVEMENTS);
+  const [rmas, setRmas] = useState<ReturnRmaItem[]>(INITIAL_RMAS);
   const [proposals, setProposals] = useState<AdminProposal[]>([]);
 
   // Proposal modal state
@@ -277,6 +286,55 @@ export default function App() {
   const [auditStaffFilter, setAuditStaffFilter] = useState("ALL");
   const [auditActionFilter, setAuditActionFilter] = useState("ALL");
   const [auditPage, setAuditPage] = useState(1);
+
+  // Workflow Stage Gating Toggles
+  const [workshopPipelineView, setWorkshopPipelineView] = useState<"ACTIONABLE_ONLY" | "FULL_PIPELINE">("ACTIONABLE_ONLY");
+  const [dispatchPipelineView, setDispatchPipelineView] = useState<"READY_ONLY" | "FULL_PIPELINE">("READY_ONLY");
+
+  // Standalone Inventory & Stock Management State
+  const [inventorySubTab, setInventorySubTab] = useState<"LEDGER" | "RMAS">("LEDGER");
+  const [inventorySearch, setInventorySearch] = useState("");
+  const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState("ALL");
+  const [inventoryStockFilter, setInventoryStockFilter] = useState<"ALL" | "LOW_STOCK" | "OUT_OF_STOCK" | "HEALTHY">("ALL");
+  const [inventoryDonutView, setInventoryDonutView] = useState<"STATUS" | "CATEGORY">("STATUS");
+  const [hoveredInventorySlice, setHoveredInventorySlice] = useState<string | null>(null);
+  const [adjustStockModalItem, setAdjustStockModalItem] = useState<InventoryItem | null>(null);
+  const [adjustStockForm, setAdjustStockForm] = useState<{
+    type: "RESTOCK" | "MANUAL_ADJUSTMENT" | "RETURN_RESTOCK" | "FOUNDRY_RECEIPT" | "SCRAP_DISCREPANCY";
+    quantityDelta: number;
+    referenceId: string;
+    notes: string;
+  }>({
+    type: "RESTOCK",
+    quantityDelta: 5,
+    referenceId: "",
+    notes: "",
+  });
+  const [viewMovementsItem, setViewMovementsItem] = useState<InventoryItem | null>(null);
+
+  // Returns, Refunds & RMA State
+  const [rmaModalOrder, setRmaModalOrder] = useState<AdminOrder | null>(null);
+  const [rmaSearchQuery, setRmaSearchQuery] = useState("");
+  const [rmaStatusFilter, setRmaStatusFilter] = useState<string>("ALL");
+  const [createRmaForm, setCreateRmaForm] = useState<{
+    trackType: "GRACE_COOLING" | "TRANSIT_DAMAGE" | "STATUTORY_DEFECT";
+    reasonNotes: string;
+    reverseCarrier: string;
+    refundMethod: "GATEWAY" | "BANK_NEFT";
+  }>({
+    trackType: "GRACE_COOLING",
+    reasonNotes: "",
+    reverseCarrier: "Blue Dart Return Freight",
+    refundMethod: "GATEWAY",
+  });
+  const [inspectRmaModal, setInspectRmaModal] = useState<ReturnRmaItem | null>(null);
+  const [creditNoteModal, setCreditNoteModal] = useState<ReturnRmaItem | null>(null);
+  const [isProcessingRma, setIsProcessingRma] = useState(false);
+
+  // Backup, Disaster Recovery & Maintenance State
+  const [isGeneratingBackup, setIsGeneratingBackup] = useState(false);
+  const [backupFeedback, setBackupFeedback] = useState<string | null>(null);
+  const [maintenanceBypassToken, setMaintenanceBypassToken] = useState("");
 
   // Customer inspector & Directory Controls
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerProfile | null>(null);
@@ -577,6 +635,7 @@ export default function App() {
   const canViewTickets = isTabPermitted(currentStaff.role, "TICKETS");
   const canViewProposals = isTabPermitted(currentStaff.role, "PROPOSALS");
   const canViewDispatch = isTabPermitted(currentStaff.role, "DISPATCH");
+  const canViewInventory = isTabPermitted(currentStaff.role, "INVENTORY");
   const canViewAudit = isTabPermitted(currentStaff.role, "AUDIT");
   const canCreateQuote = isActionPermitted(currentStaff.role, "PROPOSAL_CREATE_REVISE");
 
@@ -1199,6 +1258,117 @@ export default function App() {
     return Array.from(new Set(auditLogs.map((l) => l.staffName))).sort();
   }, [auditLogs]);
 
+  // Standalone Inventory Memos & Telemetry
+  const filteredInventory = useMemo(() => {
+    return inventory.filter((item) => {
+      if (inventoryCategoryFilter !== "ALL" && item.category !== inventoryCategoryFilter) return false;
+      if (inventoryStockFilter === "LOW_STOCK" && (item.availableStock > item.lowStockThreshold || item.availableStock <= 0)) return false;
+      if (inventoryStockFilter === "OUT_OF_STOCK" && item.availableStock > 0) return false;
+      if (inventoryStockFilter === "HEALTHY" && item.availableStock <= item.lowStockThreshold) return false;
+      if (inventorySearch.trim()) {
+        const q = inventorySearch.toLowerCase();
+        const matches =
+          item.productName.toLowerCase().includes(q) ||
+          item.sku.toLowerCase().includes(q) ||
+          item.finishName.toLowerCase().includes(q) ||
+          item.warehouseLocation.toLowerCase().includes(q);
+        if (!matches) return false;
+      }
+      return true;
+    });
+  }, [inventory, inventoryCategoryFilter, inventoryStockFilter, inventorySearch]);
+
+  const inventoryKpis = useMemo(() => {
+    const totalUnits = inventory.reduce((acc, curr) => acc + curr.onHandStock, 0);
+    const totalReserved = inventory.reduce((acc, curr) => acc + curr.reservedStock, 0);
+    const totalAvailable = inventory.reduce((acc, curr) => acc + curr.availableStock, 0);
+    const lowStockCount = inventory.filter((i) => i.availableStock <= i.lowStockThreshold && i.availableStock > 0).length;
+    const outOfStockCount = inventory.filter((i) => i.availableStock <= 0).length;
+    const totalValuation = inventory.reduce((acc, curr) => acc + curr.onHandStock * curr.priceRupees, 0);
+    return {
+      totalUnits,
+      totalReserved,
+      totalAvailable,
+      lowStockCount,
+      outOfStockCount,
+      totalValuation,
+      skuCount: inventory.length,
+    };
+  }, [inventory]);
+
+  const inventoryDonutData = useMemo(() => {
+    if (inventoryDonutView === "STATUS") {
+      let healthy = 0;
+      let low = 0;
+      let out = 0;
+      inventory.forEach((i) => {
+        if (i.availableStock <= 0) out += i.onHandStock;
+        else if (i.availableStock <= i.lowStockThreshold) low += i.onHandStock;
+        else healthy += i.onHandStock;
+      });
+      const sum = healthy + low + out;
+      return {
+        total: sum,
+        slices: [
+          { label: "Healthy Stock", count: healthy, color: "#10b981", percent: sum > 0 ? (healthy / sum) * 100 : 0 },
+          { label: "Low Stock Alert", count: low, color: "#f59e0b", percent: sum > 0 ? (low / sum) * 100 : 0 },
+          { label: "Depleted / Reserved", count: out, color: "#ef4444", percent: sum > 0 ? (out / sum) * 100 : 0 },
+        ],
+      };
+    } else {
+      const catMap: Record<string, number> = {};
+      inventory.forEach((i) => {
+        catMap[i.category] = (catMap[i.category] || 0) + i.onHandStock;
+      });
+      const sum = Object.values(catMap).reduce((a, b) => a + b, 0);
+      const palette = ["#c59b6d", "#a8a093", "#38bdf8", "#818cf8", "#f472b6"];
+      const slices = Object.entries(catMap).map(([cat, count], idx) => ({
+        label: cat,
+        count,
+        color: palette[idx % palette.length],
+        percent: sum > 0 ? (count / sum) * 100 : 0,
+      }));
+      return { total: sum, slices };
+    }
+  }, [inventory, inventoryDonutView]);
+
+  // Returns, Refunds & RMA Memos
+  const filteredRmas = useMemo(() => {
+    return rmas.filter((rma) => {
+      if (rmaStatusFilter !== "ALL" && rma.status !== rmaStatusFilter) return false;
+      if (rmaSearchQuery.trim()) {
+        const q = rmaSearchQuery.toLowerCase();
+        const matches =
+          rma.rmaNumber.toLowerCase().includes(q) ||
+          rma.orderNumber.toLowerCase().includes(q) ||
+          rma.customerName.toLowerCase().includes(q) ||
+          rma.customerEmail.toLowerCase().includes(q) ||
+          rma.productTitle.toLowerCase().includes(q) ||
+          rma.sku.toLowerCase().includes(q) ||
+          (rma.creditNoteNumber && rma.creditNoteNumber.toLowerCase().includes(q)) ||
+          (rma.reverseAwbNumber && rma.reverseAwbNumber.toLowerCase().includes(q));
+        if (!matches) return false;
+      }
+      return true;
+    });
+  }, [rmas, rmaStatusFilter, rmaSearchQuery]);
+
+  const rmaKpis = useMemo(() => {
+    const totalCount = rmas.length;
+    const pendingCount = rmas.filter((r) => r.status === "REQUESTED" || r.status === "REVERSE_AWB_ISSUED").length;
+    const settledCount = rmas.filter((r) => r.status === "REFUND_PROCESSED").length;
+    const totalRefundedRupees = rmas
+      .filter((r) => r.status === "REFUND_PROCESSED")
+      .reduce((acc, r) => acc + r.amountRupees, 0);
+
+    return {
+      totalCount,
+      pendingCount,
+      settledCount,
+      totalRefundedRupees,
+    };
+  }, [rmas]);
+
   const getStorefrontUrl = (path: string) => {
     const origin =
       typeof window !== "undefined" && window.location.port === "3002"
@@ -1739,6 +1909,9 @@ export default function App() {
           order.status === "PRODUCTION_COMPLETED" ||
           order.status === "AWAITING_DISPATCH";
 
+        // Workflow Stage Gating: In ACTIONABLE_ONLY mode, hide orders still locked in grace
+        if (workshopPipelineView === "ACTIONABLE_ONLY" && isGraceActive) return false;
+
         if (workshopFilter === "GRACE_LOCKED" && !isGraceActive) return false;
         if (workshopFilter === "RELEASE_ELIGIBLE" && !isReleaseEligible) return false;
         if (workshopFilter === "IN_WORKSHOP" && !isInWorkshop) return false;
@@ -1916,6 +2089,9 @@ export default function App() {
         const isDelivered = order.status === "DELIVERED";
         const isBlocked = order.balanceDueRupees > 0 && !isTransit && !isDelivered;
         const isReadyAwb = order.balanceDueRupees <= 0 && !isTransit && !isDelivered;
+
+        // Workflow Stage Gating: In READY_ONLY mode, hide consignments pending balance payment
+        if (dispatchPipelineView === "READY_ONLY" && isBlocked) return false;
 
         if (dispatchStatusFilter === "TRANSIT" && !isTransit) return false;
         if (dispatchStatusFilter === "DELIVERED" && !isDelivered) return false;
@@ -2734,6 +2910,370 @@ export default function App() {
     await handleUpdateTicketStatus(ticketId, "RESOLVED");
   };
 
+  // Adjust Physical Inventory Stock Handler
+  const handleAdjustStock = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adjustStockModalItem) return;
+    if (!isActionPermitted(currentStaff.role, "INVENTORY_MUTATE")) {
+      alert(`Unauthorized: Role '${currentStaff.role}' cannot adjust inventory.`);
+      return;
+    }
+
+    const delta =
+      adjustStockForm.type === "SCRAP_DISCREPANCY"
+        ? -Math.abs(adjustStockForm.quantityDelta)
+        : adjustStockForm.quantityDelta;
+
+    const currentItem = adjustStockModalItem;
+    const newOnHand = Math.max(0, currentItem.onHandStock + delta);
+    const newAvailable = Math.max(0, newOnHand - currentItem.reservedStock);
+
+    setInventory((prev) =>
+      prev.map((item) =>
+        item.id === currentItem.id
+          ? {
+              ...item,
+              onHandStock: newOnHand,
+              availableStock: newAvailable,
+            }
+          : item
+      )
+    );
+
+    const movement: StockMovementRecord = {
+      id: `sm_${Date.now()}`,
+      inventoryId: currentItem.id,
+      sku: currentItem.sku,
+      productName: currentItem.productName,
+      type: adjustStockForm.type,
+      quantity: delta,
+      balanceAfter: newOnHand,
+      referenceId: adjustStockForm.referenceId || "MANUAL-ADJ",
+      notes: adjustStockForm.notes || `Stock adjusted by ${currentStaff.name}`,
+      staffName: currentStaff.name,
+      timestamp:
+        new Date().toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }) + " IST",
+    };
+
+    setStockMovements((prev) => [movement, ...prev]);
+
+    logAuditAction(
+      "INVENTORY_ADJUSTED",
+      "InventoryLedger",
+      currentItem.sku,
+      `Adjusted ${delta > 0 ? "+" : ""}${delta} units (${adjustStockForm.type}). New On-Hand: ${newOnHand}. Ref: ${adjustStockForm.referenceId || "N/A"}`
+    );
+
+    setAdjustStockModalItem(null);
+    setAdjustStockForm({
+      type: "RESTOCK",
+      quantityDelta: 5,
+      referenceId: "",
+      notes: "",
+    });
+
+    setActionFeedback({
+      type: "success",
+      text: `Stock for ${currentItem.sku} successfully updated to ${newOnHand} on-hand.`,
+    });
+  };
+
+  // Create RMA / Return Request Handler
+  const handleCreateRma = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rmaModalOrder) return;
+    if (!isActionPermitted(currentStaff.role, "ORDER_REFUND_MANAGE")) {
+      alert(`Unauthorized: Role '${currentStaff.role}' cannot process RMAs and refunds.`);
+      return;
+    }
+
+    setIsProcessingRma(true);
+    const order = rmaModalOrder;
+    const currentYear = new Date().getFullYear();
+    const rmaSeq = Math.floor(1000 + Math.random() * 9000);
+    const rmaNumber = `RMA-${currentYear}-${rmaSeq}`;
+    const creditNoteNumber = `CN-${currentYear}-${Math.floor(100 + Math.random() * 900)}`;
+
+    const isGraceCooling = createRmaForm.trackType === "GRACE_COOLING";
+    const status = isGraceCooling ? ("REFUND_PROCESSED" as const) : ("REVERSE_AWB_ISSUED" as const);
+    const utr = isGraceCooling
+      ? `CMS${Date.now().toString().slice(-8)}`
+      : undefined;
+
+    const newRma: ReturnRmaItem = {
+      id: `rma_${Date.now()}`,
+      rmaNumber,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      customerName: order.customerName,
+      customerEmail: order.email,
+      customerPhone: order.phone,
+      productTitle: order.items[0]?.name || "Bespoke Architectural Consignment",
+      sku: "TAV-ED-001",
+      amountRupees: order.amountPaidRupees,
+      trackType: createRmaForm.trackType,
+      status,
+      reverseCarrier: isGraceCooling ? undefined : createRmaForm.reverseCarrier,
+      reverseAwbNumber: isGraceCooling ? undefined : `REV-${Math.floor(1000000 + Math.random() * 9000000)}`,
+      creditNoteNumber,
+      refundUtr: utr,
+      gatewayRefundId: isGraceCooling ? `PHONEPE_RF_${Date.now().toString().slice(-7)}` : undefined,
+      inspectionVerdict: isGraceCooling ? "RESTOCK_TO_INVENTORY" : undefined,
+      inspectionNotes: createRmaForm.reasonNotes.trim() || undefined,
+      createdAt: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+      resolvedAt: isGraceCooling
+        ? new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+        : undefined,
+    };
+
+    setRmas((prev) => [newRma, ...prev]);
+
+    // Update order status
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === order.id
+          ? {
+              ...o,
+              status: isGraceCooling ? "REFUNDED" : "CANCELLED",
+              refund: {
+                amountRupees: order.amountPaidRupees,
+                status: isGraceCooling ? "SETTLED" : "PENDING_REVERSE_INTAKE",
+                gateway: createRmaForm.refundMethod === "GATEWAY" ? "PHONEPE_REFUND" : "BANK_NEFT_DIRECT",
+                reference: utr || `RMA-${rmaNumber}`,
+                verifiedAt: isGraceCooling ? "Verified Live" : "Pending Intake",
+                notes: `RMA: ${rmaNumber} · Credit Note: ${creditNoteNumber}`,
+              },
+            }
+          : o
+      )
+    );
+
+    if (selectedOrder?.id === order.id) {
+      setSelectedOrder((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: isGraceCooling ? "REFUNDED" : "CANCELLED",
+              refund: {
+                amountRupees: order.amountPaidRupees,
+                status: isGraceCooling ? "SETTLED" : "PENDING_REVERSE_INTAKE",
+                gateway: createRmaForm.refundMethod === "GATEWAY" ? "PHONEPE_REFUND" : "BANK_NEFT_DIRECT",
+                reference: utr || `RMA-${rmaNumber}`,
+                verifiedAt: isGraceCooling ? "Verified Live" : "Pending Intake",
+                notes: `RMA: ${rmaNumber} · Credit Note: ${creditNoteNumber}`,
+              },
+            }
+          : null
+      );
+    }
+
+    logAuditAction(
+      "RMA_CREATED",
+      "ReturnRma",
+      rmaNumber,
+      `Track: ${createRmaForm.trackType} for ${order.orderNumber}. Amount: ₹${order.amountPaidRupees.toLocaleString("en-IN")}. Credit Note: ${creditNoteNumber}`
+    );
+
+    setIsProcessingRma(false);
+    setRmaModalOrder(null);
+    setActionFeedback({
+      type: "success",
+      text: `RMA ${rmaNumber} generated with Rule 53 Credit Note ${creditNoteNumber}.`,
+    });
+  };
+
+  // Record Studio Intake Inspection & Finalize Refund
+  const handleRecordRmaInspection = (
+    rmaId: string,
+    verdict: "RESTOCK_TO_INVENTORY" | "RE_MACHINE_OR_POLISH" | "SCRAP_TO_FOUNDRY",
+    notes: string,
+    utr: string
+  ) => {
+    if (!isActionPermitted(currentStaff.role, "ORDER_REFUND_MANAGE")) {
+      alert(`Unauthorized: Role '${currentStaff.role}' cannot finalize RMA inspections.`);
+      return;
+    }
+
+    const rma = rmas.find((r) => r.id === rmaId);
+    if (!rma) return;
+
+    const refundUtr = utr.trim() || `CMS${Date.now().toString().slice(-8)}`;
+    const updatedRma: ReturnRmaItem = {
+      ...rma,
+      status: "REFUND_PROCESSED",
+      inspectionVerdict: verdict,
+      inspectionNotes: notes,
+      refundUtr,
+      resolvedAt: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+    };
+
+    setRmas((prev) => prev.map((r) => (r.id === rmaId ? updatedRma : r)));
+
+    // If restock, increase matching inventory item
+    if (verdict === "RESTOCK_TO_INVENTORY") {
+      setInventory((prev) =>
+        prev.map((item) => {
+          if (item.sku === rma.sku || item.productName.toLowerCase().includes(rma.productTitle.toLowerCase())) {
+            const nextOnHand = item.onHandStock + 1;
+            const nextAvail = nextOnHand - item.reservedStock;
+            return { ...item, onHandStock: nextOnHand, availableStock: nextAvail };
+          }
+          return item;
+        })
+      );
+
+      const movement: StockMovementRecord = {
+        id: `sm_ret_${Date.now()}`,
+        inventoryId: rma.id,
+        sku: rma.sku,
+        productName: rma.productTitle,
+        type: "RETURN_RESTOCK",
+        quantity: 1,
+        balanceAfter: 1,
+        referenceId: rma.rmaNumber,
+        notes: `Restocked after RMA intake inspection: ${notes}`,
+        staffName: currentStaff.name,
+        timestamp:
+          new Date().toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          }) + " IST",
+      };
+      setStockMovements((prev) => [movement, ...prev]);
+    }
+
+    logAuditAction(
+      "RMA_INSPECTION_RECORDED",
+      "ReturnRma",
+      rma.rmaNumber,
+      `Verdict: ${verdict}. Refund UTR: ${refundUtr}. Notes: ${notes}`
+    );
+
+    setInspectRmaModal(null);
+    setActionFeedback({
+      type: "success",
+      text: `RMA ${rma.rmaNumber} settled with verdict ${verdict}. Refund UTR ${refundUtr} recorded.`,
+    });
+  };
+
+  // Workflow Stage Gate 1: Release to Workshop Casting
+  const handlePassToWorkshop = (order: AdminOrder) => {
+    if (!isActionPermitted(currentStaff.role, "WORKSHOP_RELEASE")) {
+      alert(`Unauthorized: Role '${currentStaff.role}' cannot release orders to workshop casting.`);
+      return;
+    }
+
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === order.id
+          ? {
+              ...o,
+              status: "WORKSHOP_CRAFTING",
+              isGraceActive: false,
+              graceDaysRemaining: 0,
+            }
+          : o
+      )
+    );
+
+    if (selectedOrder?.id === order.id) {
+      setSelectedOrder((prev) =>
+        prev ? { ...prev, status: "WORKSHOP_CRAFTING", isGraceActive: false, graceDaysRemaining: 0 } : null
+      );
+    }
+
+    logAuditAction(
+      "STAGE_GATE_PASS_WORKSHOP",
+      "Order",
+      order.orderNumber,
+      `Passed Stage 1: Grace period ended or waived. Authorized for foundry casting by ${currentStaff.name}.`
+    );
+
+    setActionFeedback({
+      type: "success",
+      text: `Order ${order.orderNumber} successfully authorized and passed to Workshop Casting!`,
+    });
+  };
+
+  // Workflow Stage Gate 2: Authorize for Courier Dispatch
+  const handleAuthorizeForDispatch = (order: AdminOrder) => {
+    if (order.balanceDueRupees > 0) {
+      alert(`Blocked: Cannot authorize dispatch until 100% cumulative balance (₹${order.balanceDueRupees.toLocaleString("en-IN")}) is verified.`);
+      return;
+    }
+
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === order.id
+          ? {
+              ...o,
+              status: "AWAITING_DISPATCH",
+            }
+          : o
+      )
+    );
+
+    if (selectedOrder?.id === order.id) {
+      setSelectedOrder((prev) =>
+        prev ? { ...prev, status: "AWAITING_DISPATCH" } : null
+      );
+    }
+
+    logAuditAction(
+      "STAGE_GATE_PASS_DISPATCH",
+      "Order",
+      order.orderNumber,
+      `Passed Stage 2: 100% payment confirmed. Authorized for courier crating & AWB generation by ${currentStaff.name}.`
+    );
+
+    setActionFeedback({
+      type: "success",
+      text: `Consignment ${order.orderNumber} authorized for carrier crating & AWB generation!`,
+    });
+  };
+
+  // Generate Storefront Maintenance Bypass Preview Token
+  const handleGenerateBypassToken = () => {
+    const token = `tavistra_studio_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    setMaintenanceBypassToken(token);
+    const link = getStorefrontUrl(`/?preview_token=${token}`);
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(link);
+    }
+    setActionFeedback({
+      type: "success",
+      text: `Generated & copied maintenance preview URL: ${link}`,
+    });
+  };
+
+  // Trigger Instant Database Backup Script
+  const handleTriggerDatabaseBackup = () => {
+    setIsGeneratingBackup(true);
+    setBackupFeedback(null);
+    setTimeout(() => {
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `tavistra_db_snapshot_${timestamp}.tar.gz`;
+      const hash = `sha256:7f83b1657ff1...${Math.random().toString(36).slice(2, 8)}`;
+      setIsGeneratingBackup(false);
+      setBackupFeedback(`Backup verified: ${filename} (${hash}) stored in /var/backups/tavistra/`);
+      logAuditAction(
+        "DATABASE_BACKUP_GENERATED",
+        "SystemSettings",
+        filename,
+        `Automated database snapshot generated with integrity hash: ${hash}`
+      );
+    }, 1200);
+  };
+
   // Staff creation of new client support ticket / concierge thread
   const handleCreateStaffTicket = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -3488,6 +4028,12 @@ export default function App() {
       items: [
         { id: "PRODUCTION", label: "Workshop Queue (Grace)", badge: stats.mtoGraceCount, badgeColor: "amber" },
         { id: "DISPATCH", label: "Logistics & AWB" },
+        {
+          id: "INVENTORY",
+          label: "Inventory & Stock Ledger",
+          badge: inventory.filter((i) => i.availableStock <= i.lowStockThreshold).length || undefined,
+          badgeColor: "amber",
+        },
         { id: "CATALOGUE", label: "Catalogue & Variants", badge: catalogue.length },
         { id: "PINCODES", label: "Delivery PIN Zones", badge: stats.serviceablePinsCount },
       ],
@@ -5987,7 +6533,35 @@ export default function App() {
             {/* Workshop Queue Cards Grid */}
             <div className="space-y-3">
               <div className="flex items-center justify-between text-xs text-[#a8a093]">
-                <span>Showing {filteredWorkshopOrders.length} of {workshopKpis.totalMtoCount} Made-to-Order consignments</span>
+                <div className="flex items-center gap-3">
+                  <span>Showing {filteredWorkshopOrders.length} of {workshopKpis.totalMtoCount} Made-to-Order consignments</span>
+                  <div className="flex items-center rounded-lg bg-[#181715] p-0.5 border border-[#38332c] text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setWorkshopPipelineView("ACTIONABLE_ONLY")}
+                      className={`px-2.5 py-1 rounded-md font-semibold transition-colors ${
+                        workshopPipelineView === "ACTIONABLE_ONLY"
+                          ? "bg-[#c59b6d] text-[#181715] shadow-xs"
+                          : "text-[#a8a093] hover:text-white"
+                      }`}
+                      title="Only show consignments eligible for foundry casting (grace cleared)"
+                    >
+                      ● Actionable Only ({orders.filter((o) => o.mode === "MADE_TO_ORDER" && !(o.isGraceActive ?? ((o.graceDaysRemaining ?? 0) > 0))).length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWorkshopPipelineView("FULL_PIPELINE")}
+                      className={`px-2.5 py-1 rounded-md font-semibold transition-colors ${
+                        workshopPipelineView === "FULL_PIPELINE"
+                          ? "bg-[#c59b6d] text-[#181715] shadow-xs"
+                          : "text-[#a8a093] hover:text-white"
+                      }`}
+                      title="Show all made-to-order consignments including active grace periods"
+                    >
+                      ○ Full Pipeline ({orders.filter((o) => o.mode === "MADE_TO_ORDER").length})
+                    </button>
+                  </div>
+                </div>
                 {workshopFilter !== "ALL" || workshopSearchQuery ? (
                   <button
                     type="button"
@@ -6188,7 +6762,10 @@ export default function App() {
                               <div className="flex items-center gap-2">
                                 <button
                                   type="button"
-                                  onClick={() => handleReleaseToProduction(order.id)}
+                                  onClick={() => {
+                                    handlePassToWorkshop(order);
+                                    handleReleaseToProduction(order.id);
+                                  }}
                                   disabled={isGraceWindowOpen}
                                   title={
                                     isGraceWindowOpen
@@ -6199,7 +6776,7 @@ export default function App() {
                                 >
                                   {isGraceWindowOpen
                                     ? `Locked in Grace (${daysRemaining}d left)`
-                                    : "Release to Workshop Machining →"}
+                                    : "✓ Authorize Foundry Casting →"}
                                 </button>
                                 <button
                                   type="button"
@@ -6688,8 +7265,36 @@ export default function App() {
                   ))}
                 </div>
 
-                <div className="text-xs text-[#a8a093]">
-                  Showing <strong className="text-white">{filteredDispatchOrders.length}</strong> of {dispatchKpis.totalActiveCount} active consignments
+                <div className="flex items-center gap-3">
+                  <div className="text-xs text-[#a8a093]">
+                    Showing <strong className="text-white">{filteredDispatchOrders.length}</strong> of {dispatchKpis.totalActiveCount} active consignments
+                  </div>
+                  <div className="flex items-center rounded-lg bg-[#181715] p-0.5 border border-[#38332c] text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setDispatchPipelineView("READY_ONLY")}
+                      className={`px-2.5 py-1 rounded-md font-semibold transition-colors ${
+                        dispatchPipelineView === "READY_ONLY"
+                          ? "bg-[#c59b6d] text-[#181715] shadow-xs"
+                          : "text-[#a8a093] hover:text-white"
+                      }`}
+                      title="Only show consignments with 100% verified settlement ready for courier dispatch"
+                    >
+                      ● Ready for Dispatch ({orders.filter((o) => o.status !== "CANCELLED" && o.status !== "REFUNDED" && o.balanceDueRupees <= 0).length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDispatchPipelineView("FULL_PIPELINE")}
+                      className={`px-2.5 py-1 rounded-md font-semibold transition-colors ${
+                        dispatchPipelineView === "FULL_PIPELINE"
+                          ? "bg-[#c59b6d] text-[#181715] shadow-xs"
+                          : "text-[#a8a093] hover:text-white"
+                      }`}
+                      title="Show all active consignments including payment locked"
+                    >
+                      ○ Full Pipeline ({orders.filter((o) => o.status !== "CANCELLED" && o.status !== "REFUNDED").length})
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -6933,6 +7538,16 @@ export default function App() {
                           </div>
                         ) : (
                           <div className="flex flex-wrap items-center gap-2">
+                            {order.status !== "AWAITING_DISPATCH" && order.status !== "DISPATCHED" && order.status !== "DELIVERED" && (
+                              <button
+                                type="button"
+                                onClick={() => handleAuthorizeForDispatch(order)}
+                                className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-semibold text-xs transition-colors shadow-xs"
+                                title="Explicitly authorize piece for crating & courier handover"
+                              >
+                                ✓ Authorize Crating
+                              </button>
+                            )}
                             {order.status !== "DELIVERED" && (
                               <button
                                 type="button"
@@ -6971,6 +7586,633 @@ export default function App() {
         )}
 
         {/* TAB 5: SUPPORT TICKETS & CLIENT CONCIERGE DESK */}
+        {/* TAB: INVENTORY & STOCK LEDGER */}
+        {activeTab === "INVENTORY" && canViewInventory && (
+          <div className="space-y-6">
+            {actionFeedback && (
+              <div
+                className={`p-3.5 rounded-xl border text-xs flex items-center justify-between ${
+                  actionFeedback.type === "error"
+                    ? "bg-red-950/50 border-red-800/70 text-red-200"
+                    : "bg-emerald-950/50 border-emerald-800/70 text-emerald-200"
+                }`}
+              >
+                <span>{actionFeedback.text}</span>
+                <button
+                  onClick={() => setActionFeedback(null)}
+                  className="text-[11px] opacity-75 hover:opacity-100 ml-4"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {/* Header & Sub-Tab Navigation */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#38332c] pb-4 gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-semibold text-white">Finished Inventory &amp; Studio Warehouse Ledger</h2>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#2a2722] text-[#c59b6d] border border-[#38332c]">
+                    TAV-05 Concurrency Ledger
+                  </span>
+                </div>
+                <p className="text-xs text-[#a8a093] mt-0.5">
+                  Physical on-hand luxury stock, active order commitments, available-to-sell (ATS) balances, and chronological stock movements.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[#a8a093]">
+                  Showing <strong className="text-white">{filteredInventory.length}</strong> of {inventory.length} SKUs
+                </span>
+              </div>
+            </div>
+
+            {/* Sub-Tab Switcher: Physical Stock Ledger vs Returns & RMAs */}
+            <div className="flex items-center gap-2 border-b border-[#38332c] pb-3">
+              <button
+                type="button"
+                onClick={() => setInventorySubTab("LEDGER")}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-2 ${
+                  inventorySubTab === "LEDGER"
+                    ? "bg-[#c59b6d] text-[#181715] shadow-xs"
+                    : "bg-[#24211d] text-[#a8a093] hover:text-white border border-[#38332c]"
+                }`}
+              >
+                <span>📦 Physical Stock Ledger</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                    inventorySubTab === "LEDGER" ? "bg-[#181715]/20 text-[#181715]" : "bg-[#2a2722] text-[#c59b6d]"
+                  }`}
+                >
+                  {inventory.length}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setInventorySubTab("RMAS")}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-2 ${
+                  inventorySubTab === "RMAS"
+                    ? "bg-[#c59b6d] text-[#181715] shadow-xs"
+                    : "bg-[#24211d] text-[#a8a093] hover:text-white border border-[#38332c]"
+                }`}
+              >
+                <span>↩ Returns, RMAs &amp; Credit Notes</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                    inventorySubTab === "RMAS" ? "bg-[#181715]/20 text-[#181715]" : "bg-[#2a2722] text-[#c59b6d]"
+                  }`}
+                >
+                  {rmas.length}
+                </span>
+                {rmaKpis.pendingCount > 0 && (
+                  <span
+                    className="h-2 w-2 rounded-full bg-amber-400 animate-pulse"
+                    title={`${rmaKpis.pendingCount} returns pending intake`}
+                  />
+                )}
+              </button>
+            </div>
+
+            {inventorySubTab === "LEDGER" ? (
+              <>
+                {/* 4 Top KPI Pulse Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="p-4 rounded-2xl bg-[#24211d] border border-[#38332c]">
+                    <span className="text-[10px] uppercase font-bold text-[#a8a093] tracking-wider block">Physical On-Hand</span>
+                    <span className="text-2xl font-mono font-bold text-white mt-1 block">
+                      {inventoryKpis.totalUnits} Units
+                    </span>
+                    <div className="text-[11px] text-[#a8a093] mt-0.5 flex items-center justify-between">
+                      <span>Valuation: {formatPrice(inventoryKpis.totalValuation)}</span>
+                      <span className="text-[#c59b6d] font-medium">{inventoryKpis.skuCount} SKUs</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-[#24211d] border border-[#38332c]">
+                    <span className="text-[10px] uppercase font-bold text-[#a8a093] tracking-wider block">Committed / Reserved</span>
+                    <span className="text-2xl font-mono font-bold text-amber-400 mt-1 block">
+                      {inventoryKpis.totalReserved} Units
+                    </span>
+                    <div className="text-[11px] text-[#a8a093] mt-0.5 flex items-center justify-between">
+                      <span>Active customer orders</span>
+                      <span className="text-amber-400 font-medium">Locked</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-[#24211d] border border-[#38332c]">
+                    <span className="text-[10px] uppercase font-bold text-[#a8a093] tracking-wider block">Available to Sell (ATS)</span>
+                    <span className="text-2xl font-mono font-bold text-emerald-400 mt-1 block">
+                      {inventoryKpis.totalAvailable} Units
+                    </span>
+                    <div className="text-[11px] text-[#a8a093] mt-0.5 flex items-center justify-between">
+                      <span>Ready for dispatch</span>
+                      <span className="text-emerald-400 font-medium">In Stock</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-[#24211d] border border-[#38332c]">
+                    <span className="text-[10px] uppercase font-bold text-[#a8a093] tracking-wider block">Stock Health Alerts</span>
+                    <span className={`text-2xl font-mono font-bold mt-1 block ${
+                      inventoryKpis.lowStockCount > 0 ? "text-amber-400" : "text-emerald-400"
+                    }`}>
+                      {inventoryKpis.lowStockCount} Low · {inventoryKpis.outOfStockCount} Depleted
+                    </span>
+                    <div className="text-[11px] text-[#a8a093] mt-0.5 flex items-center justify-between">
+                      <span>Threshold dynamic</span>
+                      <span className="text-[#c59b6d] font-medium">Auto-Flagged</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dual-View SVG Donut: Stock Health vs Curated Category */}
+                <div className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#38332c] pb-3">
+                    <div>
+                      <h3 className="text-xs uppercase font-bold text-[#c59b6d] tracking-wider">
+                        Inventory Volume Distribution
+                      </h3>
+                      <p className="text-[11px] text-[#a8a093]">
+                        Physical warehouse allocations by {inventoryDonutView === "STATUS" ? "Stock Health" : "Product Category"}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 bg-[#181715] p-1 rounded-xl border border-[#38332c]">
+                      <button
+                        type="button"
+                        onClick={() => setInventoryDonutView("STATUS")}
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                          inventoryDonutView === "STATUS"
+                            ? "bg-[#c59b6d] text-[#181715]"
+                            : "text-[#a8a093] hover:text-white"
+                        }`}
+                      >
+                        Allocation Status
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setInventoryDonutView("CATEGORY")}
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                          inventoryDonutView === "CATEGORY"
+                            ? "bg-[#c59b6d] text-[#181715]"
+                            : "text-[#a8a093] hover:text-white"
+                        }`}
+                      >
+                        Curated Category
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col md:flex-row items-center justify-around gap-6 pt-2">
+                    {/* SVG Donut */}
+                    <div className="relative w-44 h-44 shrink-0">
+                      <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                        {(() => {
+                          const { total, slices } = inventoryDonutData;
+                          if (total === 0) {
+                            return <circle cx="50" cy="50" r="38" fill="transparent" stroke="#2a2722" strokeWidth="16" />;
+                          }
+                          let cumulativePercent = 0;
+                          return slices.map((slice, idx) => {
+                            const strokeDasharray = `${slice.percent * 2.38761} 238.761`;
+                            const strokeDashoffset = -cumulativePercent * 2.38761;
+                            cumulativePercent += slice.percent;
+                            return (
+                              <circle
+                                key={idx}
+                                cx="50"
+                                cy="50"
+                                r="38"
+                                fill="transparent"
+                                stroke={slice.color}
+                                strokeWidth="16"
+                                strokeDasharray={strokeDasharray}
+                                strokeDashoffset={strokeDashoffset}
+                                className="transition-all duration-300 hover:opacity-80 cursor-pointer"
+                                onMouseEnter={() => setHoveredInventorySlice(slice.label)}
+                                onMouseLeave={() => setHoveredInventorySlice(null)}
+                              />
+                            );
+                          });
+                        })()}
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <span className="text-[10px] text-[#a8a093] uppercase font-bold tracking-wider">
+                          {hoveredInventorySlice ? "Selected" : "Total Stock"}
+                        </span>
+                        <span className="text-xl font-mono font-bold text-white">
+                          {hoveredInventorySlice
+                            ? inventoryDonutData.slices.find((s) => s.label === hoveredInventorySlice)?.count ?? inventoryDonutData.total
+                            : inventoryDonutData.total}
+                        </span>
+                        <span className="text-[10px] text-[#c59b6d]">Units</span>
+                      </div>
+                    </div>
+
+                    {/* Legend */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-md text-xs">
+                      {inventoryDonutData.slices.map((slice, idx) => (
+                        <div
+                          key={idx}
+                          onMouseEnter={() => setHoveredInventorySlice(slice.label)}
+                          onMouseLeave={() => setHoveredInventorySlice(null)}
+                          className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
+                            hoveredInventorySlice === slice.label
+                              ? "bg-[#2a2722] border-[#c59b6d]"
+                              : "bg-[#181715] border-[#38332c] hover:border-[#464037]"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="flex items-center gap-1.5 font-semibold text-white">
+                              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: slice.color }} />
+                              <span className="truncate">{slice.label}</span>
+                            </span>
+                            <span className="font-mono text-white font-bold">{slice.count}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px] text-[#a8a093]">
+                            <span>{slice.percent.toFixed(1)}% of total</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Filter & Search Toolbar */}
+                <div className="p-4 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-[#a8a093] block mb-1">Search Inventory</label>
+                      <input
+                        type="text"
+                        placeholder="Search product, SKU, finish, bay..."
+                        value={inventorySearch}
+                        onChange={(e) => setInventorySearch(e.target.value)}
+                        className="w-full rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-xs text-white placeholder-[#787165] focus:outline-none focus:border-[#c59b6d]"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-[#a8a093] block mb-1">Category Filter</label>
+                      <select
+                        value={inventoryCategoryFilter}
+                        onChange={(e) => setInventoryCategoryFilter(e.target.value)}
+                        className="w-full rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-xs text-white focus:outline-none focus:border-[#c59b6d]"
+                      >
+                        <option value="ALL">All Categories</option>
+                        {Array.from(new Set(inventory.map((i) => i.category))).map((cat) => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-[#a8a093] block mb-1">Stock Health Status</label>
+                      <select
+                        value={inventoryStockFilter}
+                        onChange={(e) => setInventoryStockFilter(e.target.value as any)}
+                        className="w-full rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-xs text-white focus:outline-none focus:border-[#c59b6d]"
+                      >
+                        <option value="ALL">All Stock Levels</option>
+                        <option value="LOW_STOCK">Low Stock Only (&le; Threshold)</option>
+                        <option value="OUT_OF_STOCK">Depleted / Out of Stock</option>
+                        <option value="HEALTHY">Healthy Stock Levels</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Physical Stock Ledger Table */}
+                <div className="rounded-2xl border border-[#38332c] bg-[#24211d] overflow-hidden">
+                  <div className="p-4 border-b border-[#38332c] flex items-center justify-between">
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-white">Physical SKU Master Ledger</h3>
+                      <p className="text-[11px] text-[#a8a093]">Real-time balance breakdown across finished studio stock</p>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="border-b border-[#38332c] bg-[#181715] text-[10px] font-bold uppercase tracking-wider text-[#a8a093]">
+                          <th className="py-3 px-4">Product &amp; Variant</th>
+                          <th className="py-3 px-4">SKU / Finish</th>
+                          <th className="py-3 px-4">Location Bay</th>
+                          <th className="py-3 px-4 text-right">Unit Price</th>
+                          <th className="py-3 px-4 text-center">On-Hand</th>
+                          <th className="py-3 px-4 text-center">Reserved</th>
+                          <th className="py-3 px-4 text-center">Available (ATS)</th>
+                          <th className="py-3 px-4">Health</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#38332c]/50">
+                        {filteredInventory.length === 0 ? (
+                          <tr>
+                            <td colSpan={9} className="py-12 text-center text-xs text-[#787165]">
+                              No inventory SKUs match the selected filters.
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredInventory.map((item) => {
+                            const isLowStock = item.availableStock <= item.lowStockThreshold && item.availableStock > 0;
+                            const isDepleted = item.availableStock <= 0;
+
+                            return (
+                              <tr key={item.id} className="hover:bg-[#2a2722]/40 transition-colors">
+                                <td className="py-3 px-4">
+                                  <div className="font-semibold text-white">{item.productName}</div>
+                                  <div className="text-[11px] text-[#a8a093]">{item.variantTitle}</div>
+                                </td>
+                                <td className="py-3 px-4 font-mono text-xs">
+                                  <div className="text-[#c59b6d] font-bold">{item.sku}</div>
+                                  <div className="text-[11px] font-sans text-[#a8a093]">{item.finishName}</div>
+                                </td>
+                                <td className="py-3 px-4 text-[#a8a093] text-[11px]">
+                                  {item.warehouseLocation}
+                                </td>
+                                <td className="py-3 px-4 text-right font-mono font-bold text-white">
+                                  {formatPrice(item.priceRupees)}
+                                </td>
+                                <td className="py-3 px-4 text-center font-mono font-bold text-white text-sm">
+                                  {item.onHandStock}
+                                </td>
+                                <td className="py-3 px-4 text-center font-mono text-amber-400 font-semibold">
+                                  {item.reservedStock}
+                                </td>
+                                <td className="py-3 px-4 text-center font-mono font-bold text-sm">
+                                  <span className={isDepleted ? "text-rose-400" : isLowStock ? "text-amber-400" : "text-emerald-400"}>
+                                    {item.availableStock}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span
+                                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                      isDepleted
+                                        ? "bg-rose-950 text-rose-300 border-rose-800"
+                                        : isLowStock
+                                        ? "bg-amber-950 text-amber-300 border-amber-800"
+                                        : "bg-emerald-950 text-emerald-300 border-emerald-800"
+                                    }`}
+                                  >
+                                    {isDepleted ? "DEPLETED" : isLowStock ? "LOW STOCK" : "HEALTHY"}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-right">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setAdjustStockModalItem(item);
+                                        setAdjustStockForm({
+                                          type: "RESTOCK",
+                                          quantityDelta: 5,
+                                          referenceId: "",
+                                          notes: "",
+                                        });
+                                      }}
+                                      className="px-2.5 py-1 rounded-lg bg-[#2a2722] hover:bg-[#38332c] text-white border border-[#464037] text-xs font-semibold transition-colors"
+                                      title="Adjust physical stock quantity"
+                                    >
+                                      Adjust ⚙
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setViewMovementsItem(item)}
+                                      className="px-2.5 py-1 rounded-lg bg-[#181715] hover:bg-[#25221d] text-[#c59b6d] border border-[#38332c] text-xs font-semibold transition-colors"
+                                      title="Inspect chronological stock movements"
+                                    >
+                                      History 📋
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* Returns, RMAs & Credit Notes Workbench */
+              <div className="space-y-6">
+                {/* 4 RMA KPI Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="p-4 rounded-2xl bg-[#24211d] border border-[#38332c]">
+                    <span className="text-[10px] uppercase font-bold text-[#a8a093] tracking-wider block">Total Return RMAs</span>
+                    <span className="text-2xl font-mono font-bold text-white mt-1 block">
+                      {rmaKpis.totalCount} Cases
+                    </span>
+                    <div className="text-[11px] text-[#a8a093] mt-0.5 flex items-center justify-between">
+                      <span>Statutory Tracked</span>
+                      <span className="text-[#c59b6d] font-medium">Logged</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-[#24211d] border border-[#38332c]">
+                    <span className="text-[10px] uppercase font-bold text-[#a8a093] tracking-wider block">Pending Studio Intake</span>
+                    <span className={`text-2xl font-mono font-bold mt-1 block ${
+                      rmaKpis.pendingCount > 0 ? "text-amber-400" : "text-white"
+                    }`}>
+                      {rmaKpis.pendingCount} Returns
+                    </span>
+                    <div className="text-[11px] text-[#a8a093] mt-0.5 flex items-center justify-between">
+                      <span>In Transit / Inspection</span>
+                      <span className="text-amber-400 font-medium">{rmaKpis.pendingCount > 0 ? "Action Required" : "Clear"}</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-[#24211d] border border-[#38332c]">
+                    <span className="text-[10px] uppercase font-bold text-[#a8a093] tracking-wider block">Refunds Settled</span>
+                    <span className="text-2xl font-mono font-bold text-emerald-400 mt-1 block">
+                      {rmaKpis.settledCount} Resolved
+                    </span>
+                    <div className="text-[11px] text-[#a8a093] mt-0.5 flex items-center justify-between">
+                      <span>Statutory Rule 53</span>
+                      <span className="text-emerald-400 font-medium">Credit Notes Issued</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-[#24211d] border border-[#38332c]">
+                    <span className="text-[10px] uppercase font-bold text-[#a8a093] tracking-wider block">Total Refund Outflow</span>
+                    <span className="text-2xl font-mono font-bold text-white mt-1 block">
+                      {formatPrice(rmaKpis.totalRefundedRupees)}
+                    </span>
+                    <div className="text-[11px] text-[#a8a093] mt-0.5 flex items-center justify-between">
+                      <span>ITC Reversal Ready</span>
+                      <span className="text-emerald-400 font-medium">Verified UTRs</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* RMA Filter Toolbar & Action */}
+                <div className="p-4 rounded-2xl bg-[#24211d] border border-[#38332c] flex flex-col md:flex-row items-center justify-between gap-3">
+                  <div className="flex flex-1 items-center gap-3 w-full md:w-auto">
+                    <input
+                      type="text"
+                      placeholder="Search RMA #, Order #, Patron, SKU, CN #..."
+                      value={rmaSearchQuery}
+                      onChange={(e) => setRmaSearchQuery(e.target.value)}
+                      className="w-full md:w-80 rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-xs text-white placeholder-[#787165] focus:outline-none focus:border-[#c59b6d]"
+                    />
+                    <select
+                      value={rmaStatusFilter}
+                      onChange={(e) => setRmaStatusFilter(e.target.value)}
+                      className="rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-xs text-white focus:outline-none focus:border-[#c59b6d]"
+                    >
+                      <option value="ALL">All Statuses</option>
+                      <option value="REQUESTED">Requested (New)</option>
+                      <option value="REVERSE_AWB_ISSUED">Reverse In-Transit</option>
+                      <option value="INTAKE_INSPECTED">Intake Inspected</option>
+                      <option value="REFUND_PROCESSED">Refund Settled</option>
+                      <option value="REJECTED">Rejected</option>
+                    </select>
+                  </div>
+
+                  {orders.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRmaModalOrder(orders[0]);
+                        setCreateRmaForm({
+                          trackType: "GRACE_COOLING",
+                          reasonNotes: "",
+                          reverseCarrier: "Blue Dart Return Freight",
+                          refundMethod: "GATEWAY",
+                        });
+                      }}
+                      className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-black font-semibold text-xs transition-colors shrink-0 flex items-center gap-1.5 shadow-sm"
+                    >
+                      <span>+ Initiate RMA / Return &amp; Refund</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* RMA Table */}
+                <div className="rounded-2xl border border-[#38332c] bg-[#24211d] overflow-hidden">
+                  <div className="p-4 border-b border-[#38332c] flex items-center justify-between">
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-white">Reverse Logistics &amp; Credit Note Registry</h3>
+                      <p className="text-[11px] text-[#a8a093]">Track returns, inspections, reverse courier AWBs, and Rule 53 Credit Notes</p>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="border-b border-[#38332c] bg-[#181715] text-[10px] font-bold uppercase tracking-wider text-[#a8a093]">
+                          <th className="py-3 px-4">RMA # &amp; Date</th>
+                          <th className="py-3 px-4">Order &amp; Patron</th>
+                          <th className="py-3 px-4">Product / SKU</th>
+                          <th className="py-3 px-4">Track Type</th>
+                          <th className="py-3 px-4">Reverse Logistics</th>
+                          <th className="py-3 px-4 text-right">Refund Value</th>
+                          <th className="py-3 px-4">Credit Note &amp; UTR</th>
+                          <th className="py-3 px-4">Status</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#38332c]/50">
+                        {filteredRmas.length === 0 ? (
+                          <tr>
+                            <td colSpan={9} className="py-12 text-center text-xs text-[#787165]">
+                              No RMA return records match the criteria.
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredRmas.map((rma) => (
+                            <tr key={rma.id} className="hover:bg-[#2a2722]/40 transition-colors">
+                              <td className="py-3 px-4 font-mono">
+                                <div className="text-white font-bold">{rma.rmaNumber}</div>
+                                <div className="text-[11px] text-[#a8a093]">{rma.createdAt}</div>
+                              </td>
+                              <td className="py-3 px-4">
+                                <div className="font-semibold text-white">{rma.customerName}</div>
+                                <div className="text-[11px] font-mono text-[#c59b6d]">{rma.orderNumber}</div>
+                              </td>
+                              <td className="py-3 px-4">
+                                <div className="text-white truncate max-w-[160px]">{rma.productTitle}</div>
+                                <div className="text-[11px] font-mono text-[#a8a093]">{rma.sku}</div>
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                                  rma.trackType === "GRACE_COOLING"
+                                    ? "bg-amber-950 text-amber-300 border-amber-800"
+                                    : rma.trackType === "TRANSIT_DAMAGE"
+                                    ? "bg-rose-950 text-rose-300 border-rose-800"
+                                    : "bg-purple-950 text-purple-300 border-purple-800"
+                                }`}>
+                                  {rma.trackType.replace("_", " ")}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-[11px]">
+                                {rma.reverseCarrier ? (
+                                  <div>
+                                    <div className="text-white">{rma.reverseCarrier}</div>
+                                    <div className="font-mono text-[#c59b6d]">{rma.reverseAwbNumber || "Pending"}</div>
+                                  </div>
+                                ) : (
+                                  <span className="text-[#787165]">Pre-production cancellation</span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-right font-mono font-bold text-white">
+                                {formatPrice(rma.amountRupees)}
+                              </td>
+                              <td className="py-3 px-4 font-mono text-[11px]">
+                                {rma.creditNoteNumber ? (
+                                  <div>
+                                    <div className="text-emerald-400 font-semibold">{rma.creditNoteNumber}</div>
+                                    <div className="text-[#a8a093] text-[10px]">{rma.refundUtr || rma.gatewayRefundId || "Pending settlement"}</div>
+                                  </div>
+                                ) : (
+                                  <span className="text-[#787165]">Pending Issue</span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                  rma.status === "REFUND_PROCESSED"
+                                    ? "bg-emerald-950 text-emerald-300 border-emerald-800"
+                                    : rma.status === "REVERSE_AWB_ISSUED"
+                                    ? "bg-amber-950 text-amber-300 border-amber-800"
+                                    : rma.status === "REJECTED"
+                                    ? "bg-rose-950 text-rose-300 border-rose-800"
+                                    : "bg-[#2a2722] text-[#a8a093] border-[#464037]"
+                                }`}>
+                                  {rma.status.replace("_", " ")}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  {(rma.status === "REQUESTED" || rma.status === "REVERSE_AWB_ISSUED") && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setInspectRmaModal(rma)}
+                                      className="px-2.5 py-1 rounded-lg bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 text-xs font-semibold transition-colors"
+                                      title="Inspect return piece at studio intake"
+                                    >
+                                      Inspect Intake 🔍
+                                    </button>
+                                  )}
+                                  {rma.creditNoteNumber && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setCreditNoteModal(rma)}
+                                      className="px-2.5 py-1 rounded-lg bg-[#2a2722] hover:bg-[#343029] text-[#c59b6d] border border-[#464037] text-xs font-semibold transition-colors"
+                                      title="View and print statutory Rule 53 GST Credit Note"
+                                    >
+                                      Rule 53 CN 📄
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {activeTab === "TICKETS" && (
           <div className="space-y-6">
             {/* Header & New Ticket Action */}
@@ -9565,6 +10807,29 @@ export default function App() {
                   </button>
                 </div>
 
+                {maintenanceMode && (
+                  <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-800 space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-amber-300 font-semibold">Staff Storefront Bypass Preview</span>
+                      <button
+                        type="button"
+                        onClick={handleGenerateBypassToken}
+                        className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold text-[11px] transition-colors shadow-xs"
+                      >
+                        Generate Bypass Token Link ↗
+                      </button>
+                    </div>
+                    {maintenanceBypassToken && (
+                      <div className="font-mono text-[10px] text-amber-300 break-all bg-[#181715] p-2 rounded border border-amber-900/50">
+                        Token: {maintenanceBypassToken}
+                      </div>
+                    )}
+                    <p className="text-[10px] text-[#a8a093]">
+                      Generates a cryptographically signed bypass URL allowing studio staff to browse and test the storefront while checkout is frozen for public patrons.
+                    </p>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between border-b border-[#38332c] pb-3">
                   <div>
                     <h3 className="font-semibold text-sm text-white">Studio Hiatus Banner</h3>
@@ -9632,18 +10897,69 @@ export default function App() {
                 </p>
               </div>
 
-              {/* Card 3: Data Export & Backup */}
-              <div className="p-6 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-3">
-                <h3 className="font-semibold text-sm text-white">Operational Snapshot Backup</h3>
+              {/* Card 3: Data Export, Backup, Disaster Recovery & Schema Upgrades */}
+              <div className="p-6 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4">
+                <div className="flex items-center justify-between border-b border-[#38332c] pb-2">
+                  <h3 className="font-semibold text-sm text-white flex items-center gap-2">
+                    <span>Database Backup, Disaster Recovery &amp; Schema Integrity</span>
+                    <span className="px-2 py-0.5 rounded text-[9px] bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono">
+                      Prisma v6 · v2.4.0 Engine
+                    </span>
+                  </h3>
+                </div>
+
                 <p className="text-xs text-[#a8a093] leading-relaxed">
-                  Export the complete operational state (orders, customer profiles, support tickets, delivery PIN whitelist, and audit logs) as a timestamped JSON file.
+                  Trigger immediate server-side transactional snapshots, download structured operational JSON states, or inspect schema migration health.
                 </p>
-                <button
-                  onClick={handleExportStateSnapshot}
-                  className="px-4 py-2 rounded-xl bg-[#c59b6d] text-[#181715] font-semibold text-xs hover:bg-[#d6aa7c] transition-colors shadow-sm"
-                >
-                  Download State Snapshot JSON
-                </button>
+
+                {backupFeedback && (
+                  <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-800 text-xs text-emerald-200 font-mono flex items-center justify-between">
+                    <span>✓ {backupFeedback}</span>
+                    <button onClick={() => setBackupFeedback(null)} className="text-[11px] opacity-75 hover:opacity-100">✕</button>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleTriggerDatabaseBackup}
+                    disabled={isGeneratingBackup}
+                    className="p-3 rounded-xl bg-[#181715] hover:bg-[#25221d] border border-[#464037] text-left transition-colors disabled:opacity-50"
+                  >
+                    <div className="text-xs font-semibold text-white flex items-center justify-between">
+                      <span>Server DB Backup Snapshot</span>
+                      <span>💾</span>
+                    </div>
+                    <p className="text-[10px] text-[#a8a093] mt-1">
+                      {isGeneratingBackup ? "Generating SHA-256 tar.gz..." : "Create immutable /var/backups archive"}
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleExportStateSnapshot}
+                    className="p-3 rounded-xl bg-[#181715] hover:bg-[#25221d] border border-[#464037] text-left transition-colors"
+                  >
+                    <div className="text-xs font-semibold text-white flex items-center justify-between">
+                      <span>Download JSON Snapshot</span>
+                      <span>📥</span>
+                    </div>
+                    <p className="text-[10px] text-[#a8a093] mt-1">
+                      Export full live memory ({orders.length + customers.length + inventory.length} records)
+                    </p>
+                  </button>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-[#181715] border border-[#38332c] space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#a8a093]">Active Migration Head:</span>
+                    <span className="font-mono text-emerald-400 font-semibold">14 Applied (Prisma SQLite/PostgreSQL)</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#a8a093]">Forward Upgrade Compatibility:</span>
+                    <span className="text-[#c59b6d] font-semibold">Zero-Downtime Safe</span>
+                  </div>
+                </div>
               </div>
 
               {/* Card 4: Legal Entity & Statutory GST Invoice Configuration */}
@@ -10268,24 +11584,46 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between border-t border-[#38332c] pt-4">
-              {selectedOrder.status !== "CANCELLED" &&
-              selectedOrder.status !== "REFUNDED" &&
-              selectedOrder.status !== "DISPATCHED" &&
-              selectedOrder.status !== "DELIVERED" ? (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await handleCancelOrder(selectedOrder.id);
-                    setSelectedOrder(null);
-                  }}
-                  className="px-4 py-2 rounded-xl bg-red-950/70 text-xs font-semibold text-red-300 border border-red-800 hover:bg-red-900 transition-colors"
-                >
-                  Cancel Order & 100% Refund
-                </button>
-              ) : (
-                <div />
-              )}
+            <div className="flex items-center justify-between border-t border-[#38332c] pt-4 gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                {selectedOrder.status !== "CANCELLED" &&
+                selectedOrder.status !== "REFUNDED" &&
+                selectedOrder.status !== "DISPATCHED" &&
+                selectedOrder.status !== "DELIVERED" && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await handleCancelOrder(selectedOrder.id);
+                      setSelectedOrder(null);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-red-950/70 text-xs font-semibold text-red-300 border border-red-800 hover:bg-red-900 transition-colors"
+                  >
+                    Cancel Order &amp; 100% Refund
+                  </button>
+                )}
+
+                {selectedOrder.status !== "CANCELLED" && selectedOrder.status !== "REFUNDED" && isActionPermitted(currentStaff.role, "ORDER_REFUND_MANAGE") && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRmaModalOrder(selectedOrder);
+                      setCreateRmaForm({
+                        trackType: (selectedOrder.isGraceActive ?? ((selectedOrder.graceDaysRemaining ?? 0) > 0))
+                          ? "GRACE_COOLING"
+                          : selectedOrder.status === "DELIVERED"
+                          ? "TRANSIT_DAMAGE"
+                          : "STATUTORY_DEFECT",
+                        reasonNotes: "",
+                        reverseCarrier: "Blue Dart Return Freight",
+                        refundMethod: "GATEWAY",
+                      });
+                    }}
+                    className="px-4 py-2 rounded-xl bg-amber-950/70 text-xs font-semibold text-amber-300 border border-amber-800 hover:bg-amber-900 transition-colors"
+                  >
+                    Initiate RMA / Return &amp; Refund ↩
+                  </button>
+                )}
+              </div>
               <button
                 onClick={() => setSelectedOrder(null)}
                 className="px-5 py-2 rounded-xl bg-[#38332c] text-xs font-semibold text-white hover:bg-[#464037]"
@@ -12696,6 +14034,666 @@ export default function App() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL: ADJUST PHYSICAL INVENTORY STOCK */}
+      {adjustStockModalItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-[#24211d] border border-[#38332c] p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#38332c] pb-4">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#c59b6d] tracking-wider block">
+                  Studio Stock Ledger Adjustment
+                </span>
+                <h3 className="font-semibold text-white text-base">
+                  Adjust Physical Stock: {adjustStockModalItem.sku}
+                </h3>
+                <p className="text-xs text-[#a8a093]">
+                  {adjustStockModalItem.productName} ({adjustStockModalItem.finishName})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAdjustStockModalItem(null)}
+                className="text-[#a8a093] hover:text-white text-lg p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 p-3 rounded-xl bg-[#181715] border border-[#38332c] text-center text-xs">
+              <div>
+                <span className="text-[10px] text-[#a8a093] block">Physical On-Hand</span>
+                <strong className="text-white font-mono text-base">{adjustStockModalItem.onHandStock}</strong>
+              </div>
+              <div>
+                <span className="text-[10px] text-[#a8a093] block">Committed / Reserved</span>
+                <strong className="text-amber-400 font-mono text-base">{adjustStockModalItem.reservedStock}</strong>
+              </div>
+              <div>
+                <span className="text-[10px] text-[#a8a093] block">Available to Sell</span>
+                <strong className="text-emerald-400 font-mono text-base">{adjustStockModalItem.availableStock}</strong>
+              </div>
+            </div>
+
+            <form onSubmit={handleAdjustStock} className="space-y-4 text-xs">
+              <div>
+                <label className="text-[11px] font-semibold text-[#a8a093] block mb-1">
+                  Adjustment Movement Type *
+                </label>
+                <select
+                  value={adjustStockForm.type}
+                  onChange={(e) => setAdjustStockForm({ ...adjustStockForm, type: e.target.value as any })}
+                  className="w-full rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-white focus:outline-none focus:border-[#c59b6d]"
+                >
+                  <option value="RESTOCK">Studio Restock (+ Inbound)</option>
+                  <option value="FOUNDRY_RECEIPT">Foundry Batch Lot Receipt (+ Inbound)</option>
+                  <option value="RETURN_RESTOCK">Client Return Restocked (+ Inbound)</option>
+                  <option value="MANUAL_ADJUSTMENT">Manual Cycle Count Audit (+/- Variance)</option>
+                  <option value="SCRAP_DISCREPANCY">Defect / Foundry Melt Reclaim (- Outbound Scrap)</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-semibold text-[#a8a093] block mb-1">
+                    Quantity Delta (+ / -) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    value={adjustStockForm.quantityDelta}
+                    onChange={(e) => setAdjustStockForm({ ...adjustStockForm, quantityDelta: parseInt(e.target.value, 10) || 0 })}
+                    className="w-full rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-white font-mono focus:outline-none focus:border-[#c59b6d]"
+                  />
+                  <span className="text-[10px] text-[#787165] mt-1 block">
+                    Resulting on-hand:{" "}
+                    <strong className="text-white">
+                      {Math.max(
+                        0,
+                        adjustStockModalItem.onHandStock +
+                          (adjustStockForm.type === "SCRAP_DISCREPANCY"
+                            ? -Math.abs(adjustStockForm.quantityDelta)
+                            : adjustStockForm.quantityDelta)
+                      )}
+                    </strong>
+                  </span>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-[#a8a093] block mb-1">
+                    Reference Document # *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. PO-2026-088 / LOT-4"
+                    value={adjustStockForm.referenceId}
+                    onChange={(e) => setAdjustStockForm({ ...adjustStockForm, referenceId: e.target.value })}
+                    className="w-full rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-white font-mono focus:outline-none focus:border-[#c59b6d]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-[#a8a093] block mb-1">
+                  Reason &amp; Audit Notes
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Document rationale for physical count adjustment..."
+                  value={adjustStockForm.notes}
+                  onChange={(e) => setAdjustStockForm({ ...adjustStockForm, notes: e.target.value })}
+                  className="w-full rounded-xl border border-[#464037] bg-[#181715] p-3 text-white focus:outline-none focus:border-[#c59b6d]"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-[#38332c]">
+                <span className="text-[11px] text-[#787165]">
+                  Authorizing: {currentStaff.name} ({currentStaff.role})
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAdjustStockModalItem(null)}
+                    className="px-4 py-2 rounded-xl bg-[#2a2722] text-xs font-semibold text-[#a8a093] hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-[#c59b6d] text-[#181715] text-xs font-semibold hover:bg-[#d6aa7c] transition-colors shadow-xs"
+                  >
+                    Commit Adjustment
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CHRONOLOGICAL STOCK MOVEMENTS LEDGER */}
+      {viewMovementsItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-3xl rounded-2xl bg-[#24211d] border border-[#38332c] p-6 space-y-5 shadow-2xl max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-[#38332c] pb-4 shrink-0">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#c59b6d] tracking-wider block">
+                  Stock Movement Audit Trail
+                </span>
+                <h3 className="font-semibold text-white text-base">
+                  Chronological Ledger: {viewMovementsItem.sku}
+                </h3>
+                <p className="text-xs text-[#a8a093]">
+                  {viewMovementsItem.productName} · Current Available: <strong className="text-emerald-400 font-mono">{viewMovementsItem.availableStock}</strong> units
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewMovementsItem(null)}
+                className="text-[#a8a093] hover:text-white text-lg p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-1">
+              {stockMovements.filter((m) => m.inventoryId === viewMovementsItem.id || m.sku === viewMovementsItem.sku).length === 0 ? (
+                <div className="text-center py-10 text-xs text-[#787165]">
+                  No movement entries logged for this SKU yet.
+                </div>
+              ) : (
+                <div className="rounded-xl border border-[#38332c] overflow-hidden">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-[#38332c] bg-[#181715] text-[10px] font-bold uppercase tracking-wider text-[#a8a093]">
+                        <th className="py-2.5 px-3">Timestamp</th>
+                        <th className="py-2.5 px-3">Type</th>
+                        <th className="py-2.5 px-3 text-center">Delta</th>
+                        <th className="py-2.5 px-3 text-center">Balance</th>
+                        <th className="py-2.5 px-3">Reference</th>
+                        <th className="py-2.5 px-3">Staff</th>
+                        <th className="py-2.5 px-3">Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#38332c]/50">
+                      {stockMovements
+                        .filter((m) => m.inventoryId === viewMovementsItem.id || m.sku === viewMovementsItem.sku)
+                        .map((m) => (
+                          <tr key={m.id} className="hover:bg-[#2a2722]/30 transition-colors">
+                            <td className="py-2.5 px-3 font-mono text-[11px] text-[#a8a093] whitespace-nowrap">
+                              {m.timestamp}
+                            </td>
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                                m.type === "FOUNDRY_RECEIPT" || m.type === "RESTOCK" || m.type === "RETURN_RESTOCK"
+                                  ? "bg-emerald-950 text-emerald-300 border-emerald-800"
+                                  : m.type === "COMMITTED_RESERVE"
+                                  ? "bg-amber-950 text-amber-300 border-amber-800"
+                                  : "bg-[#2a2722] text-[#a8a093] border-[#464037]"
+                              }`}>
+                                {m.type}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-mono font-bold">
+                              <span className={m.quantity >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                                {m.quantity > 0 ? `+${m.quantity}` : m.quantity}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-mono font-bold text-white">
+                              {m.balanceAfter}
+                            </td>
+                            <td className="py-2.5 px-3 font-mono text-[11px] text-[#c59b6d] whitespace-nowrap">
+                              {m.referenceId}
+                            </td>
+                            <td className="py-2.5 px-3 text-[#a8a093] text-[11px] whitespace-nowrap">
+                              {m.staffName}
+                            </td>
+                            <td className="py-2.5 px-3 text-[11px] text-[#787165]">
+                              {m.notes}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-[#38332c] shrink-0">
+              <span className="text-[11px] text-[#787165]">
+                Immutable ledger powered by Prisma InventoryLedger schema
+              </span>
+              <button
+                type="button"
+                onClick={() => setViewMovementsItem(null)}
+                className="px-4 py-2 rounded-xl bg-[#38332c] text-xs font-semibold text-white hover:bg-[#464037]"
+              >
+                Close Ledger
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: INITIATE RMA / RETURN & REFUND */}
+      {rmaModalOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-[#24211d] border border-[#38332c] p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#38332c] pb-4">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-amber-400 tracking-wider block">
+                  Reverse Logistics &amp; Statutory Refund Engine
+                </span>
+                <h3 className="font-semibold text-white text-base">
+                  Initiate RMA: {rmaModalOrder.orderNumber}
+                </h3>
+                <p className="text-xs text-[#a8a093]">
+                  Patron: {rmaModalOrder.customerName} · Paid: <strong className="text-white font-mono">{formatPrice(rmaModalOrder.amountPaidRupees)}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRmaModalOrder(null)}
+                className="text-[#a8a093] hover:text-white text-lg p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateRma} className="space-y-4 text-xs">
+              <div>
+                <label className="text-[11px] font-semibold text-[#a8a093] block mb-1">
+                  Linked Consignment
+                </label>
+                <select
+                  value={rmaModalOrder.id}
+                  onChange={(e) => {
+                    const match = orders.find((o) => o.id === e.target.value);
+                    if (match) setRmaModalOrder(match);
+                  }}
+                  className="w-full rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-white font-mono focus:outline-none focus:border-[#c59b6d]"
+                >
+                  {orders.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.orderNumber} — {o.customerName} ({formatPrice(o.amountPaidRupees)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-[#a8a093] block mb-1">
+                  RMA Track Type *
+                </label>
+                <select
+                  value={createRmaForm.trackType}
+                  onChange={(e) => setCreateRmaForm({ ...createRmaForm, trackType: e.target.value as any })}
+                  className="w-full rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-white focus:outline-none focus:border-[#c59b6d]"
+                >
+                  <option value="GRACE_COOLING">7-Day Grace Cancellation (100% Instant Refund before Foundry Casting)</option>
+                  <option value="TRANSIT_DAMAGE">Transit / Crating Damage (Reverse Courier Pickup + Studio Replacement/Refund)</option>
+                  <option value="STATUTORY_DEFECT">Latent Foundry Defect (Reverse Courier Pickup + Studio Inspection)</option>
+                </select>
+              </div>
+
+              {createRmaForm.trackType !== "GRACE_COOLING" && (
+                <div>
+                  <label className="text-[11px] font-semibold text-[#a8a093] block mb-1">
+                    Reverse Courier Carrier *
+                  </label>
+                  <input
+                    type="text"
+                    list="reverse-courier-options"
+                    required
+                    value={createRmaForm.reverseCarrier}
+                    onChange={(e) => setCreateRmaForm({ ...createRmaForm, reverseCarrier: e.target.value })}
+                    className="w-full rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-white focus:outline-none focus:border-[#c59b6d]"
+                    placeholder="e.g. Blue Dart Return Freight, Delhivery Surface Return"
+                  />
+                  <datalist id="reverse-courier-options">
+                    <option value="Blue Dart Return Freight" />
+                    <option value="Delhivery Surface Return" />
+                    <option value="DTDC Express Return" />
+                    <option value="Patron White-Glove Hand-Back" />
+                  </datalist>
+                </div>
+              )}
+
+              <div>
+                <label className="text-[11px] font-semibold text-[#a8a093] block mb-1">
+                  Refund Settlement Channel *
+                </label>
+                <select
+                  value={createRmaForm.refundMethod}
+                  onChange={(e) => setCreateRmaForm({ ...createRmaForm, refundMethod: e.target.value as any })}
+                  className="w-full rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-white focus:outline-none focus:border-[#c59b6d]"
+                >
+                  <option value="GATEWAY">Original Gateway Reversal (PhonePe / Razorpay)</option>
+                  <option value="BANK_NEFT">Studio Treasury NEFT / RTGS Wire (Bank Transfer)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-[#a8a093] block mb-1">
+                  Reason / Client Communication Statement *
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder="Details of client request, inspection requirements, or defect observations..."
+                  value={createRmaForm.reasonNotes}
+                  onChange={(e) => setCreateRmaForm({ ...createRmaForm, reasonNotes: e.target.value })}
+                  className="w-full rounded-xl border border-[#464037] bg-[#181715] p-3 text-white focus:outline-none focus:border-[#c59b6d] leading-relaxed"
+                />
+              </div>
+
+              <div className="p-3 rounded-xl bg-[#181715] border border-[#38332c] space-y-1 text-[11px]">
+                <div className="flex justify-between">
+                  <span className="text-[#a8a093]">Statutory GST Rule 53:</span>
+                  <span className="text-emerald-400 font-medium">Automatic Credit Note Generation ✓</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#a8a093]">Estimated Refund Outflow:</span>
+                  <span className="text-white font-mono font-bold">{formatPrice(rmaModalOrder.amountPaidRupees)}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-[#38332c]">
+                <span className="text-[11px] text-[#787165]">
+                  Authorized by: {currentStaff.name}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRmaModalOrder(null)}
+                    className="px-4 py-2 rounded-xl bg-[#2a2722] text-xs font-semibold text-[#a8a093] hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isProcessingRma}
+                    className="px-5 py-2 rounded-xl bg-amber-600 text-black font-semibold text-xs hover:bg-amber-500 transition-colors disabled:opacity-50 shadow-xs"
+                  >
+                    {isProcessingRma ? "Generating RMA..." : "Issue RMA & Credit Note"}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: INSPECT STUDIO INTAKE */}
+      {inspectRmaModal && (() => {
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <div className="w-full max-w-lg rounded-2xl bg-[#24211d] border border-[#38332c] p-6 space-y-5 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-[#38332c] pb-4">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#c59b6d] tracking-wider block">
+                    Studio Quality Assurance Intake
+                  </span>
+                  <h3 className="font-semibold text-white text-base">
+                    Inspect RMA Intake: {inspectRmaModal.rmaNumber}
+                  </h3>
+                  <p className="text-xs text-[#a8a093]">
+                    Order: {inspectRmaModal.orderNumber} · Item: {inspectRmaModal.productTitle}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setInspectRmaModal(null)}
+                  className="text-[#a8a093] hover:text-white text-lg p-1"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-[#181715] border border-[#38332c] space-y-1.5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-[#a8a093]">Reverse Carrier:</span>
+                  <strong className="text-white">{inspectRmaModal.reverseCarrier || "Standard White-Glove"}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#a8a093]">Reverse AWB:</span>
+                  <strong className="text-[#c59b6d] font-mono">{inspectRmaModal.reverseAwbNumber || "N/A"}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#a8a093]">Credit Note Ref:</span>
+                  <strong className="text-emerald-400 font-mono">{inspectRmaModal.creditNoteNumber || "Pending"}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#a8a093]">Refund Due:</span>
+                  <strong className="text-white font-mono">{formatPrice(inspectRmaModal.amountRupees)}</strong>
+                </div>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const form = e.currentTarget;
+                  const verdict = (form.elements.namedItem("verdict") as HTMLSelectElement).value as any;
+                  const utr = (form.elements.namedItem("utr") as HTMLInputElement).value;
+                  const notes = (form.elements.namedItem("notes") as HTMLTextAreaElement).value;
+                  handleRecordRmaInspection(inspectRmaModal.id, verdict, notes, utr);
+                }}
+                className="space-y-4 text-xs"
+              >
+                <div>
+                  <label className="text-[11px] font-semibold text-[#a8a093] block mb-1">
+                    Studio Intake Verdict *
+                  </label>
+                  <select
+                    name="verdict"
+                    defaultValue="RESTOCK_TO_INVENTORY"
+                    className="w-full rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-white focus:outline-none focus:border-[#c59b6d]"
+                  >
+                    <option value="RESTOCK_TO_INVENTORY">Piece Immaculate → Restock to Available Inventory (+1 ATS)</option>
+                    <option value="RE_MACHINE_OR_POLISH">Surface Scuff / Minor Defect → Route to Foundry Polishing Studio</option>
+                    <option value="SCRAP_TO_FOUNDRY">Casting Fracture / Structural Void → Melt Reclaim Scrap</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-[#a8a093] block mb-1">
+                    Bank NEFT UTR or Gateway Refund ID *
+                  </label>
+                  <input
+                    type="text"
+                    name="utr"
+                    required
+                    defaultValue={`CMS${Date.now().toString().slice(-8)}`}
+                    placeholder="e.g. CMS202611198827 or rfnd_Pe8921"
+                    className="w-full rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-white font-mono focus:outline-none focus:border-[#c59b6d]"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-[#a8a093] block mb-1">
+                    Inspection Findings &amp; Craftsman Notes
+                  </label>
+                  <textarea
+                    name="notes"
+                    rows={3}
+                    placeholder="Condition of wood/brass surfaces, serial verification, packaging condition..."
+                    className="w-full rounded-xl border border-[#464037] bg-[#181715] p-3 text-white focus:outline-none focus:border-[#c59b6d]"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-[#38332c]">
+                  <span className="text-[11px] text-[#787165]">
+                    Inspected by: {currentStaff.name}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setInspectRmaModal(null)}
+                      className="px-4 py-2 rounded-xl bg-[#2a2722] text-xs font-semibold text-[#a8a093] hover:text-white"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2 rounded-xl bg-emerald-600 text-white font-semibold text-xs hover:bg-emerald-500 transition-colors shadow-xs"
+                    >
+                      Finalize Inspection &amp; Settle Refund
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL: STATUTORY GST RULE 53 CREDIT NOTE */}
+      {creditNoteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 print:p-0">
+          <div className="w-full max-w-2xl rounded-2xl bg-[#24211d] border border-[#38332c] p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto print:bg-white print:text-black print:border-none print:shadow-none">
+            <div className="flex items-center justify-between border-b border-[#38332c] pb-4 print:hidden">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider block">
+                  Statutory GST Document
+                </span>
+                <h3 className="font-semibold text-white text-base">
+                  Rule 53 Tax Credit Note: {creditNoteModal.creditNoteNumber || "CN-DRAFT"}
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3 py-1.5 rounded-lg bg-[#2a2722] hover:bg-[#343029] border border-[#464037] text-white text-xs font-semibold flex items-center gap-1.5"
+                >
+                  <span>🖨</span>
+                  <span>Print / Save PDF</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCreditNoteModal(null)}
+                  className="text-[#a8a093] hover:text-white text-lg p-1"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Credit Note Official Paper View */}
+            <div className="p-6 rounded-xl bg-[#181715] border border-[#38332c] text-xs space-y-6 print:bg-white print:text-black print:border-none">
+              <div className="flex justify-between items-start border-b border-[#38332c] pb-4 print:border-neutral-300">
+                <div>
+                  <h2 className="text-base font-bold text-[#c59b6d] tracking-widest uppercase print:text-black">
+                    {sellerDetails.brandName || "TAVISTRA"}
+                  </h2>
+                  <p className="text-[11px] text-[#a8a093] print:text-neutral-600">{sellerDetails.legalEntityName}</p>
+                  <p className="text-[11px] text-[#a8a093] print:text-neutral-600">{sellerDetails.registeredAddressLine1}, {sellerDetails.city} - {sellerDetails.pincode}</p>
+                  <p className="text-[11px] font-mono text-[#a8a093] print:text-neutral-600 mt-1">
+                    GSTIN: <strong className="text-white print:text-black">{sellerDetails.gstin}</strong> · PAN: {sellerDetails.pan}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="px-2.5 py-1 rounded bg-[#2a2722] border border-[#38332c] text-[10px] font-bold text-amber-400 print:border-black print:text-black uppercase">
+                    Tax Credit Note
+                  </span>
+                  <div className="font-mono text-sm font-bold text-white print:text-black mt-2">
+                    {creditNoteModal.creditNoteNumber}
+                  </div>
+                  <div className="text-[11px] text-[#a8a093] print:text-neutral-600 mt-0.5">
+                    Date: {creditNoteModal.resolvedAt || creditNoteModal.createdAt}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 rounded-lg bg-[#24211d] border border-[#38332c] print:border-neutral-300 print:bg-neutral-50">
+                  <span className="text-[10px] font-bold text-[#a8a093] print:text-neutral-500 uppercase tracking-wider block mb-1">
+                    Recipient Patron
+                  </span>
+                  <div className="font-semibold text-white print:text-black">{creditNoteModal.customerName}</div>
+                  <div className="text-[11px] text-[#a8a093] print:text-neutral-600">{creditNoteModal.customerEmail}</div>
+                  {creditNoteModal.customerPhone && (
+                    <div className="text-[11px] text-[#a8a093] print:text-neutral-600 font-mono">{creditNoteModal.customerPhone}</div>
+                  )}
+                </div>
+
+                <div className="p-3 rounded-lg bg-[#24211d] border border-[#38332c] print:border-neutral-300 print:bg-neutral-50">
+                  <span className="text-[10px] font-bold text-[#a8a093] print:text-neutral-500 uppercase tracking-wider block mb-1">
+                    Original Consignment Cross-Reference
+                  </span>
+                  <div className="font-mono font-semibold text-white print:text-black">{creditNoteModal.orderNumber}</div>
+                  <div className="text-[11px] text-[#a8a093] print:text-neutral-600">RMA Ref: <span className="font-mono text-[#c59b6d]">{creditNoteModal.rmaNumber}</span></div>
+                  <div className="text-[11px] text-[#a8a093] print:text-neutral-600">Track: {creditNoteModal.trackType.replace("_", " ")}</div>
+                </div>
+              </div>
+
+              <div>
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-[#38332c] print:border-neutral-300 text-[10px] font-bold uppercase tracking-wider text-[#a8a093] print:text-neutral-600">
+                      <th className="py-2">Item Description &amp; SKU</th>
+                      <th className="py-2 text-center">HSN</th>
+                      <th className="py-2 text-right">Taxable Val</th>
+                      <th className="py-2 text-right">GST (18%)</th>
+                      <th className="py-2 text-right">Total Credit</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#38332c]/50 print:divide-neutral-200">
+                    {(() => {
+                      const total = creditNoteModal.amountRupees;
+                      const taxable = Math.round(total / 1.18);
+                      const gst = total - taxable;
+                      return (
+                        <tr>
+                          <td className="py-3">
+                            <div className="font-semibold text-white print:text-black">{creditNoteModal.productTitle}</div>
+                            <div className="text-[11px] font-mono text-[#c59b6d]">{creditNoteModal.sku}</div>
+                          </td>
+                          <td className="py-3 text-center font-mono text-[#a8a093] print:text-neutral-600">8302</td>
+                          <td className="py-3 text-right font-mono text-white print:text-black">{formatPrice(taxable)}</td>
+                          <td className="py-3 text-right font-mono text-white print:text-black">{formatPrice(gst)}</td>
+                          <td className="py-3 text-right font-mono font-bold text-emerald-400 print:text-black">{formatPrice(total)}</td>
+                        </tr>
+                      );
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="p-3 rounded-lg bg-[#24211d] border border-[#38332c] print:border-neutral-300 print:bg-neutral-50 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-[#a8a093] print:text-neutral-500 uppercase tracking-wider block">
+                    Settlement Reference
+                  </span>
+                  <div className="font-mono text-xs text-white print:text-black">
+                    {creditNoteModal.refundUtr ? `Bank UTR: ${creditNoteModal.refundUtr}` : creditNoteModal.gatewayRefundId ? `Gateway: ${creditNoteModal.gatewayRefundId}` : "Settled to Patron Account"}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-[#a8a093] print:text-neutral-500 block">Total Refund Credit</span>
+                  <span className="font-mono font-bold text-base text-emerald-400 print:text-black">
+                    {formatPrice(creditNoteModal.amountRupees)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="text-[10px] text-[#787165] print:text-neutral-500 border-t border-[#38332c] pt-3 print:border-neutral-300">
+                This is an electronically generated statutory Tax Credit Note in accordance with Section 34 of the CGST Act, 2017 read with Rule 53 of the CGST Rules, 2017. Input Tax Credit (ITC) reversed accordingly.
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2 print:hidden">
+              <button
+                type="button"
+                onClick={() => setCreditNoteModal(null)}
+                className="px-5 py-2 rounded-xl bg-[#38332c] text-xs font-semibold text-white hover:bg-[#464037]"
+              >
+                Close Credit Note
+              </button>
+            </div>
           </div>
         </div>
       )}

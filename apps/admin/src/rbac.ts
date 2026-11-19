@@ -5,6 +5,7 @@ export type AdminTabId =
   | "ORDERS"
   | "PRODUCTION"
   | "DISPATCH"
+  | "INVENTORY"
   | "TICKETS"
   | "CUSTOMERS"
   | "PROPOSALS"
@@ -17,6 +18,7 @@ export type AdminAction =
   | "WORKSHOP_RELEASE"
   | "QC_PHOTO_UPLOAD"
   | "DISPATCH_AWB"
+  | "INVENTORY_MUTATE"
   | "ORDER_REFUND_MANAGE"
   | "ORDER_CANCEL"
   | "PROPOSAL_CREATE_REVISE"
@@ -35,6 +37,7 @@ export const ROLE_TAB_PERMISSIONS: Record<StaffRole, AdminTabId[]> = {
     "ORDERS",
     "PRODUCTION",
     "DISPATCH",
+    "INVENTORY",
     "TICKETS",
     "CUSTOMERS",
     "PROPOSALS",
@@ -47,6 +50,7 @@ export const ROLE_TAB_PERMISSIONS: Record<StaffRole, AdminTabId[]> = {
     "OVERVIEW",
     "ORDERS",
     "DISPATCH",
+    "INVENTORY",
     "PROPOSALS",
     "CATALOGUE",
     "PINCODES",
@@ -58,6 +62,7 @@ export const ROLE_TAB_PERMISSIONS: Record<StaffRole, AdminTabId[]> = {
     "ORDERS",
     "PRODUCTION",
     "DISPATCH",
+    "INVENTORY",
     "CATALOGUE",
     "AUDIT",
   ],
@@ -79,6 +84,7 @@ export const ROLE_ACTION_PERMISSIONS: Record<StaffRole, AdminAction[]> = {
     "WORKSHOP_RELEASE",
     "QC_PHOTO_UPLOAD",
     "DISPATCH_AWB",
+    "INVENTORY_MUTATE",
     "ORDER_REFUND_MANAGE",
     "ORDER_CANCEL",
     "PROPOSAL_CREATE_REVISE",
@@ -90,6 +96,7 @@ export const ROLE_ACTION_PERMISSIONS: Record<StaffRole, AdminAction[]> = {
   ],
   COMMERCE_ADMIN: [
     "DISPATCH_AWB",
+    "INVENTORY_MUTATE",
     "ORDER_REFUND_MANAGE",
     "ORDER_CANCEL",
     "PROPOSAL_CREATE_REVISE",
@@ -101,6 +108,7 @@ export const ROLE_ACTION_PERMISSIONS: Record<StaffRole, AdminAction[]> = {
     "WORKSHOP_RELEASE",
     "QC_PHOTO_UPLOAD",
     "DISPATCH_AWB",
+    "INVENTORY_MUTATE",
     "AUDIT_VIEW",
   ],
   SUPPORT_STAFF: [
