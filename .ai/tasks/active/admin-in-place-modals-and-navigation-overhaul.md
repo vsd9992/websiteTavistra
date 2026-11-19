@@ -35,6 +35,19 @@ This created undesired, disruptive navigation away from the staff member's worki
 - [x] **Catalogue & Variants Deep Dive (Studio Review & Zone Governance):**
   - **Studio Review & Gallery Modal:** Full high-definition product preview with interactive variant edition selector, real-time image viewport switching, zoom/inspect toggle, and fullscreen lightbox overlay.
   - **Delivery Zone Logistics Matrix (Zones A to E):** Granular zone-level governance (Zone A Intra-City Metro, Zone B Regional Tier-1, Zone C Rest of India Tier-2, Zone D Special Terrains, Zone E White-Glove Heavy Freight) with instant click-to-toggle allowed/restricted status on every catalogue row and within the review modal, logging `ZONE_GOVERNANCE_UPDATE` audit events.
+  - **Draft/Published Filter & Interactive SVG Donut Stabilization:**
+    - Fixed missing `catalogueStatusFilter` dependency in `filteredCatalogue` `useMemo`, ensuring immediate real-time filtering upon clicking Live Published / Drafts.
+    - Added two-way toggle-off support across all segmented filters (clicking an active status or mode pill toggles it back to `"ALL"`).
+    - Added contextual scoped counts for publication status (`catalogueStatusCounts`), eliminating misleading 0-result states when combining mode and status filters.
+    - Added interactive active ring (`strokeWidth={18}`), opacity dimming of inactive slices, and `✓ Active` badges to the Donut Chart and legend list.
+    - Added clickable center hub reset to instantly clear all active chart filters with clear visual feedback.
+    - Hardened `handleTogglePublish` so toggling a product from Published to Draft resets `catalogueStatusFilter` to `"ALL"`, preventing the row from vanishing from view.
+- [x] **Storefront Draft Product Lockdown & Admin API Resiliency:**
+  - Locked down `getPublishedProductBySlug` to return `null` (404) for draft products (`isPublished === false`).
+  - Added strict guard in `CartContext.tsx` preventing draft products from being added to bag.
+  - Upgraded Next.js to 16.4.6 (`agentUpgrade: "security"`).
+  - Admin `PATCH /api/admin/catalogue` enhanced to look up products by `id`, `slug`, or `sku`.
+  - Workspace footer and sidebar footer restyled with high-contrast Radix Slate tokens and theme-aware logo handling.
 - [x] **Light & Dark Theme Comprehensive Contrast Resolution (7-Issue Punchlist):**
   - **Sidebar Active Key (Image 1):** Active tab ("Studio Overview") styled with crisp dark charcoal text (`#18181B`), warm paper background (`#EDE9E1`), and burnished brass indicator tab (`#9E7238`), eliminating white-on-beige illegibility.
   - **Domain Filter Bar (Image 2):** Active domain pill ("All Domains") styled as elevated white card with `#18181B` charcoal text and brass accent tab.
