@@ -32,11 +32,16 @@ This created undesired, disruptive navigation away from the staff member's worki
   - Workshop Queue: `Actionable Only` vs `Full Pipeline` toggle with explicit `Authorize Foundry Casting` stage pass gate.
   - Dispatch Queue: `Ready for Dispatch` vs `Full Pipeline` toggle with explicit `Authorize Crating` stage pass gate once 100% balance is verified.
 - [x] **Backup, Disaster Recovery & Schema Upgrades:** Instant server database snapshot generator (`handleTriggerDatabaseBackup`), JSON operational state download (`handleExportStateSnapshot`), Prisma schema migration status tracker, and staff maintenance bypass preview token generator (`handleGenerateBypassToken`).
+- [x] **Candidate A Ergonomic Design System & Dual Theme Engine:**
+  - Implemented 8+ hour continuous workstation ergonomics: zero-glare warm stone alabaster canvas (`#F7F6F3`), elevated warm cards (`#FFFFFF`), non-pure-black charcoal espresso dark mode (`#141312` / `#1E1C19`), stone typography (`#1C1917` / `#57534E`), and burnished brass accents (`#9E7238` / `#D4A366`).
+  - Set Light Theme as default on initial load; persistent `localStorage` (`tavistra_admin_theme`) synchronization and `data-theme` HTML attribute binding.
+  - Bespoke Astrolabe & Solar Chronometer Theme Switcher (`ThemeSwitcher.tsx`): Custom architectural draftsmanship glyphs (replaces standard emoji/generic icons), kinetic coin flip/spin with `cubic-bezier(0.34, 1.56, 0.64, 1)` spring physics, and `Alt+T` keyboard shortcut.
+  - Decision 0007 Strictly Enforced: 0 modifications to `apps/storefront/`.
 
 ---
 
 ## 3. Verification Criteria
 1. All inspected modals stack cleanly without backdrop glitches or layout shifts.
 2. Closing child inspection modals restores exact prior scroll position and parent modal state.
-3. Zero TypeScript or Vite bundling errors (`tsc && vite build` built clean in 2.61s).
+3. Zero TypeScript or Vite bundling errors (`tsc && vite build` built clean in 2.63s).
 4. Live verified on `devMachine` (`192.168.1.100:3002` Admin and `:3001` Storefront returning HTTP 200).
