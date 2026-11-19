@@ -10248,7 +10248,8 @@ export default function App() {
                             cy="50"
                             r={r}
                             fill="transparent"
-                            stroke="#2a2722"
+                            stroke="currentColor"
+                            className="text-[#E2E8F0] dark:text-[#2A303C]"
                             strokeWidth="13"
                           />
                           {catalogueDonutData.slices.map((slice) => {
@@ -10293,12 +10294,12 @@ export default function App() {
 
                     {/* Donut Center Hub Info */}
                     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none text-center px-4">
-                      <span className="text-2xl font-mono font-bold text-white tracking-tight">
+                      <span className="text-2xl font-mono font-bold text-[#0F172A] dark:text-[#F8FAFC] tracking-tight">
                         {hoveredCatalogueSlice
                           ? catalogueDonutData.slices.find((s) => s.id === hoveredCatalogueSlice)?.count
                           : catalogueDonutData.centerNumber}
                       </span>
-                      <span className="text-[9px] uppercase font-bold text-[#c59b6d] tracking-wider max-w-[85px] leading-tight mt-0.5 line-clamp-2">
+                      <span className="text-[9px] uppercase font-bold text-[#9E7238] dark:text-[#E0B26E] tracking-wider max-w-[85px] leading-tight mt-0.5 line-clamp-2">
                         {hoveredCatalogueSlice
                           ? catalogueDonutData.slices.find((s) => s.id === hoveredCatalogueSlice)?.label
                           : catalogueDonutData.centerLabel}
@@ -10358,13 +10359,13 @@ export default function App() {
                   </p>
                 </div>
 
-                <div className="space-y-2.5 text-xs text-[#a8a093]">
-                  <div className="p-2.5 rounded-xl bg-[#181715] border border-[#38332c] flex items-start gap-2.5">
-                    <span className="text-[#c59b6d] font-bold shrink-0">📄</span>
+                <div className="space-y-2.5 text-xs text-[#475569] dark:text-[#a8a093]">
+                  <div className="p-2.5 rounded-xl bg-[#F8FAFC] dark:bg-[#181715] border border-[#E2E8F0] dark:border-[#38332c] flex items-start gap-2.5">
+                    <span className="text-[#9E7238] dark:text-[#E0B26E] font-bold shrink-0">📄</span>
                     <div>
-                      <strong className="text-white block font-medium">Markdown Source-of-Truth:</strong>
+                      <strong className="text-[#0F172A] dark:text-white block font-semibold">Markdown Source-of-Truth:</strong>
                       <span>
-                        Product copy, materials, and dimension specs live in <code className="text-[#c59b6d]">docs/products/{`{slug}`}/{`{slug}`}.md</code>, automatically indexed into live commerce search.
+                        Product copy, materials, and dimension specs live in <code className="text-[#9E7238] dark:text-[#E0B26E]">docs/products/{`{slug}`}/{`{slug}`}.md</code>, automatically indexed into live commerce search.
                       </span>
                     </div>
                   </div>
@@ -10398,79 +10399,109 @@ export default function App() {
             </div>
 
             {/* Filter and Search Action Controls */}
-            <div className="space-y-3">
-              <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-                {/* Search Bar */}
-                <div className="relative flex-1">
-                  <input
-                    type="text"
-                    placeholder="Search works by title, SKU, slug, finish, or materials..."
-                    value={catalogueSearchQuery}
-                    onChange={(e) => setCatalogueSearchQuery(e.target.value)}
-                    className="w-full rounded-xl border border-[#CBD5E1] dark:border-[#464037] bg-white dark:bg-[#181715] pl-9 pr-8 py-2 text-xs text-[#0F172A] dark:text-white placeholder-[#94A3B8] focus:outline-none focus:border-[#9E7238] shadow-2xs"
-                  />
-                  <svg
-                    className="w-4 h-4 text-[#94A3B8] absolute left-3 top-2.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  {catalogueSearchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => setCatalogueSearchQuery("")}
-                      className="absolute right-2.5 top-2.5 text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-white text-xs"
-                    >
-                      ✕
-                    </button>
-                  )}
+            <div className="space-y-3 pt-1">
+              <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
+                {/* Segmented Mode Control Bar */}
+                <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-[#F1F5F9] dark:bg-[#151921] border border-[#CBD5E1] dark:border-[#272F3E] shadow-2xs">
+                  {[
+                    { id: "ALL" as const, label: "All Works", count: catalogueKpis.totalEditions, dotColor: "bg-slate-400 dark:bg-slate-400" },
+                    { id: "READY_STOCK" as const, label: "Ready Stock", count: catalogueKpis.readyStockCount, dotColor: "bg-emerald-500" },
+                    { id: "MADE_TO_ORDER" as const, label: "Made to Order", count: catalogueKpis.mtoCount, dotColor: "bg-amber-500" },
+                    { id: "QUOTE_ONLY" as const, label: "Bespoke Quote", count: catalogueKpis.quoteOnlyCount, dotColor: "bg-purple-500" },
+                  ].map((tab) => {
+                    const isActive = catalogueModeFilter === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setCatalogueModeFilter(tab.id)}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
+                          isActive
+                            ? "bg-white dark:bg-[#252B37] text-[#0F172A] dark:text-[#F8FAFC] shadow-sm font-semibold border border-[#E2E8F0] dark:border-[#384252]"
+                            : "text-[#475569] dark:text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-[#F8FAFC] hover:bg-white/60 dark:hover:bg-[#1E222B] font-medium border border-transparent"
+                        }`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${tab.dotColor}`} />
+                        <span>{tab.label}</span>
+                        <span
+                          className={`font-mono text-[10px] px-1.5 py-0.5 rounded-md ${
+                            isActive
+                              ? "bg-[#F1F5F9] dark:bg-[#181B22] text-[#0F172A] dark:text-[#F8FAFC] font-bold"
+                              : "text-[#64748B] dark:text-[#94A3B8]"
+                          }`}
+                        >
+                          {tab.count}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
 
-                {/* Category Filter Select */}
-                <div className="flex items-center gap-2">
-                  <select
-                    value={catalogueCategoryFilter}
-                    onChange={(e) => setCatalogueCategoryFilter(e.target.value)}
-                    className="rounded-xl border border-[#CBD5E1] dark:border-[#464037] bg-white dark:bg-[#181715] px-3 py-2 text-xs text-[#0F172A] dark:text-white focus:outline-none focus:border-[#9E7238] shadow-2xs"
-                  >
-                    <option value="ALL">All Categories ({catalogueKpis.totalEditions})</option>
-                    {catalogueKpis.categories.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
+                {/* Search & Category Filter */}
+                <div className="flex items-center gap-2 flex-1 xl:max-w-md justify-end">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      placeholder="Search works by title, SKU, finish..."
+                      value={catalogueSearchQuery}
+                      onChange={(e) => setCatalogueSearchQuery(e.target.value)}
+                      className="w-full rounded-xl border border-[#CBD5E1] dark:border-[#3A4354] bg-white dark:bg-[#1E222B] pl-9 pr-8 py-1.5 text-xs text-[#0F172A] dark:text-white placeholder-[#94A3B8] focus:outline-none focus:border-[#9E7238] shadow-2xs"
+                    />
+                    <svg
+                      className="w-3.5 h-3.5 text-[#94A3B8] absolute left-3 top-2.5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    {catalogueSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setCatalogueSearchQuery("")}
+                        className="absolute right-2.5 top-2 text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-white text-xs"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="shrink-0">
+                    <select
+                      value={catalogueCategoryFilter}
+                      onChange={(e) => setCatalogueCategoryFilter(e.target.value)}
+                      className="rounded-xl border border-[#CBD5E1] dark:border-[#3A4354] bg-white dark:bg-[#1E222B] px-3 py-1.5 text-xs text-[#0F172A] dark:text-white focus:outline-none focus:border-[#9E7238] shadow-2xs font-medium"
+                    >
+                      <option value="ALL">All Categories ({catalogueKpis.totalEditions})</option>
+                      {catalogueKpis.categories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
 
-              {/* Mode Filter Pills */}
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E2E8F0] dark:border-[#38332c] pb-3">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {[
-                    { id: "ALL" as const, label: `All Works (${catalogueKpis.totalEditions})` },
-                    { id: "READY_STOCK" as const, label: `Ready Stock (${catalogueKpis.readyStockCount})` },
-                    { id: "MADE_TO_ORDER" as const, label: `Made to Order (${catalogueKpis.mtoCount})` },
-                    { id: "QUOTE_ONLY" as const, label: `Bespoke Quote (${catalogueKpis.quoteOnlyCount})` },
-                  ].map((tab) => (
+              {/* Active Counter & Reset */}
+              <div className="flex items-center justify-between text-xs text-[#64748B] dark:text-[#94A3B8] pt-0.5">
+                <div className="flex items-center gap-2">
+                  <span>
+                    Showing <strong className="text-[#0F172A] dark:text-white font-bold">{filteredCatalogue.length}</strong> of {catalogueKpis.totalEditions} works
+                  </span>
+                  {(catalogueModeFilter !== "ALL" || catalogueCategoryFilter !== "ALL" || catalogueSearchQuery) && (
                     <button
-                      key={tab.id}
                       type="button"
-                      onClick={() => setCatalogueModeFilter(tab.id)}
-                      className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all shadow-2xs ${
-                        catalogueModeFilter === tab.id
-                          ? "bg-[#0F172A] text-white dark:bg-[#E0B26E] dark:text-[#0E1013] shadow-xs font-bold"
-                          : "bg-white dark:bg-[#1E222B] text-[#475569] dark:text-[#94A3B8] hover:text-[#0F172A] hover:bg-[#F1F5F9] dark:hover:bg-[#252B37] border border-[#CBD5E1] dark:border-[#38332c]"
-                      }`}
+                      onClick={() => {
+                        setCatalogueModeFilter("ALL");
+                        setCatalogueCategoryFilter("ALL");
+                        setCatalogueSearchQuery("");
+                      }}
+                      className="text-[11px] text-[#9E7238] dark:text-[#E0B26E] font-medium hover:underline flex items-center gap-1 cursor-pointer"
                     >
-                      {tab.label}
+                      <span>✕ Reset filters</span>
                     </button>
-                  ))}
-                </div>
-
-                <div className="text-xs text-[#64748B] dark:text-[#a8a093]">
-                  Showing <strong className="text-[#0F172A] dark:text-white font-bold">{filteredCatalogue.length}</strong> of {catalogueKpis.totalEditions} works
+                  )}
                 </div>
               </div>
             </div>
