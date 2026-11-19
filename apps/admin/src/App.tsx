@@ -2299,6 +2299,20 @@ export default function App() {
     }
   }, [catalogue, catalogueDonutView, catalogueKpis]);
 
+  // Dynamic contextual counts for publication status scoped by current mode & category
+  const catalogueStatusCounts = useMemo(() => {
+    const scoped = catalogue.filter((item) => {
+      if (catalogueModeFilter !== "ALL" && item.mode !== catalogueModeFilter) return false;
+      if (catalogueCategoryFilter !== "ALL" && item.category !== catalogueCategoryFilter) return false;
+      return true;
+    });
+    return {
+      all: scoped.length,
+      published: scoped.filter((c) => c.isPublished).length,
+      draft: scoped.filter((c) => !c.isPublished).length,
+    };
+  }, [catalogue, catalogueModeFilter, catalogueCategoryFilter]);
+
   // Filtered & Searched Catalogue Items
   const filteredCatalogue = useMemo(() => {
     return catalogue.filter((item) => {
@@ -2327,7 +2341,7 @@ export default function App() {
         variantSkus.includes(q)
       );
     });
-  }, [catalogue, catalogueModeFilter, catalogueCategoryFilter, catalogueSearchQuery]);
+  }, [catalogue, catalogueModeFilter, catalogueCategoryFilter, catalogueStatusFilter, catalogueSearchQuery]);
 
   const toggleCatalogueItemExpanded = (id: string) => {
     setExpandedCatalogueItemIds((prev) => {
@@ -3621,6 +3635,11 @@ export default function App() {
       prev.map((c) => (c.id === itemId ? { ...c, isPublished: nextPublished } : c))
     );
 
+    // If active filter would hide the toggled item, reset to ALL so the user immediately sees the updated badge
+    if (catalogueStatusFilter !== "ALL") {
+      setCatalogueStatusFilter("ALL");
+    }
+
     try {
       await fetchJson("/api/admin/catalogue", {
         method: "PATCH",
@@ -4241,22 +4260,22 @@ export default function App() {
         </div>
 
         {/* Bottom: Subtle Parent Entity Attribution & Storefront Link */}
-        <div className="p-4 border-t border-[#38332c] bg-[#1a1816]/80 space-y-2.5">
-          <div className="flex items-center justify-between text-[11px] text-[#787165]">
+        <div className="p-4 border-t border-[#CBD5E1] dark:border-[#38332c] bg-white/90 dark:bg-[#1a1816]/80 space-y-2.5">
+          <div className="flex items-center justify-between text-[11px] text-[#64748B] dark:text-[#787165]">
             <span className="text-[10px]">A business unit of</span>
             <img
               src="/vdesign-dark.png"
               alt="VDesign"
-              className="h-3.5 w-auto object-contain invert opacity-75 hover:opacity-100 transition-opacity"
+              className="h-3.5 w-auto object-contain dark:invert opacity-75 hover:opacity-100 transition-opacity"
             />
           </div>
-          <div className="flex items-center justify-between text-[10px] text-[#787165] pt-2 border-t border-[#2d2923]">
+          <div className="flex items-center justify-between text-[10px] text-[#64748B] dark:text-[#787165] pt-2 border-t border-[#E2E8F0] dark:border-[#2d2923]">
             <span>v1.2.0 · Operations</span>
             <a
               href={getStorefrontUrl("/")}
               target="_blank"
               rel="noreferrer"
-              className="text-[#c59b6d] hover:underline flex items-center gap-1 font-medium"
+              className="text-[#9E7238] dark:text-[#c59b6d] hover:underline flex items-center gap-1 font-medium"
             >
               Storefront ↗
             </a>
@@ -4267,16 +4286,16 @@ export default function App() {
       {/* RIGHT WORKSPACE COLUMN */}
       <div className="flex-1 min-w-0 flex flex-col min-h-screen">
         {/* Top Staff Operational Bar */}
-        <header className="sticky top-0 z-30 bg-[#1e1c19]/95 backdrop-blur-md border-b border-[#38332c] px-6 h-16 flex items-center justify-between">
+        <header className="sticky top-0 z-30 bg-white/95 dark:bg-[#1e1c19]/95 backdrop-blur-md border-b border-[#CBD5E1] dark:border-[#38332c] px-6 h-16 flex items-center justify-between shadow-2xs">
           {/* Active Section & Breadcrumb */}
           <div className="flex items-center gap-3">
-            <div className="text-xs text-[#a8a093]">
-              <span className="text-[#787165]">{currentTabMeta.group}</span>
-              <span className="mx-2 text-[#464037]">/</span>
-              <span className="font-semibold text-white">{currentTabMeta.label}</span>
+            <div className="text-xs text-[#64748B] dark:text-[#a8a093]">
+              <span>{currentTabMeta.group}</span>
+              <span className="mx-2 text-[#CBD5E1] dark:text-[#464037]">/</span>
+              <span className="font-semibold text-[#0F172A] dark:text-white">{currentTabMeta.label}</span>
             </div>
             {currentTabMeta.badge !== undefined && currentTabMeta.badge > 0 && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#c59b6d]/20 text-[#c59b6d] border border-[#c59b6d]/40">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#9E7238]/15 dark:bg-[#c59b6d]/20 text-[#825821] dark:text-[#c59b6d] border border-[#9E7238]/30 dark:border-[#c59b6d]/40">
                 {currentTabMeta.badge}
               </span>
             )}
@@ -4288,7 +4307,7 @@ export default function App() {
             <ThemeSwitcher />
 
             {/* Sync Pill & Button */}
-            <div className="flex items-center gap-2 bg-[#24211d] border border-[#38332c] px-2.5 py-1 rounded-lg text-xs">
+            <div className="flex items-center gap-2 bg-[#F8FAFC] dark:bg-[#24211d] border border-[#CBD5E1] dark:border-[#38332c] px-2.5 py-1 rounded-lg text-xs shadow-2xs">
               <span
                 className={`h-2 w-2 rounded-full ${
                   backendStatus === "connected"
@@ -4298,33 +4317,33 @@ export default function App() {
                     : "bg-rose-500"
                 }`}
               />
-              <span className="text-[11px] text-[#a8a093] hidden sm:inline">
+              <span className="text-[11px] text-[#475569] dark:text-[#a8a093] hidden sm:inline font-medium">
                 {backendStatus === "connected"
                   ? "PostgreSQL Synced"
                   : backendStatus === "connecting"
                   ? "Syncing..."
                   : "Offline"}
               </span>
-              <span className="text-[10px] text-[#c59b6d] font-mono hidden md:inline" title="Auto-syncs in seconds">
+              <span className="text-[10px] text-[#9E7238] dark:text-[#c59b6d] font-mono hidden md:inline font-semibold" title="Auto-syncs in seconds">
                 {syncCountdown}s
               </span>
               <button
                 type="button"
                 onClick={handleManualSync}
                 title="Sync state from Storefront API (auto-syncs every 60s, click to reset)"
-                className="text-[10px] px-1.5 py-0.5 rounded bg-[#2a2722] hover:bg-[#35312b] text-[#eae6df] border border-[#464037] transition-colors"
+                className="text-[10px] px-1.5 py-0.5 rounded bg-white dark:bg-[#2a2722] hover:bg-[#F1F5F9] dark:hover:bg-[#35312b] text-[#0F172A] dark:text-[#eae6df] border border-[#CBD5E1] dark:border-[#464037] transition-colors shadow-2xs font-semibold cursor-pointer"
               >
                 Sync
               </button>
             </div>
 
             {/* Staff User Switcher */}
-            <div className="flex items-center gap-2.5 pl-2 border-l border-[#38332c]">
+            <div className="flex items-center gap-2.5 pl-2 border-l border-[#CBD5E1] dark:border-[#38332c]">
               <div className="text-right">
                 <select
                   value={currentStaff.id}
                   onChange={(e) => handleStaffChange(e.target.value)}
-                  className="bg-[#24211d] border border-[#38332c] rounded-lg px-2.5 py-1 text-xs font-medium text-white focus:outline-none focus:border-[#c59b6d] cursor-pointer"
+                  className="bg-white dark:bg-[#24211d] border border-[#CBD5E1] dark:border-[#38332c] rounded-lg px-2.5 py-1 text-xs font-semibold text-[#0F172A] dark:text-white focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d] cursor-pointer shadow-2xs"
                 >
                   {STAFF_USERS.map((user) => (
                     <option key={user.id} value={user.id}>
@@ -4332,9 +4351,9 @@ export default function App() {
                     </option>
                   ))}
                 </select>
-                <p className="text-[10px] text-[#10b981] pt-0.5 text-right">● {currentStaff.roleLabel}</p>
+                <p className="text-[10px] text-emerald-700 dark:text-[#10b981] pt-0.5 text-right font-medium">● {currentStaff.roleLabel}</p>
               </div>
-              <div className="h-8 w-8 rounded-full bg-[#2a2722] border border-[#464037] flex items-center justify-center text-xs font-bold text-[#c59b6d]">
+              <div className="h-8 w-8 rounded-full bg-white dark:bg-[#2a2722] border border-[#CBD5E1] dark:border-[#464037] flex items-center justify-center text-xs font-bold text-[#9E7238] dark:text-[#c59b6d] shadow-2xs">
                 {currentStaff.avatarInitials}
               </div>
             </div>
@@ -10108,15 +10127,15 @@ export default function App() {
         {activeTab === "CATALOGUE" && (
           <div className="space-y-6">
             {/* Header with Title and Global Actions */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#38332c] pb-4 gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#E2E8F0] dark:border-[#38332c] pb-4 gap-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-base font-semibold text-white">Catalogue Editions & Live Inventory</h2>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#2a2722] text-[#c59b6d] border border-[#38332c]">
+                  <h2 className="text-base font-semibold text-[#0F172A] dark:text-white">Catalogue Editions &amp; Live Inventory</h2>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#F1F5F9] dark:bg-[#2a2722] text-[#9E7238] dark:text-[#c59b6d] border border-[#CBD5E1] dark:border-[#38332c]">
                     Markdown Source of Truth (TAV-02)
                   </span>
                 </div>
-                <p className="text-xs text-[#a8a093] mt-0.5">
+                <p className="text-xs text-[#475569] dark:text-[#a8a093] mt-0.5">
                   Dual-mode portfolio management (Ready Stock vs Made to Order), live variant matrices, wholesale stock valuation, and Markdown architecture synchronization.
                 </p>
               </div>
@@ -10146,53 +10165,63 @@ export default function App() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {/* Card 1: Catalogue Editions */}
               <div
-                onClick={() => {
-                  setCatalogueModeFilter("ALL");
-                  setCatalogueCategoryFilter("ALL");
-                  setCatalogueStatusFilter("ALL");
-                }}
-                className={`p-4 rounded-2xl bg-white dark:bg-[#1E222B] border transition-all cursor-pointer shadow-xs ${
+                className={`p-4 rounded-2xl bg-white dark:bg-[#1E222B] border transition-all shadow-xs ${
                   catalogueModeFilter === "ALL" && catalogueCategoryFilter === "ALL" && catalogueStatusFilter === "ALL"
                     ? "border-[#9E7238] ring-1 ring-[#9E7238]"
-                    : "border-[#E2E8F0] dark:border-[#2E3442] hover:border-[#CBD5E1]"
+                    : "border-[#E2E8F0] dark:border-[#2E3442]"
                 }`}
               >
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-bold text-[#64748B] dark:text-[#94A3B8] tracking-wider block">Catalogue Editions</span>
-                  <span className="text-[10px] font-mono font-bold text-[#9E7238] dark:text-[#E0B26E]">
-                    {catalogueKpis.totalEditions} Total
-                  </span>
-                </div>
-                <div className="flex items-baseline gap-2 mt-1">
-                  <span className="text-2xl font-mono font-bold text-[#0F172A] dark:text-[#F8FAFC]">
-                    {catalogueKpis.publishedCount}
-                  </span>
-                  <span className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold">Live Published</span>
-                  {catalogueKpis.draftCount > 0 && (
-                    <span className="text-xs text-amber-700 dark:text-amber-400 font-semibold font-mono">
-                      · {catalogueKpis.draftCount} Draft
+                <div
+                  onClick={() => {
+                    setCatalogueModeFilter("ALL");
+                    setCatalogueCategoryFilter("ALL");
+                    setCatalogueStatusFilter("ALL");
+                  }}
+                  className="cursor-pointer group"
+                  title="Click to reset filters and view all works"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold text-[#64748B] dark:text-[#94A3B8] tracking-wider block group-hover:text-[#9E7238]">Catalogue Editions</span>
+                    <span className="text-[10px] font-mono font-bold text-[#9E7238] dark:text-[#E0B26E]">
+                      {catalogueKpis.totalEditions} Total
                     </span>
-                  )}
+                  </div>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-2xl font-mono font-bold text-[#0F172A] dark:text-[#F8FAFC]">
+                      {catalogueKpis.publishedCount}
+                    </span>
+                    <span className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold">Live Published</span>
+                    {catalogueKpis.draftCount > 0 && (
+                      <span className="text-xs text-amber-700 dark:text-amber-400 font-semibold font-mono">
+                        · {catalogueKpis.draftCount} Draft
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div className="text-[11px] text-[#64748B] dark:text-[#94A3B8] mt-1.5 flex items-center justify-between border-t border-[#E2E8F0] dark:border-[#2E3442] pt-1">
-                  <span
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setCatalogueStatusFilter(catalogueStatusFilter === "PUBLISHED" ? "ALL" : "PUBLISHED");
-                    }}
-                    className={`hover:underline cursor-pointer font-medium ${catalogueStatusFilter === "PUBLISHED" ? "text-emerald-700 dark:text-emerald-400 font-bold" : ""}`}
+
+                <div className="flex items-center gap-1.5 mt-2 border-t border-[#E2E8F0] dark:border-[#2E3442] pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setCatalogueStatusFilter(catalogueStatusFilter === "PUBLISHED" ? "ALL" : "PUBLISHED")}
+                    className={`flex-1 py-1 px-1.5 rounded-lg text-[10px] font-semibold text-center transition-all cursor-pointer ${
+                      catalogueStatusFilter === "PUBLISHED"
+                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 shadow-2xs font-bold"
+                        : "bg-[#F8FAFC] dark:bg-[#181B22] text-[#475569] dark:text-[#94A3B8] hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border border-transparent"
+                    }`}
                   >
-                    ● {catalogueKpis.publishedCount} Published
-                  </span>
-                  <span
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setCatalogueStatusFilter(catalogueStatusFilter === "DRAFT" ? "ALL" : "DRAFT");
-                    }}
-                    className={`hover:underline cursor-pointer font-medium ${catalogueStatusFilter === "DRAFT" ? "text-amber-700 dark:text-amber-400 font-bold" : ""}`}
+                    ● {catalogueKpis.publishedCount} Live
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCatalogueStatusFilter(catalogueStatusFilter === "DRAFT" ? "ALL" : "DRAFT")}
+                    className={`flex-1 py-1 px-1.5 rounded-lg text-[10px] font-semibold text-center transition-all cursor-pointer ${
+                      catalogueStatusFilter === "DRAFT"
+                        ? "bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300 dark:border-amber-700 shadow-2xs font-bold"
+                        : "bg-[#F8FAFC] dark:bg-[#181B22] text-[#475569] dark:text-[#94A3B8] hover:bg-amber-50 dark:hover:bg-amber-950/40 border border-transparent"
+                    }`}
                   >
                     ● {catalogueKpis.draftCount} Draft
-                  </span>
+                  </button>
                 </div>
               </div>
 
@@ -10210,12 +10239,13 @@ export default function App() {
 
               {/* Card 3: Ready-Stock Warehouse Ledger */}
               <div
-                onClick={() => setCatalogueModeFilter("READY_STOCK")}
+                onClick={() => setCatalogueModeFilter(catalogueModeFilter === "READY_STOCK" ? "ALL" : "READY_STOCK")}
                 className={`p-4 rounded-2xl bg-white dark:bg-[#1E222B] border transition-all cursor-pointer shadow-xs ${
                   catalogueModeFilter === "READY_STOCK"
                     ? "border-emerald-600 ring-1 ring-emerald-600"
                     : "border-[#E2E8F0] dark:border-[#2E3442] hover:border-[#CBD5E1]"
                 }`}
+                title={catalogueModeFilter === "READY_STOCK" ? "Click to clear Ready Stock filter" : "Click to filter to Ready Stock"}
               >
                 <span className="text-[10px] uppercase font-bold text-[#64748B] dark:text-[#94A3B8] tracking-wider block">Ready-Stock Warehouse</span>
                 <span className="text-2xl font-mono font-bold text-emerald-700 dark:text-emerald-400 mt-1 block">
@@ -10327,6 +10357,10 @@ export default function App() {
                             const currentOffset = (accumulatedPct / 100) * c;
                             accumulatedPct += slice.pct;
                             const isHovered = hoveredCatalogueSlice === slice.id;
+                            const isSliceActive =
+                              (catalogueDonutView === "STATUS" && 'statusFilter' in slice && catalogueStatusFilter === slice.statusFilter) ||
+                              (catalogueDonutView === "MODE" && slice.filterKey && catalogueModeFilter === slice.filterKey) ||
+                              (catalogueDonutView === "CATEGORY" && 'categoryName' in slice && catalogueCategoryFilter === slice.categoryName);
 
                             return (
                               <circle
@@ -10336,26 +10370,26 @@ export default function App() {
                                 r={r}
                                 fill="transparent"
                                 stroke={slice.color}
-                                strokeWidth={isHovered ? 17 : 13}
+                                strokeWidth={isSliceActive ? 18 : isHovered ? 16 : 13}
                                 strokeDasharray={`${strokeLength} ${strokeGap}`}
                                 strokeDashoffset={-currentOffset}
                                 onMouseEnter={() => setHoveredCatalogueSlice(slice.id)}
                                 onMouseLeave={() => setHoveredCatalogueSlice(null)}
                                 onClick={() => {
                                   if ('statusFilter' in slice && slice.statusFilter) {
-                                    setCatalogueStatusFilter(slice.statusFilter as "PUBLISHED" | "DRAFT");
+                                    setCatalogueStatusFilter((prev) => prev === slice.statusFilter ? "ALL" : slice.statusFilter as "PUBLISHED" | "DRAFT");
                                   } else if (slice.filterKey && slice.filterKey !== "ALL") {
-                                    setCatalogueModeFilter(slice.filterKey);
+                                    setCatalogueModeFilter((prev) => prev === slice.filterKey ? "ALL" : slice.filterKey);
                                   } else if ('categoryName' in slice && slice.categoryName) {
-                                    setCatalogueCategoryFilter(slice.categoryName as string);
+                                    setCatalogueCategoryFilter((prev) => prev === slice.categoryName ? "ALL" : slice.categoryName as string);
                                   }
                                 }}
                                 className="transition-all duration-300 cursor-pointer"
                                 style={{
-                                  opacity: hoveredCatalogueSlice && !isHovered ? 0.45 : 1,
+                                  opacity: isSliceActive ? 1 : (hoveredCatalogueSlice && !isHovered) ? 0.35 : 0.85,
                                 }}
                               >
-                                <title>{`${slice.label}: ${slice.count} (${slice.pct}%) - Click to filter`}</title>
+                                <title>{`${slice.label}: ${slice.count} (${slice.pct}%) - Click to ${isSliceActive ? "clear filter" : "filter"}`}</title>
                               </circle>
                             );
                           })}
@@ -10364,15 +10398,35 @@ export default function App() {
                     })()}
 
                     {/* Donut Center Hub Info */}
-                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none text-center px-4">
+                    <div
+                      onClick={() => {
+                        setCatalogueStatusFilter("ALL");
+                        setCatalogueModeFilter("ALL");
+                        setCatalogueCategoryFilter("ALL");
+                      }}
+                      className={`absolute inset-0 flex flex-col items-center justify-center select-none text-center px-4 rounded-full transition-all ${
+                        (catalogueStatusFilter !== "ALL" || catalogueModeFilter !== "ALL" || catalogueCategoryFilter !== "ALL")
+                          ? "cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-800/60"
+                          : "pointer-events-none"
+                      }`}
+                      title={
+                        (catalogueStatusFilter !== "ALL" || catalogueModeFilter !== "ALL" || catalogueCategoryFilter !== "ALL")
+                          ? "Click to reset chart filters"
+                          : undefined
+                      }
+                    >
                       <span className="text-2xl font-mono font-bold text-[#0F172A] dark:text-[#F8FAFC] tracking-tight">
                         {hoveredCatalogueSlice
                           ? catalogueDonutData.slices.find((s) => s.id === hoveredCatalogueSlice)?.count
+                          : (catalogueStatusFilter !== "ALL" || catalogueModeFilter !== "ALL" || catalogueCategoryFilter !== "ALL")
+                          ? filteredCatalogue.length
                           : catalogueDonutData.centerNumber}
                       </span>
                       <span className="text-[9px] uppercase font-bold text-[#9E7238] dark:text-[#E0B26E] tracking-wider max-w-[85px] leading-tight mt-0.5 line-clamp-2">
                         {hoveredCatalogueSlice
                           ? catalogueDonutData.slices.find((s) => s.id === hoveredCatalogueSlice)?.label
+                          : (catalogueStatusFilter !== "ALL" || catalogueModeFilter !== "ALL" || catalogueCategoryFilter !== "ALL")
+                          ? "Active (Reset ✕)"
                           : catalogueDonutData.centerLabel}
                       </span>
                     </div>
@@ -10382,6 +10436,11 @@ export default function App() {
                   <div className="flex-1 w-full space-y-1.5 max-h-48 overflow-y-auto pr-1">
                     {catalogueDonutData.slices.map((slice) => {
                       const isHovered = hoveredCatalogueSlice === slice.id;
+                      const isSliceActive =
+                        (catalogueDonutView === "STATUS" && 'statusFilter' in slice && catalogueStatusFilter === slice.statusFilter) ||
+                        (catalogueDonutView === "MODE" && slice.filterKey && catalogueModeFilter === slice.filterKey) ||
+                        (catalogueDonutView === "CATEGORY" && 'categoryName' in slice && catalogueCategoryFilter === slice.categoryName);
+
                       return (
                         <div
                           key={slice.id}
@@ -10389,15 +10448,19 @@ export default function App() {
                           onMouseLeave={() => setHoveredCatalogueSlice(null)}
                           onClick={() => {
                             if ('statusFilter' in slice && slice.statusFilter) {
-                              setCatalogueStatusFilter(slice.statusFilter as "PUBLISHED" | "DRAFT");
+                              setCatalogueStatusFilter((prev) => prev === slice.statusFilter ? "ALL" : slice.statusFilter as "PUBLISHED" | "DRAFT");
                             } else if (slice.filterKey && slice.filterKey !== "ALL") {
-                              setCatalogueModeFilter(slice.filterKey);
+                              setCatalogueModeFilter((prev) => prev === slice.filterKey ? "ALL" : slice.filterKey);
                             } else if ('categoryName' in slice && slice.categoryName) {
-                              setCatalogueCategoryFilter(slice.categoryName as string);
+                              setCatalogueCategoryFilter((prev) => prev === slice.categoryName ? "ALL" : slice.categoryName as string);
                             }
                           }}
                           className={`flex items-center justify-between p-1.5 rounded-lg text-xs cursor-pointer transition-all ${
-                            isHovered ? "bg-[#F1F5F9] dark:bg-[#252B37] text-[#0F172A] dark:text-white" : "hover:bg-[#F8FAFC] dark:hover:bg-[#1A1D25] text-[#475569] dark:text-[#94A3B8]"
+                            isSliceActive
+                              ? "bg-white dark:bg-[#252B37] text-[#0F172A] dark:text-[#F8FAFC] font-bold shadow-xs border border-[#CBD5E1] dark:border-[#384252]"
+                              : isHovered
+                              ? "bg-[#F1F5F9] dark:bg-[#252B37] text-[#0F172A] dark:text-white"
+                              : "hover:bg-[#F8FAFC] dark:hover:bg-[#1A1D25] text-[#475569] dark:text-[#94A3B8]"
                           }`}
                         >
                           <div className="flex items-center gap-2 min-w-0">
@@ -10406,6 +10469,11 @@ export default function App() {
                               style={{ backgroundColor: slice.color }}
                             />
                             <span className="truncate text-[11px] font-medium">{slice.label}</span>
+                            {isSliceActive && (
+                              <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold shrink-0">
+                                ✓ Active
+                              </span>
+                            )}
                           </div>
                           <div className="flex items-center gap-2 shrink-0 font-mono text-[11px]">
                             <span className="font-bold text-[#0F172A] dark:text-white">{slice.count}</span>
@@ -10488,7 +10556,7 @@ export default function App() {
                         <button
                           key={tab.id}
                           type="button"
-                          onClick={() => setCatalogueModeFilter(tab.id)}
+                          onClick={() => setCatalogueModeFilter((prev) => prev === tab.id && tab.id !== "ALL" ? "ALL" : tab.id)}
                           className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
                             isActive
                               ? "bg-white dark:bg-[#252B37] text-[#0F172A] dark:text-[#F8FAFC] shadow-sm font-semibold border border-[#E2E8F0] dark:border-[#384252]"
@@ -10514,16 +10582,16 @@ export default function App() {
                   {/* Segmented Publication Status Bar */}
                   <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-[#F1F5F9] dark:bg-[#151921] border border-[#CBD5E1] dark:border-[#272F3E] shadow-2xs">
                     {[
-                      { id: "ALL" as const, label: "All Status", count: catalogueKpis.totalEditions, dotColor: "bg-slate-400" },
-                      { id: "PUBLISHED" as const, label: "Live Published", count: catalogueKpis.publishedCount, dotColor: "bg-emerald-500" },
-                      { id: "DRAFT" as const, label: "Drafts", count: catalogueKpis.draftCount, dotColor: "bg-amber-500" },
+                      { id: "ALL" as const, label: "All Status", count: catalogueStatusCounts.all, dotColor: "bg-slate-400" },
+                      { id: "PUBLISHED" as const, label: "Live Published", count: catalogueStatusCounts.published, dotColor: "bg-emerald-500" },
+                      { id: "DRAFT" as const, label: "Drafts", count: catalogueStatusCounts.draft, dotColor: "bg-amber-500" },
                     ].map((tab) => {
                       const isActive = catalogueStatusFilter === tab.id;
                       return (
                         <button
                           key={tab.id}
                           type="button"
-                          onClick={() => setCatalogueStatusFilter(tab.id)}
+                          onClick={() => setCatalogueStatusFilter((prev) => prev === tab.id && tab.id !== "ALL" ? "ALL" : tab.id)}
                           className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
                             isActive
                               ? "bg-white dark:bg-[#252B37] text-[#0F172A] dark:text-[#F8FAFC] shadow-sm font-semibold border border-[#E2E8F0] dark:border-[#384252]"

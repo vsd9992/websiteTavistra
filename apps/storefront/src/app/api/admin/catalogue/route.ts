@@ -131,8 +131,18 @@ export async function PATCH(request: NextRequest) {
       updateData.fullDescription = fullDescription;
     }
 
+    const targetProduct = await prisma.product.findFirst({
+      where: {
+        OR: [{ id }, { slug: id }, { sku: id }],
+      },
+    });
+
+    if (!targetProduct) {
+      return NextResponse.json({ error: `Product '${id}' not found in catalogue database` }, { status: 404 });
+    }
+
     const updated = await prisma.product.update({
-      where: { id },
+      where: { id: targetProduct.id },
       data: updateData,
     });
 
