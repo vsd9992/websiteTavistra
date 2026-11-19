@@ -24,6 +24,7 @@ import {
   ReturnRmaItem,
 } from "./data";
 import { LogisticsTab } from "./components/LogisticsTab";
+import { ThemeSwitcher } from "./components/ThemeSwitcher";
 import { parseInquiryLineItems } from "@tavistra/shared";
 import { isTabPermitted, isActionPermitted, ROLE_TAB_PERMISSIONS, type AdminTabId } from "./rbac";
 
@@ -4215,6 +4216,9 @@ export default function App() {
 
           {/* User Account & Role Switcher + Sync Pill */}
           <div className="flex items-center gap-4">
+            {/* Dual Theme Switcher (Candidate A: Daylight Atelier / Nocturne Studio) */}
+            <ThemeSwitcher />
+
             {/* Sync Pill & Button */}
             <div className="flex items-center gap-2 bg-[#24211d] border border-[#38332c] px-2.5 py-1 rounded-lg text-xs">
               <span

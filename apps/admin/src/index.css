@@ -1,29 +1,166 @@
 @import "tailwindcss";
 
+/* =========================================================================
+   TAVISTRA ATELIER DESIGN SYSTEM — CANDIDATE A: WARM STONE & BURNISHED BRASS
+   Ergonomic all-day visual workstation architecture (Dual Theme · Default Light)
+   ========================================================================= */
+
 @layer base {
-  :root {
-    --color-admin-bg: #181715;
-    --color-admin-sidebar: #1e1c19;
-    --color-admin-card: #24211d;
-    --color-admin-card-hover: #292622;
-    --color-admin-border: #38332c;
-    --color-admin-border-subtle: #2d2923;
-    --color-admin-text: #eae6df;
-    --color-admin-muted: #a8a093;
-    --color-admin-dim: #787165;
-    --color-admin-bronze: #c59b6d;
-    --color-admin-emerald: #34d399;
-    --color-admin-amber: #fbbf24;
-    --color-admin-rose: #f87171;
+  /* LIGHT THEME (DEFAULT WORKSTATION MODE) */
+  :root,
+  :root:not([data-theme="dark"]),
+  [data-theme="light"] {
+    --theme-bg-canvas: #F7F6F3;
+    --theme-bg-surface: #FFFFFF;
+    --theme-bg-sidebar: #F0ECE4;
+    --theme-bg-subtle: #EAE5DC;
+    --theme-bg-hover: #DFD9CE;
+    --theme-bg-active: #D3CBBE;
+    --theme-border: #E2DDD5;
+    --theme-border-subtle: #ECE8E0;
+    --theme-border-strong: #CDC6BA;
+    --theme-text-primary: #1C1917;
+    --theme-text-secondary: #57534E;
+    --theme-text-muted: #857F75;
+    --theme-accent-brass: #9E7238;
+    --theme-accent-hover: #885F2C;
+    --theme-accent-bg: #F8F2E8;
+    --theme-accent-border: #E6D5BD;
+    --theme-accent-text: #825821;
+    color-scheme: light;
+  }
+
+  /* DARK THEME (NOCTURNE STUDIO MODE) */
+  [data-theme="dark"] {
+    --theme-bg-canvas: #141312;
+    --theme-bg-surface: #1E1C19;
+    --theme-bg-sidebar: #181614;
+    --theme-bg-subtle: #2A2620;
+    --theme-bg-hover: #353028;
+    --theme-bg-active: #423C32;
+    --theme-border: #332F29;
+    --theme-border-subtle: #27231E;
+    --theme-border-strong: #464037;
+    --theme-text-primary: #EDE8DF;
+    --theme-text-secondary: #B5AEA2;
+    --theme-text-muted: #827B70;
+    --theme-accent-brass: #D4A366;
+    --theme-accent-hover: #E2B57B;
+    --theme-accent-bg: #2A2318;
+    --theme-accent-border: #54442B;
+    --theme-accent-text: #E0B57C;
+    color-scheme: dark;
   }
 }
 
 body {
-  background-color: var(--color-admin-bg);
-  color: var(--color-admin-text);
+  background-color: var(--theme-bg-canvas);
+  color: var(--theme-text-primary);
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   margin: 0;
   padding: 0;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.25s ease, color 0.2s ease;
 }
 
+/* =========================================================================
+   LIGHT THEME CLASS REMAPPING (Applied when data-theme is NOT dark)
+   Seamlessly maps the dark hex tokens to Candidate A Warm Stone Paper tokens
+   ========================================================================= */
+:root:not([data-theme="dark"]) {
+  /* Canvas & Workspace Backgrounds */
+  .bg-\[\#181715\] { background-color: var(--theme-bg-canvas) !important; }
+  .bg-\[\#1e1c19\] { background-color: var(--theme-bg-sidebar) !important; }
+  .bg-\[\#1a1816\]\/80 { background-color: rgba(235, 230, 222, 0.88) !important; }
+  .bg-\[\#1e1c19\]\/95 { background-color: rgba(240, 236, 228, 0.95) !important; }
+  
+  /* Elevated Cards, Panels & Modals */
+  .bg-\[\#24211d\] { 
+    background-color: var(--theme-bg-surface) !important; 
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+  .bg-\[\#16161a\] { background-color: var(--theme-bg-surface) !important; }
+  
+  /* Inset Wells, Pill Badges & Secondary Elements */
+  .bg-\[\#2a2722\] { background-color: var(--theme-bg-subtle) !important; }
+  .bg-\[\#2a2620\] { background-color: var(--theme-bg-hover) !important; }
+  .bg-\[\#25221d\] { background-color: var(--theme-bg-subtle) !important; }
+  .bg-\[\#1f1c19\] { background-color: var(--theme-bg-sidebar) !important; }
+  .bg-\[\#2a2a30\] { background-color: var(--theme-bg-subtle) !important; }
+  .bg-\[\#2e2a24\] { background-color: var(--theme-bg-subtle) !important; }
+
+  /* Interactive Hover States */
+  .hover\:bg-\[\#25221d\]:hover { background-color: var(--theme-bg-hover) !important; }
+  .hover\:bg-\[\#24211d\]:hover { background-color: var(--theme-bg-hover) !important; }
+  .hover\:bg-\[\#2a2722\]:hover { background-color: var(--theme-bg-hover) !important; }
+  .hover\:bg-\[\#343029\]:hover { background-color: var(--theme-bg-active) !important; }
+  .hover\:bg-\[\#38332c\]:hover { background-color: var(--theme-bg-active) !important; }
+  .hover\:bg-\[\#35312b\]:hover { background-color: var(--theme-bg-active) !important; }
+  .hover\:bg-\[\#34343c\]:hover { background-color: var(--theme-bg-active) !important; }
+  .hover\:bg-\[\#2a2722\]\/40:hover { background-color: rgba(220, 213, 203, 0.45) !important; }
+  .hover\:bg-\[\#2a2722\]\/30:hover { background-color: rgba(220, 213, 203, 0.35) !important; }
+
+  /* Structural Borders & Table Dividers */
+  .border-\[\#38332c\] { border-color: var(--theme-border) !important; }
+  .border-\[\#464037\] { border-color: var(--theme-border-strong) !important; }
+  .border-\[\#2d2923\] { border-color: var(--theme-border-subtle) !important; }
+  .border-\[\#3e3830\] { border-color: var(--theme-border-strong) !important; }
+  .border-\[\#332f28\] { border-color: var(--theme-border-subtle) !important; }
+  .border-\[\#4d473d\] { border-color: var(--theme-border-strong) !important; }
+  .divide-\[\#38332c\]\/50 > :not([hidden]) ~ :not([hidden]) { border-color: var(--theme-border) !important; }
+
+  /* Primary Typography (Except inside solid high-contrast buttons) */
+  .text-\[\#eae6df\] { color: var(--theme-text-primary) !important; }
+  .text-\[\#d5cfc5\] { color: var(--theme-text-primary) !important; }
+  .text-\[\#a8a093\] { color: var(--theme-text-secondary) !important; }
+  .text-\[\#787165\] { color: var(--theme-text-muted) !important; }
+  .text-\[\#c59b6d\] { color: var(--theme-accent-text) !important; }
+  
+  /* Text-white remapping for headers, labels, and table cells */
+  h1.text-white, h2.text-white, h3.text-white, h4.text-white,
+  div.text-white, p.text-white, strong.text-white,
+  td.text-white, th.text-white,
+  span.text-white:not([class*="bg-emerald"]):not([class*="bg-amber"]):not([class*="bg-rose"]):not([class*="bg-red"]):not([class*="bg-blue"]) {
+    color: var(--theme-text-primary) !important;
+  }
+
+  /* Form Controls & Inputs */
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    background-color: #FFFFFF !important;
+    color: var(--theme-text-primary) !important;
+    border-color: var(--theme-border) !important;
+  }
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--theme-accent-brass) !important;
+    box-shadow: 0 0 0 1px var(--theme-accent-brass) !important;
+  }
+  input::placeholder, textarea::placeholder {
+    color: var(--theme-text-muted) !important;
+  }
+
+  /* Table Header Background */
+  thead tr {
+    background-color: var(--theme-bg-subtle) !important;
+  }
+
+  /* Inverted logo for light theme */
+  img[src*="vdesign-dark.png"] {
+    filter: invert(0) !important;
+    opacity: 0.65 !important;
+  }
+}
+
+/* =========================================================================
+   DARK THEME REFINEMENTS (Ensuring crisp contrast in Nocturne mode)
+   ========================================================================= */
+[data-theme="dark"] {
+  .bg-\[\#181715\] { background-color: var(--theme-bg-canvas); }
+  .bg-\[\#1e1c19\] { background-color: var(--theme-bg-sidebar); }
+  .bg-\[\#24211d\] { background-color: var(--theme-bg-surface); }
+  .border-\[\#38332c\] { border-color: var(--theme-border); }
+  .text-\[\#a8a093\] { color: var(--theme-text-secondary); }
+  .text-\[\#eae6df\] { color: var(--theme-text-primary); }
+  .text-\[\#c59b6d\] { color: var(--theme-accent-brass); }
+}
