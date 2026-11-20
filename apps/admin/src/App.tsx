@@ -311,6 +311,7 @@ export default function App() {
   const [inventoryDonutMetric, setInventoryDonutMetric] = useState<"SKUS" | "UNITS">("SKUS");
   const [hoveredInventorySlice, setHoveredInventorySlice] = useState<string | null>(null);
   const [adjustStockModalItem, setAdjustStockModalItem] = useState<InventoryItem | null>(null);
+  const [adjustModalTab, setAdjustModalTab] = useState<"QUANTITY" | "LOCATION" | "THRESHOLDS">("QUANTITY");
   const [adjustStockForm, setAdjustStockForm] = useState<{
     type: "RESTOCK" | "MANUAL_ADJUSTMENT" | "RETURN_RESTOCK" | "FOUNDRY_RECEIPT" | "SCRAP_DISCREPANCY";
     quantityDelta: number;
@@ -2246,17 +2247,49 @@ export default function App() {
       });
   }, [orders, dispatchStatusFilter, dispatchCarrierFilter, dispatchSearchQuery]);
 
-  // Catalogue & Inventory KPIs
+  // Dynamic Real-Time Synchronization between Physical Inventory Ledger and Catalogue
+  const syncedCatalogue = useMemo(() => {
+    return catalogue.map((catItem) => {
+      // Find matching inventory items for this product
+      const matchingInventory = inventory.filter(
+        (inv) =>
+          inv.productId === catItem.id ||
+          Boolean(catItem.sku && inv.sku.startsWith(catItem.sku)) ||
+          catItem.variants?.some((v) => v.id === inv.variantId || v.sku === inv.sku)
+      );
+
+      if (matchingInventory.length === 0) return catItem;
+
+      const updatedVariants = catItem.variants?.map((v) => {
+        const invMatch = matchingInventory.find(
+          (inv) => inv.variantId === v.id || inv.sku === v.sku
+        );
+        return invMatch ? { ...v, stock: invMatch.availableStock } : v;
+      });
+
+      const totalAvailable = matchingInventory.reduce((sum, inv) => sum + inv.availableStock, 0);
+      const totalReserved = matchingInventory.reduce((sum, inv) => sum + inv.reservedStock, 0);
+
+      return {
+        ...catItem,
+        availableStock: totalAvailable,
+        reservedStock: totalReserved,
+        variants: updatedVariants,
+      };
+    });
+  }, [catalogue, inventory]);
+
+  // Catalogue & Inventory KPIs (Synchronized with live inventory ledger)
   const catalogueKpis = useMemo(() => {
-    const totalEditions = catalogue.length;
-    const publishedCount = catalogue.filter((c) => c.isPublished).length;
+    const totalEditions = syncedCatalogue.length;
+    const publishedCount = syncedCatalogue.filter((c) => c.isPublished).length;
     const draftCount = totalEditions - publishedCount;
 
-    const readyStockItems = catalogue.filter((c) => c.mode === "READY_STOCK");
-    const mtoItems = catalogue.filter((c) => c.mode === "MADE_TO_ORDER");
-    const quoteOnlyItems = catalogue.filter((c) => c.mode === "QUOTE_ONLY");
+    const readyStockItems = syncedCatalogue.filter((c) => c.mode === "READY_STOCK");
+    const mtoItems = syncedCatalogue.filter((c) => c.mode === "MADE_TO_ORDER");
+    const quoteOnlyItems = syncedCatalogue.filter((c) => c.mode === "QUOTE_ONLY");
 
-    const totalVariants = catalogue.reduce((sum, c) => sum + (c.variants?.length || 0), 0);
+    const totalVariants = syncedCatalogue.reduce((sum, c) => sum + (c.variants?.length || 0), 0);
     const totalAvailableStock = readyStockItems.reduce((sum, c) => sum + (c.availableStock || 0), 0);
     const totalReservedStock = readyStockItems.reduce((sum, c) => sum + (c.reservedStock || 0), 0);
 
@@ -2267,10 +2300,10 @@ export default function App() {
       return sum + (c.availableStock || 0) * (c.priceRupees || 0);
     }, 0);
 
-    const minPrice = catalogue.length > 0 ? Math.min(...catalogue.map((c) => c.minPriceRupees || c.priceRupees)) : 0;
-    const maxPrice = catalogue.length > 0 ? Math.max(...catalogue.map((c) => c.maxPriceRupees || c.priceRupees)) : 0;
+    const minPrice = syncedCatalogue.length > 0 ? Math.min(...syncedCatalogue.map((c) => c.minPriceRupees || c.priceRupees)) : 0;
+    const maxPrice = syncedCatalogue.length > 0 ? Math.max(...syncedCatalogue.map((c) => c.maxPriceRupees || c.priceRupees)) : 0;
 
-    const categories = Array.from(new Set(catalogue.map((c) => c.category).filter(Boolean))).sort();
+    const categories = Array.from(new Set(syncedCatalogue.map((c) => c.category).filter(Boolean))).sort();
 
     return {
       totalEditions,
@@ -2287,7 +2320,7 @@ export default function App() {
       maxPrice,
       categories,
     };
-  }, [catalogue]);
+  }, [syncedCatalogue]);
 
   // Catalogue Donut Data (100% mathematically consistent)
   const catalogueDonutData = useMemo(() => {
@@ -2336,7 +2369,7 @@ export default function App() {
     } else {
       // Group by Category
       const categoryCounts: Record<string, number> = {};
-      catalogue.forEach((c) => {
+      syncedCatalogue.forEach((c) => {
         const cat = c.category || "Uncategorized";
         categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
       });
@@ -2363,11 +2396,11 @@ export default function App() {
         centerLabel: "Works",
       };
     }
-  }, [catalogue, catalogueDonutView, catalogueKpis]);
+  }, [syncedCatalogue, catalogueDonutView, catalogueKpis]);
 
   // Dynamic contextual counts for publication status scoped by current mode & category
   const catalogueStatusCounts = useMemo(() => {
-    const scoped = catalogue.filter((item) => {
+    const scoped = syncedCatalogue.filter((item) => {
       if (catalogueModeFilter !== "ALL" && item.mode !== catalogueModeFilter) return false;
       if (catalogueCategoryFilter !== "ALL" && item.category !== catalogueCategoryFilter) return false;
       return true;
@@ -2377,11 +2410,11 @@ export default function App() {
       published: scoped.filter((c) => c.isPublished).length,
       draft: scoped.filter((c) => !c.isPublished).length,
     };
-  }, [catalogue, catalogueModeFilter, catalogueCategoryFilter]);
+  }, [syncedCatalogue, catalogueModeFilter, catalogueCategoryFilter]);
 
   // Filtered & Searched Catalogue Items
   const filteredCatalogue = useMemo(() => {
-    return catalogue.filter((item) => {
+    return syncedCatalogue.filter((item) => {
       if (catalogueModeFilter !== "ALL" && item.mode !== catalogueModeFilter) return false;
       if (catalogueCategoryFilter !== "ALL" && item.category !== catalogueCategoryFilter) return false;
       if (catalogueStatusFilter === "PUBLISHED" && !item.isPublished) return false;
@@ -3178,7 +3211,8 @@ export default function App() {
   // Assign / Update Warehouse Location Bay
   const handleSaveLocationBay = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!locationBayModalItem) return;
+    const targetItem = adjustStockModalItem || locationBayModalItem;
+    if (!targetItem) return;
     const newLocation = locationBayInput.trim();
 
     try {
@@ -3187,30 +3221,34 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "UPDATE_LOCATION",
-          variantId: locationBayModalItem.variantId,
+          variantId: targetItem.variantId,
           warehouseLocation: newLocation,
         }),
       });
 
       setInventory((prev) =>
         prev.map((item) =>
-          item.id === locationBayModalItem.id || item.variantId === locationBayModalItem.variantId
+          item.id === targetItem.id || item.variantId === targetItem.variantId
             ? { ...item, warehouseLocation: newLocation }
             : item
         )
       );
 
+      if (adjustStockModalItem) {
+        setAdjustStockModalItem((prev) => prev ? { ...prev, warehouseLocation: newLocation } : null);
+      }
+
       logAuditAction(
         "INVENTORY_BAY_ASSIGNED",
         "InventoryLedger",
-        locationBayModalItem.sku,
+        targetItem.sku,
         `Assigned Location Bay: '${newLocation || "Unassigned"}'`
       );
 
       setLocationBayModalItem(null);
       setActionFeedback({
         type: "success",
-        text: `Location Bay for ${locationBayModalItem.sku} assigned to: ${newLocation || "Unassigned"}`,
+        text: `Location Bay for ${targetItem.sku} assigned to: ${newLocation || "Unassigned"}`,
       });
     } catch (err: any) {
       alert(`Failed to save bay location: ${err?.message || "Unknown error"}`);
@@ -3219,37 +3257,43 @@ export default function App() {
 
   // Clear / Unassign Location Bay for active SKU
   const handleClearLocationBay = async () => {
-    if (!locationBayModalItem) return;
+    const targetItem = adjustStockModalItem || locationBayModalItem;
+    if (!targetItem) return;
     try {
       await fetchJson("/api/admin/inventory", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "UPDATE_LOCATION",
-          variantId: locationBayModalItem.variantId,
+          variantId: targetItem.variantId,
           warehouseLocation: "",
         }),
       });
 
       setInventory((prev) =>
         prev.map((item) =>
-          item.id === locationBayModalItem.id || item.variantId === locationBayModalItem.variantId
+          item.id === targetItem.id || item.variantId === targetItem.variantId
             ? { ...item, warehouseLocation: "" }
             : item
         )
       );
 
+      if (adjustStockModalItem) {
+        setAdjustStockModalItem((prev) => prev ? { ...prev, warehouseLocation: "" } : null);
+      }
+      setLocationBayInput("");
+
       logAuditAction(
         "INVENTORY_BAY_CLEARED",
         "InventoryLedger",
-        locationBayModalItem.sku,
+        targetItem.sku,
         "Cleared location bay assignment (Marked Unassigned)"
       );
 
       setLocationBayModalItem(null);
       setActionFeedback({
         type: "success",
-        text: `Location Bay for ${locationBayModalItem.sku} cleared (Unassigned).`,
+        text: `Location Bay for ${targetItem.sku} cleared (Unassigned).`,
       });
     } catch (err: any) {
       alert(`Failed to clear bay location: ${err?.message || "Unknown error"}`);
@@ -3283,7 +3327,8 @@ export default function App() {
   // Configure Min / Max Order Thresholds
   const handleSaveThresholds = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!thresholdModalItem) return;
+    const targetItem = adjustStockModalItem || thresholdModalItem;
+    if (!targetItem) return;
     const minVal = Number(thresholdMinInput);
     const maxVal = Number(thresholdMaxInput);
 
@@ -3298,7 +3343,7 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "UPDATE_THRESHOLDS",
-          variantId: thresholdModalItem.variantId,
+          variantId: targetItem.variantId,
           lowStockThreshold: minVal,
           maxStockThreshold: maxVal,
         }),
@@ -3306,23 +3351,27 @@ export default function App() {
 
       setInventory((prev) =>
         prev.map((item) =>
-          item.id === thresholdModalItem.id || item.variantId === thresholdModalItem.variantId
+          item.id === targetItem.id || item.variantId === targetItem.variantId
             ? { ...item, lowStockThreshold: minVal, maxStockThreshold: maxVal }
             : item
         )
       );
 
+      if (adjustStockModalItem) {
+        setAdjustStockModalItem((prev) => prev ? { ...prev, lowStockThreshold: minVal, maxStockThreshold: maxVal } : null);
+      }
+
       logAuditAction(
         "INVENTORY_THRESHOLDS_CONFIGURED",
         "InventoryLedger",
-        thresholdModalItem.sku,
+        targetItem.sku,
         `Configured thresholds: Min=${minVal}, Max=${maxVal}`
       );
 
       setThresholdModalItem(null);
       setActionFeedback({
         type: "success",
-        text: `Thresholds for ${thresholdModalItem.sku} configured: Min ${minVal} / Max ${maxVal}`,
+        text: `Thresholds for ${targetItem.sku} configured: Min ${minVal} / Max ${maxVal}`,
       });
     } catch (err: any) {
       alert(`Failed to save thresholds: ${err?.message || "Unknown error"}`);
@@ -8193,6 +8242,40 @@ export default function App() {
                     </div>
                   </div>
 
+                  {/* Clear Filter Label Banner */}
+                  {(inventoryStockFilter !== "ALL" || inventoryCategoryFilter !== "ALL") && (
+                    <div className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-amber-50 dark:bg-[#c59b6d]/10 border border-amber-300 dark:border-[#c59b6d]/40 text-xs text-amber-900 dark:text-[#E0B26E]">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold flex items-center gap-1.5">
+                          <span>🔍</span>
+                          <span>Filtered By:</span>
+                        </span>
+                        {inventoryStockFilter !== "ALL" && (
+                          <span className="px-2 py-0.5 rounded-md bg-white dark:bg-[#181715] font-mono text-[11px] font-bold border border-amber-300 dark:border-[#c59b6d]/40 text-amber-900 dark:text-[#c59b6d]">
+                            Health: {inventoryStockFilter === "HEALTHY" ? "Healthy Stock" : inventoryStockFilter === "LOW_STOCK" ? "Low Stock (≤ Threshold)" : "Depleted / Out of Stock"}
+                          </span>
+                        )}
+                        {inventoryCategoryFilter !== "ALL" && (
+                          <span className="px-2 py-0.5 rounded-md bg-white dark:bg-[#181715] text-[11px] font-bold border border-amber-300 dark:border-[#c59b6d]/40 text-amber-900 dark:text-[#c59b6d]">
+                            Category: {inventoryCategoryFilter}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInventoryStockFilter("ALL");
+                          setInventoryCategoryFilter("ALL");
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-amber-200 hover:bg-amber-300 dark:bg-[#c59b6d]/20 dark:hover:bg-[#c59b6d]/30 text-amber-900 dark:text-[#E0B26E] font-semibold text-[11px] transition-colors cursor-pointer flex items-center gap-1"
+                        title="Clear all active chart filters"
+                      >
+                        <span>✕</span>
+                        <span>Clear Filter</span>
+                      </button>
+                    </div>
+                  )}
+
                   <div className="flex flex-col md:flex-row items-center justify-around gap-6 pt-2">
                     {/* SVG Donut */}
                     <div className="relative w-44 h-44 shrink-0">
@@ -8428,37 +8511,16 @@ export default function App() {
                                 </td>
                                 <td className="py-3 px-4 text-[11px]">
                                   {item.warehouseLocation && item.warehouseLocation.trim() !== "" ? (
-                                    <div className="flex items-center gap-1.5 group">
-                                      <span
-                                        className="font-mono text-xs text-[#9E7238] dark:text-[#c59b6d] bg-slate-100 dark:bg-[#181715] px-2.5 py-1 rounded-md border border-slate-200 dark:border-[#38332c] font-medium leading-tight"
-                                        title={item.warehouseLocation}
-                                      >
-                                        {item.warehouseLocation}
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setLocationBayModalItem(item);
-                                          setLocationBayInput(item.warehouseLocation || "");
-                                        }}
-                                        className="p-1 text-slate-400 hover:text-[#9E7238] dark:hover:text-[#c59b6d] transition-colors rounded hover:bg-slate-200 dark:hover:bg-[#2a2722]"
-                                        title="Edit or reassign warehouse location bay"
-                                      >
-                                        ✎
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setLocationBayModalItem(item);
-                                        setLocationBayInput("");
-                                      }}
-                                      className="px-2.5 py-1 rounded-lg border border-dashed border-slate-300 dark:border-[#464037] hover:border-[#9E7238] dark:hover:border-[#c59b6d] text-slate-500 hover:text-slate-800 dark:text-[#a8a093] dark:hover:text-white text-[11px] font-semibold transition-colors flex items-center gap-1"
+                                    <span
+                                      className="inline-block font-mono text-xs text-[#9E7238] dark:text-[#c59b6d] bg-slate-100 dark:bg-[#181715] px-2.5 py-1 rounded-md border border-slate-200 dark:border-[#38332c] font-medium leading-tight"
+                                      title={`Location Bay: ${item.warehouseLocation}`}
                                     >
-                                      <span>+</span>
-                                      <span>Assign Bay</span>
-                                    </button>
+                                      {item.warehouseLocation}
+                                    </span>
+                                  ) : (
+                                    <span className="font-mono text-[11px] text-slate-400 dark:text-[#787165] italic">
+                                      Unassigned Bay
+                                    </span>
                                   )}
                                 </td>
                                 <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-white">
@@ -8488,19 +8550,12 @@ export default function App() {
                                     >
                                       {isDepleted ? "DEPLETED" : isLowStock ? "LOW STOCK" : "HEALTHY"}
                                     </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setThresholdModalItem(item);
-                                        setThresholdMinInput(item.lowStockThreshold ?? 2);
-                                        setThresholdMaxInput(item.maxStockThreshold ?? 50);
-                                      }}
-                                      className="flex items-center gap-1.5 text-[10px] font-mono text-slate-600 dark:text-[#a8a093] hover:text-[#9E7238] dark:hover:text-[#c59b6d] bg-slate-100 hover:bg-slate-200 dark:bg-[#181715] dark:hover:bg-[#25221d] px-2 py-0.5 rounded border border-slate-200 dark:border-[#38332c] transition-colors"
-                                      title="Configure min order threshold and max capacity"
+                                    <div
+                                      className="flex items-center text-[10px] font-mono text-slate-600 dark:text-[#a8a093] bg-slate-100 dark:bg-[#181715] px-2 py-0.5 rounded border border-slate-200 dark:border-[#38332c] w-fit"
+                                      title={`Guardrails: Min threshold alert at ${item.lowStockThreshold} units, Max bay capacity ${item.maxStockThreshold || 50} units`}
                                     >
                                       <span>Min: {item.lowStockThreshold} · Max: {item.maxStockThreshold || 50}</span>
-                                      <span className="text-[10px]">✎</span>
-                                    </button>
+                                    </div>
                                   </div>
                                 </td>
                                 <td className="py-3 px-4 text-right">
@@ -8509,6 +8564,10 @@ export default function App() {
                                       type="button"
                                       onClick={() => {
                                         setAdjustStockModalItem(item);
+                                        setAdjustModalTab("QUANTITY");
+                                        setLocationBayInput(item.warehouseLocation || "");
+                                        setThresholdMinInput(item.lowStockThreshold ?? 2);
+                                        setThresholdMaxInput(item.maxStockThreshold ?? 50);
                                         setAdjustStockForm({
                                           type: "RESTOCK",
                                           quantityDelta: 5,
@@ -8517,7 +8576,7 @@ export default function App() {
                                         });
                                       }}
                                       className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#2a2722] dark:hover:bg-[#38332c] text-slate-800 dark:text-white border border-slate-300 dark:border-[#464037] text-xs font-semibold transition-colors"
-                                      title="Adjust physical stock quantity"
+                                      title="Adjust physical stock quantity, location bay, or min/max guardrails"
                                     >
                                       Adjust ⚙
                                     </button>
@@ -15192,14 +15251,14 @@ export default function App() {
       {/* MODAL: ADJUST PHYSICAL INVENTORY STOCK */}
       {adjustStockModalItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-[#24211d] border border-slate-200 dark:border-[#38332c] p-6 space-y-5 shadow-2xl text-slate-900 dark:text-white">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#38332c] pb-4">
+          <div className="w-full max-w-xl rounded-2xl bg-white dark:bg-[#24211d] border border-slate-200 dark:border-[#38332c] p-6 space-y-5 shadow-2xl text-slate-900 dark:text-white max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#38332c] pb-4 shrink-0">
               <div>
                 <span className="text-[10px] uppercase font-bold text-[#9E7238] dark:text-[#c59b6d] tracking-wider block">
                   Studio Stock Ledger Adjustment
                 </span>
                 <h3 className="font-semibold text-slate-900 dark:text-white text-base">
-                  Adjust Physical Stock: {adjustStockModalItem.sku}
+                  Adjust SKU: {adjustStockModalItem.sku}
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-[#a8a093]">
                   {adjustStockModalItem.productName} ({adjustStockModalItem.finishName})
@@ -15214,7 +15273,8 @@ export default function App() {
               </button>
             </div>
 
-            <div className="grid grid-cols-4 gap-2.5 p-3 rounded-xl bg-slate-50 dark:bg-[#181715] border border-slate-200 dark:border-[#38332c] text-center text-xs">
+            {/* Quick KPI Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-xl bg-slate-50 dark:bg-[#181715] border border-slate-200 dark:border-[#38332c] text-center text-xs shrink-0">
               <div>
                 <span className="text-[10px] text-slate-500 dark:text-[#a8a093] block">Physical On-Hand</span>
                 <strong className="text-slate-900 dark:text-white font-mono text-base">{adjustStockModalItem.onHandStock}</strong>
@@ -15228,15 +15288,15 @@ export default function App() {
                 <strong className="text-emerald-600 dark:text-emerald-400 font-mono text-base">{adjustStockModalItem.availableStock}</strong>
               </div>
               <div>
-                <span className="text-[10px] text-slate-500 dark:text-[#a8a093] block">Min / Max Guard</span>
-                <strong className="text-[#9E7238] dark:text-[#c59b6d] font-mono text-xs block mt-0.5">
-                  {adjustStockModalItem.lowStockThreshold} / {adjustStockModalItem.maxStockThreshold || 50}
+                <span className="text-[10px] text-slate-500 dark:text-[#a8a093] block">Location Bay</span>
+                <strong className="text-[#9E7238] dark:text-[#c59b6d] font-mono text-xs block mt-0.5 truncate" title={adjustStockModalItem.warehouseLocation || "Unassigned"}>
+                  {adjustStockModalItem.warehouseLocation || "Unassigned"}
                 </strong>
               </div>
             </div>
 
             {(adjustStockModalItem.isDraft || !adjustStockModalItem.isPublished || !adjustStockModalItem.productIsPublished) && (
-              <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-3">
+              <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-3 shrink-0">
                 <span className="text-base leading-none mt-0.5">⚠️</span>
                 <div>
                   <strong className="block font-semibold text-amber-900 dark:text-amber-100">Catalogue Draft Notice · Refills Discouraged</strong>
@@ -15247,99 +15307,344 @@ export default function App() {
               </div>
             )}
 
-            <form onSubmit={handleAdjustStock} className="space-y-4 text-xs">
-              <div>
-                <label className="text-[11px] font-semibold text-slate-700 dark:text-[#a8a093] block mb-1">
-                  Adjustment Movement Type *
-                </label>
-                <select
-                  value={adjustStockForm.type}
-                  onChange={(e) => setAdjustStockForm({ ...adjustStockForm, type: e.target.value as any })}
-                  className="w-full rounded-xl border border-slate-300 dark:border-[#464037] bg-white dark:bg-[#181715] px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d]"
-                >
-                  <option value="RESTOCK">Studio Restock (+ Inbound)</option>
-                  <option value="FOUNDRY_RECEIPT">Foundry Batch Lot Receipt (+ Inbound)</option>
-                  <option value="RETURN_RESTOCK">Client Return Restocked (+ Inbound)</option>
-                  <option value="MANUAL_ADJUSTMENT">Manual Cycle Count Audit (+/- Variance)</option>
-                  <option value="SCRAP_DISCREPANCY">Defect / Foundry Melt Reclaim (- Outbound Scrap)</option>
-                </select>
-              </div>
+            {/* Mode Switcher Tabs */}
+            <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-[#181715] border border-slate-200 dark:border-[#38332c] shrink-0">
+              <button
+                type="button"
+                onClick={() => setAdjustModalTab("QUANTITY")}
+                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                  adjustModalTab === "QUANTITY"
+                    ? "bg-[#9E7238] dark:bg-[#c59b6d] text-white dark:text-[#181715] shadow-xs"
+                    : "text-slate-600 dark:text-[#a8a093] hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                <span>📦</span>
+                <span>Physical Stock</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAdjustModalTab("LOCATION");
+                  setLocationBayInput(adjustStockModalItem.warehouseLocation || "");
+                }}
+                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                  adjustModalTab === "LOCATION"
+                    ? "bg-[#9E7238] dark:bg-[#c59b6d] text-white dark:text-[#181715] shadow-xs"
+                    : "text-slate-600 dark:text-[#a8a093] hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                <span>🏷️</span>
+                <span>Location Bay</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAdjustModalTab("THRESHOLDS");
+                  setThresholdMinInput(adjustStockModalItem.lowStockThreshold ?? 2);
+                  setThresholdMaxInput(adjustStockModalItem.maxStockThreshold ?? 50);
+                }}
+                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                  adjustModalTab === "THRESHOLDS"
+                    ? "bg-[#9E7238] dark:bg-[#c59b6d] text-white dark:text-[#181715] shadow-xs"
+                    : "text-slate-600 dark:text-[#a8a093] hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                <span>⚙️</span>
+                <span>Min/Max Guard</span>
+              </button>
+            </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-700 dark:text-[#a8a093] block mb-1">
-                    Quantity Delta (+ / -) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    value={adjustStockForm.quantityDelta}
-                    onChange={(e) => setAdjustStockForm({ ...adjustStockForm, quantityDelta: parseInt(e.target.value, 10) || 0 })}
-                    className="w-full rounded-xl border border-slate-300 dark:border-[#464037] bg-white dark:bg-[#181715] px-3 py-2 text-slate-900 dark:text-white font-mono focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d]"
-                  />
-                  <span className="text-[10px] text-slate-500 dark:text-[#787165] mt-1 block">
-                    Resulting on-hand:{" "}
-                    <strong className="text-slate-900 dark:text-white">
-                      {Math.max(
-                        0,
-                        adjustStockModalItem.onHandStock +
-                          (adjustStockForm.type === "SCRAP_DISCREPANCY"
-                            ? -Math.abs(adjustStockForm.quantityDelta)
-                            : adjustStockForm.quantityDelta)
+            <div className="flex-1 overflow-y-auto pr-1">
+              {/* TAB 1: PHYSICAL QUANTITY ADJUSTMENT */}
+              {adjustModalTab === "QUANTITY" && (
+                <form onSubmit={handleAdjustStock} className="space-y-4 text-xs">
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-700 dark:text-[#a8a093] block mb-1">
+                      Adjustment Movement Type *
+                    </label>
+                    <select
+                      value={adjustStockForm.type}
+                      onChange={(e) => setAdjustStockForm({ ...adjustStockForm, type: e.target.value as any })}
+                      className="w-full rounded-xl border border-slate-300 dark:border-[#464037] bg-white dark:bg-[#181715] px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d]"
+                    >
+                      <option value="RESTOCK">Studio Restock (+ Inbound)</option>
+                      <option value="FOUNDRY_RECEIPT">Foundry Batch Lot Receipt (+ Inbound)</option>
+                      <option value="RETURN_RESTOCK">Client Return Restocked (+ Inbound)</option>
+                      <option value="MANUAL_ADJUSTMENT">Manual Cycle Count Audit (+/- Variance)</option>
+                      <option value="SCRAP_DISCREPANCY">Defect / Foundry Melt Reclaim (- Outbound Scrap)</option>
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-700 dark:text-[#a8a093] block mb-1">
+                        Quantity Delta (+ / -) *
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        value={adjustStockForm.quantityDelta}
+                        onChange={(e) => setAdjustStockForm({ ...adjustStockForm, quantityDelta: parseInt(e.target.value, 10) || 0 })}
+                        className="w-full rounded-xl border border-slate-300 dark:border-[#464037] bg-white dark:bg-[#181715] px-3 py-2 text-slate-900 dark:text-white font-mono focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d]"
+                      />
+                      <span className="text-[10px] text-slate-500 dark:text-[#787165] mt-1 block">
+                        Resulting on-hand:{" "}
+                        <strong className="text-slate-900 dark:text-white">
+                          {Math.max(
+                            0,
+                            adjustStockModalItem.onHandStock +
+                              (adjustStockForm.type === "SCRAP_DISCREPANCY"
+                                ? -Math.abs(adjustStockForm.quantityDelta)
+                                : adjustStockForm.quantityDelta)
+                          )}
+                        </strong>
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-700 dark:text-[#a8a093] block mb-1">
+                        Reference Document # *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. PO-2026-088 / LOT-4"
+                        value={adjustStockForm.referenceId}
+                        onChange={(e) => setAdjustStockForm({ ...adjustStockForm, referenceId: e.target.value })}
+                        className="w-full rounded-xl border border-slate-300 dark:border-[#464037] bg-white dark:bg-[#181715] px-3 py-2 text-slate-900 dark:text-white font-mono focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-700 dark:text-[#a8a093] block mb-1">
+                      Reason &amp; Audit Notes
+                    </label>
+                    <textarea
+                      rows={2}
+                      placeholder="Document rationale for physical count adjustment..."
+                      value={adjustStockForm.notes}
+                      onChange={(e) => setAdjustStockForm({ ...adjustStockForm, notes: e.target.value })}
+                      className="w-full rounded-xl border border-slate-300 dark:border-[#464037] bg-white dark:bg-[#181715] p-3 text-slate-900 dark:text-white focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d]"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-[#38332c]">
+                    <span className="text-[11px] text-slate-500 dark:text-[#787165]">
+                      Authorizing: {currentStaff.name} ({currentStaff.role})
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAdjustStockModalItem(null)}
+                        className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-[#2a2722] dark:hover:bg-[#343029] dark:text-[#a8a093] dark:hover:text-white border border-slate-300 dark:border-transparent text-xs font-semibold"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-5 py-2 rounded-xl bg-[#9E7238] hover:bg-[#855e28] dark:bg-[#c59b6d] dark:hover:bg-[#d6aa7c] text-white dark:text-[#181715] text-xs font-semibold shadow-xs"
+                      >
+                        Commit Adjustment
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              )}
+
+              {/* TAB 2: LOCATION BAY MANAGEMENT */}
+              {adjustModalTab === "LOCATION" && (
+                <form onSubmit={handleSaveLocationBay} className="space-y-4 text-xs">
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-700 dark:text-[#a8a093] block mb-1">
+                      Warehouse Location Bay / Shelf Code *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Delhi Studio Hub — Bay A1 (Clocks)"
+                      value={locationBayInput}
+                      onChange={(e) => setLocationBayInput(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 dark:border-[#464037] bg-white dark:bg-[#181715] px-3.5 py-2.5 text-slate-900 dark:text-white font-mono focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d]"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-[11px] font-semibold text-slate-700 dark:text-[#a8a093] block">
+                        Or select a studio hub preset ({locationBayPresets.length} available):
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setIsManageBaysModalOpen(true)}
+                        className="text-[11px] text-[#9E7238] dark:text-[#c59b6d] hover:underline font-semibold"
+                      >
+                        Manage Presets ⚙
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
+                      {locationBayPresets.map((preset) => (
+                        <div
+                          key={preset}
+                          className={`flex items-center justify-between rounded-lg border text-[11px] transition-colors p-1.5 ${
+                            locationBayInput === preset
+                              ? "bg-amber-50 dark:bg-[#c59b6d]/15 border-amber-300 dark:border-[#c59b6d] text-amber-900 dark:text-[#c59b6d] font-semibold"
+                              : "bg-slate-50 dark:bg-[#181715] border-slate-200 dark:border-[#38332c] text-slate-700 dark:text-[#a8a093] hover:border-slate-300 dark:hover:border-[#464037]"
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setLocationBayInput(preset)}
+                            className="text-left truncate flex-1 hover:text-slate-900 dark:hover:text-white px-1"
+                            title={preset}
+                          >
+                            {preset}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveLocationPreset(preset);
+                            }}
+                            className="text-slate-400 hover:text-rose-500 px-1 text-xs"
+                            title={`Remove '${preset}' from presets`}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Inline Add Preset */}
+                    <div className="pt-2 flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="Add new preset (e.g. Delhi Studio Hub — Bay B3)..."
+                        value={newBayNameInput}
+                        onChange={(e) => setNewBayNameInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddLocationPreset(newBayNameInput);
+                            setNewBayNameInput("");
+                          }
+                        }}
+                        className="flex-1 rounded-xl border border-slate-300 dark:border-[#464037] bg-white dark:bg-[#181715] px-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleAddLocationPreset(newBayNameInput);
+                          setNewBayNameInput("");
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-[#2a2722] dark:hover:bg-[#38332c] dark:text-[#c59b6d] border border-slate-300 dark:border-[#38332c] text-xs font-semibold whitespace-nowrap"
+                      >
+                        + Add Preset
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-[#38332c]">
+                    <div>
+                      {adjustStockModalItem.warehouseLocation && adjustStockModalItem.warehouseLocation.trim() !== "" && (
+                        <button
+                          type="button"
+                          onClick={handleClearLocationBay}
+                          className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:hover:bg-rose-900/60 dark:text-rose-300 border border-rose-300 dark:border-rose-800 text-xs font-semibold transition-colors"
+                          title="Unassign and remove location bay from this SKU"
+                        >
+                          Clear Bay (Unassign)
+                        </button>
                       )}
-                    </strong>
-                  </span>
-                </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAdjustStockModalItem(null)}
+                        className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-[#2a2722] dark:hover:bg-[#343029] dark:text-[#a8a093] dark:hover:text-white border border-slate-300 dark:border-transparent text-xs font-semibold"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-5 py-2 rounded-xl bg-[#9E7238] hover:bg-[#855e28] dark:bg-[#c59b6d] dark:hover:bg-[#d6aa7c] text-white dark:text-[#181715] text-xs font-semibold shadow-xs"
+                      >
+                        Save Location Bay
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              )}
 
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-700 dark:text-[#a8a093] block mb-1">
-                    Reference Document # *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. PO-2026-088 / LOT-4"
-                    value={adjustStockForm.referenceId}
-                    onChange={(e) => setAdjustStockForm({ ...adjustStockForm, referenceId: e.target.value })}
-                    className="w-full rounded-xl border border-slate-300 dark:border-[#464037] bg-white dark:bg-[#181715] px-3 py-2 text-slate-900 dark:text-white font-mono focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d]"
-                  />
-                </div>
-              </div>
+              {/* TAB 3: MIN / MAX THRESHOLDS GUARD */}
+              {adjustModalTab === "THRESHOLDS" && (
+                <form onSubmit={handleSaveThresholds} className="space-y-4 text-xs">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#181715] border border-slate-200 dark:border-[#38332c] space-y-2">
+                      <label className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 block">
+                        Min Stock Threshold (Reorder Alert) *
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        required
+                        value={thresholdMinInput}
+                        onChange={(e) => setThresholdMinInput(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                        className="w-full rounded-xl border border-slate-300 dark:border-[#464037] bg-white dark:bg-[#24211d] px-3.5 py-2 text-slate-900 dark:text-white font-mono text-base focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d]"
+                      />
+                      <p className="text-[10px] text-slate-500 dark:text-[#787165] leading-relaxed">
+                        When available stock drops to or below this number, the SKU will display a "LOW STOCK" badge on this console.
+                      </p>
+                    </div>
 
-              <div>
-                <label className="text-[11px] font-semibold text-slate-700 dark:text-[#a8a093] block mb-1">
-                  Reason &amp; Audit Notes
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Document rationale for physical count adjustment..."
-                  value={adjustStockForm.notes}
-                  onChange={(e) => setAdjustStockForm({ ...adjustStockForm, notes: e.target.value })}
-                  className="w-full rounded-xl border border-slate-300 dark:border-[#464037] bg-white dark:bg-[#181715] p-3 text-slate-900 dark:text-white focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d]"
-                />
-              </div>
+                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#181715] border border-slate-200 dark:border-[#38332c] space-y-2">
+                      <label className="text-[11px] font-semibold text-[#9E7238] dark:text-[#c59b6d] block">
+                        Max Stock Threshold (Ceiling Capacity) *
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        required
+                        value={thresholdMaxInput}
+                        onChange={(e) => setThresholdMaxInput(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                        className="w-full rounded-xl border border-slate-300 dark:border-[#464037] bg-white dark:bg-[#24211d] px-3.5 py-2 text-slate-900 dark:text-white font-mono text-base focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d]"
+                      />
+                      <p className="text-[10px] text-slate-500 dark:text-[#787165] leading-relaxed">
+                        Physical bay ceiling capacity. Prevents over-purchasing or overflowing dedicated studio storage racks.
+                      </p>
+                    </div>
+                  </div>
 
-              <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-[#38332c]">
-                <span className="text-[11px] text-slate-500 dark:text-[#787165]">
-                  Authorizing: {currentStaff.name} ({currentStaff.role})
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAdjustStockModalItem(null)}
-                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-[#2a2722] dark:hover:bg-[#343029] dark:text-[#a8a093] dark:hover:text-white border border-slate-300 dark:border-transparent text-xs font-semibold"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 rounded-xl bg-[#9E7238] hover:bg-[#855e28] dark:bg-[#c59b6d] dark:hover:bg-[#d6aa7c] text-white dark:text-[#181715] text-xs font-semibold shadow-xs"
-                  >
-                    Commit Adjustment
-                  </button>
-                </div>
-              </div>
-            </form>
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#181715] border border-slate-200 dark:border-[#38332c] text-[11px] text-slate-600 dark:text-[#a8a093] flex items-center justify-between">
+                    <span>Safe operational stock window:</span>
+                    <span className="font-mono text-slate-900 dark:text-white font-semibold">
+                      {thresholdMinInput} to {thresholdMaxInput} units
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-[#38332c]">
+                    <span className="text-[11px] text-slate-500 dark:text-[#787165]">
+                      Authorizing: {currentStaff.name}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAdjustStockModalItem(null)}
+                        className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-[#2a2722] dark:hover:bg-[#343029] dark:text-[#a8a093] dark:hover:text-white border border-slate-300 dark:border-transparent text-xs font-semibold"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-5 py-2 rounded-xl bg-[#9E7238] hover:bg-[#855e28] dark:bg-[#c59b6d] dark:hover:bg-[#d6aa7c] text-white dark:text-[#181715] text-xs font-semibold shadow-xs"
+                      >
+                        Save Guardrails
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       )}
