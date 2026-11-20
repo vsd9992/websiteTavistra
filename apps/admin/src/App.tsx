@@ -246,6 +246,15 @@ export default function App() {
   const [actionFeedback, setActionFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [copiedLinkOrderId, setCopiedLinkOrderId] = useState<string | null>(null);
 
+  // Auto-dismiss action feedback notification banner after 10 seconds
+  useEffect(() => {
+    if (!actionFeedback) return;
+    const timer = setTimeout(() => {
+      setActionFeedback(null);
+    }, 10000);
+    return () => clearTimeout(timer);
+  }, [actionFeedback]);
+
   // Studio Overview state & filters
   const [overviewDomainFilter, setOverviewDomainFilter] = useState<"ALL" | "URGENT" | "COMMERCIAL" | "WORKSHOP" | "OPERATIONS" | "AUDIT">("ALL");
   const [urgentCategoryFilter, setUrgentCategoryFilter] = useState<string>("ALL");
@@ -299,6 +308,7 @@ export default function App() {
   const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState("ALL");
   const [inventoryStockFilter, setInventoryStockFilter] = useState<"ALL" | "LOW_STOCK" | "OUT_OF_STOCK" | "HEALTHY">("ALL");
   const [inventoryDonutView, setInventoryDonutView] = useState<"STATUS" | "CATEGORY">("STATUS");
+  const [inventoryDonutMetric, setInventoryDonutMetric] = useState<"SKUS" | "UNITS">("SKUS");
   const [hoveredInventorySlice, setHoveredInventorySlice] = useState<string | null>(null);
   const [adjustStockModalItem, setAdjustStockModalItem] = useState<InventoryItem | null>(null);
   const [adjustStockForm, setAdjustStockForm] = useState<{
@@ -315,6 +325,21 @@ export default function App() {
   const [viewMovementsItem, setViewMovementsItem] = useState<InventoryItem | null>(null);
   const [locationBayModalItem, setLocationBayModalItem] = useState<InventoryItem | null>(null);
   const [locationBayInput, setLocationBayInput] = useState<string>("");
+  const [isManageBaysModalOpen, setIsManageBaysModalOpen] = useState<boolean>(false);
+  const [newBayNameInput, setNewBayNameInput] = useState<string>("");
+  const [locationBayPresets, setLocationBayPresets] = useState<string[]>([
+    "Delhi Studio Hub — Bay A1 (Clocks & Horology)",
+    "Delhi Studio Hub — Bay A2 (Clocks & Horology)",
+    "Delhi Studio Hub — Shelf S1 (Desk Objects)",
+    "Delhi Studio Hub — Shelf S2 (Desk Objects)",
+    "Delhi Studio Hub — Lighting Cage L1",
+    "Delhi Studio Hub — Lighting Cage L2",
+    "Delhi Studio Hub — Crated Haulage Bay H1",
+    "Delhi Studio Hub — Crated Haulage Bay H2",
+    "Delhi Studio Hub — Small Parts Bin B1",
+    "Delhi Studio Hub — Small Parts Bin B2",
+    "Delhi Studio Hub — Vault Mezzanine V1",
+  ]);
   const [thresholdModalItem, setThresholdModalItem] = useState<InventoryItem | null>(null);
   const [thresholdMinInput, setThresholdMinInput] = useState<number>(2);
   const [thresholdMaxInput, setThresholdMaxInput] = useState<number>(50);
@@ -1354,39 +1379,71 @@ export default function App() {
 
   const inventoryDonutData = useMemo(() => {
     if (inventoryDonutView === "STATUS") {
-      let healthy = 0;
-      let low = 0;
-      let out = 0;
-      inventory.forEach((i) => {
-        if (i.availableStock <= 0) out += i.onHandStock;
-        else if (i.availableStock <= i.lowStockThreshold) low += i.onHandStock;
-        else healthy += i.onHandStock;
-      });
-      const sum = healthy + low + out;
-      return {
-        total: sum,
-        slices: [
-          { label: "Healthy Stock", count: healthy, color: "#10b981", percent: sum > 0 ? (healthy / sum) * 100 : 0 },
-          { label: "Low Stock Alert", count: low, color: "#f59e0b", percent: sum > 0 ? (low / sum) * 100 : 0 },
-          { label: "Depleted / Reserved", count: out, color: "#ef4444", percent: sum > 0 ? (out / sum) * 100 : 0 },
-        ],
-      };
+      if (inventoryDonutMetric === "SKUS") {
+        let healthy = 0;
+        let low = 0;
+        let out = 0;
+        inventory.forEach((i) => {
+          if (i.availableStock <= 0) out += 1;
+          else if (i.availableStock <= i.lowStockThreshold) low += 1;
+          else healthy += 1;
+        });
+        const sum = healthy + low + out;
+        return {
+          total: sum,
+          metricLabel: "SKUs",
+          slices: [
+            { label: "Healthy Stock", count: healthy, color: "#10b981", percent: sum > 0 ? (healthy / sum) * 100 : 0, filterValue: "HEALTHY" },
+            { label: "Low Stock Alert", count: low, color: "#f59e0b", percent: sum > 0 ? (low / sum) * 100 : 0, filterValue: "LOW_STOCK" },
+            { label: "Depleted / Made-to-Order", count: out, color: "#ef4444", percent: sum > 0 ? (out / sum) * 100 : 0, filterValue: "OUT_OF_STOCK" },
+          ],
+        };
+      } else {
+        // By Units
+        let healthyUnits = 0;
+        let lowUnits = 0;
+        let reservedUnits = 0;
+        inventory.forEach((i) => {
+          reservedUnits += i.reservedStock;
+          if (i.availableStock > i.lowStockThreshold) healthyUnits += i.availableStock;
+          else if (i.availableStock > 0) lowUnits += i.availableStock;
+        });
+        const sum = healthyUnits + lowUnits + reservedUnits;
+        return {
+          total: sum,
+          metricLabel: "Units",
+          slices: [
+            { label: "Healthy Units (ATS)", count: healthyUnits, color: "#10b981", percent: sum > 0 ? (healthyUnits / sum) * 100 : 0, filterValue: "HEALTHY" },
+            { label: "Low Stock Units", count: lowUnits, color: "#f59e0b", percent: sum > 0 ? (lowUnits / sum) * 100 : 0, filterValue: "LOW_STOCK" },
+            { label: "Committed / Reserved", count: reservedUnits, color: "#38bdf8", percent: sum > 0 ? (reservedUnits / sum) * 100 : 0, filterValue: "ALL" },
+          ],
+        };
+      }
     } else {
-      const catMap: Record<string, number> = {};
+      // Category View
+      const isUnits = inventoryDonutMetric === "UNITS";
+      const catMap: Record<string, { units: number; skus: number }> = {};
       inventory.forEach((i) => {
-        catMap[i.category] = (catMap[i.category] || 0) + i.onHandStock;
+        if (!catMap[i.category]) catMap[i.category] = { units: 0, skus: 0 };
+        catMap[i.category].units += i.onHandStock;
+        catMap[i.category].skus += 1;
       });
-      const sum = Object.values(catMap).reduce((a, b) => a + b, 0);
-      const palette = ["#c59b6d", "#a8a093", "#38bdf8", "#818cf8", "#f472b6"];
-      const slices = Object.entries(catMap).map(([cat, count], idx) => ({
-        label: cat,
-        count,
-        color: palette[idx % palette.length],
-        percent: sum > 0 ? (count / sum) * 100 : 0,
-      }));
-      return { total: sum, slices };
+      const sum = Object.values(catMap).reduce((acc, curr) => acc + (isUnits ? curr.units : curr.skus), 0);
+      const palette = ["#c59b6d", "#10b981", "#38bdf8", "#818cf8", "#f472b6", "#a8a093"];
+      const slices = Object.entries(catMap).map(([cat, counts], idx) => {
+        const val = isUnits ? counts.units : counts.skus;
+        return {
+          label: cat,
+          count: val,
+          subLabel: isUnits ? `${counts.skus} SKUs` : `${counts.units} Units`,
+          color: palette[idx % palette.length],
+          percent: sum > 0 ? (val / sum) * 100 : 0,
+          filterValue: cat,
+        };
+      });
+      return { total: sum, metricLabel: isUnits ? "Units" : "SKUs", slices };
     }
-  }, [inventory, inventoryDonutView]);
+  }, [inventory, inventoryDonutView, inventoryDonutMetric]);
 
   // Returns, Refunds & RMA Memos
   const filteredRmas = useMemo(() => {
@@ -3158,6 +3215,69 @@ export default function App() {
     } catch (err: any) {
       alert(`Failed to save bay location: ${err?.message || "Unknown error"}`);
     }
+  };
+
+  // Clear / Unassign Location Bay for active SKU
+  const handleClearLocationBay = async () => {
+    if (!locationBayModalItem) return;
+    try {
+      await fetchJson("/api/admin/inventory", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "UPDATE_LOCATION",
+          variantId: locationBayModalItem.variantId,
+          warehouseLocation: "",
+        }),
+      });
+
+      setInventory((prev) =>
+        prev.map((item) =>
+          item.id === locationBayModalItem.id || item.variantId === locationBayModalItem.variantId
+            ? { ...item, warehouseLocation: "" }
+            : item
+        )
+      );
+
+      logAuditAction(
+        "INVENTORY_BAY_CLEARED",
+        "InventoryLedger",
+        locationBayModalItem.sku,
+        "Cleared location bay assignment (Marked Unassigned)"
+      );
+
+      setLocationBayModalItem(null);
+      setActionFeedback({
+        type: "success",
+        text: `Location Bay for ${locationBayModalItem.sku} cleared (Unassigned).`,
+      });
+    } catch (err: any) {
+      alert(`Failed to clear bay location: ${err?.message || "Unknown error"}`);
+    }
+  };
+
+  // Add a new preset location bay to the studio directory
+  const handleAddLocationPreset = (newBay: string) => {
+    const trimmed = newBay.trim();
+    if (!trimmed) return;
+    if (locationBayPresets.includes(trimmed)) {
+      alert("This location bay already exists in the studio presets.");
+      return;
+    }
+    setLocationBayPresets((prev) => [...prev, trimmed]);
+    setActionFeedback({
+      type: "success",
+      text: `Added '${trimmed}' to studio location bay directory.`,
+    });
+  };
+
+  // Remove a location bay from the studio directory
+  const handleRemoveLocationPreset = (bayToRemove: string) => {
+    setLocationBayPresets((prev) => prev.filter((b) => b !== bayToRemove));
+    setActionFeedback({
+      type: "success",
+      text: `Removed '${bayToRemove}' from studio directory presets.`,
+    });
   };
 
   // Configure Min / Max Order Thresholds
@@ -8008,39 +8128,68 @@ export default function App() {
                 </div>
 
                 {/* Dual-View SVG Donut: Stock Health vs Curated Category */}
-                <div className="p-5 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#38332c] pb-3">
+                <div className="p-5 rounded-2xl bg-white dark:bg-[#24211d] border border-slate-200 dark:border-[#38332c] space-y-4 shadow-xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-[#38332c] pb-3">
                     <div>
-                      <h3 className="text-xs uppercase font-bold text-[#c59b6d] tracking-wider">
+                      <h3 className="text-xs uppercase font-bold text-[#9E7238] dark:text-[#c59b6d] tracking-wider">
                         Inventory Volume Distribution
                       </h3>
-                      <p className="text-[11px] text-[#a8a093]">
-                        Physical warehouse allocations by {inventoryDonutView === "STATUS" ? "Stock Health" : "Product Category"}
+                      <p className="text-[11px] text-slate-500 dark:text-[#a8a093]">
+                        Physical warehouse allocations by {inventoryDonutView === "STATUS" ? "Stock Health" : "Product Category"} ({inventoryDonutMetric === "SKUS" ? "SKU Count" : "Physical Units"})
                       </p>
                     </div>
-                    <div className="flex items-center gap-1.5 bg-[#181715] p-1 rounded-xl border border-[#38332c]">
-                      <button
-                        type="button"
-                        onClick={() => setInventoryDonutView("STATUS")}
-                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
-                          inventoryDonutView === "STATUS"
-                            ? "bg-[#c59b6d] text-[#181715]"
-                            : "text-[#a8a093] hover:text-white"
-                        }`}
-                      >
-                        Allocation Status
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setInventoryDonutView("CATEGORY")}
-                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
-                          inventoryDonutView === "CATEGORY"
-                            ? "bg-[#c59b6d] text-[#181715]"
-                            : "text-[#a8a093] hover:text-white"
-                        }`}
-                      >
-                        Curated Category
-                      </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Metric Mode Toggle */}
+                      <div className="flex items-center gap-1 bg-slate-100 dark:bg-[#181715] p-1 rounded-xl border border-slate-200 dark:border-[#38332c]">
+                        <button
+                          type="button"
+                          onClick={() => setInventoryDonutMetric("SKUS")}
+                          className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                            inventoryDonutMetric === "SKUS"
+                              ? "bg-[#9E7238] dark:bg-[#c59b6d] text-white dark:text-[#181715] shadow-xs"
+                              : "text-slate-600 dark:text-[#a8a093] hover:text-slate-900 dark:hover:text-white"
+                          }`}
+                        >
+                          By SKUs
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setInventoryDonutMetric("UNITS")}
+                          className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                            inventoryDonutMetric === "UNITS"
+                              ? "bg-[#9E7238] dark:bg-[#c59b6d] text-white dark:text-[#181715] shadow-xs"
+                              : "text-slate-600 dark:text-[#a8a093] hover:text-slate-900 dark:hover:text-white"
+                          }`}
+                        >
+                          By Units
+                        </button>
+                      </div>
+
+                      {/* Category / Status View Toggle */}
+                      <div className="flex items-center gap-1 bg-slate-100 dark:bg-[#181715] p-1 rounded-xl border border-slate-200 dark:border-[#38332c]">
+                        <button
+                          type="button"
+                          onClick={() => setInventoryDonutView("STATUS")}
+                          className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                            inventoryDonutView === "STATUS"
+                              ? "bg-[#9E7238] dark:bg-[#c59b6d] text-white dark:text-[#181715] shadow-xs"
+                              : "text-slate-600 dark:text-[#a8a093] hover:text-slate-900 dark:hover:text-white"
+                          }`}
+                        >
+                          Allocation Status
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setInventoryDonutView("CATEGORY")}
+                          className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                            inventoryDonutView === "CATEGORY"
+                              ? "bg-[#9E7238] dark:bg-[#c59b6d] text-white dark:text-[#181715] shadow-xs"
+                              : "text-slate-600 dark:text-[#a8a093] hover:text-slate-900 dark:hover:text-white"
+                          }`}
+                        >
+                          Curated Category
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -8048,11 +8197,11 @@ export default function App() {
                     {/* SVG Donut */}
                     <div className="relative w-44 h-44 shrink-0">
                       <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                        {/* Background track circle */}
+                        <circle cx="50" cy="50" r="38" fill="transparent" stroke="#e2e8f0" className="stroke-slate-200 dark:stroke-[#2a2722]" strokeWidth="16" />
                         {(() => {
                           const { total, slices } = inventoryDonutData;
-                          if (total === 0) {
-                            return <circle cx="50" cy="50" r="38" fill="transparent" stroke="#2a2722" strokeWidth="16" />;
-                          }
+                          if (total === 0) return null;
                           let cumulativePercent = 0;
                           return slices.map((slice, idx) => {
                             const strokeDasharray = `${slice.percent * 2.38761} 238.761`;
@@ -8069,7 +8218,16 @@ export default function App() {
                                 strokeWidth="16"
                                 strokeDasharray={strokeDasharray}
                                 strokeDashoffset={strokeDashoffset}
-                                className="transition-all duration-300 hover:opacity-80 cursor-pointer"
+                                className="transition-all duration-300 hover:opacity-85 cursor-pointer"
+                                onClick={() => {
+                                  if (inventoryDonutView === "STATUS") {
+                                    const val = (slice as any).filterValue;
+                                    setInventoryStockFilter((prev) => (prev === val ? "ALL" : val));
+                                  } else {
+                                    const val = (slice as any).filterValue;
+                                    setInventoryCategoryFilter((prev) => (prev === val ? "ALL" : val));
+                                  }
+                                }}
                                 onMouseEnter={() => setHoveredInventorySlice(slice.label)}
                                 onMouseLeave={() => setHoveredInventorySlice(null)}
                               />
@@ -8078,66 +8236,92 @@ export default function App() {
                         })()}
                       </svg>
                       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                        <span className="text-[10px] text-[#a8a093] uppercase font-bold tracking-wider">
-                          {hoveredInventorySlice ? "Selected" : "Total Stock"}
+                        <span className="text-[10px] text-slate-500 dark:text-[#a8a093] uppercase font-bold tracking-wider text-center px-2 truncate max-w-[140px]">
+                          {hoveredInventorySlice || (inventoryDonutMetric === "SKUS" ? "Total SKUs" : "Total Stock")}
                         </span>
-                        <span className="text-xl font-mono font-bold text-white">
+                        <span className="text-2xl font-mono font-bold text-slate-900 dark:text-white">
                           {hoveredInventorySlice
                             ? inventoryDonutData.slices.find((s) => s.label === hoveredInventorySlice)?.count ?? inventoryDonutData.total
                             : inventoryDonutData.total}
                         </span>
-                        <span className="text-[10px] text-[#c59b6d]">Units</span>
+                        <span className="text-[10px] text-[#9E7238] dark:text-[#c59b6d] font-semibold">
+                          {inventoryDonutData.metricLabel}
+                        </span>
                       </div>
                     </div>
 
-                    {/* Legend */}
+                    {/* Interactive Legend with click-to-filter */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-md text-xs">
-                      {inventoryDonutData.slices.map((slice, idx) => (
-                        <div
-                          key={idx}
-                          onMouseEnter={() => setHoveredInventorySlice(slice.label)}
-                          onMouseLeave={() => setHoveredInventorySlice(null)}
-                          className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
-                            hoveredInventorySlice === slice.label
-                              ? "bg-[#2a2722] border-[#c59b6d]"
-                              : "bg-[#181715] border-[#38332c] hover:border-[#464037]"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="flex items-center gap-1.5 font-semibold text-white">
-                              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: slice.color }} />
-                              <span className="truncate">{slice.label}</span>
-                            </span>
-                            <span className="font-mono text-white font-bold">{slice.count}</span>
+                      {inventoryDonutData.slices.map((slice, idx) => {
+                        const isFilterActive =
+                          inventoryDonutView === "STATUS"
+                            ? inventoryStockFilter === (slice as any).filterValue
+                            : inventoryCategoryFilter === (slice as any).filterValue;
+
+                        return (
+                          <div
+                            key={idx}
+                            onClick={() => {
+                              if (inventoryDonutView === "STATUS") {
+                                const val = (slice as any).filterValue;
+                                setInventoryStockFilter((prev) => (prev === val ? "ALL" : val));
+                              } else {
+                                const val = (slice as any).filterValue;
+                                setInventoryCategoryFilter((prev) => (prev === val ? "ALL" : val));
+                              }
+                            }}
+                            onMouseEnter={() => setHoveredInventorySlice(slice.label)}
+                            onMouseLeave={() => setHoveredInventorySlice(null)}
+                            className={`p-3 rounded-xl border transition-all cursor-pointer ${
+                              isFilterActive
+                                ? "bg-slate-100 dark:bg-[#2a2722] border-[#9E7238] dark:border-[#c59b6d] ring-1 ring-[#9E7238] dark:ring-[#c59b6d]"
+                                : hoveredInventorySlice === slice.label
+                                ? "bg-slate-50 dark:bg-[#25221d] border-slate-300 dark:border-[#524b40]"
+                                : "bg-white dark:bg-[#181715] border-slate-200 dark:border-[#38332c] hover:border-slate-300 dark:hover:border-[#464037]"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="flex items-center gap-1.5 font-semibold text-slate-900 dark:text-white truncate">
+                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: slice.color }} />
+                                <span className="truncate">{slice.label}</span>
+                              </span>
+                              <span className="font-mono text-slate-900 dark:text-white font-bold ml-2 shrink-0">{slice.count}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-[#a8a093]">
+                              <span>{slice.percent.toFixed(1)}% of total</span>
+                              {(slice as any).subLabel && (
+                                <span className="text-[10px] text-slate-400 font-mono">{(slice as any).subLabel}</span>
+                              )}
+                              <span className="text-[10px] text-[#9E7238] dark:text-[#c59b6d] font-medium">
+                                {isFilterActive ? "Active Filter ✓" : "Click to filter"}
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex items-center justify-between text-[11px] text-[#a8a093]">
-                            <span>{slice.percent.toFixed(1)}% of total</span>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
 
                 {/* Filter & Search Toolbar */}
-                <div className="p-4 rounded-2xl bg-[#24211d] border border-[#38332c] space-y-3">
+                <div className="p-4 rounded-2xl bg-white dark:bg-[#24211d] border border-slate-200 dark:border-[#38332c] space-y-3 shadow-xs">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
-                      <label className="text-[11px] font-semibold text-[#a8a093] block mb-1">Search Inventory</label>
+                      <label className="text-[11px] font-semibold text-slate-600 dark:text-[#a8a093] block mb-1">Search Inventory</label>
                       <input
                         type="text"
                         placeholder="Search product, SKU, finish, bay..."
                         value={inventorySearch}
                         onChange={(e) => setInventorySearch(e.target.value)}
-                        className="w-full rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-xs text-white placeholder-[#787165] focus:outline-none focus:border-[#c59b6d]"
+                        className="w-full rounded-xl border border-slate-300 dark:border-[#464037] bg-slate-50 dark:bg-[#181715] px-3 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d]"
                       />
                     </div>
                     <div>
-                      <label className="text-[11px] font-semibold text-[#a8a093] block mb-1">Category Filter</label>
+                      <label className="text-[11px] font-semibold text-slate-600 dark:text-[#a8a093] block mb-1">Category Filter</label>
                       <select
                         value={inventoryCategoryFilter}
                         onChange={(e) => setInventoryCategoryFilter(e.target.value)}
-                        className="w-full rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-xs text-white focus:outline-none focus:border-[#c59b6d]"
+                        className="w-full rounded-xl border border-slate-300 dark:border-[#464037] bg-slate-50 dark:bg-[#181715] px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d]"
                       >
                         <option value="ALL">All Categories</option>
                         {Array.from(new Set(inventory.map((i) => i.category))).map((cat) => (
@@ -8146,11 +8330,11 @@ export default function App() {
                       </select>
                     </div>
                     <div>
-                      <label className="text-[11px] font-semibold text-[#a8a093] block mb-1">Stock Health Status</label>
+                      <label className="text-[11px] font-semibold text-slate-600 dark:text-[#a8a093] block mb-1">Stock Health Status</label>
                       <select
                         value={inventoryStockFilter}
                         onChange={(e) => setInventoryStockFilter(e.target.value as any)}
-                        className="w-full rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-xs text-white focus:outline-none focus:border-[#c59b6d]"
+                        className="w-full rounded-xl border border-slate-300 dark:border-[#464037] bg-slate-50 dark:bg-[#181715] px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d]"
                       >
                         <option value="ALL">All Stock Levels</option>
                         <option value="LOW_STOCK">Low Stock Only (&le; Threshold)</option>
@@ -8162,17 +8346,26 @@ export default function App() {
                 </div>
 
                 {/* Physical Stock Ledger Table */}
-                <div className="rounded-2xl border border-[#38332c] bg-[#24211d] overflow-hidden">
-                  <div className="p-4 border-b border-[#38332c] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="rounded-2xl border border-slate-200 dark:border-[#38332c] bg-white dark:bg-[#24211d] overflow-hidden shadow-xs">
+                  <div className="p-4 border-b border-slate-200 dark:border-[#38332c] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-white">Physical SKU Master Ledger</h3>
-                      <p className="text-[11px] text-[#a8a093]">Real-time balance breakdown synchronized with PostgreSQL catalogue editions</p>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">Physical SKU Master Ledger</h3>
+                      <p className="text-[11px] text-slate-500 dark:text-[#a8a093]">Real-time balance breakdown synchronized with PostgreSQL catalogue editions</p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsManageBaysModalOpen(true)}
+                        className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-[#2a2722] dark:hover:bg-[#38332c] dark:text-[#c59b6d] border border-slate-300 dark:border-[#38332c] text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
+                        title="Manage studio location bays and preset directory"
+                      >
+                        <span>🏷️</span>
+                        <span>Manage Location Bays</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => exportAuditTrailCsv(null)}
-                        className="px-3 py-1.5 rounded-xl bg-[#2a2722] hover:bg-[#38332c] text-[#c59b6d] border border-[#38332c] text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
+                        className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-[#2a2722] dark:hover:bg-[#38332c] dark:text-[#c59b6d] border border-slate-300 dark:border-[#38332c] text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
                         title="Export all chronological stock ledger movements across all SKUs as CSV"
                       >
                         <span>⬇</span>
@@ -8183,22 +8376,22 @@ export default function App() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
-                        <tr className="border-b border-[#38332c] bg-[#181715] text-[10px] font-bold uppercase tracking-wider text-[#a8a093]">
-                          <th className="py-3 px-4">Product &amp; Variant</th>
-                          <th className="py-3 px-4">SKU / Finish</th>
-                          <th className="py-3 px-4">Location Bay</th>
-                          <th className="py-3 px-4 text-right">Unit Price</th>
-                          <th className="py-3 px-4 text-center">On-Hand</th>
-                          <th className="py-3 px-4 text-center">Reserved</th>
-                          <th className="py-3 px-4 text-center">Available (ATS)</th>
-                          <th className="py-3 px-4">Health &amp; Thresholds</th>
-                          <th className="py-3 px-4 text-right">Actions</th>
+                        <tr className="border-b border-slate-200 dark:border-[#38332c] bg-slate-50 dark:bg-[#181715] text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-[#a8a093]">
+                          <th className="py-3 px-4 min-w-[220px]">Product &amp; Variant</th>
+                          <th className="py-3 px-4 min-w-[170px]">SKU / Finish</th>
+                          <th className="py-3 px-4 min-w-[190px]">Location Bay</th>
+                          <th className="py-3 px-4 text-right min-w-[100px]">Unit Price</th>
+                          <th className="py-3 px-4 text-center min-w-[70px]">On-Hand</th>
+                          <th className="py-3 px-4 text-center min-w-[70px]">Reserved</th>
+                          <th className="py-3 px-4 text-center min-w-[80px]">Available (ATS)</th>
+                          <th className="py-3 px-4 min-w-[160px]">Health &amp; Thresholds</th>
+                          <th className="py-3 px-4 text-right min-w-[140px]">Actions</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#38332c]/50">
+                      <tbody className="divide-y divide-slate-100 dark:divide-[#38332c]/50">
                         {filteredInventory.length === 0 ? (
                           <tr>
-                            <td colSpan={9} className="py-12 text-center text-xs text-[#787165]">
+                            <td colSpan={9} className="py-12 text-center text-xs text-slate-400 dark:text-[#787165]">
                               No inventory SKUs match the selected filters.
                             </td>
                           </tr>
@@ -8209,34 +8402,37 @@ export default function App() {
                             const isDraft = item.isDraft || !item.isPublished || !item.productIsPublished;
 
                             return (
-                              <tr key={item.id} className="hover:bg-[#2a2722]/40 transition-colors">
+                              <tr key={item.id} className="hover:bg-slate-50/70 dark:hover:bg-[#2a2722]/40 transition-colors">
                                 <td className="py-3 px-4">
-                                  <div className="font-semibold text-white flex flex-wrap items-center gap-1.5">
+                                  <div className="font-semibold text-slate-900 dark:text-white flex flex-wrap items-center gap-1.5">
                                     <span>{item.productName}</span>
                                     {isDraft && (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30 whitespace-nowrap shadow-xs">
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300 dark:border-amber-800/60 whitespace-nowrap shadow-2xs">
                                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                                         Draft Product · Do Not Refill
                                       </span>
                                     )}
                                   </div>
-                                  <div className="text-[11px] text-[#a8a093] flex items-center gap-2">
+                                  <div className="text-[11px] text-slate-500 dark:text-[#a8a093] flex items-center gap-2 mt-0.5">
                                     <span>{item.variantTitle}</span>
                                     {isDraft && (
-                                      <span className="text-[10px] text-amber-500/80 italic font-mono">
+                                      <span className="text-[10px] text-amber-700 dark:text-amber-400 font-mono font-medium">
                                         [Draft Edition]
                                       </span>
                                     )}
                                   </div>
                                 </td>
                                 <td className="py-3 px-4 font-mono text-xs">
-                                  <div className="text-[#c59b6d] font-bold">{item.sku}</div>
-                                  <div className="text-[11px] font-sans text-[#a8a093]">{item.finishName}</div>
+                                  <div className="text-[#9E7238] dark:text-[#c59b6d] font-bold">{item.sku}</div>
+                                  <div className="text-[11px] font-sans text-slate-500 dark:text-[#a8a093]">{item.finishName}</div>
                                 </td>
                                 <td className="py-3 px-4 text-[11px]">
                                   {item.warehouseLocation && item.warehouseLocation.trim() !== "" ? (
                                     <div className="flex items-center gap-1.5 group">
-                                      <span className="font-mono text-[#c59b6d] bg-[#181715] px-2 py-1 rounded-md border border-[#38332c] max-w-[170px] truncate block" title={item.warehouseLocation}>
+                                      <span
+                                        className="font-mono text-xs text-[#9E7238] dark:text-[#c59b6d] bg-slate-100 dark:bg-[#181715] px-2.5 py-1 rounded-md border border-slate-200 dark:border-[#38332c] font-medium leading-tight"
+                                        title={item.warehouseLocation}
+                                      >
                                         {item.warehouseLocation}
                                       </span>
                                       <button
@@ -8245,8 +8441,8 @@ export default function App() {
                                           setLocationBayModalItem(item);
                                           setLocationBayInput(item.warehouseLocation || "");
                                         }}
-                                        className="opacity-60 group-hover:opacity-100 hover:text-[#c59b6d] text-[#a8a093] p-1 rounded transition-opacity text-xs"
-                                        title="Edit warehouse location bay"
+                                        className="p-1 text-slate-400 hover:text-[#9E7238] dark:hover:text-[#c59b6d] transition-colors rounded hover:bg-slate-200 dark:hover:bg-[#2a2722]"
+                                        title="Edit or reassign warehouse location bay"
                                       >
                                         ✎
                                       </button>
@@ -8258,36 +8454,36 @@ export default function App() {
                                         setLocationBayModalItem(item);
                                         setLocationBayInput("");
                                       }}
-                                      className="px-2 py-1 rounded-lg border border-dashed border-[#464037] hover:border-[#c59b6d] text-[#a8a093] hover:text-white text-[11px] font-semibold transition-colors flex items-center gap-1"
+                                      className="px-2.5 py-1 rounded-lg border border-dashed border-slate-300 dark:border-[#464037] hover:border-[#9E7238] dark:hover:border-[#c59b6d] text-slate-500 hover:text-slate-800 dark:text-[#a8a093] dark:hover:text-white text-[11px] font-semibold transition-colors flex items-center gap-1"
                                     >
                                       <span>+</span>
                                       <span>Assign Bay</span>
                                     </button>
                                   )}
                                 </td>
-                                <td className="py-3 px-4 text-right font-mono font-bold text-white">
+                                <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-white">
                                   {formatPrice(item.priceRupees)}
                                 </td>
-                                <td className="py-3 px-4 text-center font-mono font-bold text-white text-sm">
+                                <td className="py-3 px-4 text-center font-mono font-bold text-slate-900 dark:text-white text-sm">
                                   {item.onHandStock}
                                 </td>
-                                <td className="py-3 px-4 text-center font-mono text-amber-400 font-semibold">
+                                <td className="py-3 px-4 text-center font-mono text-amber-600 dark:text-amber-400 font-semibold">
                                   {item.reservedStock}
                                 </td>
                                 <td className="py-3 px-4 text-center font-mono font-bold text-sm">
-                                  <span className={isDepleted ? "text-rose-400" : isLowStock ? "text-amber-400" : "text-emerald-400"}>
+                                  <span className={isDepleted ? "text-rose-600 dark:text-rose-400" : isLowStock ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}>
                                     {item.availableStock}
                                   </span>
                                 </td>
                                 <td className="py-3 px-4">
-                                  <div className="space-y-1">
+                                  <div className="space-y-1.5">
                                     <span
                                       className={`px-2 py-0.5 rounded-full text-[10px] font-bold border inline-block ${
                                         isDepleted
-                                          ? "bg-rose-950 text-rose-300 border-rose-800"
+                                          ? "bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950 dark:text-rose-300 dark:border-rose-800"
                                           : isLowStock
-                                          ? "bg-amber-950 text-amber-300 border-amber-800"
-                                          : "bg-emerald-950 text-emerald-300 border-emerald-800"
+                                          ? "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800"
+                                          : "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800"
                                       }`}
                                     >
                                       {isDepleted ? "DEPLETED" : isLowStock ? "LOW STOCK" : "HEALTHY"}
@@ -8299,10 +8495,10 @@ export default function App() {
                                         setThresholdMinInput(item.lowStockThreshold ?? 2);
                                         setThresholdMaxInput(item.maxStockThreshold ?? 50);
                                       }}
-                                      className="flex items-center gap-1 text-[10px] font-mono text-[#a8a093] hover:text-[#c59b6d] bg-[#181715] hover:bg-[#25221d] px-1.5 py-0.5 rounded border border-[#38332c] transition-colors"
+                                      className="flex items-center gap-1.5 text-[10px] font-mono text-slate-600 dark:text-[#a8a093] hover:text-[#9E7238] dark:hover:text-[#c59b6d] bg-slate-100 hover:bg-slate-200 dark:bg-[#181715] dark:hover:bg-[#25221d] px-2 py-0.5 rounded border border-slate-200 dark:border-[#38332c] transition-colors"
                                       title="Configure min order threshold and max capacity"
                                     >
-                                      <span>Min: {item.lowStockThreshold} / Max: {item.maxStockThreshold || 50}</span>
+                                      <span>Min: {item.lowStockThreshold} · Max: {item.maxStockThreshold || 50}</span>
                                       <span className="text-[10px]">✎</span>
                                     </button>
                                   </div>
@@ -8320,7 +8516,7 @@ export default function App() {
                                           notes: "",
                                         });
                                       }}
-                                      className="px-2.5 py-1 rounded-lg bg-[#2a2722] hover:bg-[#38332c] text-white border border-[#464037] text-xs font-semibold transition-colors"
+                                      className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#2a2722] dark:hover:bg-[#38332c] text-slate-800 dark:text-white border border-slate-300 dark:border-[#464037] text-xs font-semibold transition-colors"
                                       title="Adjust physical stock quantity"
                                     >
                                       Adjust ⚙
@@ -8328,7 +8524,7 @@ export default function App() {
                                     <button
                                       type="button"
                                       onClick={() => setViewMovementsItem(item)}
-                                      className="px-2.5 py-1 rounded-lg bg-[#181715] hover:bg-[#25221d] text-[#c59b6d] border border-[#38332c] text-xs font-semibold transition-colors"
+                                      className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#181715] dark:hover:bg-[#25221d] text-[#9E7238] dark:text-[#c59b6d] border border-slate-300 dark:border-[#38332c] text-xs font-semibold transition-colors"
                                       title="Inspect chronological stock movements"
                                     >
                                       History 📋
@@ -14996,55 +15192,55 @@ export default function App() {
       {/* MODAL: ADJUST PHYSICAL INVENTORY STOCK */}
       {adjustStockModalItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-[#24211d] border border-[#38332c] p-6 space-y-5 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-[#38332c] pb-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-[#24211d] border border-slate-200 dark:border-[#38332c] p-6 space-y-5 shadow-2xl text-slate-900 dark:text-white">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#38332c] pb-4">
               <div>
-                <span className="text-[10px] uppercase font-bold text-[#c59b6d] tracking-wider block">
+                <span className="text-[10px] uppercase font-bold text-[#9E7238] dark:text-[#c59b6d] tracking-wider block">
                   Studio Stock Ledger Adjustment
                 </span>
-                <h3 className="font-semibold text-white text-base">
+                <h3 className="font-semibold text-slate-900 dark:text-white text-base">
                   Adjust Physical Stock: {adjustStockModalItem.sku}
                 </h3>
-                <p className="text-xs text-[#a8a093]">
+                <p className="text-xs text-slate-500 dark:text-[#a8a093]">
                   {adjustStockModalItem.productName} ({adjustStockModalItem.finishName})
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setAdjustStockModalItem(null)}
-                className="text-[#a8a093] hover:text-white text-lg p-1"
+                className="text-slate-400 hover:text-slate-700 dark:text-[#a8a093] dark:hover:text-white text-lg p-1"
               >
                 ✕
               </button>
             </div>
 
-            <div className="grid grid-cols-4 gap-2.5 p-3 rounded-xl bg-[#181715] border border-[#38332c] text-center text-xs">
+            <div className="grid grid-cols-4 gap-2.5 p-3 rounded-xl bg-slate-50 dark:bg-[#181715] border border-slate-200 dark:border-[#38332c] text-center text-xs">
               <div>
-                <span className="text-[10px] text-[#a8a093] block">Physical On-Hand</span>
-                <strong className="text-white font-mono text-base">{adjustStockModalItem.onHandStock}</strong>
+                <span className="text-[10px] text-slate-500 dark:text-[#a8a093] block">Physical On-Hand</span>
+                <strong className="text-slate-900 dark:text-white font-mono text-base">{adjustStockModalItem.onHandStock}</strong>
               </div>
               <div>
-                <span className="text-[10px] text-[#a8a093] block">Committed</span>
-                <strong className="text-amber-400 font-mono text-base">{adjustStockModalItem.reservedStock}</strong>
+                <span className="text-[10px] text-slate-500 dark:text-[#a8a093] block">Committed</span>
+                <strong className="text-amber-600 dark:text-amber-400 font-mono text-base">{adjustStockModalItem.reservedStock}</strong>
               </div>
               <div>
-                <span className="text-[10px] text-[#a8a093] block">Available (ATS)</span>
-                <strong className="text-emerald-400 font-mono text-base">{adjustStockModalItem.availableStock}</strong>
+                <span className="text-[10px] text-slate-500 dark:text-[#a8a093] block">Available (ATS)</span>
+                <strong className="text-emerald-600 dark:text-emerald-400 font-mono text-base">{adjustStockModalItem.availableStock}</strong>
               </div>
               <div>
-                <span className="text-[10px] text-[#a8a093] block">Min / Max Guard</span>
-                <strong className="text-[#c59b6d] font-mono text-xs block mt-0.5">
+                <span className="text-[10px] text-slate-500 dark:text-[#a8a093] block">Min / Max Guard</span>
+                <strong className="text-[#9E7238] dark:text-[#c59b6d] font-mono text-xs block mt-0.5">
                   {adjustStockModalItem.lowStockThreshold} / {adjustStockModalItem.maxStockThreshold || 50}
                 </strong>
               </div>
             </div>
 
             {(adjustStockModalItem.isDraft || !adjustStockModalItem.isPublished || !adjustStockModalItem.productIsPublished) && (
-              <div className="p-3.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs flex items-start gap-3">
+              <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-3">
                 <span className="text-base leading-none mt-0.5">⚠️</span>
                 <div>
-                  <strong className="block font-semibold text-amber-200">Catalogue Draft Notice · Refills Discouraged</strong>
-                  <span className="text-[11px] text-amber-300/90 leading-relaxed">
+                  <strong className="block font-semibold text-amber-900 dark:text-amber-100">Catalogue Draft Notice · Refills Discouraged</strong>
+                  <span className="text-[11px] text-amber-800 dark:text-amber-300/90 leading-relaxed">
                     This edition belongs to an unpublished draft catalogue work. It is not currently active or purchasable by clients on the storefront. Avoid restocking finished units until this catalogue piece is formally approved and published.
                   </span>
                 </div>
@@ -15053,13 +15249,13 @@ export default function App() {
 
             <form onSubmit={handleAdjustStock} className="space-y-4 text-xs">
               <div>
-                <label className="text-[11px] font-semibold text-[#a8a093] block mb-1">
+                <label className="text-[11px] font-semibold text-slate-700 dark:text-[#a8a093] block mb-1">
                   Adjustment Movement Type *
                 </label>
                 <select
                   value={adjustStockForm.type}
                   onChange={(e) => setAdjustStockForm({ ...adjustStockForm, type: e.target.value as any })}
-                  className="w-full rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-white focus:outline-none focus:border-[#c59b6d]"
+                  className="w-full rounded-xl border border-slate-300 dark:border-[#464037] bg-white dark:bg-[#181715] px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d]"
                 >
                   <option value="RESTOCK">Studio Restock (+ Inbound)</option>
                   <option value="FOUNDRY_RECEIPT">Foundry Batch Lot Receipt (+ Inbound)</option>
@@ -15071,7 +15267,7 @@ export default function App() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[11px] font-semibold text-[#a8a093] block mb-1">
+                  <label className="text-[11px] font-semibold text-slate-700 dark:text-[#a8a093] block mb-1">
                     Quantity Delta (+ / -) *
                   </label>
                   <input
@@ -15079,11 +15275,11 @@ export default function App() {
                     required
                     value={adjustStockForm.quantityDelta}
                     onChange={(e) => setAdjustStockForm({ ...adjustStockForm, quantityDelta: parseInt(e.target.value, 10) || 0 })}
-                    className="w-full rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-white font-mono focus:outline-none focus:border-[#c59b6d]"
+                    className="w-full rounded-xl border border-slate-300 dark:border-[#464037] bg-white dark:bg-[#181715] px-3 py-2 text-slate-900 dark:text-white font-mono focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d]"
                   />
-                  <span className="text-[10px] text-[#787165] mt-1 block">
+                  <span className="text-[10px] text-slate-500 dark:text-[#787165] mt-1 block">
                     Resulting on-hand:{" "}
-                    <strong className="text-white">
+                    <strong className="text-slate-900 dark:text-white">
                       {Math.max(
                         0,
                         adjustStockModalItem.onHandStock +
@@ -15096,7 +15292,7 @@ export default function App() {
                 </div>
 
                 <div>
-                  <label className="text-[11px] font-semibold text-[#a8a093] block mb-1">
+                  <label className="text-[11px] font-semibold text-slate-700 dark:text-[#a8a093] block mb-1">
                     Reference Document # *
                   </label>
                   <input
@@ -15105,13 +15301,13 @@ export default function App() {
                     placeholder="e.g. PO-2026-088 / LOT-4"
                     value={adjustStockForm.referenceId}
                     onChange={(e) => setAdjustStockForm({ ...adjustStockForm, referenceId: e.target.value })}
-                    className="w-full rounded-xl border border-[#464037] bg-[#181715] px-3 py-2 text-white font-mono focus:outline-none focus:border-[#c59b6d]"
+                    className="w-full rounded-xl border border-slate-300 dark:border-[#464037] bg-white dark:bg-[#181715] px-3 py-2 text-slate-900 dark:text-white font-mono focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d]"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-[#a8a093] block mb-1">
+                <label className="text-[11px] font-semibold text-slate-700 dark:text-[#a8a093] block mb-1">
                   Reason &amp; Audit Notes
                 </label>
                 <textarea
@@ -15119,25 +15315,25 @@ export default function App() {
                   placeholder="Document rationale for physical count adjustment..."
                   value={adjustStockForm.notes}
                   onChange={(e) => setAdjustStockForm({ ...adjustStockForm, notes: e.target.value })}
-                  className="w-full rounded-xl border border-[#464037] bg-[#181715] p-3 text-white focus:outline-none focus:border-[#c59b6d]"
+                  className="w-full rounded-xl border border-slate-300 dark:border-[#464037] bg-white dark:bg-[#181715] p-3 text-slate-900 dark:text-white focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d]"
                 />
               </div>
 
-              <div className="flex items-center justify-between pt-3 border-t border-[#38332c]">
-                <span className="text-[11px] text-[#787165]">
+              <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-[#38332c]">
+                <span className="text-[11px] text-slate-500 dark:text-[#787165]">
                   Authorizing: {currentStaff.name} ({currentStaff.role})
                 </span>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setAdjustStockModalItem(null)}
-                    className="px-4 py-2 rounded-xl bg-[#2a2722] text-xs font-semibold text-[#a8a093] hover:text-white"
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-[#2a2722] dark:hover:bg-[#343029] dark:text-[#a8a093] dark:hover:text-white border border-slate-300 dark:border-transparent text-xs font-semibold"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl bg-[#c59b6d] text-[#181715] text-xs font-semibold hover:bg-[#d6aa7c] transition-colors shadow-xs"
+                    className="px-5 py-2 rounded-xl bg-[#9E7238] hover:bg-[#855e28] dark:bg-[#c59b6d] dark:hover:bg-[#d6aa7c] text-white dark:text-[#181715] text-xs font-semibold shadow-xs"
                   >
                     Commit Adjustment
                   </button>
@@ -15151,17 +15347,17 @@ export default function App() {
       {/* MODAL: CHRONOLOGICAL STOCK MOVEMENTS LEDGER */}
       {viewMovementsItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-4xl rounded-2xl bg-[#24211d] border border-[#38332c] p-6 space-y-5 shadow-2xl max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between border-b border-[#38332c] pb-4 shrink-0">
+          <div className="w-full max-w-4xl rounded-2xl bg-white dark:bg-[#24211d] border border-slate-200 dark:border-[#38332c] p-6 space-y-5 shadow-2xl max-h-[85vh] flex flex-col text-slate-900 dark:text-white">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#38332c] pb-4 shrink-0">
               <div>
-                <span className="text-[10px] uppercase font-bold text-[#c59b6d] tracking-wider block">
+                <span className="text-[10px] uppercase font-bold text-[#9E7238] dark:text-[#c59b6d] tracking-wider block">
                   Stock Movement Audit Trail
                 </span>
-                <h3 className="font-semibold text-white text-base">
+                <h3 className="font-semibold text-slate-900 dark:text-white text-base">
                   Chronological Ledger: {viewMovementsItem.sku}
                 </h3>
-                <p className="text-xs text-[#a8a093]">
-                  {viewMovementsItem.productName} · Current Available: <strong className="text-emerald-400 font-mono">{viewMovementsItem.availableStock}</strong> units
+                <p className="text-xs text-slate-500 dark:text-[#a8a093]">
+                  {viewMovementsItem.productName} · Current Available: <strong className="text-emerald-600 dark:text-emerald-400 font-mono">{viewMovementsItem.availableStock}</strong> units
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -15177,7 +15373,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setViewMovementsItem(null)}
-                  className="text-[#a8a093] hover:text-white text-lg p-1"
+                  className="text-slate-400 hover:text-slate-700 dark:text-[#a8a093] dark:hover:text-white text-lg p-1"
                 >
                   ✕
                 </button>
@@ -15186,58 +15382,58 @@ export default function App() {
 
             <div className="flex-1 overflow-y-auto pr-1">
               {stockMovements.filter((m) => m.inventoryId === viewMovementsItem.id || m.sku === viewMovementsItem.sku).length === 0 ? (
-                <div className="text-center py-10 text-xs text-[#787165]">
+                <div className="text-center py-10 text-xs text-slate-400 dark:text-[#787165]">
                   No movement entries logged for this SKU yet.
                 </div>
               ) : (
-                <div className="rounded-xl border border-[#38332c] overflow-hidden">
-                  <table className="w-full text-left text-xs border-collapse">
+                <div className="rounded-xl border border-slate-200 dark:border-[#38332c] overflow-hidden">
+                  <table className="table-fixed w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="border-b border-[#38332c] bg-[#181715] text-[10px] font-bold uppercase tracking-wider text-[#a8a093]">
-                        <th className="py-2.5 px-3">Timestamp</th>
-                        <th className="py-2.5 px-3">Type</th>
-                        <th className="py-2.5 px-3 text-center">Delta</th>
-                        <th className="py-2.5 px-3 text-center">Balance</th>
-                        <th className="py-2.5 px-3">Reference</th>
-                        <th className="py-2.5 px-3">Staff</th>
-                        <th className="py-2.5 px-3">Audit Notes</th>
+                      <tr className="border-b border-slate-200 dark:border-[#38332c] bg-slate-100 dark:bg-[#181715] text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-[#a8a093]">
+                        <th className="py-2.5 px-3 w-40 min-w-[150px]">Timestamp</th>
+                        <th className="py-2.5 px-3 w-44 min-w-[160px]">Type</th>
+                        <th className="py-2.5 px-3 w-20 text-center">Delta</th>
+                        <th className="py-2.5 px-3 w-20 text-center">Balance</th>
+                        <th className="py-2.5 px-3 w-36 min-w-[130px]">Reference</th>
+                        <th className="py-2.5 px-3 w-32 min-w-[110px]">Staff</th>
+                        <th className="py-2.5 px-3 min-w-[220px]">Audit Notes</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#38332c]/50">
+                    <tbody className="divide-y divide-slate-100 dark:divide-[#38332c]/50">
                       {stockMovements
                         .filter((m) => m.inventoryId === viewMovementsItem.id || m.sku === viewMovementsItem.sku)
                         .map((m) => (
-                          <tr key={m.id} className="hover:bg-[#2a2722]/30 transition-colors">
-                            <td className="py-2.5 px-3 font-mono text-[11px] text-[#a8a093] whitespace-nowrap">
+                          <tr key={m.id} className="hover:bg-slate-50/80 dark:hover:bg-[#2a2722]/30 transition-colors">
+                            <td className="py-2.5 px-3 font-mono text-[11px] text-slate-500 dark:text-[#a8a093] whitespace-nowrap">
                               {m.timestamp}
                             </td>
                             <td className="py-2.5 px-3 whitespace-nowrap">
                               <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
                                 m.type === "FOUNDRY_RECEIPT" || m.type === "RESTOCK" || m.type === "RETURN_RESTOCK"
-                                  ? "bg-emerald-950 text-emerald-300 border-emerald-800"
+                                  ? "bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800"
                                   : m.type === "COMMITTED_RESERVE"
-                                  ? "bg-amber-950 text-amber-300 border-amber-800"
-                                  : "bg-[#2a2722] text-[#a8a093] border-[#464037]"
+                                  ? "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800"
+                                  : "bg-slate-100 text-slate-700 border-slate-300 dark:bg-[#2a2722] dark:text-[#a8a093] dark:border-[#464037]"
                               }`}>
                                 {m.type}
                               </span>
                             </td>
                             <td className="py-2.5 px-3 text-center font-mono font-bold">
-                              <span className={m.quantity >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                              <span className={m.quantity >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}>
                                 {m.quantity > 0 ? `+${m.quantity}` : m.quantity}
                               </span>
                             </td>
-                            <td className="py-2.5 px-3 text-center font-mono font-bold text-white">
+                            <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-900 dark:text-white">
                               {m.balanceAfter}
                             </td>
-                            <td className="py-2.5 px-3 font-mono text-[11px] text-[#c59b6d] whitespace-nowrap">
+                            <td className="py-2.5 px-3 font-mono text-[11px] text-[#9E7238] dark:text-[#c59b6d] font-bold whitespace-nowrap">
                               {m.referenceId}
                             </td>
-                            <td className="py-2.5 px-3 text-[#a8a093] text-[11px] whitespace-nowrap">
+                            <td className="py-2.5 px-3 text-slate-600 dark:text-[#a8a093] text-[11px] whitespace-nowrap">
                               {m.staffName}
                             </td>
                             <td className="py-2.5 px-3 min-w-[220px]">
-                              <div className="text-[11px] font-medium text-slate-900 dark:text-slate-100 bg-slate-100 dark:bg-white/10 px-2.5 py-1.5 rounded-md border border-slate-200 dark:border-white/10 leading-snug break-words">
+                              <div className="text-[11px] font-medium text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-white/10 px-2.5 py-1.5 rounded-md border border-slate-200 dark:border-white/10 leading-snug break-words">
                                 {m.notes}
                               </div>
                             </td>
@@ -15249,14 +15445,14 @@ export default function App() {
               )}
             </div>
 
-            <div className="flex items-center justify-between pt-3 border-t border-[#38332c] shrink-0">
-              <span className="text-[11px] text-[#787165]">
+            <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-[#38332c] shrink-0">
+              <span className="text-[11px] text-slate-500 dark:text-[#787165]">
                 Immutable ledger powered by Prisma InventoryLedger schema
               </span>
               <button
                 type="button"
                 onClick={() => setViewMovementsItem(null)}
-                className="px-4 py-2 rounded-xl bg-[#38332c] text-xs font-semibold text-white hover:bg-[#464037]"
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-[#38332c] dark:hover:bg-[#464037] dark:text-white text-xs font-semibold border border-slate-300 dark:border-transparent"
               >
                 Close Ledger
               </button>
@@ -15268,23 +15464,23 @@ export default function App() {
       {/* MODAL: ASSIGN WAREHOUSE LOCATION BAY */}
       {locationBayModalItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-[#24211d] border border-[#38332c] p-6 space-y-5 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-[#38332c] pb-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-[#24211d] border border-slate-200 dark:border-[#38332c] p-6 space-y-5 shadow-2xl text-slate-900 dark:text-white">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#38332c] pb-4">
               <div>
-                <span className="text-[10px] uppercase font-bold text-[#c59b6d] tracking-wider block">
+                <span className="text-[10px] uppercase font-bold text-[#9E7238] dark:text-[#c59b6d] tracking-wider block">
                   Warehouse Logistics &amp; Binning
                 </span>
-                <h3 className="font-semibold text-white text-base">
+                <h3 className="font-semibold text-slate-900 dark:text-white text-base">
                   Assign Location Bay: {locationBayModalItem.sku}
                 </h3>
-                <p className="text-xs text-[#a8a093]">
+                <p className="text-xs text-slate-500 dark:text-[#a8a093]">
                   {locationBayModalItem.productName} · {locationBayModalItem.variantTitle}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setLocationBayModalItem(null)}
-                className="text-[#a8a093] hover:text-white text-lg p-1"
+                className="text-slate-400 hover:text-slate-700 dark:text-[#a8a093] dark:hover:text-white text-lg p-1"
               >
                 ✕
               </button>
@@ -15292,7 +15488,7 @@ export default function App() {
 
             <form onSubmit={handleSaveLocationBay} className="space-y-4 text-xs">
               <div>
-                <label className="text-[11px] font-semibold text-[#a8a093] block mb-1">
+                <label className="text-[11px] font-semibold text-slate-700 dark:text-[#a8a093] block mb-1">
                   Warehouse Location Bay / Shelf Code *
                 </label>
                 <input
@@ -15301,60 +15497,109 @@ export default function App() {
                   placeholder="e.g. Delhi Studio Hub — Bay A1 (Clocks)"
                   value={locationBayInput}
                   onChange={(e) => setLocationBayInput(e.target.value)}
-                  className="w-full rounded-xl border border-[#464037] bg-[#181715] px-3.5 py-2.5 text-white font-mono focus:outline-none focus:border-[#c59b6d]"
+                  className="w-full rounded-xl border border-slate-300 dark:border-[#464037] bg-white dark:bg-[#181715] px-3.5 py-2.5 text-slate-900 dark:text-white font-mono focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d]"
                 />
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-[#a8a093] block mb-1.5">
-                  Or select a standard studio hub preset:
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {[
-                    "Delhi Studio Hub — Bay A1 (Clocks & Horology)",
-                    "Delhi Studio Hub — Bay A2 (Clocks & Horology)",
-                    "Delhi Studio Hub — Shelf S1 (Desk Objects)",
-                    "Delhi Studio Hub — Shelf S2 (Desk Objects)",
-                    "Delhi Studio Hub — Lighting Cage L1",
-                    "Delhi Studio Hub — Lighting Cage L2",
-                    "Delhi Studio Hub — Crated Haulage Bay H1",
-                    "Delhi Studio Hub — Crated Haulage Bay H2",
-                    "Delhi Studio Hub — Small Parts Bin B1",
-                    "Delhi Studio Hub — Small Parts Bin B2",
-                    "Delhi Studio Hub — Vault Mezzanine V1",
-                  ].map((preset) => (
-                    <button
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[11px] font-semibold text-slate-700 dark:text-[#a8a093] block">
+                    Or select a standard studio hub preset ({locationBayPresets.length} available):
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsManageBaysModalOpen(true)}
+                    className="text-[11px] text-[#9E7238] dark:text-[#c59b6d] hover:underline font-semibold"
+                  >
+                    Manage Presets ⚙
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                  {locationBayPresets.map((preset) => (
+                    <div
                       key={preset}
-                      type="button"
-                      onClick={() => setLocationBayInput(preset)}
-                      className={`text-left p-2 rounded-lg border text-[11px] transition-colors truncate ${
+                      className={`flex items-center justify-between rounded-lg border text-[11px] transition-colors p-1.5 ${
                         locationBayInput === preset
-                          ? "bg-[#c59b6d]/15 border-[#c59b6d] text-[#c59b6d] font-semibold"
-                          : "bg-[#181715] border-[#38332c] text-[#a8a093] hover:text-white hover:border-[#464037]"
+                          ? "bg-amber-50 dark:bg-[#c59b6d]/15 border-amber-300 dark:border-[#c59b6d] text-amber-900 dark:text-[#c59b6d] font-semibold"
+                          : "bg-slate-50 dark:bg-[#181715] border-slate-200 dark:border-[#38332c] text-slate-700 dark:text-[#a8a093] hover:border-slate-300 dark:hover:border-[#464037]"
                       }`}
-                      title={preset}
                     >
-                      {preset}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => setLocationBayInput(preset)}
+                        className="text-left truncate flex-1 hover:text-slate-900 dark:hover:text-white px-1"
+                        title={preset}
+                      >
+                        {preset}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveLocationPreset(preset);
+                        }}
+                        className="text-slate-400 hover:text-rose-500 px-1 text-xs"
+                        title={`Remove '${preset}' from presets`}
+                      >
+                        ×
+                      </button>
+                    </div>
                   ))}
+                </div>
+
+                {/* Inline Add Preset */}
+                <div className="pt-2 flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="Add new preset (e.g. Delhi Studio Hub — Bay B3)..."
+                    value={newBayNameInput}
+                    onChange={(e) => setNewBayNameInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddLocationPreset(newBayNameInput);
+                        setNewBayNameInput("");
+                      }
+                    }}
+                    className="flex-1 rounded-xl border border-slate-300 dark:border-[#464037] bg-white dark:bg-[#181715] px-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleAddLocationPreset(newBayNameInput);
+                      setNewBayNameInput("");
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-[#2a2722] dark:hover:bg-[#38332c] dark:text-[#c59b6d] border border-slate-300 dark:border-[#38332c] text-xs font-semibold whitespace-nowrap"
+                  >
+                    + Add Preset
+                  </button>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-3 border-t border-[#38332c]">
-                <span className="text-[11px] text-[#787165]">
-                  Persists to PostgreSQL InventoryLedger
-                </span>
+              <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-[#38332c]">
+                <div>
+                  {locationBayModalItem.warehouseLocation && locationBayModalItem.warehouseLocation.trim() !== "" && (
+                    <button
+                      type="button"
+                      onClick={handleClearLocationBay}
+                      className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:hover:bg-rose-900/60 dark:text-rose-300 border border-rose-300 dark:border-rose-800 text-xs font-semibold transition-colors"
+                      title="Unassign and remove location bay from this SKU"
+                    >
+                      Clear Bay (Unassign)
+                    </button>
+                  )}
+                </div>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setLocationBayModalItem(null)}
-                    className="px-4 py-2 rounded-xl bg-[#2a2722] text-xs font-semibold text-[#a8a093] hover:text-white"
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-[#2a2722] dark:hover:bg-[#343029] dark:text-[#a8a093] dark:hover:text-white border border-slate-200 dark:border-transparent text-xs font-semibold"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl bg-[#c59b6d] text-[#181715] text-xs font-semibold hover:bg-[#d6aa7c] transition-colors shadow-xs"
+                    className="px-5 py-2 rounded-xl bg-[#9E7238] hover:bg-[#855e28] dark:bg-[#c59b6d] dark:hover:bg-[#d6aa7c] text-white dark:text-[#181715] text-xs font-semibold shadow-xs"
                   >
                     Save Location Bay
                   </button>
@@ -15365,26 +15610,143 @@ export default function App() {
         </div>
       )}
 
+      {/* MODAL: MANAGE ALL STUDIO LOCATION BAYS DIRECTORY */}
+      {isManageBaysModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-xl rounded-2xl bg-white dark:bg-[#24211d] border border-slate-200 dark:border-[#38332c] p-6 space-y-5 shadow-2xl text-slate-900 dark:text-white max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#38332c] pb-4 shrink-0">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#9E7238] dark:text-[#c59b6d] tracking-wider block">
+                  Warehouse Logistics &amp; Binning
+                </span>
+                <h3 className="font-semibold text-slate-900 dark:text-white text-base">
+                  Studio Location Bay Directory ({locationBayPresets.length} Bays)
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-[#a8a093]">
+                  Add or remove standardized warehouse bins, shelves, and storage zones across all SKUs.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsManageBaysModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 dark:text-[#a8a093] dark:hover:text-white text-lg p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Add New Bay */}
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#181715] border border-slate-200 dark:border-[#38332c] space-y-2 shrink-0">
+              <label className="text-[11px] font-semibold text-slate-700 dark:text-[#a8a093] block">
+                Add New Studio Location Bay / Bin Preset
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="e.g. Delhi Studio Hub — Mezzanine Rack M3"
+                  value={newBayNameInput}
+                  onChange={(e) => setNewBayNameInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddLocationPreset(newBayNameInput);
+                      setNewBayNameInput("");
+                    }
+                  }}
+                  className="flex-1 rounded-xl border border-slate-300 dark:border-[#464037] bg-white dark:bg-[#24211d] px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d]"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleAddLocationPreset(newBayNameInput);
+                    setNewBayNameInput("");
+                  }}
+                  className="px-4 py-2 rounded-xl bg-[#9E7238] hover:bg-[#855e28] dark:bg-[#c59b6d] dark:hover:bg-[#d6aa7c] text-white dark:text-[#181715] text-xs font-semibold shadow-xs"
+                >
+                  + Add Bay
+                </button>
+              </div>
+            </div>
+
+            {/* List of Bays with SKU counts */}
+            <div className="flex-1 overflow-y-auto pr-1 space-y-2">
+              {locationBayPresets.map((bay) => {
+                const assignedSkus = inventory.filter((i) => i.warehouseLocation === bay);
+                return (
+                  <div
+                    key={bay}
+                    className="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-[#38332c] bg-white dark:bg-[#181715] hover:border-slate-300 dark:hover:border-[#464037] transition-all"
+                  >
+                    <div>
+                      <div className="font-mono text-xs text-slate-900 dark:text-white font-medium">
+                        {bay}
+                      </div>
+                      <div className="text-[11px] text-slate-500 dark:text-[#a8a093] mt-0.5">
+                        {assignedSkus.length > 0 ? (
+                          <span className="text-[#9E7238] dark:text-[#c59b6d] font-semibold">
+                            {assignedSkus.length} SKU{assignedSkus.length > 1 ? "s" : ""} assigned ({assignedSkus.map(s => s.sku).join(", ")})
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-[#787165]">0 SKUs assigned (Available)</span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (assignedSkus.length > 0) {
+                          if (!confirm(`Warning: ${assignedSkus.length} SKU(s) are currently assigned to this bay. Remove from preset directory?`)) {
+                            return;
+                          }
+                        }
+                        handleRemoveLocationPreset(bay);
+                      }}
+                      className="px-2.5 py-1 text-xs rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 border border-transparent hover:border-rose-300 transition-colors"
+                      title={`Delete preset '${bay}'`}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-[#38332c] shrink-0">
+              <span className="text-[11px] text-slate-500 dark:text-[#787165]">
+                Studio storage binning directory
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsManageBaysModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-[#38332c] dark:hover:bg-[#464037] dark:text-white text-xs font-semibold border border-slate-200 dark:border-transparent"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL: CONFIGURE MIN / MAX THRESHOLDS */}
       {thresholdModalItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-[#24211d] border border-[#38332c] p-6 space-y-5 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-[#38332c] pb-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-[#24211d] border border-slate-200 dark:border-[#38332c] p-6 space-y-5 shadow-2xl text-slate-900 dark:text-white">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#38332c] pb-4">
               <div>
-                <span className="text-[10px] uppercase font-bold text-[#c59b6d] tracking-wider block">
+                <span className="text-[10px] uppercase font-bold text-[#9E7238] dark:text-[#c59b6d] tracking-wider block">
                   Inventory Guardrails &amp; Replenishment Rules
                 </span>
-                <h3 className="font-semibold text-white text-base">
+                <h3 className="font-semibold text-slate-900 dark:text-white text-base">
                   Order Thresholds: {thresholdModalItem.sku}
                 </h3>
-                <p className="text-xs text-[#a8a093]">
-                  {thresholdModalItem.productName} · Current Available: <strong className="text-emerald-400 font-mono">{thresholdModalItem.availableStock}</strong>
+                <p className="text-xs text-slate-500 dark:text-[#a8a093]">
+                  {thresholdModalItem.productName} · Current Available: <strong className="text-emerald-600 dark:text-emerald-400 font-mono">{thresholdModalItem.availableStock}</strong>
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setThresholdModalItem(null)}
-                className="text-[#a8a093] hover:text-white text-lg p-1"
+                className="text-slate-400 hover:text-slate-700 dark:text-[#a8a093] dark:hover:text-white text-lg p-1"
               >
                 ✕
               </button>
@@ -15392,8 +15754,8 @@ export default function App() {
 
             <form onSubmit={handleSaveThresholds} className="space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-4">
-                <div className="p-3.5 rounded-xl bg-[#181715] border border-[#38332c] space-y-2">
-                  <label className="text-[11px] font-semibold text-amber-400 block">
+                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#181715] border border-slate-200 dark:border-[#38332c] space-y-2">
+                  <label className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 block">
                     Min Stock Threshold (Reorder Alert) *
                   </label>
                   <input
@@ -15402,15 +15764,15 @@ export default function App() {
                     required
                     value={thresholdMinInput}
                     onChange={(e) => setThresholdMinInput(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                    className="w-full rounded-xl border border-[#464037] bg-[#24211d] px-3.5 py-2 text-white font-mono text-base focus:outline-none focus:border-[#c59b6d]"
+                    className="w-full rounded-xl border border-slate-300 dark:border-[#464037] bg-white dark:bg-[#24211d] px-3.5 py-2 text-slate-900 dark:text-white font-mono text-base focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d]"
                   />
-                  <p className="text-[10px] text-[#787165] leading-relaxed">
+                  <p className="text-[10px] text-slate-500 dark:text-[#787165] leading-relaxed">
                     When available stock drops to or below this number, the SKU will display a "LOW STOCK" badge on this console.
                   </p>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-[#181715] border border-[#38332c] space-y-2">
-                  <label className="text-[11px] font-semibold text-[#c59b6d] block">
+                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#181715] border border-slate-200 dark:border-[#38332c] space-y-2">
+                  <label className="text-[11px] font-semibold text-[#9E7238] dark:text-[#c59b6d] block">
                     Max Stock Threshold (Ceiling Capacity) *
                   </label>
                   <input
@@ -15419,36 +15781,36 @@ export default function App() {
                     required
                     value={thresholdMaxInput}
                     onChange={(e) => setThresholdMaxInput(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                    className="w-full rounded-xl border border-[#464037] bg-[#24211d] px-3.5 py-2 text-white font-mono text-base focus:outline-none focus:border-[#c59b6d]"
+                    className="w-full rounded-xl border border-slate-300 dark:border-[#464037] bg-white dark:bg-[#24211d] px-3.5 py-2 text-slate-900 dark:text-white font-mono text-base focus:outline-none focus:border-[#9E7238] dark:focus:border-[#c59b6d]"
                   />
-                  <p className="text-[10px] text-[#787165] leading-relaxed">
+                  <p className="text-[10px] text-slate-500 dark:text-[#787165] leading-relaxed">
                     Physical bay ceiling capacity. Prevents over-purchasing or overflowing dedicated studio storage racks.
                   </p>
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-[#181715] border border-[#38332c] text-[11px] text-[#a8a093] flex items-center justify-between">
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#181715] border border-slate-200 dark:border-[#38332c] text-[11px] text-slate-600 dark:text-[#a8a093] flex items-center justify-between">
                 <span>Safe operational stock window:</span>
-                <span className="font-mono text-white font-semibold">
+                <span className="font-mono text-slate-900 dark:text-white font-semibold">
                   {thresholdMinInput} to {thresholdMaxInput} units
                 </span>
               </div>
 
-              <div className="flex items-center justify-between pt-3 border-t border-[#38332c]">
-                <span className="text-[11px] text-[#787165]">
+              <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-[#38332c]">
+                <span className="text-[11px] text-slate-500 dark:text-[#787165]">
                   Authorizing: {currentStaff.name}
                 </span>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setThresholdModalItem(null)}
-                    className="px-4 py-2 rounded-xl bg-[#2a2722] text-xs font-semibold text-[#a8a093] hover:text-white"
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-[#2a2722] dark:hover:bg-[#343029] dark:text-[#a8a093] dark:hover:text-white border border-slate-200 dark:border-transparent text-xs font-semibold"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl bg-[#c59b6d] text-[#181715] text-xs font-semibold hover:bg-[#d6aa7c] transition-colors shadow-xs"
+                    className="px-5 py-2 rounded-xl bg-[#9E7238] hover:bg-[#855e28] dark:bg-[#c59b6d] dark:hover:bg-[#d6aa7c] text-white dark:text-[#181715] text-xs font-semibold shadow-xs"
                   >
                     Save Thresholds
                   </button>
