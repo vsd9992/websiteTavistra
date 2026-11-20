@@ -27,11 +27,30 @@ This created undesired, disruptive navigation away from the staff member's worki
 - [x] **Order Inspector → RMA / Return & Refund Modal:** Seamless in-place modal to initiate returns and statutory GST Rule 53 credit notes without leaving the order inspector.
 - [x] **Inventory & Stock Ledger Deep Dive (Synchronized Catalogue, Draft Gates, Bins & Audit Trail):**
   - **Catalogue & Inventory Synchronization (`GET & PATCH /api/admin/inventory`):** Connected the physical inventory ledger directly to PostgreSQL `ProductVariant` and `InventoryLedger`, dynamically synchronizing all 11 product variants across all 6 catalogue works.
-  - **Draft Product Marker (`isDraft` / `Do Not Refill`):** Prominently displays amber pulsed warning badge `Draft Product · Do Not Refill` on all inventory rows belonging to unpublished catalogue pieces (e.g. Monolith Minimalist Wall Clock). Displays an explicit warning notice inside the "Adjust Physical Stock" modal discouraging replenishment until the product is published.
-  - **Location Bay Binning (`locationBayModalItem`):** Added interactive "Location Bay" assignment column with dedicated in-place modal, standard studio hub presets (Bay A1/A2 for Clocks, Shelf S1/S2 for Desk Objects, Cage L1/L2 for Lighting, Bay H1/H2 for Crated Mirrors, Vault V1 for Sculptures), free-text custom bay entry, and database persistence via `PATCH /api/admin/inventory`.
-  - **Min / Max Order Thresholds (`thresholdModalItem`):** Added per-SKU configurable low stock reorder alert (`lowStockThreshold`) and maximum bay capacity ceiling (`maxStockThreshold`), displayed directly in the Health & Thresholds column and editable via dedicated in-place modal.
-  - **Audit Trail Notes Visibility:** Redesigned the "Audit Notes" table column in the Chronological Ledger modal with high-contrast, theme-aware container (`text-slate-900 dark:text-slate-100 bg-slate-100 dark:bg-white/10 px-2.5 py-1.5 rounded-md min-w-[220px]`), eliminating unreadable dark-gray text.
-  - **Stock Movement Audit Trail CSV Export:** Added instant "⬇ Download CSV" button in the Chronological Ledger modal header (per SKU) and a "⬇ Download Audit Trail (CSV)" toolbar button across all inventory SKUs, exporting full movement timestamps, SKUs, product names, deltas, balances, reference IDs, authorizing staff, and notes with proper character escaping.
+  - **Auto-Dismiss Feedback Banner:** Added auto-dismiss timeout to dismiss the green action feedback notification banner after exactly 10 seconds.
+  - **Interactive Dual-Metric Volume Distribution Donut (`By SKUs` vs `By Units`):**
+    - Added metric switcher allowing staff to view distribution by physical unit volume or SKU count.
+    - Fixed calculation logic so depleted SKUs (which have 0 on-hand units) accurately reflect in SKU count mode (5 depleted SKUs = 45.5%, 6 healthy = 54.5%), resolving the issue where the chart previously showed 100% green.
+    - Added interactive click-to-filter on SVG slices and legend cards, instantly filtering the master ledger table by Allocation Status or Curated Category with active filter visual indicators.
+    - Upgraded SVG track circle and center typography with high-contrast, theme-aware styling.
+  - **Master Ledger Table Column Fitting & Formatting:**
+    - Established explicit proportional column widths preventing column squeezing and text clipping.
+    - Eliminated location bay text truncation (`Delhi Studio Hub - Bay A... ✎`); renders complete, readable bay badges with instant edit shortcut and dashed `+ Assign Bay` trigger for unassigned SKUs.
+    - Redesigned threshold chips to sleek `Min: X · Max: Y ✎` buttons with high-contrast typography.
+    - Styled draft product markers as clean `Draft Product · Do Not Refill` badges with pulsing amber indicators.
+  - **Studio Location Bay Binning & Directory Management:**
+    - Added "Clear Bay (Unassign)" button to cleanly remove bay assignments and persist to PostgreSQL.
+    - Added ability to add custom presets and remove unused presets from the studio directory.
+    - Added standalone "Manage Location Bays" directory modal displaying total bays, live assigned SKU counts, and directory maintenance controls.
+  - **High-Contrast Stock Ledger Adjustment Modal:**
+    - Replaced low-contrast light mode classes with enterprise Radix Slate & Atelier Brass tokens.
+    - Restyled 4 KPI balance cards (`bg-slate-50 dark:bg-[#181715]`) with crisp dark text in light mode and vibrant emerald/amber accents.
+    - Upgraded draft replenishment warning notice to deep amber (`bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200`), eliminating illegible yellow-on-white text.
+    - High-contrast form inputs, selects, and audit note textareas.
+  - **Chronological Stock Movement Ledger Modal & Column Sizing:**
+    - Applied `table-fixed w-full` layout with dedicated column widths (`Timestamp [w-40]`, `Type [w-44]`, `Delta [w-20]`, `Balance [w-20]`, `Reference [w-36]`, `Staff [w-32]`, `Audit Notes [min-w-[220px]]`).
+    - Styled audit notes with comfortable padding, high-contrast text, and line wrapping.
+    - Instant CSV download per SKU and across the entire studio inventory ledger.
 - [x] **Studio QA Intake Inspection Modal (`inspectRmaModal`):** In-place intake verdict routing (`RESTOCK_TO_INVENTORY`, `RE_MACHINE_OR_POLISH`, `SCRAP_TO_FOUNDRY`) with automated inventory re-stocking and bank NEFT UTR / gateway refund recording.
 - [x] **Statutory Rule 53 Credit Note Modal (`creditNoteModal`):** Formatted printable Tax Credit Note cross-referencing original invoice numbers, patron GSTIN, reverse GST debit, and settlement UTR.
 - [x] **Workflow Stage Gating Toggles & Action Locks:**
