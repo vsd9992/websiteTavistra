@@ -12052,8 +12052,13 @@ export default function App() {
                               key={v.id}
                               type="button"
                               onClick={() => {
-                                setReviewSelectedVariantId(v.id);
-                                if (vImgs.length > 0) setReviewActiveImage(vImgs[0]);
+                                const nextId = isSelected ? "ALL" : v.id;
+                                setReviewSelectedVariantId(nextId);
+                                if (nextId === "ALL") {
+                                  setReviewActiveImage(reviewedProduct.primaryImageUrl || allMediaUrls[0]);
+                                } else if (vImgs.length > 0) {
+                                  setReviewActiveImage(vImgs[0]);
+                                }
                               }}
                               className={`px-3 py-1.5 rounded-lg text-xs transition-all shrink-0 flex items-center gap-2 cursor-pointer ${
                                 isSelected
@@ -12165,10 +12170,15 @@ export default function App() {
                               key={v.id}
                               type="button"
                               onClick={() => {
-                                setReviewSelectedVariantId(v.id);
-                                if (vImgs.length > 0) setReviewActiveImage(vImgs[0]);
+                                const nextId = isSelected ? "ALL" : v.id;
+                                setReviewSelectedVariantId(nextId);
+                                if (nextId === "ALL") {
+                                  setReviewActiveImage(reviewedProduct.primaryImageUrl || allMediaUrls[0]);
+                                } else if (vImgs.length > 0) {
+                                  setReviewActiveImage(vImgs[0]);
+                                }
                               }}
-                              className={`p-3 rounded-xl border text-left transition-all flex items-start gap-3 w-full ${
+                              className={`p-3 rounded-xl border text-left transition-all flex items-start gap-3 w-full cursor-pointer ${
                                 isSelected
                                   ? "bg-white dark:bg-[#1E222B] border-l-4 border-l-[#9E7238] dark:border-l-[#E0B26E] border-y border-r border-[#CBD5E1] dark:border-[#3A4354] shadow-xs"
                                   : "bg-white/60 dark:bg-[#181B22] border-l-4 border-l-transparent border-y border-r border-[#E2DDD5] dark:border-[#29303D] hover:bg-white dark:hover:bg-[#1E222B]"
@@ -12290,115 +12300,176 @@ export default function App() {
                 </div>
 
                 {/* SECTION 3: EDITORIAL & ARCHITECTURAL SPECS */}
-                <div className="p-4 rounded-xl bg-white dark:bg-[#16181F] border border-[#E2DDD5] dark:border-[#2E3442] space-y-2.5">
-                  <div className="flex justify-between">
-                    <span className="text-[#52525B] dark:text-[#A1A7B5]">Purchase Mode:</span>
-                    <span className="font-semibold text-[#825821] dark:text-[#E0B26E]">{reviewedProduct.mode}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[#52525B] dark:text-[#A1A7B5]">Tax-Inclusive Price:</span>
-                    <div className="flex items-center gap-2">
-                      {editingPriceRupees !== null ? (
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            type="number"
-                            value={editingPriceRupees}
-                            onChange={(e) => setEditingPriceRupees(Number(e.target.value))}
-                            className="w-28 rounded-lg border border-[#CDC6BA] dark:border-[#464037] bg-white dark:bg-[#181715] px-2 py-1 text-xs text-[#18181B] dark:text-white font-mono"
-                          />
-                          <button
-                            type="button"
-                            disabled={isSavingProductSpecs}
-                            onClick={() => handleSaveProductSpecs(reviewedProduct.id)}
-                            className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-semibold"
-                          >
-                            {isSavingProductSpecs ? "Saving..." : "Save"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setEditingPriceRupees(null)}
-                            className="px-2 py-1 rounded-lg border border-[#CDC6BA] dark:border-[#464037] text-[11px] text-[#52525B] dark:text-[#a8a093]"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      ) : (
+                {(() => {
+                  const activeWeightGrams = selectedVariant?.weightGrams ?? reviewedProduct.weightGrams;
+                  const activeDimensions = selectedVariant?.dimensions || reviewedProduct.dimensions;
+                  const activePackedWeightKg = selectedVariant?.weightGrams
+                    ? Math.round((selectedVariant.weightGrams / 1000 + 0.4) * 10) / 10
+                    : reviewedProduct.packedWeightKg;
+                  const activePackedVolumetricKg = (selectedVariant?.weightGrams && reviewedProduct.weightGrams > 0)
+                    ? Math.round(((selectedVariant.weightGrams / reviewedProduct.weightGrams) * reviewedProduct.packedVolumetricKg) * 10) / 10
+                    : reviewedProduct.packedVolumetricKg;
+
+                  return (
+                    <div className="p-4 rounded-xl bg-white dark:bg-[#16181F] border border-[#E2DDD5] dark:border-[#2E3442] space-y-2.5">
+                      <div className="flex items-center justify-between pb-2 border-b border-[#E2DDD5] dark:border-[#2E3442]">
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold text-[#18181B] dark:text-white">
-                            {reviewedProduct.isVariablePrice && reviewedProduct.minPriceRupees
-                              ? `From ${formatPrice(reviewedProduct.minPriceRupees)}`
-                              : formatPrice(reviewedProduct.priceRupees)}
+                          <span className="text-[10px] uppercase font-bold text-[#825821] dark:text-[#E0B26E] tracking-wider block">
+                            Architectural &amp; Engineering Specifications
                           </span>
+                          {selectedVariant ? (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 font-bold border border-amber-300 dark:border-amber-700/60 flex items-center gap-1">
+                              <span>●</span>
+                              <span>Edition: {selectedVariant.title}</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#F1F5F9] dark:bg-[#252B37] text-[#475569] dark:text-[#94A3B8] font-semibold border border-[#CBD5E1] dark:border-[#384252]">
+                              Product Master (All Variants)
+                            </span>
+                          )}
+                        </div>
+                        {selectedVariant && (
                           <button
                             type="button"
-                            onClick={() => setEditingPriceRupees(reviewedProduct.priceRupees)}
-                            className="text-[10px] text-[#825821] dark:text-[#c59b6d] hover:underline"
+                            onClick={() => {
+                              setReviewSelectedVariantId("ALL");
+                              setReviewActiveImage(reviewedProduct.primaryImageUrl || allMediaUrls[0]);
+                            }}
+                            className="text-[10px] text-[#825821] dark:text-[#c59b6d] hover:underline font-semibold cursor-pointer"
                           >
-                            ✎ Edit
+                            Reset to Master Specs ✕
                           </button>
+                        )}
+                      </div>
+
+                      {selectedVariant && (
+                        <div className="flex justify-between items-center bg-[#F8F7F4] dark:bg-[#111318] p-2.5 rounded-lg border border-[#E2DDD5] dark:border-[#2E3442]">
+                          <div>
+                            <span className="text-[#52525B] dark:text-[#A1A7B5] block text-[9px] uppercase font-bold tracking-wider">
+                              Configured Variant
+                            </span>
+                            <span className="text-[#18181B] dark:text-white font-bold text-xs">{selectedVariant.title}</span>
+                            {selectedVariant.materialFinish && (
+                              <span className="text-[11px] text-[#71717A] dark:text-[#94A3B8] block">{selectedVariant.materialFinish}</span>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <span className="font-mono text-[11px] font-bold text-[#825821] dark:text-[#E0B26E] block">{selectedVariant.sku}</span>
+                            <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold">{selectedVariant.stock} in stock</span>
+                          </div>
                         </div>
                       )}
+
+                      <div className="flex justify-between">
+                        <span className="text-[#52525B] dark:text-[#A1A7B5]">Purchase Mode:</span>
+                        <span className="font-semibold text-[#825821] dark:text-[#E0B26E]">{reviewedProduct.mode}</span>
+                      </div>
+
+                      <div className="flex justify-between items-center">
+                        <span className="text-[#52525B] dark:text-[#A1A7B5]">Tax-Inclusive Price:</span>
+                        <div className="flex items-center gap-2">
+                          {selectedVariant ? (
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-[#18181B] dark:text-white font-mono text-sm">
+                                {formatPrice(selectedVariant.priceRupees)}
+                              </span>
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 font-mono font-medium border border-emerald-200 dark:border-emerald-800">
+                                Exact Edition Price
+                              </span>
+                            </div>
+                          ) : editingPriceRupees !== null ? (
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="number"
+                                value={editingPriceRupees}
+                                onChange={(e) => setEditingPriceRupees(Number(e.target.value))}
+                                className="w-28 rounded-lg border border-[#CDC6BA] dark:border-[#464037] bg-white dark:bg-[#181715] px-2 py-1 text-xs text-[#18181B] dark:text-white font-mono"
+                              />
+                              <button
+                                type="button"
+                                disabled={isSavingProductSpecs}
+                                onClick={() => handleSaveProductSpecs(reviewedProduct.id)}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-semibold"
+                              >
+                                {isSavingProductSpecs ? "Saving..." : "Save"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingPriceRupees(null)}
+                                className="px-2 py-1 rounded-lg border border-[#CDC6BA] dark:border-[#464037] text-[11px] text-[#52525B] dark:text-[#a8a093]"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-[#18181B] dark:text-white">
+                                {reviewedProduct.isVariablePrice && reviewedProduct.minPriceRupees
+                                  ? `From ${formatPrice(reviewedProduct.minPriceRupees)}`
+                                  : formatPrice(reviewedProduct.priceRupees)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setEditingPriceRupees(reviewedProduct.priceRupees)}
+                                className="text-[10px] text-[#825821] dark:text-[#c59b6d] hover:underline cursor-pointer"
+                              >
+                                ✎ Edit
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {reviewedProduct.subcategory && (
+                        <div className="flex justify-between">
+                          <span className="text-[#52525B] dark:text-[#A1A7B5]">Subcategory:</span>
+                          <span className="text-[#18181B] dark:text-white font-medium">{reviewedProduct.subcategory}</span>
+                        </div>
+                      )}
+                      {reviewedProduct.productType && (
+                        <div className="flex justify-between">
+                          <span className="text-[#52525B] dark:text-[#A1A7B5]">Product Type:</span>
+                          <span className="text-[#825821] dark:text-[#c59b6d] font-mono">{reviewedProduct.productType}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span className="text-[#52525B] dark:text-[#A1A7B5]">Dimensions:</span>
+                        <span className="text-[#18181B] dark:text-white font-mono font-medium">{activeDimensions}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#52525B] dark:text-[#A1A7B5]">Net Product Weight:</span>
+                        <span className="text-[#18181B] dark:text-white font-mono font-medium">{(activeWeightGrams / 1000).toFixed(2)} kg</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#52525B] dark:text-[#A1A7B5]">Packed Weight vs Volumetric:</span>
+                        <span className="text-[#18181B] dark:text-white font-mono">
+                          {activePackedWeightKg} kg actual / {activePackedVolumetricKg} kg volumetric
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  {reviewedProduct.subcategory && (
-                    <div className="flex justify-between">
-                      <span className="text-[#52525B] dark:text-[#A1A7B5]">Subcategory:</span>
-                      <span className="text-[#18181B] dark:text-white font-medium">{reviewedProduct.subcategory}</span>
-                    </div>
-                  )}
-                  {reviewedProduct.productType && (
-                    <div className="flex justify-between">
-                      <span className="text-[#52525B] dark:text-[#A1A7B5]">Product Type:</span>
-                      <span className="text-[#825821] dark:text-[#c59b6d] font-mono">{reviewedProduct.productType}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-[#52525B] dark:text-[#A1A7B5]">Dimensions:</span>
-                    <span className="text-[#18181B] dark:text-white font-mono">{reviewedProduct.dimensions}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#52525B] dark:text-[#A1A7B5]">Net Product Weight:</span>
-                    <span className="text-[#18181B] dark:text-white font-mono">{(reviewedProduct.weightGrams / 1000).toFixed(2)} kg</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#52525B] dark:text-[#A1A7B5]">Packed Weight vs Volumetric:</span>
-                    <span className="text-[#18181B] dark:text-white font-mono">
-                      {reviewedProduct.packedWeightKg} kg actual / {reviewedProduct.packedVolumetricKg} kg volumetric
-                    </span>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* Editorial Description */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <strong className="text-[#52525B] dark:text-[#a8a093] block">Editorial Description:</strong>
-                    {editingDescription === null ? (
+                    <div className="flex items-center gap-2">
+                      <strong className="text-[#52525B] dark:text-[#a8a093] block">Editorial Description:</strong>
+                      {selectedVariant?.description && (
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-semibold border border-amber-200 dark:border-amber-800">
+                          {selectedVariant.title} Spec
+                        </span>
+                      )}
+                    </div>
+                    {editingDescription === null && !selectedVariant ? (
                       <button
                         type="button"
                         onClick={() => setEditingDescription(reviewedProduct.fullDescription)}
-                        className="text-[10px] text-[#825821] dark:text-[#c59b6d] hover:underline font-semibold"
+                        className="text-[10px] text-[#825821] dark:text-[#c59b6d] hover:underline font-semibold cursor-pointer"
                       >
                         ✎ Edit Copy
                       </button>
-                    ) : (
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          disabled={isSavingProductSpecs}
-                          onClick={() => handleSaveProductSpecs(reviewedProduct.id)}
-                          className="px-2.5 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-semibold"
-                        >
-                          {isSavingProductSpecs ? "Saving..." : "Save Copy"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditingDescription(null)}
-                          className="px-2 py-0.5 rounded border border-[#CDC6BA] dark:border-[#464037] text-[10px] text-[#52525B] dark:text-[#a8a093]"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    )}
+                    ) : null}
                   </div>
                   {editingDescription !== null ? (
                     <textarea
@@ -12409,7 +12480,7 @@ export default function App() {
                     />
                   ) : (
                     <p className="p-3 rounded-xl bg-white dark:bg-[#16161a] border border-[#E2DDD5] dark:border-[#38332c] text-[#18181B] dark:text-white leading-relaxed">
-                      {reviewedProduct.fullDescription}
+                      {selectedVariant?.description || reviewedProduct.fullDescription}
                     </p>
                   )}
                 </div>
@@ -12418,6 +12489,11 @@ export default function App() {
                 <div>
                   <strong className="text-[#52525B] dark:text-[#a8a093] block mb-1">Materials &amp; Fine Craft:</strong>
                   <div className="flex flex-wrap gap-2">
+                    {selectedVariant?.materialFinish && (
+                      <span className="px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/70 text-amber-900 dark:text-amber-300 text-[11px] font-bold border border-amber-200 dark:border-amber-800/60 shadow-2xs">
+                        ✦ {selectedVariant.materialFinish}
+                      </span>
+                    )}
                     {reviewedProduct.materials.map((mat, idx) => (
                       <span
                         key={idx}
