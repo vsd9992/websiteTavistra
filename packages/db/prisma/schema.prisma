@@ -316,6 +316,8 @@ model InventoryLedger {
   availableStock      Int                 @default(0)
   reservedStock       Int                 @default(0)
   lowStockThreshold   Int                 @default(2)
+  maxStockThreshold   Int                 @default(50)
+  warehouseLocation   String?
   updatedAt           DateTime            @updatedAt
 
   variant             ProductVariant      @relation(fields: [variantId], references: [id], onDelete: Cascade)

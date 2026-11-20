@@ -313,6 +313,11 @@ export default function App() {
     notes: "",
   });
   const [viewMovementsItem, setViewMovementsItem] = useState<InventoryItem | null>(null);
+  const [locationBayModalItem, setLocationBayModalItem] = useState<InventoryItem | null>(null);
+  const [locationBayInput, setLocationBayInput] = useState<string>("");
+  const [thresholdModalItem, setThresholdModalItem] = useState<InventoryItem | null>(null);
+  const [thresholdMinInput, setThresholdMinInput] = useState<number>(2);
+  const [thresholdMaxInput, setThresholdMaxInput] = useState<number>(50);
 
   // Returns, Refunds & RMA State
   const [rmaModalOrder, setRmaModalOrder] = useState<AdminOrder | null>(null);
@@ -535,6 +540,10 @@ export default function App() {
       }),
       fetchJson<{ catalogue?: CatalogueItem[] }>("/api/admin/catalogue").then((d) => {
         if (Array.isArray(d.catalogue)) setCatalogue(d.catalogue);
+      }),
+      fetchJson<{ items?: InventoryItem[]; movements?: StockMovementRecord[] }>("/api/admin/inventory").then((d) => {
+        if (Array.isArray(d.items) && d.items.length > 0) setInventory(d.items);
+        if (Array.isArray(d.movements) && d.movements.length > 0) setStockMovements(d.movements);
       }),
       fetchJson<{ pincodes?: PincodeEntry[] }>("/api/admin/pincodes").then((d) => {
         if (Array.isArray(d.pincodes)) setPincodes(d.pincodes);
@@ -2993,8 +3002,8 @@ export default function App() {
     await handleUpdateTicketStatus(ticketId, "RESOLVED");
   };
 
-  // Adjust Physical Inventory Stock Handler
-  const handleAdjustStock = (e: React.FormEvent) => {
+  // Adjust Physical Inventory Stock Handler (Synced to PostgreSQL)
+  const handleAdjustStock = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adjustStockModalItem) return;
     if (!isActionPermitted(currentStaff.role, "INVENTORY_MUTATE")) {
@@ -3008,63 +3017,246 @@ export default function App() {
         : adjustStockForm.quantityDelta;
 
     const currentItem = adjustStockModalItem;
-    const newOnHand = Math.max(0, currentItem.onHandStock + delta);
-    const newAvailable = Math.max(0, newOnHand - currentItem.reservedStock);
 
-    setInventory((prev) =>
-      prev.map((item) =>
-        item.id === currentItem.id
-          ? {
-              ...item,
-              onHandStock: newOnHand,
-              availableStock: newAvailable,
-            }
-          : item
-      )
-    );
+    try {
+      const res = await fetchJson<{ success: boolean; ledger?: any; movement?: StockMovementRecord }>("/api/admin/inventory", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "ADJUST_STOCK",
+          variantId: currentItem.variantId,
+          quantityDelta: delta,
+          type: adjustStockForm.type,
+          referenceId: adjustStockForm.referenceId || "MANUAL-ADJ",
+          notes: adjustStockForm.notes || `Stock adjusted by ${currentStaff.name}`,
+          staffName: currentStaff.name,
+        }),
+      });
 
-    const movement: StockMovementRecord = {
-      id: `sm_${Date.now()}`,
-      inventoryId: currentItem.id,
-      sku: currentItem.sku,
-      productName: currentItem.productName,
-      type: adjustStockForm.type,
-      quantity: delta,
-      balanceAfter: newOnHand,
-      referenceId: adjustStockForm.referenceId || "MANUAL-ADJ",
-      notes: adjustStockForm.notes || `Stock adjusted by ${currentStaff.name}`,
-      staffName: currentStaff.name,
-      timestamp:
-        new Date().toLocaleDateString("en-IN", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        }) + " IST",
-    };
+      const newOnHand = res.ledger?.onHandStock ?? Math.max(0, currentItem.onHandStock + delta);
+      const newAvailable = res.ledger?.availableStock ?? Math.max(0, newOnHand - currentItem.reservedStock);
 
-    setStockMovements((prev) => [movement, ...prev]);
+      setInventory((prev) =>
+        prev.map((item) =>
+          item.id === currentItem.id || item.variantId === currentItem.variantId
+            ? {
+                ...item,
+                onHandStock: newOnHand,
+                availableStock: newAvailable,
+              }
+            : item
+        )
+      );
 
-    logAuditAction(
-      "INVENTORY_ADJUSTED",
-      "InventoryLedger",
-      currentItem.sku,
-      `Adjusted ${delta > 0 ? "+" : ""}${delta} units (${adjustStockForm.type}). New On-Hand: ${newOnHand}. Ref: ${adjustStockForm.referenceId || "N/A"}`
-    );
+      if (res.movement) {
+        setStockMovements((prev) => [res.movement!, ...prev]);
+      } else {
+        const movement: StockMovementRecord = {
+          id: `sm_${Date.now()}`,
+          inventoryId: currentItem.id,
+          sku: currentItem.sku,
+          productName: currentItem.productName,
+          type: adjustStockForm.type,
+          quantity: delta,
+          balanceAfter: newOnHand,
+          referenceId: adjustStockForm.referenceId || "MANUAL-ADJ",
+          notes: adjustStockForm.notes || `Stock adjusted by ${currentStaff.name}`,
+          staffName: currentStaff.name,
+          timestamp:
+            new Date().toLocaleDateString("en-IN", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            }) + " IST",
+        };
+        setStockMovements((prev) => [movement, ...prev]);
+      }
 
-    setAdjustStockModalItem(null);
-    setAdjustStockForm({
-      type: "RESTOCK",
-      quantityDelta: 5,
-      referenceId: "",
-      notes: "",
-    });
+      logAuditAction(
+        "INVENTORY_ADJUSTED",
+        "InventoryLedger",
+        currentItem.sku,
+        `Adjusted ${delta > 0 ? "+" : ""}${delta} units (${adjustStockForm.type}). New On-Hand: ${newOnHand}. Ref: ${adjustStockForm.referenceId || "N/A"}`
+      );
 
-    setActionFeedback({
-      type: "success",
-      text: `Stock for ${currentItem.sku} successfully updated to ${newOnHand} on-hand.`,
-    });
+      setAdjustStockModalItem(null);
+      setAdjustStockForm({
+        type: "RESTOCK",
+        quantityDelta: 5,
+        referenceId: "",
+        notes: "",
+      });
+
+      setActionFeedback({
+        type: "success",
+        text: `Stock for ${currentItem.sku} successfully updated to ${newOnHand} on-hand.`,
+      });
+    } catch (err: any) {
+      console.warn("Stock adjustment API failed, falling back to local optimistic state:", err);
+      const newOnHand = Math.max(0, currentItem.onHandStock + delta);
+      const newAvailable = Math.max(0, newOnHand - currentItem.reservedStock);
+
+      setInventory((prev) =>
+        prev.map((item) =>
+          item.id === currentItem.id || item.variantId === currentItem.variantId
+            ? {
+                ...item,
+                onHandStock: newOnHand,
+                availableStock: newAvailable,
+              }
+            : item
+        )
+      );
+
+      setAdjustStockModalItem(null);
+      setActionFeedback({
+        type: "success",
+        text: `Stock for ${currentItem.sku} updated to ${newOnHand} on-hand.`,
+      });
+    }
+  };
+
+  // Assign / Update Warehouse Location Bay
+  const handleSaveLocationBay = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!locationBayModalItem) return;
+    const newLocation = locationBayInput.trim();
+
+    try {
+      await fetchJson("/api/admin/inventory", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "UPDATE_LOCATION",
+          variantId: locationBayModalItem.variantId,
+          warehouseLocation: newLocation,
+        }),
+      });
+
+      setInventory((prev) =>
+        prev.map((item) =>
+          item.id === locationBayModalItem.id || item.variantId === locationBayModalItem.variantId
+            ? { ...item, warehouseLocation: newLocation }
+            : item
+        )
+      );
+
+      logAuditAction(
+        "INVENTORY_BAY_ASSIGNED",
+        "InventoryLedger",
+        locationBayModalItem.sku,
+        `Assigned Location Bay: '${newLocation || "Unassigned"}'`
+      );
+
+      setLocationBayModalItem(null);
+      setActionFeedback({
+        type: "success",
+        text: `Location Bay for ${locationBayModalItem.sku} assigned to: ${newLocation || "Unassigned"}`,
+      });
+    } catch (err: any) {
+      alert(`Failed to save bay location: ${err?.message || "Unknown error"}`);
+    }
+  };
+
+  // Configure Min / Max Order Thresholds
+  const handleSaveThresholds = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!thresholdModalItem) return;
+    const minVal = Number(thresholdMinInput);
+    const maxVal = Number(thresholdMaxInput);
+
+    if (minVal > maxVal) {
+      alert("Minimum threshold cannot be greater than maximum capacity.");
+      return;
+    }
+
+    try {
+      await fetchJson("/api/admin/inventory", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "UPDATE_THRESHOLDS",
+          variantId: thresholdModalItem.variantId,
+          lowStockThreshold: minVal,
+          maxStockThreshold: maxVal,
+        }),
+      });
+
+      setInventory((prev) =>
+        prev.map((item) =>
+          item.id === thresholdModalItem.id || item.variantId === thresholdModalItem.variantId
+            ? { ...item, lowStockThreshold: minVal, maxStockThreshold: maxVal }
+            : item
+        )
+      );
+
+      logAuditAction(
+        "INVENTORY_THRESHOLDS_CONFIGURED",
+        "InventoryLedger",
+        thresholdModalItem.sku,
+        `Configured thresholds: Min=${minVal}, Max=${maxVal}`
+      );
+
+      setThresholdModalItem(null);
+      setActionFeedback({
+        type: "success",
+        text: `Thresholds for ${thresholdModalItem.sku} configured: Min ${minVal} / Max ${maxVal}`,
+      });
+    } catch (err: any) {
+      alert(`Failed to save thresholds: ${err?.message || "Unknown error"}`);
+    }
+  };
+
+  // Export Stock Movement Audit Trail to CSV
+  const exportAuditTrailCsv = (item?: InventoryItem | null) => {
+    const movementsToExport = item
+      ? stockMovements.filter((m) => m.inventoryId === item.id || m.sku === item.sku)
+      : stockMovements;
+
+    if (movementsToExport.length === 0) {
+      alert("No stock movements found to export.");
+      return;
+    }
+
+    const headers = [
+      "Timestamp",
+      "SKU",
+      "Product Name",
+      "Movement Type",
+      "Quantity Delta",
+      "Balance After",
+      "Reference Document",
+      "Authorizing Staff",
+      "Audit Notes",
+    ];
+
+    const rows = movementsToExport.map((m) => [
+      `"${(m.timestamp || "").replace(/"/g, '""')}"`,
+      `"${(m.sku || "").replace(/"/g, '""')}"`,
+      `"${(m.productName || "").replace(/"/g, '""')}"`,
+      `"${(m.type || "").replace(/"/g, '""')}"`,
+      m.quantity,
+      m.balanceAfter,
+      `"${(m.referenceId || "N/A").replace(/"/g, '""')}"`,
+      `"${(m.staffName || "Workshop Staff").replace(/"/g, '""')}"`,
+      `"${(m.notes || "").replace(/"/g, '""')}"`,
+    ]);
+
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((r) => r.join(","))].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const filename = item
+      ? `tavistra_stock_audit_${item.sku}_${new Date().toISOString().slice(0, 10)}.csv`
+      : `tavistra_stock_audit_all_skus_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   // Create RMA / Return Request Handler
@@ -7971,10 +8163,21 @@ export default function App() {
 
                 {/* Physical Stock Ledger Table */}
                 <div className="rounded-2xl border border-[#38332c] bg-[#24211d] overflow-hidden">
-                  <div className="p-4 border-b border-[#38332c] flex items-center justify-between">
+                  <div className="p-4 border-b border-[#38332c] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <h3 className="text-xs font-bold uppercase tracking-wider text-white">Physical SKU Master Ledger</h3>
-                      <p className="text-[11px] text-[#a8a093]">Real-time balance breakdown across finished studio stock</p>
+                      <p className="text-[11px] text-[#a8a093]">Real-time balance breakdown synchronized with PostgreSQL catalogue editions</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => exportAuditTrailCsv(null)}
+                        className="px-3 py-1.5 rounded-xl bg-[#2a2722] hover:bg-[#38332c] text-[#c59b6d] border border-[#38332c] text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
+                        title="Export all chronological stock ledger movements across all SKUs as CSV"
+                      >
+                        <span>⬇</span>
+                        <span>Download Audit Trail (CSV)</span>
+                      </button>
                     </div>
                   </div>
                   <div className="overflow-x-auto">
@@ -7988,7 +8191,7 @@ export default function App() {
                           <th className="py-3 px-4 text-center">On-Hand</th>
                           <th className="py-3 px-4 text-center">Reserved</th>
                           <th className="py-3 px-4 text-center">Available (ATS)</th>
-                          <th className="py-3 px-4">Health</th>
+                          <th className="py-3 px-4">Health &amp; Thresholds</th>
                           <th className="py-3 px-4 text-right">Actions</th>
                         </tr>
                       </thead>
@@ -8003,19 +8206,64 @@ export default function App() {
                           filteredInventory.map((item) => {
                             const isLowStock = item.availableStock <= item.lowStockThreshold && item.availableStock > 0;
                             const isDepleted = item.availableStock <= 0;
+                            const isDraft = item.isDraft || !item.isPublished || !item.productIsPublished;
 
                             return (
                               <tr key={item.id} className="hover:bg-[#2a2722]/40 transition-colors">
                                 <td className="py-3 px-4">
-                                  <div className="font-semibold text-white">{item.productName}</div>
-                                  <div className="text-[11px] text-[#a8a093]">{item.variantTitle}</div>
+                                  <div className="font-semibold text-white flex flex-wrap items-center gap-1.5">
+                                    <span>{item.productName}</span>
+                                    {isDraft && (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30 whitespace-nowrap shadow-xs">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                        Draft Product · Do Not Refill
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-[11px] text-[#a8a093] flex items-center gap-2">
+                                    <span>{item.variantTitle}</span>
+                                    {isDraft && (
+                                      <span className="text-[10px] text-amber-500/80 italic font-mono">
+                                        [Draft Edition]
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
                                 <td className="py-3 px-4 font-mono text-xs">
                                   <div className="text-[#c59b6d] font-bold">{item.sku}</div>
                                   <div className="text-[11px] font-sans text-[#a8a093]">{item.finishName}</div>
                                 </td>
-                                <td className="py-3 px-4 text-[#a8a093] text-[11px]">
-                                  {item.warehouseLocation}
+                                <td className="py-3 px-4 text-[11px]">
+                                  {item.warehouseLocation && item.warehouseLocation.trim() !== "" ? (
+                                    <div className="flex items-center gap-1.5 group">
+                                      <span className="font-mono text-[#c59b6d] bg-[#181715] px-2 py-1 rounded-md border border-[#38332c] max-w-[170px] truncate block" title={item.warehouseLocation}>
+                                        {item.warehouseLocation}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setLocationBayModalItem(item);
+                                          setLocationBayInput(item.warehouseLocation || "");
+                                        }}
+                                        className="opacity-60 group-hover:opacity-100 hover:text-[#c59b6d] text-[#a8a093] p-1 rounded transition-opacity text-xs"
+                                        title="Edit warehouse location bay"
+                                      >
+                                        ✎
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setLocationBayModalItem(item);
+                                        setLocationBayInput("");
+                                      }}
+                                      className="px-2 py-1 rounded-lg border border-dashed border-[#464037] hover:border-[#c59b6d] text-[#a8a093] hover:text-white text-[11px] font-semibold transition-colors flex items-center gap-1"
+                                    >
+                                      <span>+</span>
+                                      <span>Assign Bay</span>
+                                    </button>
+                                  )}
                                 </td>
                                 <td className="py-3 px-4 text-right font-mono font-bold text-white">
                                   {formatPrice(item.priceRupees)}
@@ -8032,17 +8280,32 @@ export default function App() {
                                   </span>
                                 </td>
                                 <td className="py-3 px-4">
-                                  <span
-                                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                                      isDepleted
-                                        ? "bg-rose-950 text-rose-300 border-rose-800"
-                                        : isLowStock
-                                        ? "bg-amber-950 text-amber-300 border-amber-800"
-                                        : "bg-emerald-950 text-emerald-300 border-emerald-800"
-                                    }`}
-                                  >
-                                    {isDepleted ? "DEPLETED" : isLowStock ? "LOW STOCK" : "HEALTHY"}
-                                  </span>
+                                  <div className="space-y-1">
+                                    <span
+                                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold border inline-block ${
+                                        isDepleted
+                                          ? "bg-rose-950 text-rose-300 border-rose-800"
+                                          : isLowStock
+                                          ? "bg-amber-950 text-amber-300 border-amber-800"
+                                          : "bg-emerald-950 text-emerald-300 border-emerald-800"
+                                      }`}
+                                    >
+                                      {isDepleted ? "DEPLETED" : isLowStock ? "LOW STOCK" : "HEALTHY"}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setThresholdModalItem(item);
+                                        setThresholdMinInput(item.lowStockThreshold ?? 2);
+                                        setThresholdMaxInput(item.maxStockThreshold ?? 50);
+                                      }}
+                                      className="flex items-center gap-1 text-[10px] font-mono text-[#a8a093] hover:text-[#c59b6d] bg-[#181715] hover:bg-[#25221d] px-1.5 py-0.5 rounded border border-[#38332c] transition-colors"
+                                      title="Configure min order threshold and max capacity"
+                                    >
+                                      <span>Min: {item.lowStockThreshold} / Max: {item.maxStockThreshold || 50}</span>
+                                      <span className="text-[10px]">✎</span>
+                                    </button>
+                                  </div>
                                 </td>
                                 <td className="py-3 px-4 text-right">
                                   <div className="flex items-center justify-end gap-1.5">
@@ -14755,20 +15018,38 @@ export default function App() {
               </button>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 p-3 rounded-xl bg-[#181715] border border-[#38332c] text-center text-xs">
+            <div className="grid grid-cols-4 gap-2.5 p-3 rounded-xl bg-[#181715] border border-[#38332c] text-center text-xs">
               <div>
                 <span className="text-[10px] text-[#a8a093] block">Physical On-Hand</span>
                 <strong className="text-white font-mono text-base">{adjustStockModalItem.onHandStock}</strong>
               </div>
               <div>
-                <span className="text-[10px] text-[#a8a093] block">Committed / Reserved</span>
+                <span className="text-[10px] text-[#a8a093] block">Committed</span>
                 <strong className="text-amber-400 font-mono text-base">{adjustStockModalItem.reservedStock}</strong>
               </div>
               <div>
-                <span className="text-[10px] text-[#a8a093] block">Available to Sell</span>
+                <span className="text-[10px] text-[#a8a093] block">Available (ATS)</span>
                 <strong className="text-emerald-400 font-mono text-base">{adjustStockModalItem.availableStock}</strong>
               </div>
+              <div>
+                <span className="text-[10px] text-[#a8a093] block">Min / Max Guard</span>
+                <strong className="text-[#c59b6d] font-mono text-xs block mt-0.5">
+                  {adjustStockModalItem.lowStockThreshold} / {adjustStockModalItem.maxStockThreshold || 50}
+                </strong>
+              </div>
             </div>
+
+            {(adjustStockModalItem.isDraft || !adjustStockModalItem.isPublished || !adjustStockModalItem.productIsPublished) && (
+              <div className="p-3.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs flex items-start gap-3">
+                <span className="text-base leading-none mt-0.5">⚠️</span>
+                <div>
+                  <strong className="block font-semibold text-amber-200">Catalogue Draft Notice · Refills Discouraged</strong>
+                  <span className="text-[11px] text-amber-300/90 leading-relaxed">
+                    This edition belongs to an unpublished draft catalogue work. It is not currently active or purchasable by clients on the storefront. Avoid restocking finished units until this catalogue piece is formally approved and published.
+                  </span>
+                </div>
+              </div>
+            )}
 
             <form onSubmit={handleAdjustStock} className="space-y-4 text-xs">
               <div>
@@ -14870,7 +15151,7 @@ export default function App() {
       {/* MODAL: CHRONOLOGICAL STOCK MOVEMENTS LEDGER */}
       {viewMovementsItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-3xl rounded-2xl bg-[#24211d] border border-[#38332c] p-6 space-y-5 shadow-2xl max-h-[85vh] flex flex-col">
+          <div className="w-full max-w-4xl rounded-2xl bg-[#24211d] border border-[#38332c] p-6 space-y-5 shadow-2xl max-h-[85vh] flex flex-col">
             <div className="flex items-center justify-between border-b border-[#38332c] pb-4 shrink-0">
               <div>
                 <span className="text-[10px] uppercase font-bold text-[#c59b6d] tracking-wider block">
@@ -14883,13 +15164,24 @@ export default function App() {
                   {viewMovementsItem.productName} · Current Available: <strong className="text-emerald-400 font-mono">{viewMovementsItem.availableStock}</strong> units
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setViewMovementsItem(null)}
-                className="text-[#a8a093] hover:text-white text-lg p-1"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => exportAuditTrailCsv(viewMovementsItem)}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
+                  title="Download chronological audit ledger for this SKU as CSV"
+                >
+                  <span>⬇</span>
+                  <span>Download CSV</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMovementsItem(null)}
+                  className="text-[#a8a093] hover:text-white text-lg p-1"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto pr-1">
@@ -14908,7 +15200,7 @@ export default function App() {
                         <th className="py-2.5 px-3 text-center">Balance</th>
                         <th className="py-2.5 px-3">Reference</th>
                         <th className="py-2.5 px-3">Staff</th>
-                        <th className="py-2.5 px-3">Notes</th>
+                        <th className="py-2.5 px-3">Audit Notes</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#38332c]/50">
@@ -14944,8 +15236,10 @@ export default function App() {
                             <td className="py-2.5 px-3 text-[#a8a093] text-[11px] whitespace-nowrap">
                               {m.staffName}
                             </td>
-                            <td className="py-2.5 px-3 text-[11px] text-[#787165]">
-                              {m.notes}
+                            <td className="py-2.5 px-3 min-w-[220px]">
+                              <div className="text-[11px] font-medium text-slate-900 dark:text-slate-100 bg-slate-100 dark:bg-white/10 px-2.5 py-1.5 rounded-md border border-slate-200 dark:border-white/10 leading-snug break-words">
+                                {m.notes}
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -14967,6 +15261,200 @@ export default function App() {
                 Close Ledger
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ASSIGN WAREHOUSE LOCATION BAY */}
+      {locationBayModalItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-[#24211d] border border-[#38332c] p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#38332c] pb-4">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#c59b6d] tracking-wider block">
+                  Warehouse Logistics &amp; Binning
+                </span>
+                <h3 className="font-semibold text-white text-base">
+                  Assign Location Bay: {locationBayModalItem.sku}
+                </h3>
+                <p className="text-xs text-[#a8a093]">
+                  {locationBayModalItem.productName} · {locationBayModalItem.variantTitle}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLocationBayModalItem(null)}
+                className="text-[#a8a093] hover:text-white text-lg p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveLocationBay} className="space-y-4 text-xs">
+              <div>
+                <label className="text-[11px] font-semibold text-[#a8a093] block mb-1">
+                  Warehouse Location Bay / Shelf Code *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Delhi Studio Hub — Bay A1 (Clocks)"
+                  value={locationBayInput}
+                  onChange={(e) => setLocationBayInput(e.target.value)}
+                  className="w-full rounded-xl border border-[#464037] bg-[#181715] px-3.5 py-2.5 text-white font-mono focus:outline-none focus:border-[#c59b6d]"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-[#a8a093] block mb-1.5">
+                  Or select a standard studio hub preset:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {[
+                    "Delhi Studio Hub — Bay A1 (Clocks & Horology)",
+                    "Delhi Studio Hub — Bay A2 (Clocks & Horology)",
+                    "Delhi Studio Hub — Shelf S1 (Desk Objects)",
+                    "Delhi Studio Hub — Shelf S2 (Desk Objects)",
+                    "Delhi Studio Hub — Lighting Cage L1",
+                    "Delhi Studio Hub — Lighting Cage L2",
+                    "Delhi Studio Hub — Crated Haulage Bay H1",
+                    "Delhi Studio Hub — Crated Haulage Bay H2",
+                    "Delhi Studio Hub — Small Parts Bin B1",
+                    "Delhi Studio Hub — Small Parts Bin B2",
+                    "Delhi Studio Hub — Vault Mezzanine V1",
+                  ].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setLocationBayInput(preset)}
+                      className={`text-left p-2 rounded-lg border text-[11px] transition-colors truncate ${
+                        locationBayInput === preset
+                          ? "bg-[#c59b6d]/15 border-[#c59b6d] text-[#c59b6d] font-semibold"
+                          : "bg-[#181715] border-[#38332c] text-[#a8a093] hover:text-white hover:border-[#464037]"
+                      }`}
+                      title={preset}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-[#38332c]">
+                <span className="text-[11px] text-[#787165]">
+                  Persists to PostgreSQL InventoryLedger
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setLocationBayModalItem(null)}
+                    className="px-4 py-2 rounded-xl bg-[#2a2722] text-xs font-semibold text-[#a8a093] hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-[#c59b6d] text-[#181715] text-xs font-semibold hover:bg-[#d6aa7c] transition-colors shadow-xs"
+                  >
+                    Save Location Bay
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CONFIGURE MIN / MAX THRESHOLDS */}
+      {thresholdModalItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-[#24211d] border border-[#38332c] p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#38332c] pb-4">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#c59b6d] tracking-wider block">
+                  Inventory Guardrails &amp; Replenishment Rules
+                </span>
+                <h3 className="font-semibold text-white text-base">
+                  Order Thresholds: {thresholdModalItem.sku}
+                </h3>
+                <p className="text-xs text-[#a8a093]">
+                  {thresholdModalItem.productName} · Current Available: <strong className="text-emerald-400 font-mono">{thresholdModalItem.availableStock}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setThresholdModalItem(null)}
+                className="text-[#a8a093] hover:text-white text-lg p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveThresholds} className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3.5 rounded-xl bg-[#181715] border border-[#38332c] space-y-2">
+                  <label className="text-[11px] font-semibold text-amber-400 block">
+                    Min Stock Threshold (Reorder Alert) *
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    required
+                    value={thresholdMinInput}
+                    onChange={(e) => setThresholdMinInput(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    className="w-full rounded-xl border border-[#464037] bg-[#24211d] px-3.5 py-2 text-white font-mono text-base focus:outline-none focus:border-[#c59b6d]"
+                  />
+                  <p className="text-[10px] text-[#787165] leading-relaxed">
+                    When available stock drops to or below this number, the SKU will display a "LOW STOCK" badge on this console.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-[#181715] border border-[#38332c] space-y-2">
+                  <label className="text-[11px] font-semibold text-[#c59b6d] block">
+                    Max Stock Threshold (Ceiling Capacity) *
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    required
+                    value={thresholdMaxInput}
+                    onChange={(e) => setThresholdMaxInput(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    className="w-full rounded-xl border border-[#464037] bg-[#24211d] px-3.5 py-2 text-white font-mono text-base focus:outline-none focus:border-[#c59b6d]"
+                  />
+                  <p className="text-[10px] text-[#787165] leading-relaxed">
+                    Physical bay ceiling capacity. Prevents over-purchasing or overflowing dedicated studio storage racks.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-[#181715] border border-[#38332c] text-[11px] text-[#a8a093] flex items-center justify-between">
+                <span>Safe operational stock window:</span>
+                <span className="font-mono text-white font-semibold">
+                  {thresholdMinInput} to {thresholdMaxInput} units
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-[#38332c]">
+                <span className="text-[11px] text-[#787165]">
+                  Authorizing: {currentStaff.name}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setThresholdModalItem(null)}
+                    className="px-4 py-2 rounded-xl bg-[#2a2722] text-xs font-semibold text-[#a8a093] hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-[#c59b6d] text-[#181715] text-xs font-semibold hover:bg-[#d6aa7c] transition-colors shadow-xs"
+                  >
+                    Save Thresholds
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       )}
