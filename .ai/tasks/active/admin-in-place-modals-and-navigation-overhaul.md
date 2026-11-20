@@ -34,6 +34,14 @@ This created undesired, disruptive navigation away from the staff member's worki
 - [x] **Backup, Disaster Recovery & Schema Upgrades:** Instant server database snapshot generator (`handleTriggerDatabaseBackup`), JSON operational state download (`handleExportStateSnapshot`), Prisma schema migration status tracker, and staff maintenance bypass preview token generator (`handleGenerateBypassToken`).
 - [x] **Catalogue & Variants Deep Dive (Studio Review & Zone Governance):**
   - **Studio Review & Gallery Modal:** Full high-definition product preview with interactive variant edition selector, real-time image viewport switching, zoom/inspect toggle, and fullscreen lightbox overlay.
+  - **Dynamic Variant-Aware Architectural Specs (Section 3):**
+    - Seamlessly binds the architectural and engineering specification box to the active variant selection.
+    - Dynamically displays exact variant price (e.g. ₹52,000 for Grand Vanity vs ₹38,000 for Standard) with `Exact Edition Price` tag.
+    - Dynamically updates dimensions (e.g. `800mm W × 1200mm H × 35mm D` vs `600mm W × 900mm H × 30mm D`).
+    - Dynamically updates net product weight (`14.20 kg` vs `8.50 kg`) and calculated packed/volumetric weights (`15.0 kg actual / 17.9 kg volumetric`).
+    - Displays selected variant finish badge, SKU, and stock availability.
+    - Shows variant-specific editorial description override and highlights variant material finish in Materials & Craft.
+    - Added one-click "Reset to Master Specs ✕" and two-way toggle-off on variant chip clicks.
   - **Delivery Zone Logistics Matrix (Zones A to E):** Granular zone-level governance (Zone A Intra-City Metro, Zone B Regional Tier-1, Zone C Rest of India Tier-2, Zone D Special Terrains, Zone E White-Glove Heavy Freight) with instant click-to-toggle allowed/restricted status on every catalogue row and within the review modal, logging `ZONE_GOVERNANCE_UPDATE` audit events.
   - **Draft/Published Filter & Interactive SVG Donut Stabilization:**
     - Fixed missing `catalogueStatusFilter` dependency in `filteredCatalogue` `useMemo`, ensuring immediate real-time filtering upon clicking Live Published / Drafts.
